@@ -6,8 +6,6 @@
 </a>
 <br>
 
-![CMake](https://github.com/kunitoki/LuaBridge/workflows/CMake/badge.svg?branch=master)
-
 # LuaBridge 3.0
 
 [LuaBridge][1] is a lightweight and dependency-free library for mapping data,
@@ -30,6 +28,10 @@ LuaBridge is usable from a compliant C++17 compiler and offers the following fea
 - Written in a clear and easy to debug style.
 
 Please read the [LuaBridge Reference Manual][5] for more details on the API.
+
+## Status
+
+![CMake](https://github.com/kunitoki/LuaBridge/workflows/CMake/badge.svg?branch=master)
 
 ## Unit Tests
 
