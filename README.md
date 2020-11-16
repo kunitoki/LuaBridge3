@@ -41,7 +41,7 @@ There are 4 unit test flavors:
 
 Generate Unix Makefiles and build on Linux:
 ```bash
-clone --recurse-submodules git@github.com:kunitoki/LuaBridge.git
+git clone --recursive git@github.com:kunitoki/LuaBridge.git
 
 mkdir -p LuaBridge/build
 pushd LuaBridge/build
@@ -54,7 +54,7 @@ popd
 
 Generate XCode project and build on MacOS:
 ```bash
-clone --recurse-submodules git@github.com:kunitoki/LuaBridge.git
+git clone --recursive git@github.com:kunitoki/LuaBridge.git
 
 mkdir -p LuaBridge/build
 pushd LuaBridge/build
@@ -67,11 +67,12 @@ popd
 
 Generate VS2019 solution on Windows:
 ```cmd
-clone --recurse-submodules git@github.com:kunitoki/LuaBridge.git
+git clone --recursive git@github.com:kunitoki/LuaBridge.git
 
 mkdir LuaBridge/build
 pushd LuaBridge/build
 cmake -G "Visual Studio 16" ../ # Generates MSVS solution build/LuaBridge.sln
+popd
 ```
 
 ## Official Repository
@@ -85,7 +86,7 @@ documentation, and incorporated contributions from Nigel Atkinson.
 For questions, comments, or bug reports feel free to open a Github issue
 or contact Vinnie Falco directly at the email address indicated below.
 
-Copyright 2020, Lucio Asnaghi (<[kunitoki@gmail.com][7]>)<br>
+Copyright 2020, Lucio Asnaghi (<[kunitoki@gmail.com][6]>)<br>
 Copyright 2019, Dmitry Tarakanov<br>
 Copyright 2012, Vinnie Falco (<vinnie.falco@gmail.com>)<br>
 Copyright 2008, Nigel Atkinson<br>
@@ -103,5 +104,4 @@ BSD 3-Clause License. See the corresponding license file in those versions
 [3]:  http://luajit.org/ "The LuaJIT Probject"
 [4]:  http://www.opensource.org/licenses/mit-license.html "The MIT License"
 [5]:  http://kunitoki.github.com/LuaBridge "LuaBridge Reference Manual"
-[6]:  https://github.com/kunitoki "Lucio Asnaghi's Github"
-[7]:  mailto:kunitoki@gmail.com "Lucio Asnaghi (Email)"
+[6]:  mailto:kunitoki@gmail.com "Lucio Asnaghi (Email)"
