@@ -1,4 +1,5 @@
-// https://github.com/vinniefalco/LuaBridge
+// https://github.com/kunitoki/LuaBridge
+// Copyright 2020, Lucio Asnaghi
 // Copyright 2019, Dmitry Tarakanov
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // Copyright 2007, Nathan Reed
@@ -6,8 +7,8 @@
 
 #pragma once
 
-#include <LuaBridge/detail/LuaHelpers.h>
-#include <LuaBridge/detail/Userdata.h>
+#include "LuaHelpers.h"
+#include "Userdata.h"
 
 #include <string>
 
@@ -23,7 +24,7 @@ struct Stack;
 template<>
 struct Stack<void>
 {
-    static void push(lua_State* L) {}
+    static void push(lua_State*) {}
 };
 
 //------------------------------------------------------------------------------

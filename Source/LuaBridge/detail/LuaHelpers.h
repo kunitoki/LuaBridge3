@@ -1,4 +1,5 @@
-// https://github.com/vinniefalco/LuaBridge
+// https://github.com/kunitoki/LuaBridge
+// Copyright 2020, Lucio Asnaghi
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // Copyright 2007, Nathan Reed
 // SPDX-License-Identifier: MIT
@@ -10,7 +11,7 @@
 namespace luabridge {
 
 // These are for Lua versions prior to 5.2.0.
-//
+
 #if LUA_VERSION_NUM < 502
 inline int lua_absindex(lua_State* L, int idx)
 {
@@ -83,7 +84,8 @@ inline int get_length(lua_State* L, int idx)
 #define LUABRIDGE_LUA_OK LUA_OK
 #endif
 
-/** Get a table value, bypassing metamethods.
+/**
+ * @brief Get a table value, bypassing metamethods.
  */
 inline void rawgetfield(lua_State* L, int index, char const* key)
 {
@@ -93,7 +95,8 @@ inline void rawgetfield(lua_State* L, int index, char const* key)
     lua_rawget(L, index);
 }
 
-/** Set a table value, bypassing metamethods.
+/**
+ * @brief Set a table value, bypassing metamethods.
  */
 inline void rawsetfield(lua_State* L, int index, char const* key)
 {
@@ -104,23 +107,62 @@ inline void rawsetfield(lua_State* L, int index, char const* key)
     lua_rawset(L, index);
 }
 
-/** Returns true if the value is a full userdata (not light).
+/**
+ * @brief Returns true if the value is a full userdata (not light).
  */
 inline bool isfulluserdata(lua_State* L, int index)
 {
     return lua_isuserdata(L, index) && !lua_islightuserdata(L, index);
 }
 
-/** Test lua_State objects for global equality.
-
-    This can determine if two different lua_State objects really point
-    to the same global state, such as when using coroutines.
-
-    @note This is used for assertions.
-*/
+/**
+ * @brief Test lua_State objects for global equality.
+ *
+ * This can determine if two different lua_State objects really point
+ * to the same global state, such as when using coroutines.
+ * 
+ * @note This is used for assertions.
+ */
 inline bool equalstates(lua_State* L1, lua_State* L2)
 {
     return lua_topointer(L1, LUA_REGISTRYINDEX) == lua_topointer(L2, LUA_REGISTRYINDEX);
+}
+
+/**
+ * @brief Return an aligned pointer of type T.
+ */
+template <class T>
+T* align(void* ptr) noexcept
+{
+    auto address = reinterpret_cast<size_t>(ptr);
+
+    auto offset = address % alignof(T);
+    auto aligned_address = (offset == 0) ? address : (address + alignof(T) - offset);
+
+    return reinterpret_cast<T*>(aligned_address);
+}
+
+/**
+ * @brief Return the space needed to align the type T on an unaligned address.
+ */
+template <class T>
+size_t maximum_space_needed_to_align() noexcept
+{
+    return sizeof(T) + alignof(T) - 1;
+}
+
+/**
+ * @brief Allocate lua userdata taking into account alignment.
+ *
+ * Using this instead of lua_newuserdata directly prevents alignment warnings on 64bits platforms.
+ */
+template <class T, class... Args>
+void* lua_newuserdata_aligned(lua_State* L, Args&&... args)
+{
+    void* pointer = lua_newuserdata(L, maximum_space_needed_to_align<T>());
+    T* aligned = align<T>(pointer);
+    new (aligned) T(std::forward<Args>(args)...);
+    return pointer;
 }
 
 } // namespace luabridge

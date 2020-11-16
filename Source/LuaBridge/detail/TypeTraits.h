@@ -1,11 +1,12 @@
-// https://github.com/vinniefalco/LuaBridge
+// https://github.com/kunitoki/LuaBridge
+// Copyright 2020, Lucio Asnaghi
 // Copyright 2019, Dmitry Tarakanov
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // SPDX-License-Identifier: MIT
 
 #pragma once
 
-#include <LuaBridge/detail/Config.h>
+#include "Config.h"
 
 #include <string>
 

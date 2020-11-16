@@ -1,8 +1,8 @@
 //==============================================================================
 /*
-  https://github.com/vinniefalco/LuaBridge
-  https://github.com/vinniefalco/LuaBridgeDemo
+  https://github.com/kunitoki/LuaBridge
   
+  Copyright (C) 2020, Lucio Asnaghi <kunitoki@gmail.com>
   Copyright (C) 2012, Vinnie Falco <vinnie.falco@gmail.com>
 
   License: The MIT License (http://www.opensource.org/licenses/mit-license.php)
@@ -27,38 +27,36 @@
 */
 //==============================================================================
 
-/** Include file for the Lua library.
-*/
-
 #pragma once
 
 // This determines which version of Lua to use.
 // The value is the same as LUA_VERSION_NUM in lua.h
 
 #ifndef LUABRIDGEDEMO_LUA_VERSION
-#if 1
-  #define LUABRIDGEDEMO_LUA_VERSION 502   // use 5.2.0
-#else
-  #define LUABRIDGEDEMO_LUA_VERSION 501   // use 5.1.0 (really 5.1.5)
-#endif
+#define LUABRIDGEDEMO_LUA_VERSION 504 // By default use 5.4.1
 #endif
 
 #ifndef LUALIBRARY_SOURCE
 
-#if LUABRIDGEDEMO_LUA_VERSION >= 502
-  #include "Lua.5.2.0/src/lua.hpp"
+#if LUABRIDGEDEMO_LUA_VERSION >= 504
+#include "Lua.5.4.1/src/lua.hpp"
+
+#elif LUABRIDGEDEMO_LUA_VERSION >= 503
+#include "Lua.5.3.6/src/lua.hpp"
+
+#elif LUABRIDGEDEMO_LUA_VERSION >= 502
+#include "Lua.5.2.4/src/lua.hpp"
 
 #elif LUABRIDGEDEMO_LUA_VERSION >= 501
-extern "C"
-{
+extern "C" {
 #include "Lua.5.1.5/src/lua.h"
 #include "Lua.5.1.5/src/lualib.h"
 #include "Lua.5.1.5/src/lauxlib.h"
-}
+} // extern "C"
 
 #else
-  #error "Unknown LUA_VERSION_NUM"
+#error "Unknown LUA_VERSION_NUM"
 
-#endif
+#endif // LUABRIDGEDEMO_LUA_VERSION
 
-#endif
+#endif // LUALIBRARY_SOURCE

@@ -1,4 +1,5 @@
-// https://github.com/vinniefalco/LuaBridge
+// https://github.com/kunitoki/LuaBridge
+// Copyright 2020, Lucio Asnaghi
 // Copyright 2019, Dmitry Tarakanov
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // SPDX-License-Identifier: MIT
@@ -35,9 +36,9 @@ namespace detail {
 class Userdata
 {
 protected:
-    void* m_p; // subclasses must set this
+    void* m_p = nullptr; // subclasses must set this
 
-    Userdata() : m_p(0) {}
+    Userdata() {}
 
     //--------------------------------------------------------------------------
     /**
@@ -79,8 +80,7 @@ private:
         lua_getmetatable(L, index); // Stack: object metatable (ot) | nil
         if (!lua_istable(L, -1))
         {
-            lua_rawgetp(
-                L, LUA_REGISTRYINDEX, registryClassKey); // Stack: registry metatable (rt) | nil
+            lua_rawgetp(L, LUA_REGISTRYINDEX, registryClassKey); // Stack: registry metatable (rt) | nil
             return throwBadArg(L, index);
         }
 
@@ -136,9 +136,8 @@ private:
 
         int result = lua_getmetatable(L, index); // Stack: object metatable (ot) | nothing
         if (result == 0)
-        {
             return false; // Nothing was pushed on the stack
-        }
+
         if (!lua_istable(L, -1))
         {
             lua_pop(L, 1); // Stack: -
@@ -197,6 +196,7 @@ private:
                 }
             }
         }
+
         if (!got)
         {
             got = lua_typename(L, lua_type(L, index));
@@ -241,7 +241,10 @@ public:
     static T* get(lua_State* L, int index, bool canBeConst)
     {
         if (lua_isnil(L, index))
+        {
+            luaL_error(L, "argument %d is nil", index - 1);
             return 0;
+        }
 
         return static_cast<T*>(getClass(L,
                                         index,
@@ -300,14 +303,15 @@ public:
     */
     static UserdataValue<T>* place(lua_State* const L)
     {
-        UserdataValue<T>* const ud =
-            new (lua_newuserdata(L, sizeof(UserdataValue<T>))) UserdataValue<T>();
+        UserdataValue<T>* const ud = new (lua_newuserdata(L, sizeof(UserdataValue<T>))) UserdataValue<T>();
+
         lua_rawgetp(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>());
+
         if (!lua_istable(L, -1))
-        {
             throw std::logic_error("The class is not registered in LuaBridge");
-        }
+
         lua_setmetatable(L, -2);
+
         return ud;
     }
 
@@ -329,13 +333,15 @@ public:
     /**
       Confirm object construction.
     */
-    void commit() { m_p = getObject(); }
+    void commit()
+    {
+        m_p = getObject();
+    }
 
     T* getObject()
     {
         // If this fails to compile it means you forgot to provide
         // a Container specialization for your container!
-        //
         return reinterpret_cast<T*>(&m_storage[0]);
     }
 };
@@ -359,21 +365,22 @@ private:
     {
         new (lua_newuserdata(L, sizeof(UserdataPtr))) UserdataPtr(const_cast<void*>(p));
         lua_rawgetp(L, LUA_REGISTRYINDEX, key);
+
         if (!lua_istable(L, -1))
         {
             lua_pop(L, 1); // possibly: a nil
             throw std::logic_error("The class is not registered in LuaBridge");
         }
+
         lua_setmetatable(L, -2);
     }
 
     explicit UserdataPtr(void* const p)
     {
-        m_p = p;
-
         // Can't construct with a null pointer!
-        //
-        assert(m_p != 0);
+        assert(p != nullptr);
+
+        m_p = p;
     }
 
 public:
@@ -617,6 +624,7 @@ struct RefStackHelper<T, false>
 
         if (!t)
             luaL_error(L, "nil passed to reference");
+
         return *t;
     }
 };

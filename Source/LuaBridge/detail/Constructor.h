@@ -1,19 +1,14 @@
-// https://github.com/vinniefalco/LuaBridge
+// https://github.com/kunitoki/LuaBridge
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // Copyright 2007, Nathan Reed
 // SPDX-License-Identifier: MIT
 
 #pragma once
 
+#include "TypeList.h"
+
 namespace luabridge {
-
 namespace detail {
-
-/*
- * Constructor generators.  These templates allow you to call operator new and
- * pass the contents of a type/value list to the Constructor.  Like the
- * function pointer containers, these are only defined up to 8 parameters.
- */
 
 /** Constructor generators.
 
@@ -22,204 +17,40 @@ namespace detail {
     of call() are provided. One performs a regular new, the other performs
     a placement new.
 */
-template<class T, typename List>
-struct Constructor
-{
-};
+template <class T, class Params>
+struct Constructor;
 
-template<class T>
+template <class T>
 struct Constructor<T, None>
 {
-    static T* call(TypeListValues<None> const&) { return new T; }
-    static T* call(void* mem, TypeListValues<None> const&) { return new (mem) T; }
-};
-
-template<class T, class P1>
-struct Constructor<T, TypeList<P1>>
-{
-    static T* call(const TypeListValues<TypeList<P1>>& tvl) { return new T(tvl.hd); }
-    static T* call(void* mem, const TypeListValues<TypeList<P1>>& tvl)
+    static T* call(const TypeListValues<None>&)
     {
-        return new (mem) T(tvl.hd);
+        return new T;
+    }
+
+    static T* call(void* ptr, const TypeListValues<None>&)
+    {
+        return new (ptr) T;
     }
 };
 
-template<class T, class P1, class P2>
-struct Constructor<T, TypeList<P1, TypeList<P2>>>
+template<class T, class Params>
+struct Constructor
 {
-    static T* call(const TypeListValues<TypeList<P1, TypeList<P2>>>& tvl)
+    static T* call(const TypeListValues<Params>& tvl)
     {
-        return new T(tvl.hd, tvl.tl.hd);
+        auto alloc = [](auto&&... args) { return new T(std::forward<decltype(args)>(args)...); };
+        
+        return std::apply(alloc, typeListValuesTuple(tvl));
     }
-    static T* call(void* mem, const TypeListValues<TypeList<P1, TypeList<P2>>>& tvl)
+    
+    static T* call(void* ptr, const TypeListValues<Params>& tvl)
     {
-        return new (mem) T(tvl.hd, tvl.tl.hd);
-    }
-};
+        auto alloc = [ptr](auto&&... args) { return new (ptr) T(std::forward<decltype(args)>(args)...); };
 
-template<class T, class P1, class P2, class P3>
-struct Constructor<T, TypeList<P1, TypeList<P2, TypeList<P3>>>>
-{
-    static T* call(const TypeListValues<TypeList<P1, TypeList<P2, TypeList<P3>>>>& tvl)
-    {
-        return new T(tvl.hd, tvl.tl.hd, tvl.tl.tl.hd);
-    }
-    static T* call(void* mem, const TypeListValues<TypeList<P1, TypeList<P2, TypeList<P3>>>>& tvl)
-    {
-        return new (mem) T(tvl.hd, tvl.tl.hd, tvl.tl.tl.hd);
-    }
-};
-
-template<class T, class P1, class P2, class P3, class P4>
-struct Constructor<T, TypeList<P1, TypeList<P2, TypeList<P3, TypeList<P4>>>>>
-{
-    static T*
-    call(const TypeListValues<TypeList<P1, TypeList<P2, TypeList<P3, TypeList<P4>>>>>& tvl)
-    {
-        return new T(tvl.hd, tvl.tl.hd, tvl.tl.tl.hd, tvl.tl.tl.tl.hd);
-    }
-    static T*
-    call(void* mem,
-         const TypeListValues<TypeList<P1, TypeList<P2, TypeList<P3, TypeList<P4>>>>>& tvl)
-    {
-        return new (mem) T(tvl.hd, tvl.tl.hd, tvl.tl.tl.hd, tvl.tl.tl.tl.hd);
-    }
-};
-
-template<class T, class P1, class P2, class P3, class P4, class P5>
-struct Constructor<T, TypeList<P1, TypeList<P2, TypeList<P3, TypeList<P4, TypeList<P5>>>>>>
-{
-    static T*
-    call(const TypeListValues<TypeList<P1, TypeList<P2, TypeList<P3, TypeList<P4, TypeList<P5>>>>>>&
-             tvl)
-    {
-        return new T(tvl.hd, tvl.tl.hd, tvl.tl.tl.hd, tvl.tl.tl.tl.hd, tvl.tl.tl.tl.tl.hd);
-    }
-    static T*
-    call(void* mem,
-         const TypeListValues<TypeList<P1, TypeList<P2, TypeList<P3, TypeList<P4, TypeList<P5>>>>>>&
-             tvl)
-    {
-        return new (mem) T(tvl.hd, tvl.tl.hd, tvl.tl.tl.hd, tvl.tl.tl.tl.hd, tvl.tl.tl.tl.tl.hd);
-    }
-};
-
-template<class T, class P1, class P2, class P3, class P4, class P5, class P6>
-struct Constructor<
-    T,
-    TypeList<P1, TypeList<P2, TypeList<P3, TypeList<P4, TypeList<P5, TypeList<P6>>>>>>>
-{
-    static T*
-    call(const TypeListValues<
-         TypeList<P1, TypeList<P2, TypeList<P3, TypeList<P4, TypeList<P5, TypeList<P6>>>>>>>& tvl)
-    {
-        return new T(tvl.hd,
-                     tvl.tl.hd,
-                     tvl.tl.tl.hd,
-                     tvl.tl.tl.tl.hd,
-                     tvl.tl.tl.tl.tl.hd,
-                     tvl.tl.tl.tl.tl.tl.hd);
-    }
-    static T*
-    call(void* mem,
-         const TypeListValues<
-             TypeList<P1, TypeList<P2, TypeList<P3, TypeList<P4, TypeList<P5, TypeList<P6>>>>>>>&
-             tvl)
-    {
-        return new (mem) T(tvl.hd,
-                           tvl.tl.hd,
-                           tvl.tl.tl.hd,
-                           tvl.tl.tl.tl.hd,
-                           tvl.tl.tl.tl.tl.hd,
-                           tvl.tl.tl.tl.tl.tl.hd);
-    }
-};
-
-template<class T, class P1, class P2, class P3, class P4, class P5, class P6, class P7>
-struct Constructor<
-    T,
-    TypeList<P1,
-             TypeList<P2, TypeList<P3, TypeList<P4, TypeList<P5, TypeList<P6, TypeList<P7>>>>>>>>
-{
-    static T*
-    call(const TypeListValues<TypeList<
-             P1,
-             TypeList<P2, TypeList<P3, TypeList<P4, TypeList<P5, TypeList<P6, TypeList<P7>>>>>>>>&
-             tvl)
-    {
-        return new T(tvl.hd,
-                     tvl.tl.hd,
-                     tvl.tl.tl.hd,
-                     tvl.tl.tl.tl.hd,
-                     tvl.tl.tl.tl.tl.hd,
-                     tvl.tl.tl.tl.tl.tl.hd,
-                     tvl.tl.tl.tl.tl.tl.tl.hd);
-    }
-    static T*
-    call(void* mem,
-         const TypeListValues<TypeList<
-             P1,
-             TypeList<P2, TypeList<P3, TypeList<P4, TypeList<P5, TypeList<P6, TypeList<P7>>>>>>>>&
-             tvl)
-    {
-        return new (mem) T(tvl.hd,
-                           tvl.tl.hd,
-                           tvl.tl.tl.hd,
-                           tvl.tl.tl.tl.hd,
-                           tvl.tl.tl.tl.tl.hd,
-                           tvl.tl.tl.tl.tl.tl.hd,
-                           tvl.tl.tl.tl.tl.tl.tl.hd);
-    }
-};
-
-template<class T, class P1, class P2, class P3, class P4, class P5, class P6, class P7, class P8>
-struct Constructor<
-    T,
-    TypeList<
-        P1,
-        TypeList<
-            P2,
-            TypeList<P3, TypeList<P4, TypeList<P5, TypeList<P6, TypeList<P7, TypeList<P8>>>>>>>>>
-{
-    static T*
-    call(const TypeListValues<TypeList<
-             P1,
-             TypeList<
-                 P2,
-                 TypeList<P3,
-                          TypeList<P4, TypeList<P5, TypeList<P6, TypeList<P7, TypeList<P8>>>>>>>>>&
-             tvl)
-    {
-        return new T(tvl.hd,
-                     tvl.tl.hd,
-                     tvl.tl.tl.hd,
-                     tvl.tl.tl.tl.hd,
-                     tvl.tl.tl.tl.tl.hd,
-                     tvl.tl.tl.tl.tl.tl.hd,
-                     tvl.tl.tl.tl.tl.tl.tl.hd,
-                     tvl.tl.tl.tl.tl.tl.tl.tl.hd);
-    }
-    static T*
-    call(void* mem,
-         const TypeListValues<TypeList<
-             P1,
-             TypeList<
-                 P2,
-                 TypeList<P3,
-                          TypeList<P4, TypeList<P5, TypeList<P6, TypeList<P7, TypeList<P8>>>>>>>>>&
-             tvl)
-    {
-        return new (mem) T(tvl.hd,
-                           tvl.tl.hd,
-                           tvl.tl.tl.hd,
-                           tvl.tl.tl.tl.hd,
-                           tvl.tl.tl.tl.tl.hd,
-                           tvl.tl.tl.tl.tl.tl.hd,
-                           tvl.tl.tl.tl.tl.tl.tl.hd,
-                           tvl.tl.tl.tl.tl.tl.tl.tl.hd);
+        return std::apply(alloc, typeListValuesTuple(tvl));
     }
 };
 
 } // namespace detail
-
 } // namespace luabridge

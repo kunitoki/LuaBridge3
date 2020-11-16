@@ -1,11 +1,12 @@
-// https://github.com/vinniefalco/LuaBridge
+// https://github.com/kunitoki/LuaBridge
+// Copyright 2020, Lucio Asnaghi
 // Copyright 2018, Dmitry Tarakanov
 // SPDX-License-Identifier: MIT
 
 #pragma once
 
-#include <LuaBridge/detail/Stack.h>
-#include <LuaBridge/detail/dump.h>
+#include "detail/Stack.h"
+#include "detail/Dump.h"
 
 #include <map>
 

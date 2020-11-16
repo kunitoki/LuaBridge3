@@ -1,4 +1,6 @@
-// https://github.com/vinniefalco/LuaBridge
+// https://github.com/kunitoki/LuaBridge
+// Copyright 2020, Lucio Asnaghi
+// Copyright 2019, George Tokmaji
 // Copyright 2018, Dmitry Tarakanov
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // Copyright 2008, Nigel Atkinson <suprapilot+LuaCode@gmail.com>
@@ -6,8 +8,8 @@
 
 #pragma once
 
-#include <LuaBridge/detail/LuaException.h>
-#include <LuaBridge/detail/Stack.h>
+#include "LuaException.h"
+#include "Stack.h"
 
 #include <iostream>
 #include <map>
@@ -18,27 +20,49 @@ namespace luabridge {
 
 //------------------------------------------------------------------------------
 /**
-    Type tag for representing LUA_TNIL.
-
-    Construct one of these using `Nil ()` to represent a Lua nil. This is faster
-    than creating a reference in the registry to nil. Example:
-
-        LuaRef t (LuaRef::createTable (L));
-        ...
-        t ["k"] = Nil (); // assign nil
+    Helper for iterating through tuple arguments, pushing eash argument to the
+    stack. Adapted from https://stackoverflow.com/a/6894436
 */
-struct Nil
+
+template <std::size_t I = 0, typename... Tp>
+auto push_arguments(lua_State*, const std::tuple<Tp...>&) // Unused arguments are given no names.
+    -> std::enable_if_t<I == sizeof...(Tp)>
+{
+}
+
+template <std::size_t I = 0, typename... Tp>
+auto push_arguments(lua_State* L, const std::tuple<Tp...>& t)
+    -> std::enable_if_t<I < sizeof...(Tp)>
+{
+    Stack<typename std::tuple_element<I, std::tuple<Tp...>>::type>::push(L, std::get<I>(t));
+    push_arguments<I + 1, Tp...>(L, t);
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief Type tag for representing LUA_TNIL.
+ *
+ * Construct one of these using `LuaNil ()` to represent a Lua nil. This is faster
+ * than creating a reference in the registry to nil. Example:
+ *
+ * @code
+ *     LuaRef t (LuaRef::createTable (L));
+ *     ...
+ *     t ["k"] = LuaNil (); // assign nil
+ * @endcode
+ */
+struct LuaNil
 {
 };
 
 //------------------------------------------------------------------------------
 /**
-    Stack specialization for Nil.
-*/
+ * @code Stack specialization for LuaNil.
+ */
 template<>
-struct Stack<Nil>
+struct Stack<LuaNil>
 {
-    static void push(lua_State* L, Nil) { lua_pushnil(L); }
+    static void push(lua_State* L, LuaNil) { lua_pushnil(L); }
 
     static bool isInstance(lua_State* L, int index) { return lua_type(L, index) == LUA_TTABLE; }
 };
@@ -314,7 +338,9 @@ public:
     T cast() const
     {
         StackPop p(m_L, 1);
+
         impl().push();
+
         return Stack<T>::get(m_L, -1);
     }
 
@@ -329,7 +355,9 @@ public:
     bool isInstance() const
     {
         StackPop p(m_L, 1);
+
         impl().push();
+
         return Stack<T>::isInstance(m_L, -1);
     }
 
@@ -358,8 +386,11 @@ public:
     bool operator==(T rhs) const
     {
         StackPop p(m_L, 2);
+
         impl().push();
+
         Stack<T>::push(m_L, rhs);
+
         return lua_compare(m_L, -2, -1, LUA_OPEQ) == 1;
     }
 
@@ -374,15 +405,16 @@ public:
     bool operator<(T rhs) const
     {
         StackPop p(m_L, 2);
+
         impl().push();
-        ;
+
         Stack<T>::push(m_L, rhs);
+
         int lhsType = lua_type(m_L, -2);
         int rhsType = lua_type(m_L, -1);
         if (lhsType != rhsType)
-        {
             return lhsType < rhsType;
-        }
+
         return lua_compare(m_L, -2, -1, LUA_OPLT) == 1;
     }
 
@@ -397,15 +429,16 @@ public:
     bool operator<=(T rhs) const
     {
         StackPop p(m_L, 2);
+
         impl().push();
-        ;
+
         Stack<T>::push(m_L, rhs);
+
         int lhsType = lua_type(m_L, -2);
         int rhsType = lua_type(m_L, -1);
         if (lhsType != rhsType)
-        {
             return lhsType <= rhsType;
-        }
+
         return lua_compare(m_L, -2, -1, LUA_OPLE) == 1;
     }
 
@@ -420,15 +453,16 @@ public:
     bool operator>(T rhs) const
     {
         StackPop p(m_L, 2);
+
         impl().push();
-        ;
+
         Stack<T>::push(m_L, rhs);
+
         int lhsType = lua_type(m_L, -2);
         int rhsType = lua_type(m_L, -1);
         if (lhsType != rhsType)
-        {
             return lhsType > rhsType;
-        }
+
         return lua_compare(m_L, -1, -2, LUA_OPLT) == 1;
     }
 
@@ -443,15 +477,16 @@ public:
     bool operator>=(T rhs) const
     {
         StackPop p(m_L, 2);
+
         impl().push();
-        ;
+
         Stack<T>::push(m_L, rhs);
+
         int lhsType = lua_type(m_L, -2);
         int rhsType = lua_type(m_L, -1);
         if (lhsType != rhsType)
-        {
             return lhsType >= rhsType;
-        }
+
         return lua_compare(m_L, -1, -2, LUA_OPLE) == 1;
     }
 
@@ -466,8 +501,9 @@ public:
     bool rawequal(T rhs) const
     {
         StackPop p(m_L, 2);
+
         impl().push();
-        ;
+
         Stack<T>::push(m_L, rhs);
         return lua_rawequal(m_L, -1, -2) == 1;
     }
@@ -484,7 +520,7 @@ public:
     void append(T v) const
     {
         impl().push();
-        ;
+
         Stack<T>::push(m_L, v);
         luaL_ref(m_L, -2);
         lua_pop(m_L, 1);
@@ -500,8 +536,9 @@ public:
     int length() const
     {
         StackPop p(m_L, 1);
+
         impl().push();
-        ;
+
         return get_length(m_L, -1);
     }
 
@@ -514,122 +551,17 @@ public:
 
         @returns A result of the call.
     */
-    /** @{ */
-    LuaRef operator()() const
+    template <typename... Args>
+    LuaRef operator()(Args&&... args) const
     {
         impl().push();
-        ;
-        LuaException::pcall(m_L, 0, 1);
-        return LuaRef::fromStack(m_L);
-    }
 
-    template<class P1>
-    LuaRef operator()(P1 p1) const
-    {
-        impl().push();
-        ;
-        Stack<P1>::push(m_L, p1);
-        LuaException::pcall(m_L, 1, 1);
-        return LuaRef::fromStack(m_L);
-    }
+        push_arguments(m_L, std::forward_as_tuple(args...));
 
-    template<class P1, class P2>
-    LuaRef operator()(P1 p1, P2 p2) const
-    {
-        impl().push();
-        ;
-        Stack<P1>::push(m_L, p1);
-        Stack<P2>::push(m_L, p2);
-        LuaException::pcall(m_L, 2, 1);
-        return LuaRef::fromStack(m_L);
-    }
+        LuaException::pcall (m_L, sizeof...(args), 1);
 
-    template<class P1, class P2, class P3>
-    LuaRef operator()(P1 p1, P2 p2, P3 p3) const
-    {
-        impl().push();
-        ;
-        Stack<P1>::push(m_L, p1);
-        Stack<P2>::push(m_L, p2);
-        Stack<P3>::push(m_L, p3);
-        LuaException::pcall(m_L, 3, 1);
         return LuaRef::fromStack(m_L);
     }
-
-    template<class P1, class P2, class P3, class P4>
-    LuaRef operator()(P1 p1, P2 p2, P3 p3, P4 p4) const
-    {
-        impl().push();
-        ;
-        Stack<P1>::push(m_L, p1);
-        Stack<P2>::push(m_L, p2);
-        Stack<P3>::push(m_L, p3);
-        Stack<P4>::push(m_L, p4);
-        LuaException::pcall(m_L, 4, 1);
-        return LuaRef::fromStack(m_L);
-    }
-
-    template<class P1, class P2, class P3, class P4, class P5>
-    LuaRef operator()(P1 p1, P2 p2, P3 p3, P4 p4, P5 p5) const
-    {
-        impl().push();
-        ;
-        Stack<P1>::push(m_L, p1);
-        Stack<P2>::push(m_L, p2);
-        Stack<P3>::push(m_L, p3);
-        Stack<P4>::push(m_L, p4);
-        Stack<P5>::push(m_L, p5);
-        LuaException::pcall(m_L, 5, 1);
-        return LuaRef::fromStack(m_L);
-    }
-
-    template<class P1, class P2, class P3, class P4, class P5, class P6>
-    LuaRef operator()(P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6) const
-    {
-        impl().push();
-        ;
-        Stack<P1>::push(m_L, p1);
-        Stack<P2>::push(m_L, p2);
-        Stack<P3>::push(m_L, p3);
-        Stack<P4>::push(m_L, p4);
-        Stack<P5>::push(m_L, p5);
-        Stack<P6>::push(m_L, p6);
-        LuaException::pcall(m_L, 6, 1);
-        return LuaRef::fromStack(m_L);
-    }
-
-    template<class P1, class P2, class P3, class P4, class P5, class P6, class P7>
-    LuaRef operator()(P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6, P7 p7) const
-    {
-        impl().push();
-        ;
-        Stack<P1>::push(m_L, p1);
-        Stack<P2>::push(m_L, p2);
-        Stack<P3>::push(m_L, p3);
-        Stack<P4>::push(m_L, p4);
-        Stack<P5>::push(m_L, p5);
-        Stack<P6>::push(m_L, p6);
-        Stack<P7>::push(m_L, p7);
-        LuaException::pcall(m_L, 7, 1);
-        return LuaRef::fromStack(m_L);
-    }
-
-    template<class P1, class P2, class P3, class P4, class P5, class P6, class P7, class P8>
-    LuaRef operator()(P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6, P7 p7, P8 p8) const
-    {
-        impl().push();
-        Stack<P1>::push(m_L, p1);
-        Stack<P2>::push(m_L, p2);
-        Stack<P3>::push(m_L, p3);
-        Stack<P4>::push(m_L, p4);
-        Stack<P5>::push(m_L, p5);
-        Stack<P6>::push(m_L, p6);
-        Stack<P7>::push(m_L, p7);
-        Stack<P8>::push(m_L, p8);
-        LuaException::pcall(m_L, 8, 1);
-        return LuaRef::fromStack(m_L);
-    }
-    /** @} */
 
     //============================================================================
 
@@ -966,7 +898,7 @@ public:
 
       @returns This reference.
     */
-    LuaRef& operator=(Nil const&)
+    LuaRef& operator=(LuaNil const&)
     {
         LuaRef ref(m_L);
         swap(ref);

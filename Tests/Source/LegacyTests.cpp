@@ -1,4 +1,5 @@
-// https://github.com/vinniefalco/LuaBridge
+// https://github.com/kunitoki/LuaBridge
+// Copyright 2020, Lucio Asnaghi
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // Copyright 2007, Nathan Reed
 // SPDX-License-Identifier: MIT
@@ -6,10 +7,9 @@
 // A set of tests of different types' communication with Lua
 
 #include "TestBase.h"
+#include "LegacyTests.h"
 
 #include "LuaBridge/RefCountedPtr.h"
-
-#include "JuceLibraryCode/BinaryData.h"
 
 #include <cstring>
 #include <iostream>

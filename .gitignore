@@ -3,6 +3,7 @@ Documentation
 Makefile
 CMakeCache.txt
 CMakeFiles/
+build/
 *.dir/
 *.cmake
 *.sln
@@ -11,3 +12,4 @@ CMakeFiles/
 *.vcxproj.user
 .vs/
 .vscode
+.DS_store

@@ -1,9 +1,11 @@
-// https://github.com/vinniefalco/LuaBridge
+// https://github.com/kunitoki/LuaBridge
+// Copyright 2020, Lucio Asnaghi
+// Copyright 2019, George Tokmaji
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // Copyright 2007, Nathan Reed
 // SPDX-License-Identifier: MIT
 
-//==============================================================================
+//=================================================================================================
 /*
   This file incorporates work covered by the following copyright and
   permission notice:
@@ -21,77 +23,88 @@
         suitability of this software for any purpose. It is provided "as is"
         without express or implied warranty.
 */
-//==============================================================================
+//=================================================================================================
 
 #pragma once
 
-#include <LuaBridge/detail/Config.h>
-#include <LuaBridge/detail/Stack.h>
+#include "Config.h"
+#include "Stack.h"
 
 #include <string>
 #include <typeinfo>
+#include <tuple>
 
 namespace luabridge {
-
 namespace detail {
 
+//=================================================================================================
 /**
-  None type means void parameters or return value.
-*/
-typedef void None;
+ * @brief None type means void parameters or return value.
+ */
+using None = void;
 
-template<typename Head, typename Tail = None>
+//=================================================================================================
+/**
+ * @brief Type list type pack..
+ */
+template <class Head, class Tail = None>
 struct TypeList
 {
     typedef Tail TailType;
 };
 
-template<class List>
+template <class List>
 struct TypeListSize
 {
-    static const size_t value = TypeListSize<typename List::TailType>::value + 1;
+    static constexpr size_t value = TypeListSize<typename List::TailType>::value + 1;
 };
 
-template<>
+template <>
 struct TypeListSize<None>
 {
-    static const size_t value = 0;
+    static constexpr size_t value = 0u;
 };
 
-template<class... Params>
+template <class... Params>
 struct MakeTypeList;
 
-template<class Param, class... Params>
+template <class Param, class... Params>
 struct MakeTypeList<Param, Params...>
 {
     using Result = TypeList<Param, typename MakeTypeList<Params...>::Result>;
 };
 
-template<>
+template <>
 struct MakeTypeList<>
 {
     using Result = None;
 };
 
+//=================================================================================================
 /**
-  A TypeList with actual values.
-*/
-template<typename List>
+ * @brief A TypeList with actual values.
+ */
+template <class List>
 struct TypeListValues
 {
     static std::string const tostring(bool) { return ""; }
 };
 
+//=================================================================================================
 /**
-  TypeListValues recursive template definition.
-*/
-template<typename Head, typename Tail>
+ * @brief TypeListValues recursive template definition.
+ */
+template <class Head, class Tail>
 struct TypeListValues<TypeList<Head, Tail>>
 {
     Head hd;
     TypeListValues<Tail> tl;
 
-    TypeListValues(Head hd_, TypeListValues<Tail> const& tl_) : hd(hd_), tl(tl_) {}
+    TypeListValues(Head hd_, const TypeListValues<Tail>& tl_)
+        : hd(hd_)
+        , tl(tl_)
+    {
+    }
 
     static std::string tostring(bool comma = false)
     {
@@ -110,15 +123,19 @@ struct TypeListValues<TypeList<Head, Tail>>
 // const-references.  We need to handle these specially since we can't count
 // on the referenced object hanging around for the lifetime of the list.
 
-template<typename Head, typename Tail>
+template <class Head, class Tail>
 struct TypeListValues<TypeList<Head&, Tail>>
 {
     Head hd;
     TypeListValues<Tail> tl;
 
-    TypeListValues(Head& hd_, TypeListValues<Tail> const& tl_) : hd(hd_), tl(tl_) {}
+    TypeListValues(Head& hd_, const TypeListValues<Tail>& tl_)
+        : hd(hd_)
+        , tl(tl_)
+    {
+    }
 
-    static std::string const tostring(bool comma = false)
+    static std::string tostring(bool comma = false)
     {
         std::string s;
 
@@ -131,15 +148,19 @@ struct TypeListValues<TypeList<Head&, Tail>>
     }
 };
 
-template<typename Head, typename Tail>
-struct TypeListValues<TypeList<Head const&, Tail>>
+template <class Head, class Tail>
+struct TypeListValues<TypeList<const Head&, Tail>>
 {
     Head hd;
     TypeListValues<Tail> tl;
 
-    TypeListValues(Head const& hd_, const TypeListValues<Tail>& tl_) : hd(hd_), tl(tl_) {}
+    TypeListValues(Head const& hd_, const TypeListValues<Tail>& tl_)
+        : hd(hd_)
+        , tl(tl_)
+    {
+    }
 
-    static std::string const tostring(bool comma = false)
+    static std::string tostring(bool comma = false)
     {
         std::string s;
 
@@ -154,30 +175,59 @@ struct TypeListValues<TypeList<Head const&, Tail>>
 
 //==============================================================================
 /**
-  Subclass of a TypeListValues constructable from the Lua stack.
-*/
+ * @brief Type list to tuple forwarder.
+ */
+template <class Head, class Tail>
+auto typeListValuesTuple(TypeListValues<TypeList<Head, Tail>>& tvl)
+{
+    if constexpr (std::is_same_v<Tail, void>)
+    {
+        return std::forward_as_tuple(tvl.hd);
+    }
+    else
+    {
+        return std::tuple_cat(std::forward_as_tuple(tvl.hd), typeListValuesTuple(tvl.tl));
+    }
+}
 
-template<typename List, int Start = 1>
+template <class Head, class Tail>
+auto typeListValuesTuple(const TypeListValues<TypeList<Head, Tail>>& tvl)
+{
+    if constexpr (std::is_same_v<Tail, void>)
+    {
+        return std::forward_as_tuple(tvl.hd);
+    }
+    else
+    {
+        return std::tuple_cat(std::forward_as_tuple(tvl.hd), typeListValuesTuple(tvl.tl));
+    }
+}
+
+//==============================================================================
+/**
+ * @brief Subclass of a TypeListValues constructable from the Lua stack.
+ */
+template <class List, size_t Start = 1>
 struct ArgList
 {
 };
 
-template<int Start>
+template <size_t Start>
 struct ArgList<None, Start> : public TypeListValues<None>
 {
-    ArgList(lua_State*) {}
+    ArgList(lua_State*)
+    {
+    }
 };
 
-template<typename Head, typename Tail, int Start>
+template <class Head, class Tail, size_t Start>
 struct ArgList<TypeList<Head, Tail>, Start> : public TypeListValues<TypeList<Head, Tail>>
 {
     ArgList(lua_State* L)
-        : TypeListValues<TypeList<Head, Tail>>(Stack<Head>::get(L, Start),
-                                               ArgList<Tail, Start + 1>(L))
+        : TypeListValues<TypeList<Head, Tail>>(Stack<Head>::get(L, Start), ArgList<Tail, Start + 1>(L))
     {
     }
 };
 
 } // namespace detail
-
 } // namespace luabridge

@@ -1,3 +1,13 @@
+## Version 3.0
+* Moved to c++17 as minimum supported standard c++ version
+* Removed the limitation to 8 parameters in functions
+* Removed the limitation to 8 parameters in constructors
+* Fixed unaligned access in user allocated member pointers in 64bit machines reported by ASAN
+* Removed juce traces from unit tests, simplified unit tests run
+* Bumped unit tests against lua 5.2.4
+* Added unit tests against lua 5.3.6 and 5.4.1
+* Small improvements to code and doxygen comments readability
+
 ## Version 2.6
 
 * Added namespace `addFunction()` accepting `std::function` (C++11 only).

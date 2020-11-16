@@ -1,7 +1,7 @@
 <!doctype html>
 <html>
 <head>
-<title>LuaBridge 2.6 Reference Manual</title>
+<title>LuaBridge 3.0 Reference Manual</title>
 <META HTTP-EQUIV="content-type" CONTENT="text/html; charset=iso-8859-1">
 
 <!--=========================================================================-->
@@ -134,15 +134,18 @@ pre.split + pre.split {
 
 <header>
 <hr>
-<h1>LuaBridge 2.6 Reference Manual</h1>
+<h1>LuaBridge 3.0 Reference Manual</h1>
 <hr>
 </header>
 
 <small>
 Official repository is located at
 <a href="https://github.com/vinniefalco/LuaBridge">https://github.com/vinniefalco/LuaBridge</a>.
-<br>
-Copyright &copy; 2012 Vinnie Falco. Freely available under the terms of the
+<br> Copyright &copy; 2020 Asnaghi Lucio.
+<br> Copyright &copy; 2019 Dmitry Tarakanov.
+<br> Copyright &copy; 2012 Vinnie Falco.
+<br> Copyright &copy; 2007 Nathan Reed.
+<br> Freely available under the terms of the
 <a href="http://www.opensource.org/licenses/mit-license.html">MIT License</a>.
 </small>
 
@@ -211,17 +214,17 @@ Copyright &copy; 2012 Vinnie Falco. Freely available under the terms of the
 <h1>1 - <span id="s1">Introduction</span></h1>
 
 <p>
-<a href="https://github.com/vinniefalco/LuaBridge">LuaBridge</a> is a
+<a href="https://github.com/kunitoki/LuaBridge">LuaBridge</a> is a
 lightweight and dependency-free library for mapping data, functions, and
 classes back and forth between C++ and <a href="http://wwww.lua.org">Lua</a>,
 a powerful, fast, lightweight, embeddable scripting language. LuaBridge has
-been tested and works with Lua revisions starting from 5.1.5, although it
-should work in any version of Lua from 5.1.0 and later. It also works
+been tested and works with Lua revisions starting from 5.1.5, and also
+compatibility is provided with lua 5.2.4, 5.3.6 and 5.4.1. It also works
 transparently with <a href="http://luajit.org/">LuaJIT</a>.
 </p>
 
 <p>
-LuaBridge offers the following features:
+LuaBridge is usable from a compliant C++17 and offers the following features:
 </p>
 
 <ul class="bullets" title="Features">
@@ -234,7 +237,6 @@ LuaBridge offers the following features:
 <li>Automatic function parameter type binding.</li>
 <li>Easy access to Lua objects like tables and functions.</li>
 <li>Written in a clear and easy to debug style.</li>
-<li>C++11 compliant.</li>
 </ul>
 
 <p>
@@ -294,8 +296,6 @@ LuaBridge does not support:
 
 <ul class="bullets">
 <li>Enumerated constants
-<li>More than 8 parameters on a function or method (although this can be
-    increased by adding more <code>TypeListValues</code> specializations).
 <li>Overloaded functions, methods, or constructors.
 <li>Global variables (variables must be wrapped in a named scope).
 <li>Automatic conversion between STL container types and Lua tables
@@ -318,27 +318,12 @@ LuaBridge does not support:
 
 <p>
 The official repository is located at
-<a href="https://github.com/vinniefalco/LuaBridge">https://github.com/vinniefalco/LuaBridge</a>.
+<a href="https://github.com/kunitoki/LuaBridge">https://github.com/kunitoki/LuaBridge</a>.
 </p>
 
 <p>
 The <b>master</b> branch contains published library versions. Release versions are marked with tags.
 </p>
-
-<p>
-These repositories are also available:
-</p>
-
-<table>
-<tr>
-  <td><b><a href="https://github.com/vinniefalco/LuaBridgeUnitTests">LuaBridgeUnitTests</a></b></td>
-  <td>A stand alone command line application to exercise LuaBridge functionality.</td>
-</tr>
-<tr>
-  <td><b><a href="https://github.com/vinniefalco/LuaBridgeDemo">LuaBridgeUnitDemo</a></b></td>
-  <td>A stand alone GUI application that provides an interactive console.</td>
-</tr>
-</table>
 
 </section>
 
@@ -386,11 +371,12 @@ or contact Vinnie Falco directly at the email address indicated below.
 </p>
 
 <ul>
+<li>Copyright 2020, Lucio Asnaghi <a href="mailto:kunitoki@gmail.com">&lt;kunitoki@gmail.com&gt;</a></li>
 <li>Copyright 2019, Dmitry Tarakanov</li>
-<li>Copyright 2012, Vinnie Falco <a href="mailto:vinnie.falco@gmail.com">&lt;vinnie.falco@gmail.com&gt;</a>
-<li>Copyright 2008, Nigel Atkinson <a href="mailto:suprapilot+LuaCode@gmail.com">&lt;suprapilot+LuaCode@gmail.com&gt;</a>
-<li>Copyright 2007, Nathan Reed
-<li>Portions from The Loki Library: Copyright 2001 by Andrei Alexandrescu
+<li>Copyright 2012, Vinnie Falco <a href="mailto:vinnie.falco@gmail.com">&lt;vinnie.falco@gmail.com&gt;</a></li>
+<li>Copyright 2008, Nigel Atkinson <a href="mailto:suprapilot+LuaCode@gmail.com">&lt;suprapilot+LuaCode@gmail.com&gt;</a></li>
+<li>Copyright 2007, Nathan Reed</li>
+<li>Portions from The Loki Library: Copyright 2001 by Andrei Alexandrescu</li>
 </ul>
 
 <p>

@@ -1,4 +1,4 @@
-// https://github.com/vinniefalco/LuaBridge
+// https://github.com/kunitoki/LuaBridge
 // Copyright 2019, Dmitry Tarakanov
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // Copyright 2007, Nathan Reed
@@ -70,7 +70,8 @@ struct TestBase : public ::testing::Test
 
         if (lua_pcall(L, 0, 0, -2) != 0)
         {
-            throw std::runtime_error(lua_tostring(L, -1));
+            auto errorString = lua_tostring(L, -1);
+            throw std::runtime_error(errorString ? errorString : "Unknown lua error");
         }
     }
 

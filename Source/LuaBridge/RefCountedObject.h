@@ -1,4 +1,5 @@
-// https://github.com/vinniefalco/LuaBridge
+// https://github.com/kunitoki/LuaBridge
+// Copyright 2020, Lucio Asnaghi
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // Copyright 2004-11 by Raw Material Software Ltd.
 // SPDX-License-Identifier: MIT
@@ -38,8 +39,8 @@
 
 #pragma once
 
-#include <LuaBridge/detail/Config.h>
-#include <LuaBridge/detail/TypeTraits.h>
+#include "detail/Config.h"
+#include "detail/TypeTraits.h"
 
 #include <cassert>
 

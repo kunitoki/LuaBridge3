@@ -1,4 +1,4 @@
-// https://github.com/vinniefalco/LuaBridge
+// https://github.com/kunitoki/LuaBridge
 // Copyright 2020, Dmitry Tarakanov
 // SPDX-License-Identifier: MIT
 
@@ -524,7 +524,8 @@ TEST_F(ClassFunctions, StdFunctions)
         .addFunction("method", std::move(function))
         .endClass();
 
-    sharedData = nullptr;
+    function = nullptr;
+    sharedData.reset();
     ASSERT_FALSE(data.expired());
 
     addHelperFunctions(L);
@@ -569,7 +570,8 @@ TEST_F(ClassFunctions, StdFunctions_PassState)
         .addFunction("method", std::move(function))
         .endClass();
 
-    sharedData = nullptr;
+    function = nullptr;
+    sharedData.reset();
     ASSERT_FALSE(data.expired());
 
     addHelperFunctions(L);
@@ -613,7 +615,8 @@ TEST_F(ClassFunctions, ConstStdFunctions)
         .addFunction("constMethod", std::move(function))
         .endClass();
 
-    sharedData = nullptr;
+    function = nullptr;
+    sharedData.reset();
     ASSERT_FALSE(data.expired());
 
     addHelperFunctions(L);
@@ -1074,10 +1077,12 @@ TEST_F(ClassProperties, StdFunctions)
         .addProperty("data", std::move(getter), std::move(setter))
         .endClass();
 
-    sharedGetterData = nullptr;
+    getter = nullptr;
+    sharedGetterData.reset();
     ASSERT_FALSE(getterData.expired());
 
-    sharedSetterData = nullptr;
+    setter = nullptr;
+    sharedSetterData.reset();
     ASSERT_FALSE(setterData.expired());
 
     runLua("result = Int (501)");
@@ -1112,7 +1117,8 @@ TEST_F(ClassProperties, StdFunctions_ReadOnly)
         .addProperty("data", std::move(getter))
         .endClass();
 
-    sharedGetterData = nullptr;
+    getter = nullptr;
+    sharedGetterData.reset();
     ASSERT_FALSE(getterData.expired());
 
     runLua("result = Int (501)");
@@ -1696,4 +1702,48 @@ TEST_F(ClassTests, DestructorIsCalledOnce)
     lua_close(L);
     L = nullptr;
     ASSERT_EQ(1, InnerClass::destructorCallCount);
+}
+
+TEST_F(ClassTests, ConstructorTakesMoreThanEightArgs)
+{
+    struct WideClass
+    {
+        WideClass(int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9, int a10)
+        {
+            a1_ = a1;
+            a2_ = a2;
+            a3_ = a3;
+            a4_ = a4;
+            a5_ = a5;
+            a6_ = a6;
+            a7_ = a7;
+            a8_ = a8;
+            a9_ = a9;
+            a10_ = a10;
+        }
+        
+        int a1_, a2_, a3_, a4_, a5_, a6_, a7_, a8_, a9_, a10_;
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<WideClass>("WideClass")
+        .addConstructor<void (*)(int, int, int, int, int, int, int, int, int, int)>()
+        .endClass();
+
+    runLua("result = WideClass (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)");
+
+    ASSERT_TRUE(result().isUserdata());
+    ASSERT_EQ(1, result<WideClass>().a1_);
+    ASSERT_EQ(2, result<WideClass>().a2_);
+    ASSERT_EQ(3, result<WideClass>().a3_);
+    ASSERT_EQ(4, result<WideClass>().a4_);
+    ASSERT_EQ(5, result<WideClass>().a5_);
+    ASSERT_EQ(6, result<WideClass>().a6_);
+    ASSERT_EQ(7, result<WideClass>().a7_);
+    ASSERT_EQ(8, result<WideClass>().a8_);
+    ASSERT_EQ(9, result<WideClass>().a9_);
+    ASSERT_EQ(10, result<WideClass>().a10_);
+
+    lua_close(L);
+    L = nullptr;
 }

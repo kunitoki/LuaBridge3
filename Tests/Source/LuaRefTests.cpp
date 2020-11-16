@@ -1,4 +1,5 @@
-// https://github.com/vinniefalco/LuaBridge
+// https://github.com/kunitoki/LuaBridge
+// Copyright 2020, Lucio Asnaghi
 // Copyright 2019, Dmitry Tarakanov
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // Copyright 2007, Nathan Reed
@@ -15,11 +16,11 @@ struct LuaRefTests : TestBase
 TEST_F(LuaRefTests, ValueAccess)
 {
     runLua("result = true");
-    ASSERT_TRUE(result().isBool());
+    EXPECT_TRUE(result().isBool());
     ASSERT_TRUE(result<bool>());
 
     runLua("result = 7");
-    ASSERT_TRUE(result().isNumber());
+    EXPECT_TRUE(result().isNumber());
     ASSERT_EQ(7u, result<unsigned char>());
     ASSERT_EQ(7, result<short>());
     ASSERT_EQ(7u, result<unsigned short>());
@@ -31,18 +32,18 @@ TEST_F(LuaRefTests, ValueAccess)
     ASSERT_EQ(7u, result<unsigned long long>());
 
     runLua("result = 3.14");
-    ASSERT_TRUE(result().isNumber());
+    EXPECT_TRUE(result().isNumber());
     ASSERT_FLOAT_EQ(3.14f, result<float>());
     ASSERT_DOUBLE_EQ(3.14, result<double>());
 
     runLua("result = 'D'");
-    ASSERT_TRUE(result().isString());
+    EXPECT_TRUE(result().isString());
     ASSERT_EQ('D', result<char>());
     ASSERT_EQ("D", result<std::string>());
     ASSERT_STREQ("D", result<const char*>());
 
     runLua("result = 'abc'");
-    ASSERT_TRUE(result().isString());
+    EXPECT_TRUE(result().isString());
     ASSERT_EQ("abc", result<std::string>());
     ASSERT_STREQ("abc", result<char const*>());
 
@@ -50,11 +51,11 @@ TEST_F(LuaRefTests, ValueAccess)
            "  result = i + 1 "
            "  return i "
            "end");
-    ASSERT_TRUE(result().isFunction());
+    EXPECT_TRUE(result().isFunction());
     auto fnResult = result()(41); // Replaces result variable
-    ASSERT_TRUE(fnResult.isNumber());
+    EXPECT_TRUE(fnResult.isNumber());
     ASSERT_EQ(41, fnResult.cast<int>());
-    ASSERT_TRUE(result().isNumber());
+    EXPECT_TRUE(result().isNumber());
     ASSERT_EQ(42, result<int>());
 }
 
@@ -72,10 +73,10 @@ TEST_F(LuaRefTests, DictionaryRead)
            "  end"
            "}");
 
-    ASSERT_TRUE(result()["bool"].isBool());
-    ASSERT_TRUE(result()["bool"].cast<bool>());
+    EXPECT_TRUE(result()["bool"].isBool());
+    EXPECT_TRUE(result()["bool"].cast<bool>());
 
-    ASSERT_TRUE(result()["int"].isNumber());
+    EXPECT_TRUE(result()["int"].isNumber());
     ASSERT_EQ(5u, result()["int"].cast<unsigned char>());
     ASSERT_EQ(5, result()["int"].cast<short>());
     ASSERT_EQ(5u, result()["int"].cast<unsigned short>());
@@ -86,31 +87,31 @@ TEST_F(LuaRefTests, DictionaryRead)
     ASSERT_EQ(5, result()["int"].cast<long long>());
     ASSERT_EQ(5u, result()["int"].cast<unsigned long long>());
 
-    ASSERT_TRUE(result()['c'].isNumber());
+    EXPECT_TRUE(result()['c'].isNumber());
     ASSERT_FLOAT_EQ(3.14f, result()['c'].cast<float>());
     ASSERT_DOUBLE_EQ(3.14, result()['c'].cast<double>());
 
-    ASSERT_TRUE(result()[true].isString());
+    EXPECT_TRUE(result()[true].isString());
     ASSERT_EQ('D', result()[true].cast<char>());
     ASSERT_EQ("D", result()[true].cast<std::string>());
     ASSERT_STREQ("D", result()[true].cast<const char*>());
 
-    ASSERT_TRUE(result()[8].isString());
+    EXPECT_TRUE(result()[8].isString());
     ASSERT_EQ("abc", result()[8].cast<std::string>());
     ASSERT_STREQ("abc", result()[8].cast<char const*>());
 
-    ASSERT_TRUE(result()["fn"].isFunction());
+    EXPECT_TRUE(result()["fn"].isFunction());
     auto fnResult = result()["fn"](41); // Replaces result variable
-    ASSERT_TRUE(fnResult.isNumber());
+    EXPECT_TRUE(fnResult.isNumber());
     ASSERT_EQ(41, fnResult.cast<int>());
-    ASSERT_TRUE(result().isNumber());
+    EXPECT_TRUE(result().isNumber());
     ASSERT_EQ(42, result<int>());
 }
 
 TEST_F(LuaRefTests, DictionaryWrite)
 {
     runLua("result = {a = 5}");
-    ASSERT_TRUE(result()["a"].isNumber());
+    EXPECT_TRUE(result()["a"].isNumber());
     ASSERT_EQ(5, result()["a"].cast<int>());
 
     result()["a"] = 7;
@@ -144,7 +145,7 @@ TEST_F(LuaRefTests, Comparison)
 
     luabridge::getGlobalNamespace(L).beginClass<Class>("Class").endClass();
 
-    luabridge::LuaRef nil(L, luabridge::Nil());
+    luabridge::LuaRef nil(L, luabridge::LuaNil());
     luabridge::LuaRef boolFalse(L, false);
     luabridge::LuaRef boolTrue(L, true);
     luabridge::LuaRef minus5(L, -5);
@@ -156,80 +157,87 @@ TEST_F(LuaRefTests, Comparison)
     luabridge::LuaRef t3 = luabridge::getGlobal(L, "t3");
     luabridge::LuaRef t4 = luabridge::getGlobal(L, "t4");
 
-    ASSERT_TRUE(nil == nil);
+    EXPECT_TRUE(nil == nil);
 
-    ASSERT_TRUE(nil < boolFalse);
+    EXPECT_TRUE(nil < boolFalse);
 
-    ASSERT_TRUE(boolFalse == boolFalse);
-    ASSERT_TRUE(boolTrue == boolTrue);
+    EXPECT_TRUE(boolFalse == boolFalse);
+    EXPECT_TRUE(boolTrue == boolTrue);
 
-    ASSERT_TRUE(boolTrue < minus5);
+    EXPECT_TRUE(boolTrue < minus5);
 
-    ASSERT_TRUE(minus5 == minus5);
-    ASSERT_FALSE(minus5 == numPi);
-    ASSERT_TRUE(minus5 < numPi);
-    ASSERT_TRUE(minus5 <= numPi);
-    ASSERT_FALSE(minus5 > numPi);
-    ASSERT_FALSE(minus5 >= numPi);
+    EXPECT_TRUE(minus5 == minus5);
+    EXPECT_FALSE(minus5 == numPi);
+    EXPECT_TRUE(minus5 < numPi);
+    EXPECT_TRUE(minus5 <= numPi);
+    EXPECT_FALSE(minus5 > numPi);
+    EXPECT_FALSE(minus5 >= numPi);
 
-    ASSERT_TRUE(numPi < stringA);
+    EXPECT_TRUE(numPi < stringA);
 
-    ASSERT_TRUE(stringA == stringA);
-    ASSERT_FALSE(stringA == stringAB);
-    ASSERT_TRUE(stringA < stringAB);
-    ASSERT_TRUE(stringA <= stringAB);
-    ASSERT_FALSE(stringA > stringAB);
-    ASSERT_FALSE(stringA >= stringAB);
+    EXPECT_TRUE(stringA == stringA);
+    EXPECT_FALSE(stringA == stringAB);
+    EXPECT_TRUE(stringA < stringAB);
+    EXPECT_TRUE(stringA <= stringAB);
+    EXPECT_FALSE(stringA > stringAB);
+    EXPECT_FALSE(stringA >= stringAB);
 
-    ASSERT_TRUE(stringA < t1);
+    EXPECT_TRUE(stringA < t1);
 
-    ASSERT_TRUE(t1 == t1);
-    ASSERT_FALSE(t1 == t2);
-    ASSERT_TRUE(t1 == t3);
-    ASSERT_FALSE(t1.rawequal(t3));
-    ASSERT_FALSE(t1 == t4);
-    ASSERT_TRUE(t2 == t2);
-    ASSERT_FALSE(t2 == t3);
-    ASSERT_FALSE(t2 == t4);
-    ASSERT_TRUE(t3 == t3);
-    ASSERT_FALSE(t3 == t4);
+    EXPECT_TRUE(t1 == t1);
+    EXPECT_FALSE(t1 == t2);
+    EXPECT_TRUE(t1 == t3);
+    EXPECT_FALSE(t1.rawequal(t3));
+    EXPECT_FALSE(t1 == t4);
+    EXPECT_TRUE(t2 == t2);
+    EXPECT_FALSE(t2 == t3);
 
-    ASSERT_FALSE(t1 < t1);
-    ASSERT_TRUE(t1 < t2);
-    ASSERT_FALSE(t1 < t3);
-    ASSERT_FALSE(t2 < t3);
+#if LUABRIDGEDEMO_LUA_VERSION >= 503
+    // This has changed in lua 5.3 and is quite a behaviour change
+    EXPECT_TRUE(t2 == t4);
+#else
+    EXPECT_FALSE(t2 == t4);
+#endif
+    
+    EXPECT_TRUE(t3 == t3);
+    EXPECT_FALSE(t3 == t4);
 
-    ASSERT_TRUE(t1 <= t1);
-    ASSERT_TRUE(t1 <= t2);
-    ASSERT_TRUE(t1 <= t3);
-    ASSERT_FALSE(t2 <= t3);
+    EXPECT_FALSE(t1 < t1);
+    EXPECT_TRUE(t1 < t2);
+    EXPECT_FALSE(t1 < t3);
+    EXPECT_FALSE(t2 < t3);
 
-    ASSERT_FALSE(t1 > t1);
-    ASSERT_FALSE(t1 > t2);
-    ASSERT_FALSE(t1 > t3);
-    ASSERT_TRUE(t2 > t3);
+    EXPECT_TRUE(t1 <= t1);
+    EXPECT_TRUE(t1 <= t2);
+    EXPECT_TRUE(t1 <= t3);
+    EXPECT_FALSE(t2 <= t3);
 
-    ASSERT_TRUE(t1 >= t1);
-    ASSERT_FALSE(t1 >= t2);
-    ASSERT_TRUE(t1 >= t3);
-    ASSERT_TRUE(t2 >= t3);
+    EXPECT_FALSE(t1 > t1);
+    EXPECT_FALSE(t1 > t2);
+    EXPECT_FALSE(t1 > t3);
+    EXPECT_TRUE(t2 > t3);
+
+    EXPECT_TRUE(t1 >= t1);
+    EXPECT_FALSE(t1 >= t2);
+    EXPECT_TRUE(t1 >= t3);
+    EXPECT_TRUE(t2 >= t3);
 }
 
 TEST_F(LuaRefTests, Assignment)
 {
     runLua("value = {a = 5}");
     auto value = luabridge::getGlobal(L, "value");
-    ASSERT_TRUE(value.isTable());
-    ASSERT_TRUE(value["a"].isNumber());
+    EXPECT_TRUE(value.isTable());
+    EXPECT_TRUE(value["a"].isNumber());
     ASSERT_EQ(5, value["a"].cast<int>());
 
     value = value["a"];
-    ASSERT_TRUE(value.isNumber());
+    EXPECT_TRUE(value.isNumber());
     ASSERT_EQ(5, value.cast<int>());
 
     value = value;
     ASSERT_EQ(LUA_TNUMBER, value.type());
-    ASSERT_TRUE(value.isNumber());
+    EXPECT_TRUE(value.isNumber());
     ASSERT_EQ(5, value.cast<int>());
 
     runLua("t = {a = {b = 5}}");
@@ -237,7 +245,7 @@ TEST_F(LuaRefTests, Assignment)
     luabridge::LuaRef entry = table["a"];
     luabridge::LuaRef b1 = entry["b"];
     luabridge::LuaRef b2 = table["a"]["b"];
-    ASSERT_TRUE(b1 == b2);
+    EXPECT_TRUE(b1 == b2);
 }
 
 TEST_F(LuaRefTests, IsInstance)
@@ -270,32 +278,32 @@ TEST_F(LuaRefTests, IsInstance)
         .endClass();
 
     runLua("result = Base ()");
-    ASSERT_TRUE(result().isInstance<Base>());
-    ASSERT_FALSE(result().isInstance<Derived>());
-    ASSERT_FALSE(result().isInstance<Other>());
-    ASSERT_FALSE(result().isInstance<Unknown>());
-    ASSERT_TRUE(result().isUserdata());
+    EXPECT_TRUE(result().isInstance<Base>());
+    EXPECT_FALSE(result().isInstance<Derived>());
+    EXPECT_FALSE(result().isInstance<Other>());
+    EXPECT_FALSE(result().isInstance<Unknown>());
+    EXPECT_TRUE(result().isUserdata());
 
     runLua("result = Derived ()");
-    ASSERT_TRUE(result().isInstance<Base>());
-    ASSERT_TRUE(result().isInstance<Derived>());
-    ASSERT_FALSE(result().isInstance<Other>());
-    ASSERT_FALSE(result().isInstance<Unknown>());
-    ASSERT_TRUE(result().isUserdata());
+    EXPECT_TRUE(result().isInstance<Base>());
+    EXPECT_TRUE(result().isInstance<Derived>());
+    EXPECT_FALSE(result().isInstance<Other>());
+    EXPECT_FALSE(result().isInstance<Unknown>());
+    EXPECT_TRUE(result().isUserdata());
 
     runLua("result = Other ()");
-    ASSERT_FALSE(result().isInstance<Base>());
-    ASSERT_FALSE(result().isInstance<Derived>());
-    ASSERT_TRUE(result().isInstance<Other>());
-    ASSERT_FALSE(result().isInstance<Unknown>());
-    ASSERT_TRUE(result().isUserdata());
+    EXPECT_FALSE(result().isInstance<Base>());
+    EXPECT_FALSE(result().isInstance<Derived>());
+    EXPECT_TRUE(result().isInstance<Other>());
+    EXPECT_FALSE(result().isInstance<Unknown>());
+    EXPECT_TRUE(result().isUserdata());
 
     runLua("result = 3.14");
-    ASSERT_FALSE(result().isInstance<Base>());
-    ASSERT_FALSE(result().isInstance<Derived>());
-    ASSERT_FALSE(result().isInstance<Other>());
-    ASSERT_FALSE(result().isInstance<Unknown>());
-    ASSERT_FALSE(result().isUserdata());
+    EXPECT_FALSE(result().isInstance<Base>());
+    EXPECT_FALSE(result().isInstance<Derived>());
+    EXPECT_FALSE(result().isInstance<Other>());
+    EXPECT_FALSE(result().isInstance<Unknown>());
+    EXPECT_FALSE(result().isUserdata());
 }
 
 TEST_F(LuaRefTests, Print)

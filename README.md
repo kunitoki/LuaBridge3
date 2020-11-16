@@ -1,16 +1,20 @@
-<a href="http://lua.org">
-<img src="http://vinniefalco.github.com/LuaBridgeDemo/powered-by-lua.png">
-</a><br>
+<a href="https://github.com/kunitoki/LuaBridge">
+<img src="https://github.com/kunitoki/LuaBridge/blob/master/logo.png?raw=true">
+</a>
+<a href="https://lua.org">
+<img src="https://github.com/kunitoki/LuaBridge/blob/master/lua.png?raw=true">
+</a>
+<br>
 
-# LuaBridge 2.6
+# LuaBridge 3.0
 
 [LuaBridge][1] is a lightweight and dependency-free library for mapping data,
 functions, and classes back and forth between C++ and [Lua][2] (a powerful,
-fast, lightweight, embeddable scripting language) . LuaBridge has been tested
-and works with Lua revisions starting from 5.1.5., although it should work in
-any version of Lua from 5.1.0 as well as [LuaJit][3].
+fast, lightweight, embeddable scripting language). LuaBridge has been tested
+and works with Lua revisions starting from 5.1.5, and also compatibility is
+provided with lua 5.2.4, 5.3.6 and 5.4.1 as well as [LuaJit][3].
 
-LuaBridge offers the following features:
+LuaBridge is usable from a compliant C++17 compiler and offers the following features:
 
 - [MIT Licensed][4]
 - A printable [Reference Manual][5].
@@ -27,79 +31,63 @@ Please read the [LuaBridge Reference Manual][5] for more details on the API.
 
 ## Unit Tests
 
-Unit test build requires a CMake and C++11 compliant compiler.
+Unit test build requires a CMake and C++17 compliant compiler.
 
 There are 4 unit test flavors:
-* `Tests51` - uses Lua 5.1, with C++11 features
-* `Tests51L` - uses Lua 5.1, no C++11 features
-* `Tests52` - uses Lua 5.2, with C++11 features
-* `Tests52L` - uses Lua 5.2, no C++11 features
+* `LuaBridgeTests51` - uses Lua 5.1
+* `LuaBridgeTests52` - uses Lua 5.2
+* `LuaBridgeTests53` - uses Lua 5.3
+* `LuaBridgeTests54` - uses Lua 5.4
 
-Build using Make on Linux/MacOS:
+Generate Unix Makefiles and build on Linux:
 ```bash
-clone --recurse-submodules git@github.com:vinniefalco/LuaBridge.git
-cd LuaBridge
-cmake -DCMAKE_BUILD_TYPE=Debug -B build
-# or cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -B build
-# or cmake -DCMAKE_BUILD_TYPE=Release -B build
-cd build
-make -j
+clone --recurse-submodules git@github.com:kunitoki/LuaBridge.git
+
+mkdir -p LuaBridge/build
+pushd LuaBridge/build
+cmake -G "Unix Makefiles" ../
+cmake --build . -DCMAKE_BUILD_TYPE=Debug
+# or cmake --build . -DCMAKE_BUILD_TYPE=Release
+# or cmake --build . -DCMAKE_BUILD_TYPE=RelWithDebInfo
+popd
 ```
 
-Generate XCode project on MacOS:
+Generate XCode project and build on MacOS:
 ```bash
-clone --recurse-submodules git@github.com:vinniefalco/LuaBridge.git
-cd LuaBridge
-cmake -G Xcode -B build
-# Generates XCode project build/LuaBridge.xcodeproj
+clone --recurse-submodules git@github.com:kunitoki/LuaBridge.git
+
+mkdir -p LuaBridge/build
+pushd LuaBridge/build
+cmake -G Xcode ../ # Generates XCode project build/LuaBridge.xcodeproj
+cmake --build . -DCMAKE_BUILD_TYPE=Debug
+# or cmake --build . -DCMAKE_BUILD_TYPE=Release
+# or cmake --build . -DCMAKE_BUILD_TYPE=RelWithDebInfo
+popd
 ```
 
-Generate MSVS solution on Windows:
+Generate VS2019 solution on Windows:
 ```cmd
-clone --recurse-submodules git@github.com:vinniefalco/LuaBridge.git
-cd LuaBridge
-mkdir build
-cd build
-cmake -G "Visual Studio 15 2017 Win64" -B build
-# or cmake -G "Visual Studio 14 2015" -B build
-# or cmake -G "Visual Studio 15 2017 Win64" -B build
-# or cmake -G "Visual Studio 15 2017" -B build
-# or cmake -G "Visual Studio 15 2019" -A Win64 -B build
-# or cmake -G "Visual Studio 15 2019" -B build
-# Generates MSVS solution build/LuaBridge.sln
+clone --recurse-submodules git@github.com:kunitoki/LuaBridge.git
+
+mkdir LuaBridge/build
+pushd LuaBridge/build
+cmake -G "Visual Studio 16" ../ # Generates MSVS solution build/LuaBridge.sln
 ```
-
-# LuaBridge Demo
-
-LuaBridge provides both a command line program and a stand-alone graphical
-program for compiling and running the test suite. The graphical program brings
-up an interactive window where you can enter execute Lua statements in a
-persistent environment. This application is cross platform and works on
-Windows, Mac OS, iOS, Android, and GNU/Linux systems with X11. The stand-alone
-program should work anywhere. Both of these applications include LuaBridge,
-Lua version 5.2, and the code necessary to produce a cross platform graphic
-application. They are all together in a separate repository, with no
-additional dependencies, available on Github at [LuaBridge Demo and Tests][6].
-This is what the GUI application looks like, along with the C++ code snippet
-for registering the two classes:
-
-<a href="https://github.com/vinniefalco/LuaBridgeDemo">
-<img src="http://vinniefalco.github.com/LuaBridgeDemo/LuaBridgeDemoScreenshot1.0.2.png">
-</a><br>
 
 ## Official Repository
 
 LuaBridge is published under the terms of the [MIT License][4].
 
 The original version of LuaBridge was written by Nathan Reed. The project has
-been taken over by [Vinnie Falco][7], who added new functionality, wrote the new
+been taken over by Vinnie Falco, who added new functionality, wrote the new
 documentation, and incorporated contributions from Nigel Atkinson.
 
 For questions, comments, or bug reports feel free to open a Github issue
 or contact Vinnie Falco directly at the email address indicated below.
 
+Copyright 2020, Lucio Asnaghi (<[kunitoki@gmail.com][7]>)<br>
 Copyright 2019, Dmitry Tarakanov<br>
-Copyright 2012, [Vinnie Falco][7] (<[vinnie.falco@gmail.com][8]>)<br>
+Copyright 2012, Vinnie Falco (<vinnie.falco@gmail.com>)<br>
 Copyright 2008, Nigel Atkinson<br>
 Copyright 2007, Nathan Reed<br>
 
@@ -110,11 +98,10 @@ Older versions of LuaBridge up to and including 0.2 are distributed under the
 BSD 3-Clause License. See the corresponding license file in those versions
 (distributed separately) for more details.
 
-[1]:  https://github.com/vinniefalco/LuaBridge "LuaBridge"
+[1]:  https://github.com/kunitoki/LuaBridge "LuaBridge"
 [2]:  http://lua.org "The Lua Programming Language"
 [3]:  http://luajit.org/ "The LuaJIT Probject"
 [4]:  http://www.opensource.org/licenses/mit-license.html "The MIT License"
-[5]:  http://vinniefalco.github.com/LuaBridge "LuaBridge Reference Manual"
-[6]:  https://github.com/vinniefalco/LuaBridgeDemo "LuaBridge Demo"
-[7]:  https://github.com/vinniefalco "Vinnie Falco's Github"
-[8]:  mailto:vinnie.falco@gmail.com "Vinnie Falco (Email)"
+[5]:  http://kunitoki.github.com/LuaBridge "LuaBridge Reference Manual"
+[6]:  https://github.com/kunitoki "Lucio Asnaghi's Github"
+[7]:  mailto:kunitoki@gmail.com "Lucio Asnaghi (Email)"

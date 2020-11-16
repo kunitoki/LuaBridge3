@@ -1,8 +1,11 @@
+# ====================================================== Unit Tests Files
+
 set (LUABRIDGE_TEST_SOURCE_FILES
   Source/ClassTests.cpp
   Source/IssueTests.cpp
   Source/IteratorTests.cpp
   Source/LegacyTests.cpp
+  Source/LegacyTests.h
   Source/ListTests.cpp
   Source/LuaRefTests.cpp
   Source/MapTests.cpp
@@ -20,64 +23,56 @@ set (LUABRIDGE_TEST_SOURCE_FILES
 
 source_group ("Source" FILES ${LUABRIDGE_TEST_SOURCE_FILES})
 
-set (LUABRIDGE_TEST_JUICE_FILES
-  JuceLibraryCode/AppConfig.h
-  JuceLibraryCode/BinaryData.h
-  JuceLibraryCode/BinaryData.cpp
-  JuceLibraryCode/JuceHeader.h
-)
-
-add_library (JuceLibraryCode ${LUABRIDGE_TEST_JUICE_FILES})
-
-
-# Lua 5.1
+# ====================================================== Lua 5.1
 
 file (GLOB_RECURSE LUABRIDGE_TEST_LUA51_FILES
   LuaLibrary.h
   Lua/LuaLibrary5.1.5.cpp
 )
 
-add_library (Lua51 ${LUABRIDGE_TEST_LUA51_FILES})
-
-target_compile_options (Lua51
-  PUBLIC -DLUABRIDGEDEMO_LUA_VERSION=501
-)
-
-target_include_directories (Lua51 PRIVATE .)
-
-
-# Lua 5.2, C++11
+# ====================================================== Lua 5.2
 
 file (GLOB_RECURSE LUABRIDGE_TEST_LUA52_FILES
   Lua/LuaLibrary.h
-  Lua/LuaLibrary5.2.0.cpp
+  Lua/LuaLibrary5.2.4.cpp
 )
 
-add_library (Lua52 ${LUABRIDGE_TEST_LUA52_FILES})
+# ====================================================== Lua 5.3
 
-target_compile_options (Lua52
-  PUBLIC -DLUABRIDGEDEMO_LUA_VERSION=502
+file (GLOB_RECURSE LUABRIDGE_TEST_LUA53_FILES
+  Lua/LuaLibrary.h
+  Lua/LuaLibrary5.3.6.cpp
 )
 
-target_include_directories (Lua52 PRIVATE .)
+# ====================================================== Lua 5.4
 
+file (GLOB_RECURSE LUABRIDGE_TEST_LUA54_FILES
+  Lua/LuaLibrary.h
+  Lua/LuaLibrary5.4.1.cpp
+)
 
-macro (add_test_app LUABRIDGE_TEST_NAME LUABRIDGE_TEST_LUA_LIBRARY)
+# ====================================================== Macro
+
+macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_FILES)
 
   add_executable (${LUABRIDGE_TEST_NAME}
     ${LUABRIDGE_TEST_SOURCE_FILES}
+    ${LUABRIDGE_TEST_LUA_LIBRARY_FILES}
   )
 
   target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE . Source)
+  target_compile_options (${LUABRIDGE_TEST_NAME} PUBLIC -DLUABRIDGEDEMO_LUA_VERSION=${LUA_VERSION})
 
   target_link_libraries (${LUABRIDGE_TEST_NAME}
     LuaBridge
-    ${LUABRIDGE_TEST_LUA_LIBRARY}
     gtest
-    JuceLibraryCode
   )
 
 endmacro (add_test_app)
 
-add_test_app (Tests51 Lua51)
-add_test_app (Tests52 Lua52)
+# ====================================================== Real Unit Tests
+
+add_test_app (LuaBridgeTests51 501 "${LUABRIDGE_TEST_LUA51_FILES}")
+add_test_app (LuaBridgeTests52 502 "${LUABRIDGE_TEST_LUA52_FILES}")
+add_test_app (LuaBridgeTests53 503 "${LUABRIDGE_TEST_LUA53_FILES}")
+add_test_app (LuaBridgeTests54 504 "${LUABRIDGE_TEST_LUA54_FILES}")

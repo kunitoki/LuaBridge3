@@ -1,21 +1,21 @@
 # LuaBridge Unit Tests
 
-## Lunix and MacOS
+## Linux and MacOS
 
-Have CMake 3.5+ and a compiler supporting C++11 installed.
+Have CMake 3.5+ and a compiler supporting C++17 installed.
 
 Run cmake to generate Makefiles:
 
 ```sh
 mkdir build
 cd build
-cmake ..
+cmake -G "Unix Makefiles" ../
 ```
 
 Build the project:
 
 ```sh
-make -j
+cmake --build . -- -j8
 ```
 
 Run tests from the `build` directory:
@@ -23,23 +23,49 @@ Run tests from the `build` directory:
 ```sh
 ./Tests/LuaBridgeTests51
 ./Tests/LuaBridgeTests52
+./Tests/LuaBridgeTests53
+./Tests/LuaBridgeTests54
+```
+
+## macOS
+
+Have CMake 3.5+ and Xcode 11+ installed.
+
+Run cmake to generate Makefiles:
+
+```sh
+mkdir build
+cd build
+cmake -G "Xcode" ../
+```
+
+Build the project:
+
+```sh
+cmake --build . -- -j8
+```
+
+Run tests from the `build` directory:
+
+```sh
+./Tests/LuaBridgeTests51
+./Tests/LuaBridgeTests52
+./Tests/LuaBridgeTests53
+./Tests/LuaBridgeTests54
 ```
 
 # Windows
 
-Have CMake 3.5+ and MSVC 215 or 2017 installed.
+Have CMake 3.5+ and MSVC 2019 installed.
 
 Run cmake to generate MSVC solution and project files (run `cmake -G` to see all variants):
 
 ```cmd
 mkdir build
 cd build
-# either
-cmake -G Visual Studio 14 2015 ..
-# or
-cmake -G Visual Studio 15 2017 ..
+cmake -G "Visual Studio 16" ../
 ```
 
 Open the solution `LuaBridge.sln` in MSVC.
 
-Set `LuaBridgeTests51` or `LuaBridgeTests52` as a startup project and run it.
+Set `LuaBridgeTests51` or `LuaBridgeTests52` or `LuaBridgeTests53` or `LuaBridgeTests54` as a startup project and run it.

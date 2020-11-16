@@ -1,8 +1,8 @@
 //==============================================================================
 /*
-  https://github.com/vinniefalco/LuaBridge
-  https://github.com/vinniefalco/LuaBridgeDemo
+  https://github.com/kunitoki/LuaBridge
   
+  Copyright (C) 2020, Lucio Asnaghi <kunitoki@gmail.com>
   Copyright (C) 2012, Vinnie Falco <vinnie.falco@gmail.com>
 
   License: The MIT License (http://www.opensource.org/licenses/mit-license.php)
@@ -26,8 +26,6 @@
   SOFTWARE.
 */
 //==============================================================================
-
-#include "JuceLibraryCode/AppConfig.h"
 
 #define LUALIBRARY_SOURCE
 #include "LuaLibrary.h"

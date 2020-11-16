@@ -1,12 +1,14 @@
-// https://github.com/vinniefalco/LuaBridge
+// https://github.com/kunitoki/LuaBridge
+// Copyright 2020, Lucio Asnaghi
 // Copyright 2019, Dmitry Tarakanov
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // SPDX-License-Identifier: MIT
 
 #pragma once
 
-#include <LuaBridge/detail/Config.h>
-#include <LuaBridge/detail/FuncTraits.h>
+#include "Config.h"
+#include "FuncTraits.h"
+#include "LuaHelpers.h"
 
 #include <string>
 
@@ -361,7 +363,7 @@ struct CFunc
         static int f(lua_State* L)
         {
             assert(isfulluserdata(L, lua_upvalueindex(1)));
-            Functor& fn = *static_cast<Functor*>(lua_touserdata(L, lua_upvalueindex(1)));
+            Functor& fn = *align<Functor>(lua_touserdata(L, lua_upvalueindex(1)));
             return Invoke<ReturnType, Params, 1>::run(L, fn);
         }
     };
@@ -413,7 +415,7 @@ struct CFunc
     static int gcMetaMethodAny(lua_State* L)
     {
         assert(isfulluserdata(L, 1));
-        T* t = static_cast<T*>(lua_touserdata(L, 1));
+        T* t = align<T>(lua_touserdata(L, 1));
         t->~T();
         return 0;
     }

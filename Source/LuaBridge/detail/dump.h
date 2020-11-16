@@ -1,4 +1,5 @@
-// https://github.com/vinniefalco/LuaBridge
+// https://github.com/kunitoki/LuaBridge
+// Copyright 2020, Lucio Asnaghi
 // Copyright 2019, Dmitry Tarakanov
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // Copyright 2007, Nathan Reed
@@ -6,7 +7,7 @@
 
 #pragma once
 
-#include "LuaBridge/detail/ClassInfo.h"
+#include "ClassInfo.h"
 
 #include <iostream>
 #include <string>
