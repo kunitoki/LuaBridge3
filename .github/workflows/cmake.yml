@@ -23,10 +23,14 @@ jobs:
       working-directory: ${{runner.workspace}}/build
       shell: bash
       run: cmake --build . --config $BUILD_TYPE
-    - name: Test Lua 5.1
+    - name: Test Lua 5.1 yyyy
       working-directory: ${{runner.workspace}}/build/Tests
       shell: bash
-      run: LuaBridgeTests51
+      run: ls -la
+    - name: Test Lua 5.1 xxxx
+      working-directory: ${{runner.workspace}}/build
+      shell: bash
+      run: ls -la
     - name: Test Lua 5.2
       working-directory: ${{runner.workspace}}/build/Tests
       shell: bash
@@ -57,21 +61,21 @@ jobs:
       shell: bash
       run: cmake --build . --config $BUILD_TYPE
     - name: Test Lua 5.1
-      working-directory: ${{runner.workspace}}/build/Tests
+      working-directory: ${{runner.workspace}}/build/Tests/$BUILD_TYPE
       shell: bash
-      run: LuaBridgeTests51
+      run: ./LuaBridgeTests51
     - name: Test Lua 5.2
-      working-directory: ${{runner.workspace}}/build/Tests
+      working-directory: ${{runner.workspace}}/build/Tests/$BUILD_TYPE
       shell: bash
-      run: LuaBridgeTests52
+      run: ./LuaBridgeTests52
     - name: Test Lua 5.3
-      working-directory: ${{runner.workspace}}/build/Tests
+      working-directory: ${{runner.workspace}}/build/Tests/$BUILD_TYPE
       shell: bash
-      run: LuaBridgeTests53
+      run: ./LuaBridgeTests53
     - name: Test Lua 5.4
-      working-directory: ${{runner.workspace}}/build/Tests
+      working-directory: ${{runner.workspace}}/build/Tests/$BUILD_TYPE
       shell: bash
-      run: LuaBridgeTests54
+      run: ./LuaBridgeTests54
 
   macos_build:
     runs-on: macos-latest
@@ -92,16 +96,16 @@ jobs:
     - name: Test Lua 5.1
       working-directory: ${{runner.workspace}}/build/Tests
       shell: bash
-      run: LuaBridgeTests51
+      run: ls -la
     - name: Test Lua 5.2
       working-directory: ${{runner.workspace}}/build/Tests
       shell: bash
-      run: LuaBridgeTests52
+      run: ./LuaBridgeTests52
     - name: Test Lua 5.3
       working-directory: ${{runner.workspace}}/build/Tests
       shell: bash
-      run: LuaBridgeTests53
+      run: ./LuaBridgeTests53
     - name: Test Lua 5.4
       working-directory: ${{runner.workspace}}/build/Tests
       shell: bash
-      run: LuaBridgeTests54
+      run: ./LuaBridgeTests54
