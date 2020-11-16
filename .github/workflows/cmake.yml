@@ -12,7 +12,7 @@ jobs:
     # well on Windows or Mac.  You can convert this to a matrix build if you need
     # cross-platform coverage.
     # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
-    runs-on: ubuntu-latest
+    runs-on: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
     - uses: actions/checkout@v2
@@ -35,19 +35,19 @@ jobs:
     - name: Test Lua 5.1
       working-directory: ${{runner.workspace}}/build/Tests/$BUILD_TYPE
       shell: bash
-      run: ./LuaBridgeTests51
+      run: LuaBridgeTests51
 
     - name: Test Lua 5.2
       working-directory: ${{runner.workspace}}/build/Tests/$BUILD_TYPE
       shell: bash
-      run: ./LuaBridgeTests52
+      run: LuaBridgeTests52
 
     - name: Test Lua 5.3
       working-directory: ${{runner.workspace}}/build/Tests/$BUILD_TYPE
       shell: bash
-      run: ./LuaBridgeTests53
+      run: LuaBridgeTests53
 
     - name: Test Lua 5.4
       working-directory: ${{runner.workspace}}/build/Tests/$BUILD_TYPE
       shell: bash
-      run: ./LuaBridgeTests54
+      run: LuaBridgeTests54
