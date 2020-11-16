@@ -56,11 +56,52 @@ jobs:
       working-directory: ${{runner.workspace}}/build
       shell: bash
       run: cmake --build . --config $BUILD_TYPE
-    - name: Test 1
-      working-directory: ${{runner.workspace}}/build
-      shell: bash
-      run: dir
-    - name: Test 1
+    - name: Test Lua 5.1
       working-directory: ${{runner.workspace}}/build/Tests
       shell: bash
-      run: dir
+      run: LuaBridgeTests51
+    - name: Test Lua 5.2
+      working-directory: ${{runner.workspace}}/build/Tests
+      shell: bash
+      run: LuaBridgeTests52
+    - name: Test Lua 5.3
+      working-directory: ${{runner.workspace}}/build/Tests
+      shell: bash
+      run: LuaBridgeTests53
+    - name: Test Lua 5.4
+      working-directory: ${{runner.workspace}}/build/Tests
+      shell: bash
+      run: LuaBridgeTests54
+
+  macos_build:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+    - name: Create Build Environment
+      run: cmake -E make_directory ${{runner.workspace}}/build
+    - name: Configure CMake
+      shell: bash
+      working-directory: ${{runner.workspace}}/build
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+    - name: Build
+      working-directory: ${{runner.workspace}}/build
+      shell: bash
+      run: cmake --build . --config $BUILD_TYPE
+    - name: Test Lua 5.1
+      working-directory: ${{runner.workspace}}/build/Tests
+      shell: bash
+      run: LuaBridgeTests51
+    - name: Test Lua 5.2
+      working-directory: ${{runner.workspace}}/build/Tests
+      shell: bash
+      run: LuaBridgeTests52
+    - name: Test Lua 5.3
+      working-directory: ${{runner.workspace}}/build/Tests
+      shell: bash
+      run: LuaBridgeTests53
+    - name: Test Lua 5.4
+      working-directory: ${{runner.workspace}}/build/Tests
+      shell: bash
+      run: LuaBridgeTests54
