@@ -32,11 +32,22 @@ jobs:
       shell: bash
       run: cmake --build . --config $BUILD_TYPE
 
-    - name: Test
+    - name: Test Lua 5.1
       working-directory: ${{runner.workspace}}/build/Tests/$BUILD_TYPE
       shell: bash
-      run:
-        cachtsegv ./LuaBridgeTests51
-        catchsegv ./LuaBridgeTests52
-        catchsegv ./LuaBridgeTests53
-        catchsegv ./LuaBridgeTests54
+      run: ./LuaBridgeTests51
+
+    - name: Test Lua 5.2
+      working-directory: ${{runner.workspace}}/build/Tests/$BUILD_TYPE
+      shell: bash
+      run: ./LuaBridgeTests52
+
+    - name: Test Lua 5.3
+      working-directory: ${{runner.workspace}}/build/Tests/$BUILD_TYPE
+      shell: bash
+      run: ./LuaBridgeTests53
+
+    - name: Test Lua 5.4
+      working-directory: ${{runner.workspace}}/build/Tests/$BUILD_TYPE
+      shell: bash
+      run: ./LuaBridgeTests54
