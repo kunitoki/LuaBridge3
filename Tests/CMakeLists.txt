@@ -63,6 +63,10 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
   target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE . Source)
   target_compile_options (${LUABRIDGE_TEST_NAME} PUBLIC -DLUABRIDGEDEMO_LUA_VERSION=${LUA_VERSION})
 
+  if (MSVC)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++17")
+  endif (MSVC)
+
   target_link_libraries (${LUABRIDGE_TEST_NAME}
     LuaBridge
     gtest
