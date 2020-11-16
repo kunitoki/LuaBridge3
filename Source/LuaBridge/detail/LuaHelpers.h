@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cassert>
+#include <utility>
 
 namespace luabridge {
 
