@@ -6,6 +6,8 @@
 </a>
 <br>
 
+![CMake](https://github.com/kunitoki/LuaBridge/workflows/CMake/badge.svg?branch=master)
+
 # LuaBridge 3.0
 
 [LuaBridge][1] is a lightweight and dependency-free library for mapping data,
