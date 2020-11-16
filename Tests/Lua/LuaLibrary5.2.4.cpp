@@ -61,6 +61,8 @@ extern "C"
 #if _MSC_VER
 #pragma warning (push)
 #pragma warning (disable: 4244) /* Possible loss of data */
+#pragma warning (disable: 4297) /* Function assumed not to throw an exception but does */
+#pragma warning (disable: 4334) /* Result of 32-bit shift implicitly converted to 64 bits */
 #pragma warning (disable: 4702) /* Unreachable code */
 #endif
 
