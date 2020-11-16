@@ -4,7 +4,7 @@ on: [push]
 
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
-  BUILD_TYPE: Debug, Release, RelWithDebInfo
+  BUILD_TYPE: Release
 
 jobs:
   build:
@@ -34,7 +34,7 @@ jobs:
       working-directory: ${{runner.workspace}}/build/Tests/$BUILD_TYPE
       shell: bash
       run:
-        ./LuaBridgeTests51
-        ./LuaBridgeTests52
-        ./LuaBridgeTests53
-        ./LuaBridgeTests54
+        cachtsegv ./LuaBridgeTests51
+        catchsegv ./LuaBridgeTests52
+        catchsegv ./LuaBridgeTests53
+        catchsegv ./LuaBridgeTests54
