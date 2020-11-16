@@ -7,36 +7,52 @@ env:
   BUILD_TYPE: Release
 
 jobs:
-  build:
-    # The CMake configure and build commands are platform agnostic and should work equally
-    # well on Windows or Mac.  You can convert this to a matrix build if you need
-    # cross-platform coverage.
-    # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
+  linux_build:
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v2
       with:
         submodules: true
-
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
-
     - name: Configure CMake
       shell: bash
       working-directory: ${{runner.workspace}}/build
       run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE
-
     - name: Build
       working-directory: ${{runner.workspace}}/build
       shell: bash
       run: cmake --build . --config $BUILD_TYPE
-
-    - name: Test
+    - name: Test 1
+      working-directory: ${{runner.workspace}}/build
+      shell: bash
+      run: ls -la
+    - name: Test 2
+      working-directory: ${{runner.workspace}}/build/Tests
+      shell: bash
+      run: ls -la
+    - name: Test 3
       working-directory: ${{runner.workspace}}/build/Tests/$BUILD_TYPE
       shell: bash
-      run:
-        cachtsegv ./LuaBridgeTests51
-        catchsegv ./LuaBridgeTests52
-        catchsegv ./LuaBridgeTests53
-        catchsegv ./LuaBridgeTests54
+      run: ls -la
+
+  windows_build:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+    - name: Create Build Environment
+      run: cmake -E make_directory ${{runner.workspace}}/build
+    - name: Configure CMake
+      shell: bash
+      working-directory: ${{runner.workspace}}/build
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+    - name: Build
+      working-directory: ${{runner.workspace}}/build
+      shell: bash
+      run: cmake --build . --config $BUILD_TYPE
+    - name: Test 1
+      working-directory: ${{runner.workspace}}/build
+      shell: bash
+      run: dir
