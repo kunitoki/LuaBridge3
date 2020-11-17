@@ -1794,3 +1794,95 @@ TEST_F(ClassTests, MethodTakesMoreThanEightArgs)
     lua_close(L);
     L = nullptr;
 }
+
+class BaseExampleClass
+{
+public:
+    BaseExampleClass() = default;
+    
+    virtual void virtualFunction(int arg) = 0;
+    virtual int virtualCFunction(lua_State*) = 0;
+    virtual void virtualFunctionConst(int arg) const = 0;
+    virtual int virtualCFunctionConst(lua_State*) const = 0;
+
+    void baseFunction(int arg) { baseFunction_ = arg; }
+    int baseCFunction(lua_State*) { baseCFunction_ = 1; }
+    void baseFunctionConst(int arg) const { baseFunctionConst_ = arg; }
+    int baseCFunctionConst(lua_State*) const { baseCFunctionConst_ = 1; }
+
+    int virtualFunction_ = 0;
+    int virtualCFunction_ = 0;
+    mutable int virtualFunctionConst_ = 0;
+    mutable int virtualCFunctionConst_ = 0;
+    int baseFunction_ = 0;
+    int baseCFunction_ = 0;
+    mutable int baseFunctionConst_ = 0;
+    mutable int baseCFunctionConst_ = 0;
+};
+
+class DerivedExampleClass : public BaseExampleClass
+{
+public:
+    DerivedExampleClass() = default;
+    
+    void virtualFunction(int arg) override
+    {
+        virtualFunction_ = arg;
+    }
+
+    int virtualCFunction(lua_State*) override
+    {
+        virtualCFunction_ = 1;
+    }
+
+    void virtualFunctionConst(int arg) const override
+    {
+        virtualFunctionConst_ = arg;
+    }
+
+    int virtualCFunctionConst(lua_State*) const override
+    {
+        virtualCFunctionConst_ = 1;
+    }
+};
+
+TEST_F(ClassTests, NonVirtualMethodInBaseClassCannotBeExposed)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<DerivedExampleClass>("DerivedExampleClass")
+        .addConstructor<void (*)()>()
+        .addFunction("baseFunction", &BaseExampleClass::baseFunction)
+        .addFunction("baseCFunction", &BaseExampleClass::baseCFunction)
+        .addFunction("baseFunctionConst", &BaseExampleClass::baseFunctionConst)
+        .addFunction("baseCFunctionConst", &BaseExampleClass::baseCFunctionConst)
+        .addFunction("virtualFunction", &DerivedExampleClass::virtualFunction)
+        .addFunction("virtualCFunction", &DerivedExampleClass::virtualCFunction)
+        .addFunction("virtualFunctionConst", &DerivedExampleClass::virtualFunctionConst)
+        .addFunction("virtualCFunctionConst", &DerivedExampleClass::virtualCFunctionConst)
+        .endClass();
+
+    runLua(R"(
+        result = DerivedExampleClass ()
+        result:baseFunction(1)
+        result:baseCFunction()
+        result:baseFunctionConst(1)
+        result:baseCFunctionConst()
+        result:virtualFunction(1)
+        result:virtualCFunction()
+        result:virtualFunctionConst(1)
+        result:virtualCFunctionConst()
+    )");
+
+    ASSERT_TRUE(result().isUserdata());
+    ASSERT_EQ(1, result<DerivedExampleClass>().baseFunction_);
+    ASSERT_EQ(1, result<DerivedExampleClass>().baseCFunction_);
+    ASSERT_EQ(1, result<DerivedExampleClass>().baseFunctionConst_);
+    ASSERT_EQ(1, result<DerivedExampleClass>().baseCFunctionConst_);
+    ASSERT_EQ(1, result<DerivedExampleClass>().virtualFunction_);
+    ASSERT_EQ(1, result<DerivedExampleClass>().virtualCFunction_);
+    ASSERT_EQ(1, result<DerivedExampleClass>().virtualFunctionConst_);
+    ASSERT_EQ(1, result<DerivedExampleClass>().virtualCFunctionConst_);
+
+    lua_close(L);
+    L = nullptr;
+}
