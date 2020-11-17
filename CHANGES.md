@@ -1,6 +1,7 @@
 ## Version 3.0
 
 * Moved to c++17 as minimum supported standard c++ version.
+* Renamed luabridge::Nil to luabridge::LuaNil to allow including LuaBridge in Obj-C sources.
 * Removed the limitation to 8 parameters in functions.
 * Removed the limitation to 8 parameters in constructors.
 * Fixed unaligned access in user allocated member pointers in 64bit machines reported by ASAN.
