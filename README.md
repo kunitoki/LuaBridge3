@@ -18,7 +18,7 @@ LuaBridge is usable from a compliant C++17 compiler and offers the following fea
 
 - [MIT Licensed][4]
 - A printable [Reference Manual][5].
-- Headers-only: No Makefile, no .cpp files, just one #include!
+- Headers-only: No Makefile, no .cpp files, just one #include and one header file (optional) !
 - Simple, light, and nothing else needed (like Boost).
 - No macros, settings, or configuration scripts needed.
 - Supports different object lifetime management models.

@@ -4,8 +4,9 @@
 * Removed the limitation to 8 parameters in functions.
 * Removed the limitation to 8 parameters in constructors.
 * Fixed unaligned access in user allocated member pointers in 64bit machines reported by ASAN.
+* Added single header amalgamated distribution file, to simplify including in projects.
 * Removed juce traces from unit tests, simplified unit tests run.
-* Bumped unit tests against lua 5.2.4.
+* Bumped unit tests from lua 5.2.0 to 5.2.4.
 * Added unit tests against lua 5.3.6 and 5.4.1.
 * Small improvements to code and doxygen comments readability.
 
