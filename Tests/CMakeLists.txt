@@ -21,6 +21,10 @@ set (LUABRIDGE_TEST_SOURCE_FILES
   Source/VectorTests.cpp
 )
 
+if (APPLE)
+  list(APPEND LUABRIDGE_TEST_SOURCE_FILES Source/ObjCTests.mm)
+endif (APPLE)
+
 source_group ("Source" FILES ${LUABRIDGE_TEST_SOURCE_FILES})
 
 # ====================================================== Lua 5.1
