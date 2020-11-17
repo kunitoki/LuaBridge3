@@ -1806,9 +1806,9 @@ public:
     virtual int virtualCFunctionConst(lua_State*) const = 0;
 
     void baseFunction(int arg) { baseFunction_ = arg; }
-    int baseCFunction(lua_State*) { baseCFunction_ = 1; }
+    int baseCFunction(lua_State*) { return baseCFunction_ = 1; }
     void baseFunctionConst(int arg) const { baseFunctionConst_ = arg; }
-    int baseCFunctionConst(lua_State*) const { baseCFunctionConst_ = 1; }
+    int baseCFunctionConst(lua_State*) const { return baseCFunctionConst_ = 1; }
 
     int virtualFunction_ = 0;
     int virtualCFunction_ = 0;
@@ -1832,7 +1832,7 @@ public:
 
     int virtualCFunction(lua_State*) override
     {
-        virtualCFunction_ = 1;
+        return virtualCFunction_ = 1;
     }
 
     void virtualFunctionConst(int arg) const override
@@ -1842,7 +1842,7 @@ public:
 
     int virtualCFunctionConst(lua_State*) const override
     {
-        virtualCFunctionConst_ = 1;
+        return virtualCFunctionConst_ = 1;
     }
 };
 
