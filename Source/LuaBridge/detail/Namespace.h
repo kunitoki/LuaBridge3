@@ -7,8 +7,8 @@
 
 #pragma once
 
-#include "ClassInfo.h"
 #include "Config.h"
+#include "ClassInfo.h"
 #include "LuaException.h"
 #include "Security.h"
 #include "TypeTraits.h"

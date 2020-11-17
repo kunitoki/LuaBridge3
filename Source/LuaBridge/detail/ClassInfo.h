@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include "Config.h"
+
 namespace luabridge {
 namespace detail {
 

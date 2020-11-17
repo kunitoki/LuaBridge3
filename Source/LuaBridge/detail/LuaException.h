@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include "Config.h"
+
 #include <exception>
 #include <string>
 

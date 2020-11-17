@@ -18,6 +18,7 @@
 #error "Lua headers must be included prior to LuaBridge ones"
 #endif
 
+#include "detail/Config.h"
 #include "detail/CFunctions.h"
 #include "detail/ClassInfo.h"
 #include "detail/Constructor.h"
