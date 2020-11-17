@@ -13,7 +13,6 @@
 #include <string>
 
 namespace luabridge {
-
 namespace detail {
 
 // We use a structure so we can define everything in the header.

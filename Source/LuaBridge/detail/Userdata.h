@@ -6,14 +6,13 @@
 
 #pragma once
 
-#include <LuaBridge/detail/ClassInfo.h>
-#include <LuaBridge/detail/TypeTraits.h>
+#include "ClassInfo.h"
+#include "TypeTraits.h"
 
 #include <cassert>
 #include <stdexcept>
 
 namespace luabridge {
-
 namespace detail {
 
 //==============================================================================

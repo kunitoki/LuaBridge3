@@ -13,7 +13,6 @@
 #include <string>
 
 namespace luabridge {
-
 namespace debug {
 
 inline void putIndent(std::ostream& stream, unsigned level)

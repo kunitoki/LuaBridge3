@@ -17,7 +17,6 @@
 #include <string>
 
 namespace luabridge {
-
 namespace detail {
 
 /**
