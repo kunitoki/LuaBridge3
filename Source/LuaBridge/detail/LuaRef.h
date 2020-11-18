@@ -14,6 +14,7 @@
 #include <iostream>
 #include <map>
 #include <string>
+#include <optional>
 #include <vector>
 
 namespace luabridge {
@@ -25,7 +26,7 @@ namespace luabridge {
 */
 
 template <std::size_t I = 0, typename... Tp>
-auto push_arguments(lua_State*, const std::tuple<Tp...>&) // Unused arguments are given no names.
+auto push_arguments(lua_State*, const std::tuple<Tp...>&)
     -> std::enable_if_t<I == sizeof...(Tp)>
 {
 }
@@ -34,7 +35,10 @@ template <std::size_t I = 0, typename... Tp>
 auto push_arguments(lua_State* L, const std::tuple<Tp...>& t)
     -> std::enable_if_t<I < sizeof...(Tp)>
 {
-    Stack<typename std::tuple_element<I, std::tuple<Tp...>>::type>::push(L, std::get<I>(t));
+    using ArgumentType = std::tuple_element_t<I, std::tuple<Tp...>>;
+
+    Stack<ArgumentType>::push(L, std::get<I>(t));
+
     push_arguments<I + 1, Tp...>(L, t);
 }
 

@@ -117,5 +117,4 @@ inline void dumpState(lua_State* L, std::ostream& stream = std::cerr)
 }
 
 } // namespace debug
-
 } // namespace luabridge

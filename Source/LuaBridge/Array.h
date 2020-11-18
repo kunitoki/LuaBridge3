@@ -11,12 +11,17 @@
 
 namespace luabridge {
 
-template<class T, std::size_t s>
-struct Stack<std::array<T, s>>
+//-------------------------------------------------------------------------------------------------
+/**
+ * @brief Stack specialization for `std::array`.
+ */
+template <class T, std::size_t Size>
+struct Stack<std::array<T, Size>>
 {
-    static void push(lua_State* L, std::array<T, s> const& array)
+    static void push(lua_State* L, const std::array<T, Size>& array)
     {
-        lua_createtable(L, static_cast<int>(s), 0);
+        lua_createtable(L, static_cast<int>(Size), 0);
+
         for (std::size_t i = 0; i < s; ++i)
         {
             lua_pushinteger(L, static_cast<lua_Integer>(i + 1));
@@ -25,29 +30,26 @@ struct Stack<std::array<T, s>>
         }
     }
 
-    static std::array<T, s> get(lua_State* L, int index)
+    static std::array<T, Size> get(lua_State* L, int index)
     {
         if (!lua_istable(L, index))
-        {
-            luaL_error(L, "#%d argments must be table", index);
-            throw std::runtime_error("Array get () must receive a table");
-        }
-        if (index != s)
-        {
-            luaL_error(L, "array size should be %d ", s);
-        }
+            luaL_error(L, "#%d argment must be a table", index);
 
-        std::array<T, s> array;
+        if (index != Size)
+            luaL_error(L, "array size should be %d", Size);
 
-        int const absindex = lua_absindex(L, index);
+        std::array<T, Size> array;
+
+        int absIndex = lua_absindex(L, index);
         lua_pushnil(L);
-        int arr_index = 0;
-        while (lua_next(L, absindex) != 0)
+
+        int arrayIndex = 0;
+        while (lua_next(L, absIndex) != 0)
         {
-            array[arr_index] = Stack<T>::get(L, -1);
+            array[arrayIndex++] = Stack<T>::get(L, -1);
             lua_pop(L, 1);
-            arr_index++;
         }
+
         return array;
     }
 };

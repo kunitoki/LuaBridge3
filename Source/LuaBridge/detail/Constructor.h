@@ -34,7 +34,7 @@ struct Constructor<T, None>
     }
 };
 
-template<class T, class Params>
+template <class T, class Params>
 struct Constructor
 {
     static T* call(const TypeListValues<Params>& tvl)

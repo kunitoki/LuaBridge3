@@ -1,12 +1,14 @@
 set (LUABRIDGE_HEADERS
+  ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/Array.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/List.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/LuaBridge.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/Map.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/Optional.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/RefCountedObject.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/RefCountedPtr.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/Set.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/UnorderedMap.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/Vector.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/Array.h
 )
 source_group ("LuaBridge" FILES ${LUABRIDGE_HEADERS})
 
@@ -27,7 +29,7 @@ set (LUABRIDGE_DETAIL_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/TypeTraits.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Userdata.h
 )
-source_group ("LuaBridge\\detail" FILES ${LUABRIDGE_DETAIL_HEADERS})
+source_group ("LuaBridgeDetail" FILES ${LUABRIDGE_DETAIL_HEADERS})
 
 add_library (LuaBridge INTERFACE)
 target_sources (LuaBridge INTERFACE

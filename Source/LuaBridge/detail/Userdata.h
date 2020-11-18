@@ -772,5 +772,4 @@ struct StackOpSelector<const T&, true>
 };
 
 } // namespace detail
-
 } // namespace luabridge
