@@ -330,6 +330,19 @@ public:
     ///
     bool isLightUserdata() const { return type() == LUA_TLIGHTUSERDATA; }
 
+    /// Indicate whether it is a callable.
+    ///
+    /// @returns True if it is a callable, false otherwise.
+    ///
+    bool isCallable() const
+    {
+        if (isFunction())
+            return true;
+
+        auto metatable = getMetatable();
+        return metatable.isTable() && metatable["__call"].isFunction();
+    }
+
     /** @} */
 
     //----------------------------------------------------------------------------
@@ -375,6 +388,26 @@ public:
     operator T() const
     {
         return cast<T>();
+    }
+
+    //----------------------------------------------------------------------------
+    /**
+        Get the metatable for the LuaRef.
+
+        @returns A LuaRef holding the metatable of the lua object.
+    */
+    LuaRef getMetatable() const
+    {
+        if (isNil())
+            return LuaRef(m_L);
+
+        StackPop p(m_L, 1);
+
+        impl().push();
+                
+        lua_getmetatable(m_L, -1);
+
+        return LuaRef::fromStack(m_L);
     }
 
     //----------------------------------------------------------------------------

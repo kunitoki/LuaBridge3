@@ -248,6 +248,28 @@ TEST_F(LuaRefTests, Assignment)
     EXPECT_TRUE(b1 == b2);
 }
 
+TEST_F(LuaRefTests, Callable)
+{
+    runLua("function f () end");
+    auto f = luabridge::getGlobal(L, "f");
+    EXPECT_TRUE(f.isCallable());
+
+    runLua("x = 1");
+    auto x = luabridge::getGlobal(L, "x");
+    EXPECT_FALSE(x.isCallable());
+    
+    runLua("meta1 = { __call = function(self) return 5 end }");
+    auto meta1 = luabridge::getGlobal(L, "meta1");
+    EXPECT_TRUE(meta1.isCallable());
+
+    runLua("meta2 = { __call = function(self) self.i = self.i + 100 end } obj = { i = 100 } setmetatable(obj, meta2)");
+    auto obj = luabridge::getGlobal(L, "obj");
+    EXPECT_TRUE(obj.isCallable());
+    EXPECT_EQ(100, obj["i"].cast<int>());
+    obj();
+    EXPECT_EQ(200, obj["i"].cast<int>());
+}
+
 TEST_F(LuaRefTests, IsInstance)
 {
     struct Base
