@@ -154,7 +154,7 @@ class SourceInfo:
 		self.LogMessage(f"Creating source Amalgamation: {headerPath}")
 		
 		with open (headerPath , 'w') as headerAmalgamation:
-			headerAmalgamation.write("// https://github.com/kunitoki/LuaBridge\n")
+			headerAmalgamation.write("// https://github.com/kunitoki/LuaBridge3\n")
 			headerAmalgamation.write("// Copyright 2020, Lucio Asnaghi\n")
 			headerAmalgamation.write("// SPDX-License-Identifier: MIT\n\n")
 			headerAmalgamation.write("#pragma once\n\n")

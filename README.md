@@ -1,8 +1,8 @@
-<a href="https://github.com/kunitoki/LuaBridge">
-<img src="https://github.com/kunitoki/LuaBridge/blob/master/logo.png?raw=true">
+<a href="https://github.com/kunitoki/LuaBridge3">
+<img src="https://github.com/kunitoki/LuaBridge3/blob/master/logo.png?raw=true">
 </a>
 <a href="https://lua.org">
-<img src="https://github.com/kunitoki/LuaBridge/blob/master/lua.png?raw=true">
+<img src="https://github.com/kunitoki/LuaBridge3/blob/master/lua.png?raw=true">
 </a>
 <br>
 
@@ -32,7 +32,7 @@ Please read the [LuaBridge Reference Manual][5] for more details on the API.
 
 ## Status
 
-![CMake](https://github.com/kunitoki/LuaBridge/workflows/CMake/badge.svg?branch=master)
+![CMake](https://github.com/kunitoki/LuaBridge3/workflows/CMake/badge.svg?branch=master)
 
 ## Unit Tests
 
@@ -46,7 +46,7 @@ There are 4 unit test flavors:
 
 Generate Unix Makefiles and build on Linux:
 ```bash
-git clone --recursive git@github.com:kunitoki/LuaBridge.git
+git clone --recursive git@github.com:kunitoki/LuaBridge3.git
 
 mkdir -p LuaBridge/build
 pushd LuaBridge/build
@@ -59,7 +59,7 @@ popd
 
 Generate XCode project and build on MacOS:
 ```bash
-git clone --recursive git@github.com:kunitoki/LuaBridge.git
+git clone --recursive git@github.com:kunitoki/LuaBridge3.git
 
 mkdir -p LuaBridge/build
 pushd LuaBridge/build
@@ -72,7 +72,7 @@ popd
 
 Generate VS2019 solution on Windows:
 ```cmd
-git clone --recursive git@github.com:kunitoki/LuaBridge.git
+git clone --recursive git@github.com:kunitoki/LuaBridge3.git
 
 mkdir LuaBridge/build
 pushd LuaBridge/build
@@ -104,7 +104,7 @@ Older versions of LuaBridge up to and including 0.2 are distributed under the
 BSD 3-Clause License. See the corresponding license file in those versions
 (distributed separately) for more details.
 
-[1]:  https://github.com/kunitoki/LuaBridge "LuaBridge"
+[1]:  https://github.com/kunitoki/LuaBridge3 "LuaBridge"
 [2]:  http://lua.org "The Lua Programming Language"
 [3]:  http://luajit.org/ "The LuaJIT Probject"
 [4]:  http://www.opensource.org/licenses/mit-license.html "The MIT License"

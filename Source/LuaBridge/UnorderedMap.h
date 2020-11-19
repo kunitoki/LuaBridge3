@@ -1,4 +1,4 @@
-// https://github.com/kunitoki/LuaBridge
+// https://github.com/kunitoki/LuaBridge3
 // Copyright 2020, Lucio Asnaghi
 // Copyright 2019, Dmitry Tarakanov
 // SPDX-License-Identifier: MIT

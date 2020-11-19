@@ -1,6 +1,6 @@
 //==============================================================================
 /*
-  https://github.com/kunitoki/LuaBridge
+  https://github.com/kunitoki/LuaBridge3
   
   Copyright (C) 2020, Lucio Asnaghi <kunitoki@gmail.com>
   Copyright (C) 2012, Vinnie Falco <vinnie.falco@gmail.com>

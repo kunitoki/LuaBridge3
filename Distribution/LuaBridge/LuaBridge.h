@@ -1,4 +1,4 @@
-// https://github.com/kunitoki/LuaBridge
+// https://github.com/kunitoki/LuaBridge3
 // Copyright 2020, Lucio Asnaghi
 // SPDX-License-Identifier: MIT
 
@@ -26,7 +26,7 @@
 
 // Begin File: Source/LuaBridge/detail/Config.h
 
-// https://github.com/kunitoki/LuaBridge
+// https://github.com/kunitoki/LuaBridge3
 // Copyright 2020, Lucio Asnaghi
 // Copyright 2020, Dmitry Tarakanov
 // Copyright 2019, George Tokmaji
@@ -34,14 +34,14 @@
 
 
 #if !(__cplusplus >= 201703L || (defined(_MSC_VER) && _HAS_CXX17))
-#error LuaBridge 3.0 requires a compliant C++17 compiler, or C++17 has not been enabled !
+#error LuaBridge 3 requires a compliant C++17 compiler, or C++17 has not been enabled !
 #endif
 
 // End File: Source/LuaBridge/detail/Config.h
 
 // Begin File: Source/LuaBridge/detail/LuaHelpers.h
 
-// https://github.com/kunitoki/LuaBridge
+// https://github.com/kunitoki/LuaBridge3
 // Copyright 2020, Lucio Asnaghi
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // Copyright 2007, Nathan Reed
@@ -213,7 +213,8 @@ void* lua_newuserdata_aligned(lua_State* L, Args&&... args)
 
 // Begin File: Source/LuaBridge/detail/ClassInfo.h
 
-// https://github.com/kunitoki/LuaBridge
+// https://github.com/kunitoki/LuaBridge3
+// Copyright 2020, Lucio Asnaghi
 // Copyright 2020, Dmitry Tarakanov
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // SPDX-License-Identifier: MIT
@@ -223,8 +224,9 @@ void* lua_newuserdata_aligned(lua_State* L, Args&&... args)
 namespace luabridge {
 namespace detail {
 
+//=================================================================================================
 /**
- * A unique key for a type name in a metatable.
+ * @brief A unique key for a type name in a metatable.
  */
 inline const void* getTypeKey()
 {
@@ -236,8 +238,9 @@ inline const void* getTypeKey()
 #endif
 }
 
+//=================================================================================================
 /**
- * The key of a const table in another metatable.
+ * @brief The key of a const table in another metatable.
  */
 inline const void* getConstKey()
 {
@@ -249,8 +252,9 @@ inline const void* getConstKey()
 #endif
 }
 
+//=================================================================================================
 /**
- * The key of a class table in another metatable.
+ * @brief The key of a class table in another metatable.
  */
 inline const void* getClassKey()
 {
@@ -262,8 +266,9 @@ inline const void* getClassKey()
 #endif
 }
 
+//=================================================================================================
 /**
- * The key of a propget table in another metatable.
+ * @brief The key of a propget table in another metatable.
  */
 inline const void* getPropgetKey()
 {
@@ -275,8 +280,9 @@ inline const void* getPropgetKey()
 #endif
 }
 
+//=================================================================================================
 /**
- * The key of a propset table in another metatable.
+ * @brief The key of a propset table in another metatable.
  */
 inline const void* getPropsetKey()
 {
@@ -288,8 +294,9 @@ inline const void* getPropsetKey()
 #endif
 }
 
+//=================================================================================================
 /**
- * The key of a static table in another metatable.
+ * @brief The key of a static table in another metatable.
  */
 inline const void* getStaticKey()
 {
@@ -301,8 +308,9 @@ inline const void* getStaticKey()
 #endif
 }
 
+//=================================================================================================
 /**
- * The key of a parent table in another metatable.
+ * @brief The key of a parent table in another metatable.
  */
 inline const void* getParentKey()
 {
@@ -314,11 +322,12 @@ inline const void* getParentKey()
 #endif
 }
 
+//=================================================================================================
 /**
-    Get the key for the static table in the Lua registry.
-    The static table holds the static data members, static properties, and
-    static member functions for a class.
-*/
+ * @brief Get the key for the static table in the Lua registry.
+ *
+ * The static table holds the static data members, static properties, and static member functions for a class.
+ */
 template<class T>
 void const* getStaticRegistryKey()
 {
@@ -326,11 +335,13 @@ void const* getStaticRegistryKey()
     return &value;
 }
 
-/** Get the key for the class table in the Lua registry.
-    The class table holds the data members, properties, and member functions
-    of a class. Read-only data and properties, and const member functions are
-    also placed here (to save a lookup in the const table).
-*/
+//=================================================================================================
+/**
+ * @brief Get the key for the class table in the Lua registry.
+ *
+ * The class table holds the data members, properties, and member functions of a class. Read-only data and properties, and const
+ * member functions are also placed here (to save a lookup in the const table).
+ */
 template<class T>
 void const* getClassRegistryKey()
 {
@@ -338,10 +349,12 @@ void const* getClassRegistryKey()
     return &value;
 }
 
-/** Get the key for the const table in the Lua registry.
-    The const table holds read-only data members and properties, and const
-    member functions of a class.
-*/
+//=================================================================================================
+/**
+ * @brief Get the key for the const table in the Lua registry.
+ *
+ * The const table holds read-only data members and properties, and const member functions of a class.
+ */
 template<class T>
 void const* getConstRegistryKey()
 {
@@ -350,14 +363,13 @@ void const* getConstRegistryKey()
 }
 
 } // namespace detail
-
 } // namespace luabridge
 
 // End File: Source/LuaBridge/detail/ClassInfo.h
 
 // Begin File: Source/LuaBridge/detail/TypeTraits.h
 
-// https://github.com/kunitoki/LuaBridge
+// https://github.com/kunitoki/LuaBridge3
 // Copyright 2020, Lucio Asnaghi
 // Copyright 2019, Dmitry Tarakanov
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
@@ -472,7 +484,7 @@ struct TypeTraits
 
 // Begin File: Source/LuaBridge/detail/Userdata.h
 
-// https://github.com/kunitoki/LuaBridge
+// https://github.com/kunitoki/LuaBridge3
 // Copyright 2020, Lucio Asnaghi
 // Copyright 2019, Dmitry Tarakanov
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
@@ -1247,7 +1259,7 @@ struct StackOpSelector<const T&, true>
 
 // Begin File: Source/LuaBridge/detail/Stack.h
 
-// https://github.com/kunitoki/LuaBridge
+// https://github.com/kunitoki/LuaBridge3
 // Copyright 2020, Lucio Asnaghi
 // Copyright 2019, Dmitry Tarakanov
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
@@ -1348,7 +1360,11 @@ struct Stack<std::byte>
 {
     static void push(lua_State* L, std::byte value)
     {
+#if LUA_VERSION_NUM < 503
         lua_pushinteger(L, std::to_integer<lua_Integer>(value));
+#else
+        lua_pushinteger(L, std::to_integer<lua_Unsigned>(value));
+#endif
     }
 
     static std::byte get(lua_State* L, int index)
@@ -1394,7 +1410,11 @@ struct Stack<unsigned char>
 {
     static void push(lua_State* L, unsigned char value)
     {
+#if LUA_VERSION_NUM < 503
         lua_pushinteger(L, static_cast<lua_Integer>(value));
+#else
+        lua_pushinteger(L, static_cast<lua_Unsigned>(value));
+#endif
     }
 
     static unsigned char get(lua_State* L, int index)
@@ -1425,7 +1445,10 @@ struct Stack<short>
         return static_cast<short>(luaL_checkinteger(L, index));
     }
 
-    static bool isInstance(lua_State* L, int index) { return lua_type(L, index) == LUA_TNUMBER; }
+    static bool isInstance(lua_State* L, int index)
+    {
+        return lua_type(L, index) == LUA_TNUMBER;
+    }
 };
 
 //-------------------------------------------------------------------------------------------------
@@ -1437,7 +1460,11 @@ struct Stack<unsigned short>
 {
     static void push(lua_State* L, unsigned short value)
     {
+#if LUA_VERSION_NUM < 503
         lua_pushinteger(L, static_cast<lua_Integer>(value));
+#else
+        lua_pushinteger(L, static_cast<lua_Unsigned>(value));
+#endif
     }
 
     static unsigned short get(lua_State* L, int index)
@@ -1483,7 +1510,11 @@ struct Stack<unsigned int>
 {
     static void push(lua_State* L, unsigned int value)
     {
+#if LUA_VERSION_NUM < 503
         lua_pushinteger(L, static_cast<lua_Integer>(value));
+#else
+        lua_pushinteger(L, static_cast<lua_Unsigned>(value));
+#endif
     }
 
     static unsigned int get(lua_State* L, int index)
@@ -1529,7 +1560,11 @@ struct Stack<unsigned long>
 {
     static void push(lua_State* L, unsigned long value)
     {
+#if LUA_VERSION_NUM < 503
         lua_pushinteger(L, static_cast<lua_Integer>(value));
+#else
+        lua_pushinteger(L, static_cast<lua_Unsigned>(value));
+#endif
     }
 
     static unsigned long get(lua_State* L, int index)
@@ -1575,7 +1610,11 @@ struct Stack<unsigned long long>
 {
     static void push(lua_State* L, unsigned long long value)
     {
+#if LUA_VERSION_NUM < 503
         lua_pushinteger(L, static_cast<lua_Integer>(value));
+#else
+        lua_pushinteger(L, static_cast<lua_Unsigned>(value));
+#endif
     }
 
     static unsigned long long get(lua_State* L, int index)
@@ -1844,7 +1883,7 @@ inline bool isInstance(lua_State* L, int index)
 
 // Begin File: Source/LuaBridge/Map.h
 
-// https://github.com/kunitoki/LuaBridge
+// https://github.com/kunitoki/LuaBridge3
 // Copyright 2020, Lucio Asnaghi
 // Copyright 2018, Dmitry Tarakanov
 // SPDX-License-Identifier: MIT
@@ -1854,7 +1893,7 @@ inline bool isInstance(lua_State* L, int index)
 
 namespace luabridge {
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `std::map`.
  */
@@ -1904,7 +1943,7 @@ struct Stack<std::map<K, V>>
 
 // Begin File: Source/LuaBridge/UnorderedMap.h
 
-// https://github.com/kunitoki/LuaBridge
+// https://github.com/kunitoki/LuaBridge3
 // Copyright 2020, Lucio Asnaghi
 // Copyright 2019, Dmitry Tarakanov
 // SPDX-License-Identifier: MIT
@@ -1914,7 +1953,7 @@ struct Stack<std::map<K, V>>
 
 namespace luabridge {
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `std::unordered_map`.
  */
@@ -1966,7 +2005,7 @@ struct Stack<std::unordered_map<K, V>>
 
 // Begin File: Source/LuaBridge/Optional.h
 
-// https://github.com/kunitoki/LuaBridge
+// https://github.com/kunitoki/LuaBridge3
 // Copyright 2020, Lucio Asnaghi
 // SPDX-License-Identifier: MIT
 
@@ -1975,7 +2014,7 @@ struct Stack<std::unordered_map<K, V>>
 
 namespace luabridge {
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `std::optional`.
  */
@@ -2010,7 +2049,7 @@ struct Stack<std::optional<T>>
 
 // Begin File: Source/LuaBridge/RefCountedObject.h
 
-// https://github.com/kunitoki/LuaBridge
+// https://github.com/kunitoki/LuaBridge3
 // Copyright 2020, Lucio Asnaghi
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // Copyright 2004-11 by Raw Material Software Ltd.
@@ -2377,7 +2416,7 @@ struct ContainerTraits<RefCountedObjectPtr<T>>
 
 // Begin File: Source/LuaBridge/RefCountedPtr.h
 
-// https://github.com/kunitoki/LuaBridge
+// https://github.com/kunitoki/LuaBridge3
 // Copyright 2020, Lucio Asnaghi
 // Copyright 2019, Dmitry Tarakanov
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
@@ -2581,7 +2620,7 @@ struct ContainerTraits<RefCountedPtr<T>>
 
 // Begin File: Source/LuaBridge/detail/TypeList.h
 
-// https://github.com/kunitoki/LuaBridge
+// https://github.com/kunitoki/LuaBridge3
 // Copyright 2020, Lucio Asnaghi
 // Copyright 2019, George Tokmaji
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
@@ -2813,7 +2852,7 @@ struct ArgList<TypeList<Head, Tail>, Start> : public TypeListValues<TypeList<Hea
 
 // Begin File: Source/LuaBridge/detail/FuncTraits.h
 
-// https://github.com/kunitoki/LuaBridge
+// https://github.com/kunitoki/LuaBridge3
 // Copyright 2020, Lucio Asnaghi
 // Copyright 2020, Dmitry Tarakanov
 // Copyright 2019, George Tokmaji
@@ -3020,18 +3059,18 @@ static constexpr bool is_std_function_v = is_std_function<F>::value;
  * @brief Reconstruct a function signature from return type and args.
  */
 template <class, class>
-struct to_function_type
+struct to_std_function_type
 {
 };
 
 template <class ReturnType, typename... Ts>
-struct to_function_type<ReturnType, std::tuple<Ts...>>
+struct to_std_function_type<ReturnType, std::tuple<Ts...>>
 {
     using type = std::function<ReturnType(Ts...)>;
 };
 
 template <class ReturnType, typename... Ts>
-using to_function_type_t = typename to_function_type<ReturnType, Ts...>::type;
+using to_std_function_type_t = typename to_std_function_type<ReturnType, Ts...>::type;
 
 //=================================================================================================
 /**
@@ -3209,7 +3248,7 @@ struct Invoke<void, Params, startParam>
 
 // Begin File: Source/LuaBridge/detail/CFunctions.h
 
-// https://github.com/kunitoki/LuaBridge
+// https://github.com/kunitoki/LuaBridge3
 // Copyright 2020, Lucio Asnaghi
 // Copyright 2019, Dmitry Tarakanov
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
@@ -3676,7 +3715,8 @@ struct CFunc
 
 // Begin File: Source/LuaBridge/detail/Constructor.h
 
-// https://github.com/kunitoki/LuaBridge
+// https://github.com/kunitoki/LuaBridge3
+// Copyright 2020, Lucio Asnaghi
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // Copyright 2007, Nathan Reed
 // SPDX-License-Identifier: MIT
@@ -3686,13 +3726,14 @@ struct CFunc
 namespace luabridge {
 namespace detail {
 
-/** Constructor generators.
-
-    These templates call operator new with the contents of a type/value
-    list passed to the Constructor with up to 8 parameters. Two versions
-    of call() are provided. One performs a regular new, the other performs
-    a placement new.
-*/
+//=================================================================================================
+/**
+ * @brief Constructor generators.
+ *
+ * These templates call operator new with the contents of a type/value list passed to the Constructor
+ * with up to 8 parameters. Two versions of call() are provided. One performs a regular new, the other
+ * performs a placement new.
+ */
 template <class T, class Params>
 struct Constructor;
 
@@ -3735,7 +3776,7 @@ struct Constructor
 
 // Begin File: Source/LuaBridge/detail/LuaException.h
 
-// https://github.com/kunitoki/LuaBridge
+// https://github.com/kunitoki/LuaBridge3
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // Copyright 2008, Nigel Atkinson <suprapilot+LuaCode@gmail.com>
 // SPDX-License-Identifier: MIT
@@ -3836,7 +3877,7 @@ static void enableExceptions(lua_State* L)
 
 // Begin File: Source/LuaBridge/detail/LuaRef.h
 
-// https://github.com/kunitoki/LuaBridge
+// https://github.com/kunitoki/LuaBridge3
 // Copyright 2020, Lucio Asnaghi
 // Copyright 2019, George Tokmaji
 // Copyright 2018, Dmitry Tarakanov
@@ -4160,6 +4201,19 @@ public:
     ///
     bool isLightUserdata() const { return type() == LUA_TLIGHTUSERDATA; }
 
+    /// Indicate whether it is a callable.
+    ///
+    /// @returns True if it is a callable, false otherwise.
+    ///
+    bool isCallable() const
+    {
+        if (isFunction())
+            return true;
+
+        auto metatable = getMetatable();
+        return metatable.isTable() && metatable["__call"].isFunction();
+    }
+
     /** @} */
 
     //----------------------------------------------------------------------------
@@ -4205,6 +4259,26 @@ public:
     operator T() const
     {
         return cast<T>();
+    }
+
+    //----------------------------------------------------------------------------
+    /**
+        Get the metatable for the LuaRef.
+
+        @returns A LuaRef holding the metatable of the lua object.
+    */
+    LuaRef getMetatable() const
+    {
+        if (isNil())
+            return LuaRef(m_L);
+
+        StackPop p(m_L, 1);
+
+        impl().push();
+                
+        lua_getmetatable(m_L, -1);
+
+        return LuaRef::fromStack(m_L);
     }
 
     //----------------------------------------------------------------------------
@@ -4880,7 +4954,7 @@ T LuaRef_cast(LuaRef const& lr)
 
 // Begin File: Source/LuaBridge/detail/Iterator.h
 
-// https://github.com/kunitoki/LuaBridge
+// https://github.com/kunitoki/LuaBridge3
 // Copyright 2020, Lucio Asnaghi
 // Copyright 2018, Dmitry Tarakanov
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
@@ -5096,7 +5170,7 @@ inline void setHideMetatables(bool shouldHide)
 
 // Begin File: Source/LuaBridge/detail/Namespace.h
 
-// https://github.com/kunitoki/LuaBridge
+// https://github.com/kunitoki/LuaBridge3
 // Copyright 2020, Lucio Asnaghi
 // Copyright 2019, Dmitry Tarakanov
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
@@ -5859,7 +5933,7 @@ class Namespace : public detail::Registrar
         {
             using FnTraits = detail::function_traits<Function>;
             
-            using FnType = detail::to_function_type_t<
+            using FnType = detail::to_std_function_type_t<
                 typename FnTraits::result_type,
                 typename FnTraits::argument_types>;
             
@@ -6348,29 +6422,17 @@ public:
 
     //----------------------------------------------------------------------------
     /**
-        Add or replace a namespace function by convertible to std::function (capturing lambdas).
+        Add or replace a namespace function by convertible to std::function.
     */
-    template <class Function, typename = std::enable_if_t<! detail::is_std_function_v<Function>>>
+    template <class Function>
     Namespace& addFunction(char const* name, Function function)
     {
         using FnTraits = detail::function_traits<Function>;
         
-        using FnType = detail::to_function_type_t<
+        using FnType = detail::to_std_function_type_t<
             typename FnTraits::result_type,
             typename FnTraits::argument_types>;
         
-        return addFunction(name, FnType(function));
-    }
-
-    //----------------------------------------------------------------------------
-    /**
-        Add or replace a namespace function by std::function.
-    */
-    template <class ReturnType, class... Params>
-    Namespace& addFunction(char const* name, std::function<ReturnType(Params...)> function)
-    {
-        using FnType = decltype(function);
-
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 
@@ -6488,7 +6550,7 @@ inline Namespace getGlobalNamespace(lua_State* L)
 
 // Begin File: Source/LuaBridge/LuaBridge.h
 
-// https://github.com/kunitoki/LuaBridge
+// https://github.com/kunitoki/LuaBridge3
 // Copyright 2020, Lucio Asnaghi
 // Copyright 2020, Dmitry Tarakanov
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
@@ -6512,7 +6574,7 @@ inline Namespace getGlobalNamespace(lua_State* L)
 
 // Begin File: Source/LuaBridge/List.h
 
-// https://github.com/kunitoki/LuaBridge
+// https://github.com/kunitoki/LuaBridge3
 // Copyright 2020, Lucio Asnaghi
 // Copyright 2020, Dmitry Tarakanov
 // SPDX-License-Identifier: MIT
@@ -6522,7 +6584,7 @@ inline Namespace getGlobalNamespace(lua_State* L)
 
 namespace luabridge {
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `std::array`.
  */
@@ -6573,7 +6635,7 @@ struct Stack<std::list<T>>
 
 // Begin File: Source/LuaBridge/Array.h
 
-// https://github.com/kunitoki/LuaBridge
+// https://github.com/kunitoki/LuaBridge3
 // Copyright 2020, Lucio Asnaghi
 // Copyright 2020, Dmitry Tarakanov
 // SPDX-License-Identifier: MIT
@@ -6583,7 +6645,7 @@ struct Stack<std::list<T>>
 
 namespace luabridge {
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `std::array`.
  */
@@ -6632,7 +6694,7 @@ struct Stack<std::array<T, Size>>
 
 // Begin File: Source/LuaBridge/Vector.h
 
-// https://github.com/kunitoki/LuaBridge
+// https://github.com/kunitoki/LuaBridge3
 // Copyright 2020, Lucio Asnaghi
 // Copyright 2018, Dmitry Tarakanov
 // SPDX-License-Identifier: MIT
@@ -6642,7 +6704,7 @@ struct Stack<std::array<T, Size>>
 
 namespace luabridge {
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `std::vector`.
  */
@@ -6693,7 +6755,7 @@ struct Stack<std::vector<T>>
 
 // Begin File: Source/LuaBridge/Set.h
 
-// https://github.com/kunitoki/LuaBridge
+// https://github.com/kunitoki/LuaBridge3
 // Copyright 2020, Lucio Asnaghi
 // SPDX-License-Identifier: MIT
 
@@ -6702,7 +6764,7 @@ struct Stack<std::vector<T>>
 
 namespace luabridge {
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `std::set`.
  */
@@ -6752,7 +6814,7 @@ struct Stack<std::set<K, V>>
 
 // Begin File: Source/LuaBridge/detail/Dump.h
 
-// https://github.com/kunitoki/LuaBridge
+// https://github.com/kunitoki/LuaBridge3
 // Copyright 2020, Lucio Asnaghi
 // Copyright 2019, Dmitry Tarakanov
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>

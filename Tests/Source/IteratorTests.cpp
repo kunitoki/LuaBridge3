@@ -1,4 +1,4 @@
-// https://github.com/kunitoki/LuaBridge
+// https://github.com/kunitoki/LuaBridge3
 // Copyright 2018, Dmitry Tarakanov
 // SPDX-License-Identifier: MIT
 
