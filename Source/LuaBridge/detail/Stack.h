@@ -182,7 +182,10 @@ struct Stack<short>
         return static_cast<short>(luaL_checkinteger(L, index));
     }
 
-    static bool isInstance(lua_State* L, int index) { return lua_type(L, index) == LUA_TNUMBER; }
+    static bool isInstance(lua_State* L, int index)
+    {
+        return lua_type(L, index) == LUA_TNUMBER;
+    }
 };
 
 //-------------------------------------------------------------------------------------------------
