@@ -25,6 +25,7 @@ LuaBridge is usable from a compliant C++17 compiler and offers the following fea
 - Convenient, type-safe access to the Lua stack.
 - Automatic function parameter type binding.
 - Easy access to Lua objects like tables and functions.
+- Interoperable with most common c++ standard library container types.
 - Written in a clear and easy to debug style.
 
 Please read the [LuaBridge Reference Manual][5] for more details on the API.
@@ -90,7 +91,7 @@ documentation, and incorporated contributions from Nigel Atkinson.
 For questions, comments, or bug reports feel free to open a Github issue
 or contact Vinnie Falco directly at the email address indicated below.
 
-Copyright 2020, Lucio Asnaghi (<[kunitoki@gmail.com][6]>)<br>
+Copyright 2020, Lucio Asnaghi (<kunitoki@gmail.com>)<br>
 Copyright 2019, Dmitry Tarakanov<br>
 Copyright 2012, Vinnie Falco (<vinnie.falco@gmail.com>)<br>
 Copyright 2008, Nigel Atkinson<br>
@@ -108,4 +109,3 @@ BSD 3-Clause License. See the corresponding license file in those versions
 [3]:  http://luajit.org/ "The LuaJIT Probject"
 [4]:  http://www.opensource.org/licenses/mit-license.html "The MIT License"
 [5]:  http://kunitoki.github.com/LuaBridge "LuaBridge Reference Manual"
-[6]:  mailto:kunitoki@gmail.com "Lucio Asnaghi (Email)"

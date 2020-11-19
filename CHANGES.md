@@ -1,11 +1,16 @@
 ## Version 3.0
 
 * Moved to c++17 as minimum supported standard c++ version.
-* Renamed luabridge::Nil to luabridge::LuaNil to allow including LuaBridge in Obj-C sources.
-* Removed the limitation to 8 parameters in functions.
-* Removed the limitation to 8 parameters in constructors.
+* Renamed `luabridge::Nil` to `luabridge::LuaNil` to allow including LuaBridge in Obj-C sources.
+* Removed the limitation of maximum 8 parameters in functions.
+* Removed the limitation of maximum 8 parameters in constructors.
 * Allow specifying a non virtual base class method when declaring a class function not exposed in the inherited class
+* Allow using capturing lambdas in `Namespace::addFunction` and `Class<T>::addFunction`
 * Fixed unaligned access in user allocated member pointers in 64bit machines reported by ASAN.
+* Added support for `std::optional`
+* Added support for `std::byte`
+* Added support for `std::set`
+* Added support for `std::string_view`
 * Added single header amalgamated distribution file, to simplify including in projects.
 * Removed juce traces from unit tests, simplified unit tests run.
 * Bumped unit tests from lua 5.2.0 to 5.2.4.

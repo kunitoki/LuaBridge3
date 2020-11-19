@@ -764,6 +764,22 @@ class Namespace : public detail::Registrar
 
         //--------------------------------------------------------------------------
         /**
+            Add or replace a namespace function by convertible to std::function (capturing lambdas).
+        */
+        template <class Function, typename = std::enable_if_t<! detail::is_std_function_v<Function>>>
+        Class<T>& addFunction(char const* name, Function function)
+        {
+            using FnTraits = detail::function_traits<Function>;
+            
+            using FnType = detail::to_function_type_t<
+                typename FnTraits::result_type,
+                typename FnTraits::argument_types>;
+            
+            return addFunction(name, FnType(function));
+        }
+
+        //--------------------------------------------------------------------------
+        /**
             Add or replace a member function by std::function.
         */
         template <class ReturnType, class... Params>
@@ -784,7 +800,7 @@ class Namespace : public detail::Registrar
 
             return *this;
         }
-
+        
         //--------------------------------------------------------------------------
         /**
             Add or replace a const member function by std::function.
@@ -1240,6 +1256,22 @@ public:
         }
 
         return *this;
+    }
+
+    //----------------------------------------------------------------------------
+    /**
+        Add or replace a namespace function by convertible to std::function (capturing lambdas).
+    */
+    template <class Function, typename = std::enable_if_t<! detail::is_std_function_v<Function>>>
+    Namespace& addFunction(char const* name, Function function)
+    {
+        using FnTraits = detail::function_traits<Function>;
+        
+        using FnType = detail::to_function_type_t<
+            typename FnTraits::result_type,
+            typename FnTraits::argument_types>;
+        
+        return addFunction(name, FnType(function));
     }
 
     //----------------------------------------------------------------------------

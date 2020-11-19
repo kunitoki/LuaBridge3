@@ -48,6 +48,50 @@ T identityCFunction(T value)
     return value;
 }
 
+TEST_F(LuaBridgeTest, LambdaGlobalNamespace)
+{
+    int x = 100;
+    
+    luabridge::getGlobalNamespace(L)
+        .addFunction("test", [x](int v) -> int { return v + x; })
+        .addFunction("test2", [x](lua_State* L, int v) -> int { return v + (L != nullptr ? x : 0); });
+
+    runLua("result = test (255)");
+    ASSERT_EQ(true, result().isNumber());
+    ASSERT_EQ(355, result<int>());
+
+    resetResult();
+    runLua("result = test2 (nil, 255)");
+    ASSERT_EQ(true, result().isNumber());
+    ASSERT_EQ(355, result<int>());
+}
+
+TEST_F(LuaBridgeTest, LambdaClassMethods)
+{
+    int x = 100;
+        
+    struct Inner
+    {
+        Inner() = default;
+    };
+    
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Inner>("Inner")
+        .addConstructor<void (*)()>()
+        .addFunction("test", [x](Inner*, int v) -> int { return v + x; })
+        .addFunction("test2", [x](const Inner*, int v) -> int { return v + x; })
+        .endClass();
+
+    runLua("x = Inner () result = x:test (255)");
+    ASSERT_EQ(true, result().isNumber());
+    ASSERT_EQ(355, result<int>());
+
+    resetResult();
+    runLua("x = Inner () result = x:test (255)");
+    ASSERT_EQ(true, result().isNumber());
+    ASSERT_EQ(355, result<int>());
+}
+
 TEST_F(LuaBridgeTest, CFunction)
 {
     luabridge::getGlobalNamespace(L)
