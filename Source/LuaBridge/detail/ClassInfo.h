@@ -1,4 +1,5 @@
 // https://github.com/kunitoki/LuaBridge
+// Copyright 2020, Lucio Asnaghi
 // Copyright 2020, Dmitry Tarakanov
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // SPDX-License-Identifier: MIT
@@ -10,8 +11,9 @@
 namespace luabridge {
 namespace detail {
 
+//=================================================================================================
 /**
- * A unique key for a type name in a metatable.
+ * @brief A unique key for a type name in a metatable.
  */
 inline const void* getTypeKey()
 {
@@ -23,8 +25,9 @@ inline const void* getTypeKey()
 #endif
 }
 
+//=================================================================================================
 /**
- * The key of a const table in another metatable.
+ * @brief The key of a const table in another metatable.
  */
 inline const void* getConstKey()
 {
@@ -36,8 +39,9 @@ inline const void* getConstKey()
 #endif
 }
 
+//=================================================================================================
 /**
- * The key of a class table in another metatable.
+ * @brief The key of a class table in another metatable.
  */
 inline const void* getClassKey()
 {
@@ -49,8 +53,9 @@ inline const void* getClassKey()
 #endif
 }
 
+//=================================================================================================
 /**
- * The key of a propget table in another metatable.
+ * @brief The key of a propget table in another metatable.
  */
 inline const void* getPropgetKey()
 {
@@ -62,8 +67,9 @@ inline const void* getPropgetKey()
 #endif
 }
 
+//=================================================================================================
 /**
- * The key of a propset table in another metatable.
+ * @brief The key of a propset table in another metatable.
  */
 inline const void* getPropsetKey()
 {
@@ -75,8 +81,9 @@ inline const void* getPropsetKey()
 #endif
 }
 
+//=================================================================================================
 /**
- * The key of a static table in another metatable.
+ * @brief The key of a static table in another metatable.
  */
 inline const void* getStaticKey()
 {
@@ -88,8 +95,9 @@ inline const void* getStaticKey()
 #endif
 }
 
+//=================================================================================================
 /**
- * The key of a parent table in another metatable.
+ * @brief The key of a parent table in another metatable.
  */
 inline const void* getParentKey()
 {
@@ -101,11 +109,12 @@ inline const void* getParentKey()
 #endif
 }
 
+//=================================================================================================
 /**
-    Get the key for the static table in the Lua registry.
-    The static table holds the static data members, static properties, and
-    static member functions for a class.
-*/
+ * @brief Get the key for the static table in the Lua registry.
+ *
+ * The static table holds the static data members, static properties, and static member functions for a class.
+ */
 template<class T>
 void const* getStaticRegistryKey()
 {
@@ -113,11 +122,13 @@ void const* getStaticRegistryKey()
     return &value;
 }
 
-/** Get the key for the class table in the Lua registry.
-    The class table holds the data members, properties, and member functions
-    of a class. Read-only data and properties, and const member functions are
-    also placed here (to save a lookup in the const table).
-*/
+//=================================================================================================
+/**
+ * @brief Get the key for the class table in the Lua registry.
+ *
+ * The class table holds the data members, properties, and member functions of a class. Read-only data and properties, and const
+ * member functions are also placed here (to save a lookup in the const table).
+ */
 template<class T>
 void const* getClassRegistryKey()
 {
@@ -125,10 +136,12 @@ void const* getClassRegistryKey()
     return &value;
 }
 
-/** Get the key for the const table in the Lua registry.
-    The const table holds read-only data members and properties, and const
-    member functions of a class.
-*/
+//=================================================================================================
+/**
+ * @brief Get the key for the const table in the Lua registry.
+ *
+ * The const table holds read-only data members and properties, and const member functions of a class.
+ */
 template<class T>
 void const* getConstRegistryKey()
 {
@@ -137,5 +150,4 @@ void const* getConstRegistryKey()
 }
 
 } // namespace detail
-
 } // namespace luabridge

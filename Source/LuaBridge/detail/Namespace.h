@@ -771,7 +771,7 @@ class Namespace : public detail::Registrar
         {
             using FnTraits = detail::function_traits<Function>;
             
-            using FnType = detail::to_function_type_t<
+            using FnType = detail::to_std_function_type_t<
                 typename FnTraits::result_type,
                 typename FnTraits::argument_types>;
             
@@ -1260,29 +1260,17 @@ public:
 
     //----------------------------------------------------------------------------
     /**
-        Add or replace a namespace function by convertible to std::function (capturing lambdas).
+        Add or replace a namespace function by convertible to std::function.
     */
-    template <class Function, typename = std::enable_if_t<! detail::is_std_function_v<Function>>>
+    template <class Function>
     Namespace& addFunction(char const* name, Function function)
     {
         using FnTraits = detail::function_traits<Function>;
         
-        using FnType = detail::to_function_type_t<
+        using FnType = detail::to_std_function_type_t<
             typename FnTraits::result_type,
             typename FnTraits::argument_types>;
         
-        return addFunction(name, FnType(function));
-    }
-
-    //----------------------------------------------------------------------------
-    /**
-        Add or replace a namespace function by std::function.
-    */
-    template <class ReturnType, class... Params>
-    Namespace& addFunction(char const* name, std::function<ReturnType(Params...)> function)
-    {
-        using FnType = decltype(function);
-
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 

@@ -105,7 +105,11 @@ struct Stack<std::byte>
 {
     static void push(lua_State* L, std::byte value)
     {
+#if LUA_VERSION_NUM < 503
         lua_pushinteger(L, std::to_integer<lua_Integer>(value));
+#else
+        lua_pushinteger(L, std::to_integer<lua_Unsigned>(value));
+#endif
     }
 
     static std::byte get(lua_State* L, int index)
@@ -151,7 +155,11 @@ struct Stack<unsigned char>
 {
     static void push(lua_State* L, unsigned char value)
     {
+#if LUA_VERSION_NUM < 503
         lua_pushinteger(L, static_cast<lua_Integer>(value));
+#else
+        lua_pushinteger(L, static_cast<lua_Unsigned>(value));
+#endif
     }
 
     static unsigned char get(lua_State* L, int index)
@@ -197,7 +205,11 @@ struct Stack<unsigned short>
 {
     static void push(lua_State* L, unsigned short value)
     {
+#if LUA_VERSION_NUM < 503
         lua_pushinteger(L, static_cast<lua_Integer>(value));
+#else
+        lua_pushinteger(L, static_cast<lua_Unsigned>(value));
+#endif
     }
 
     static unsigned short get(lua_State* L, int index)
@@ -243,7 +255,11 @@ struct Stack<unsigned int>
 {
     static void push(lua_State* L, unsigned int value)
     {
+#if LUA_VERSION_NUM < 503
         lua_pushinteger(L, static_cast<lua_Integer>(value));
+#else
+        lua_pushinteger(L, static_cast<lua_Unsigned>(value));
+#endif
     }
 
     static unsigned int get(lua_State* L, int index)
@@ -289,7 +305,11 @@ struct Stack<unsigned long>
 {
     static void push(lua_State* L, unsigned long value)
     {
+#if LUA_VERSION_NUM < 503
         lua_pushinteger(L, static_cast<lua_Integer>(value));
+#else
+        lua_pushinteger(L, static_cast<lua_Unsigned>(value));
+#endif
     }
 
     static unsigned long get(lua_State* L, int index)
@@ -335,7 +355,11 @@ struct Stack<unsigned long long>
 {
     static void push(lua_State* L, unsigned long long value)
     {
+#if LUA_VERSION_NUM < 503
         lua_pushinteger(L, static_cast<lua_Integer>(value));
+#else
+        lua_pushinteger(L, static_cast<lua_Unsigned>(value));
+#endif
     }
 
     static unsigned long long get(lua_State* L, int index)

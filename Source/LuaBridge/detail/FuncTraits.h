@@ -211,18 +211,18 @@ static constexpr bool is_std_function_v = is_std_function<F>::value;
  * @brief Reconstruct a function signature from return type and args.
  */
 template <class, class>
-struct to_function_type
+struct to_std_function_type
 {
 };
 
 template <class ReturnType, typename... Ts>
-struct to_function_type<ReturnType, std::tuple<Ts...>>
+struct to_std_function_type<ReturnType, std::tuple<Ts...>>
 {
     using type = std::function<ReturnType(Ts...)>;
 };
 
 template <class ReturnType, typename... Ts>
-using to_function_type_t = typename to_function_type<ReturnType, Ts...>::type;
+using to_std_function_type_t = typename to_std_function_type<ReturnType, Ts...>::type;
 
 //=================================================================================================
 /**
