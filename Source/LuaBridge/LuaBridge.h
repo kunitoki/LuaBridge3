@@ -30,6 +30,5 @@
 #include "detail/Namespace.h"
 #include "detail/Security.h"
 #include "detail/Stack.h"
-#include "detail/TypeList.h"
 #include "detail/TypeTraits.h"
 #include "detail/Userdata.h"

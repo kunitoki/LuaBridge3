@@ -8,7 +8,7 @@
 #pragma once
 
 #include "Config.h"
-#include "TypeList.h"
+#include "Stack.h"
 #include "TypeTraits.h"
 
 #include <functional>
@@ -16,56 +16,6 @@
 
 namespace luabridge {
 namespace detail {
-
-//=================================================================================================
-/**
- * @brief Traits class for unrolling the type list values into function arguments.
- */
-template <class ReturnType, size_t NUM_PARAMS>
-struct Caller
-{
-    template <class Fn, class Params>
-    static ReturnType f(Fn& fn, TypeListValues<Params>& tvl)
-    {
-        return std::apply(fn, typeListValuesTuple(tvl));
-    }
-
-    template <class T, class MemFn, class Params>
-    static ReturnType f(T* obj, MemFn& fn, TypeListValues<Params>& tvl)
-    {
-        auto func = [obj, fn](auto&&... args) { return (obj->*fn)(std::forward<decltype(args)>(args)...); };
-
-        return std::apply(func, typeListValuesTuple(tvl));
-    }
-};
-
-template <class ReturnType>
-struct Caller<ReturnType, 0>
-{
-    template <class Fn, class Params>
-    static ReturnType f(Fn& fn, TypeListValues<Params>&)
-    {
-        return fn();
-    }
-
-    template <class T, class MemFn, class Params>
-    static ReturnType f(T* obj, MemFn& fn, TypeListValues<Params>&)
-    {
-        return (obj->*fn)();
-    }
-};
-
-template <class ReturnType, class Fn, class Params>
-ReturnType doCall(Fn& fn, TypeListValues<Params>& tvl)
-{
-    return Caller<ReturnType, TypeListSize<Params>::value>::f(fn, tvl);
-}
-
-template <class ReturnType, class T, class MemFn, class Params>
-ReturnType doCall(T* obj, MemFn& fn, TypeListValues<Params>& tvl)
-{
-    return Caller<ReturnType, TypeListSize<Params>::value>::f(obj, fn, tvl);
-}
 
 //=================================================================================================
 /**
@@ -128,11 +78,54 @@ struct function_traits_impl<R (C::*)(Args...) const noexcept> : function_traits_
 {
 };
 
+#if _MSC_VER && _M_IX86 // Windows: WINAPI (a.k.a. __stdcall) function pointers (32bit only).
+template <class R, class... Args>
+struct function_traits_impl<R __stdcall(Args...)> : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class R, class... Args>
+struct function_traits_impl<R (__stdcall *)(Args...)> : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (__stdcall C::*)(Args...)> : function_traits_base<true, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (__stdcall C::*)(Args...) const> : function_traits_base<true, true, R, Args...>
+{
+};
+
+template <class R, class... Args>
+struct function_traits_impl<R __stdcall(Args...) noexcept> : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class R, class... Args>
+struct function_traits_impl<R (__stdcall *)(Args...) noexcept> : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (__stdcall C::*)(Args...) noexcept> : function_traits_base<true, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (__stdcall C::*)(Args...) const noexcept> : function_traits_base<true, true, R, Args...>
+{
+};
+#endif
+
 template <class F>
 struct functor_traits_impl : function_traits_impl<decltype(&F::operator())>
 {
 };
 
+//=================================================================================================
 /**
  * @brief Traits class for callable objects (e.g. function pointers, lambdas)
  *
@@ -145,6 +138,7 @@ struct function_traits : std::conditional<std::is_class<F>::value,
 {
 };
 
+//=================================================================================================
 /**
  * @brief Deduces the return type of a callble object.
  *
@@ -161,6 +155,14 @@ using function_result_t = typename function_traits<F>::result_type;
  */
 template <std::size_t I, class F>
 using function_argument_t = std::tuple_element_t<I, typename function_traits<F>::argument_types>;
+
+/**
+ * @brief Deduces the arguments type of a callble object.
+ *
+ * @tparam F Callable object.
+ */
+template <class F>
+using function_arguments_t = typename function_traits<F>::argument_types;
 
 /**
  * @brief An integral constant expression that gives the number of arguments accepted by the callable object.
@@ -186,6 +188,7 @@ static constexpr bool function_is_member_v = function_traits<F>::is_member;
 template <class F>
 static constexpr bool function_is_const_v = function_traits<F>::is_const;
 
+//=================================================================================================
 /**
  * @brief Detect if we are a `std::function`.
  */
@@ -207,6 +210,7 @@ struct is_std_function<std::function<Signature>> : std::true_type
 template <class F>
 static constexpr bool is_std_function_v = is_std_function<F>::value;
 
+//=================================================================================================
 /**
  * @brief Reconstruct a function signature from return type and args.
  */
@@ -215,126 +219,55 @@ struct to_std_function_type
 {
 };
 
-template <class ReturnType, typename... Ts>
-struct to_std_function_type<ReturnType, std::tuple<Ts...>>
+template <class ReturnType, typename... Args>
+struct to_std_function_type<ReturnType, std::tuple<Args...>>
 {
-    using type = std::function<ReturnType(Ts...)>;
+    using type = std::function<ReturnType(Args...)>;
 };
 
-template <class ReturnType, typename... Ts>
-using to_std_function_type_t = typename to_std_function_type<ReturnType, Ts...>::type;
+template <class ReturnType, typename... Args>
+using to_std_function_type_t = typename to_std_function_type<ReturnType, Args...>::type;
 
 //=================================================================================================
 /**
- * @brief Traits for function pointers.
- *
- * There are three types of functions: global, non-const member, and const member. These templates determine the type of function, which
- * class type it belongs to if it is a class member, the const-ness if it is a member function, and the type information for the return value and
- * argument list.
+ * @brief Simple make_tuple alternative that doesn't decay the types.
  */
-template <class MemFn, class D = MemFn>
-struct FuncTraits
+template <class... Types>
+auto tupleize(Types&&... args)
 {
-};
-
-// Ordinary function pointers.
-template <class R, class... ParamList>
-struct FuncTraits<R (*)(ParamList...)>
-{
-    static constexpr bool isMemberFunction = false;
-    static constexpr bool isConstMemberFunction = false;
-    using DeclType = R (*)(ParamList...);
-    using ReturnType = R;
-    using Params = typename MakeTypeList<ParamList...>::Result;
-
-    static R call(const DeclType& fp, TypeListValues<Params>& tvl)
-    {
-        return doCall<R>(fp, tvl);
-    }
-};
-
-// Windows: WINAPI (a.k.a. __stdcall) function pointers (32bit only).
-#ifdef _M_IX86
-template <class R, class... ParamList>
-struct FuncTraits<R(__stdcall*)(ParamList...)>
-{
-    static constexpr bool isMemberFunction = false;
-    static constexpr bool isConstMemberFunction = false;
-    using DeclType = R(__stdcall*)(ParamList...);
-    using ReturnType = R;
-    using Params = typename MakeTypeList<ParamList...>::Result;
-
-    static R call(const DeclType& fp, TypeListValues<Params>& tvl)
-    {
-        return doCall<R>(fp, tvl);
-    }
-};
-#endif // _M_IX86
-
-// Non-const member function pointers.
-template <class T, class R, class... ParamList>
-struct FuncTraits<R (T::*)(ParamList...)>
-{
-    static constexpr bool isMemberFunction = true;
-    static constexpr bool isConstMemberFunction = false;
-    using DeclType = R (T::*)(ParamList...);
-    using ClassType = T;
-    using ReturnType = R;
-    using Params = typename MakeTypeList<ParamList...>::Result;
-
-    static R call(ClassType* obj, const DeclType& fp, TypeListValues<Params>& tvl)
-    {
-        return doCall<R>(obj, fp, tvl);
-    }
-};
-
-// Const member function pointers.
-template <class T, class R, class... ParamList>
-struct FuncTraits<R (T::*)(ParamList...) const>
-{
-    static constexpr bool isMemberFunction = true;
-    static constexpr bool isConstMemberFunction = true;
-    using DeclType = R (T::*)(ParamList...) const;
-    using ClassType = T;
-    using ReturnType = R;
-    using Params = typename MakeTypeList<ParamList...>::Result;
-
-    static R call(const ClassType* obj, const DeclType& fp, TypeListValues<Params>& tvl)
-    {
-        return doCall<R>(obj, fp, tvl);
-    }
-};
-
-// std::function
-template <class R, class... ParamList>
-struct FuncTraits<std::function<R(ParamList...)>>
-{
-    static constexpr bool isMemberFunction = false;
-    static constexpr bool isConstMemberFunction = false;
-    using DeclType = std::function<R(ParamList...)>;
-    using ReturnType = R;
-    using Params = typename MakeTypeList<ParamList...>::Result;
-
-    static ReturnType call(DeclType& fn, TypeListValues<Params>& tvl)
-    {
-        return doCall<ReturnType>(fn, tvl);
-    }
-};
+    return std::tuple<Types...>(std::forward<Types>(args)...);
+}
 
 //=================================================================================================
 /**
- * @brief Invoke object that unpacks the arguments into stack values then call the functor.
+ * @brief Make argument lists extracting them from the lua state, starting at a stack index.
  */
-template< class ReturnType, class Params, int startParam>
-struct Invoke
+template <class Args, std::size_t Start, std::size_t... Indices>
+auto make_args_list_impl(lua_State* L, std::index_sequence<Indices...>)
 {
-    template <class Fn>
-    static int run(lua_State* L, Fn& fn)
+    return tupleize(Stack<std::tuple_element_t<Indices, Args>>::get(L, Start + Indices)...);
+}
+
+template <class Args, std::size_t Start>
+auto make_args_list(lua_State* L)
+{
+    return make_args_list_impl<Args, Start>(L, std::make_index_sequence<std::tuple_size_v<Args>>());
+}
+
+//=================================================================================================
+/**
+ * @brief Dispatcher object that unpacks the arguments into stack values then call the functor.
+ */
+template <std::size_t Start, class ReturnType, class Args>
+struct dispatcher
+{
+    template <class F>
+    static int call(lua_State* L, F func)
     {
         try
         {
-            ArgList<Params, startParam> args(L);
-            Stack<ReturnType>::push(L, FuncTraits<Fn>::call(fn, args));
+            Stack<ReturnType>::push(L, std::apply(func, make_args_list<Args, Start>(L)));
+            
             return 1;
         }
         catch (const std::exception& e)
@@ -343,13 +276,15 @@ struct Invoke
         }
     }
 
-    template <class T, class MemFn>
-    static int run(lua_State* L, T* object, const MemFn& fn)
+    template <class T, class F>
+    static int call(lua_State* L, T* ptr, F func)
     {
         try
         {
-            ArgList<Params, startParam> args(L);
-            Stack<ReturnType>::push(L, FuncTraits<MemFn>::call(object, fn, args));
+            auto f = [ptr, func](auto&&... args) -> ReturnType { return (ptr->*func)(std::forward<decltype(args)>(args)...); };
+
+            Stack<ReturnType>::push(L, std::apply(f, make_args_list<Args, Start>(L)));
+
             return 1;
         }
         catch (const std::exception& e)
@@ -359,16 +294,16 @@ struct Invoke
     }
 };
 
-template <class Params, int startParam>
-struct Invoke<void, Params, startParam>
+template <std::size_t Start, class Args>
+struct dispatcher<Start, void, Args>
 {
-    template <class Fn>
-    static int run(lua_State* L, Fn& fn)
+    template <class F>
+    static int call(lua_State* L, F func)
     {
         try
         {
-            ArgList<Params, startParam> args(L);
-            FuncTraits<Fn>::call(fn, args);
+            std::apply(func, make_args_list<Args, Start>(L));
+
             return 0;
         }
         catch (const std::exception& e)
@@ -377,13 +312,15 @@ struct Invoke<void, Params, startParam>
         }
     }
 
-    template <class T, class MemFn>
-    static int run(lua_State* L, T* object, const MemFn& fn)
+    template <class T, class F>
+    static int call(lua_State* L, T* ptr, F func)
     {
         try
         {
-            ArgList<Params, startParam> args(L);
-            FuncTraits<MemFn>::call(object, fn, args);
+            auto f = [ptr, func](auto&&... args) { (ptr->*func)(std::forward<decltype(args)>(args)...); };
+
+            std::apply(f, make_args_list<Args, Start>(L));
+
             return 0;
         }
         catch (const std::exception& e)

@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include "TypeList.h"
+#include <tuple>
 
 namespace luabridge {
 namespace detail {
@@ -19,40 +19,43 @@ namespace detail {
  * with up to 8 parameters. Two versions of call() are provided. One performs a regular new, the other
  * performs a placement new.
  */
-template <class T, class Params>
-struct Constructor;
+template <class T, class Args>
+struct constructor;
 
 template <class T>
-struct Constructor<T, None>
+struct constructor<T, void>
 {
-    static T* call(const TypeListValues<None>&)
+    using empty = std::tuple<>;
+
+    static T* call(const empty&)
     {
         return new T;
     }
 
-    static T* call(void* ptr, const TypeListValues<None>&)
+    static T* call(void* ptr, const empty&)
     {
         return new (ptr) T;
     }
 };
 
-template <class T, class Params>
-struct Constructor
+template <class T, class Args>
+struct constructor
 {
-    static T* call(const TypeListValues<Params>& tvl)
+    static T* call(const Args& args)
     {
         auto alloc = [](auto&&... args) { return new T(std::forward<decltype(args)>(args)...); };
         
-        return std::apply(alloc, typeListValuesTuple(tvl));
+        return std::apply(alloc, args);
     }
     
-    static T* call(void* ptr, const TypeListValues<Params>& tvl)
+    static T* call(void* ptr, const Args& args)
     {
         auto alloc = [ptr](auto&&... args) { return new (ptr) T(std::forward<decltype(args)>(args)...); };
 
-        return std::apply(alloc, typeListValuesTuple(tvl));
+        return std::apply(alloc, args);
     }
 };
+
 
 } // namespace detail
 } // namespace luabridge
