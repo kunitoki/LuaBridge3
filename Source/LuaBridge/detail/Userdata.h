@@ -669,21 +669,23 @@ struct UserdataGetter<T, std::void_t<T (*)()>>
 /**
   Lua stack conversions for class objects passed by value.
 */
-template<class T>
+template <class T>
 struct Stack
 {
-    typedef void IsUserdata;
+    using IsUserdata = void;
 
-    typedef detail::UserdataGetter<T> Getter;
-    typedef typename Getter::ReturnType ReturnType;
+    using Getter = detail::UserdataGetter<T>;
+    using ReturnType = typename Getter::ReturnType;
 
     static void push(lua_State* L, T const& value)
     {
-        using namespace detail;
-        StackHelper<T, TypeTraits::isContainer<T>::value>::push(L, value);
+        detail::StackHelper<T, detail::TypeTraits::isContainer<T>::value>::push(L, value);
     }
 
-    static ReturnType get(lua_State* L, int index) { return Getter::get(L, index); }
+    static ReturnType get(lua_State* L, int index)
+    {
+        return Getter::get(L, index);
+    }
 
     static bool isInstance(lua_State* L, int index)
     {

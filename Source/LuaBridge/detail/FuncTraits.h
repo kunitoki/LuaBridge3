@@ -20,6 +20,11 @@ namespace detail {
 //=================================================================================================
 /**
  * @brief Generic function traits.
+ *
+ * @tparam IsMember True if the function is a member function pointer.
+ * @tparam IsConst True if the function is const.
+ * @tparam R Return type of the function.
+ * @tparam Args Arguments types as variadic parameter pack.
  */
 template <bool IsMember, bool IsConst, class R, class... Args>
 struct function_traits_base
@@ -191,6 +196,8 @@ static constexpr bool function_is_const_v = function_traits<F>::is_const;
 //=================================================================================================
 /**
  * @brief Detect if we are a `std::function`.
+ *
+ * @tparam F Callable object.
  */
 template <class F, class...>
 struct is_std_function : std::false_type
@@ -214,7 +221,7 @@ static constexpr bool is_std_function_v = is_std_function<F>::value;
 /**
  * @brief Reconstruct a function signature from return type and args.
  */
-template <class, class>
+template <class, class...>
 struct to_std_function_type
 {
 };
@@ -231,42 +238,68 @@ using to_std_function_type_t = typename to_std_function_type<ReturnType, Args...
 //=================================================================================================
 /**
  * @brief Simple make_tuple alternative that doesn't decay the types.
+ *
+ * @tparam Types Argument types that will compose the tuple.
  */
 template <class... Types>
-auto tupleize(Types&&... args)
+auto tupleize(Types&&... types)
 {
-    return std::tuple<Types...>(std::forward<Types>(args)...);
+    return std::tuple<Types...>(std::forward<Types>(types)...);
 }
 
 //=================================================================================================
 /**
  * @brief Make argument lists extracting them from the lua state, starting at a stack index.
+ *
+ * @tparam ArgsPack Arguments pack to extract from the lua stack.
+ * @tparam Start Start index where stack variables are located in the lua stack.
  */
-template <class Args, std::size_t Start, std::size_t... Indices>
-auto make_args_list_impl(lua_State* L, std::index_sequence<Indices...>)
+template <class ArgsPack, std::size_t Start, std::size_t... Indices>
+auto make_arguments_list_impl(lua_State* L, std::index_sequence<Indices...>)
 {
-    return tupleize(Stack<std::tuple_element_t<Indices, Args>>::get(L, Start + Indices)...);
+    return tupleize(Stack<std::tuple_element_t<Indices, ArgsPack>>::get(L, Start + Indices)...);
 }
 
-template <class Args, std::size_t Start>
-auto make_args_list(lua_State* L)
+template <class ArgsPack, std::size_t Start>
+auto make_arguments_list(lua_State* L)
 {
-    return make_args_list_impl<Args, Start>(L, std::make_index_sequence<std::tuple_size_v<Args>>());
+    return make_arguments_list_impl<ArgsPack, Start>(L, std::make_index_sequence<std::tuple_size_v<ArgsPack>>());
 }
 
 //=================================================================================================
 /**
- * @brief Dispatcher object that unpacks the arguments into stack values then call the functor.
+ * @brief Helpers for iterating through tuple arguments, pushing eash argument to the lua stack.
  */
-template <std::size_t Start, class ReturnType, class Args>
-struct dispatcher
+template <std::size_t Index = 0, typename... Types>
+auto push_arguments(lua_State*, const std::tuple<Types...>&)
+    -> std::enable_if_t<Index == sizeof...(Types)>
+{
+}
+
+template <std::size_t Index = 0, typename... Types>
+auto push_arguments(lua_State* L, const std::tuple<Types...>& t)
+    -> std::enable_if_t<Index < sizeof...(Types)>
+{
+    using T = std::tuple_element_t<Index, std::tuple<Types...>>;
+
+    Stack<T>::push(L, std::get<Index>(t));
+
+    push_arguments<Index + 1, Types...>(L, t);
+}
+
+//=================================================================================================
+/**
+ * @brief Function generator.
+ */
+template <class ReturnType, class ArgsPack, std::size_t Start = 1u>
+struct function
 {
     template <class F>
     static int call(lua_State* L, F func)
     {
         try
         {
-            Stack<ReturnType>::push(L, std::apply(func, make_args_list<Args, Start>(L)));
+            Stack<ReturnType>::push(L, std::apply(func, make_arguments_list<ArgsPack, Start>(L)));
             
             return 1;
         }
@@ -283,7 +316,7 @@ struct dispatcher
         {
             auto f = [ptr, func](auto&&... args) -> ReturnType { return (ptr->*func)(std::forward<decltype(args)>(args)...); };
 
-            Stack<ReturnType>::push(L, std::apply(f, make_args_list<Args, Start>(L)));
+            Stack<ReturnType>::push(L, std::apply(f, make_arguments_list<ArgsPack, Start>(L)));
 
             return 1;
         }
@@ -294,15 +327,15 @@ struct dispatcher
     }
 };
 
-template <std::size_t Start, class Args>
-struct dispatcher<Start, void, Args>
+template <class ArgsPack, std::size_t Start>
+struct function<void, ArgsPack, Start>
 {
     template <class F>
     static int call(lua_State* L, F func)
     {
         try
         {
-            std::apply(func, make_args_list<Args, Start>(L));
+            std::apply(func, make_arguments_list<ArgsPack, Start>(L));
 
             return 0;
         }
@@ -319,7 +352,7 @@ struct dispatcher<Start, void, Args>
         {
             auto f = [ptr, func](auto&&... args) { (ptr->*func)(std::forward<decltype(args)>(args)...); };
 
-            std::apply(f, make_args_list<Args, Start>(L));
+            std::apply(f, make_arguments_list<ArgsPack, Start>(L));
 
             return 0;
         }
@@ -327,6 +360,50 @@ struct dispatcher<Start, void, Args>
         {
             return luaL_error(L, e.what());
         }
+    }
+};
+
+//=================================================================================================
+/**
+ * @brief Constructor generators.
+ *
+ * These templates call operator new with the contents of a type/value list passed to the constructor. Two versions of call() are provided.
+ * One performs a regular new, the other performs a placement new.
+ */
+template <class T, class Args>
+struct constructor;
+
+template <class T>
+struct constructor<T, void>
+{
+    using empty = std::tuple<>;
+
+    static T* call(const empty&)
+    {
+        return new T;
+    }
+
+    static T* call(void* ptr, const empty&)
+    {
+        return new (ptr) T;
+    }
+};
+
+template <class T, class Args>
+struct constructor
+{
+    static T* call(const Args& args)
+    {
+        auto alloc = [](auto&&... args) { return new T(std::forward<decltype(args)>(args)...); };
+        
+        return std::apply(alloc, args);
+    }
+    
+    static T* call(void* ptr, const Args& args)
+    {
+        auto alloc = [ptr](auto&&... args) { return new (ptr) T(std::forward<decltype(args)>(args)...); };
+
+        return std::apply(alloc, args);
     }
 };
 

@@ -21,7 +21,6 @@
 #include "detail/Config.h"
 #include "detail/CFunctions.h"
 #include "detail/ClassInfo.h"
-#include "detail/Constructor.h"
 #include "detail/FuncTraits.h"
 #include "detail/Iterator.h"
 #include "detail/LuaException.h"

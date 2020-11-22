@@ -17,30 +17,6 @@ namespace detail {
 
 struct CFunc
 {
-    static void addGetter(lua_State* L, const char* name, int tableIndex)
-    {
-        assert(name != nullptr);
-        assert(lua_istable(L, tableIndex));
-        assert(lua_iscfunction(L, -1)); // Stack: getter
-
-        lua_rawgetp(L, tableIndex, getPropgetKey()); // Stack: getter, propget table (pg)
-        lua_pushvalue(L, -2); // Stack: getter, pg, getter
-        rawsetfield(L, -2, name); // Stack: getter, pg
-        lua_pop(L, 2); // Stack: -
-    }
-
-    static void addSetter(lua_State* L, const char* name, int tableIndex)
-    {
-        assert(name != nullptr);
-        assert(lua_istable(L, tableIndex));
-        assert(lua_iscfunction(L, -1)); // Stack: setter
-
-        lua_rawgetp(L, tableIndex, getPropsetKey()); // Stack: setter, propset table (ps)
-        lua_pushvalue(L, -2); // Stack: setter, ps, setter
-        rawsetfield(L, -2, name); // Stack: setter, ps
-        lua_pop(L, 2); // Stack: -
-    }
-
     //----------------------------------------------------------------------------
     /**
         __index metamethod for a namespace or class static and non-static members.
@@ -194,42 +170,6 @@ struct CFunc
         return luaL_error(L, s.c_str());
     }
 
-    //----------------------------------------------------------------------------
-    /**
-        lua_CFunction to get a variable.
-
-        This is used for global variables or class static data members.
-
-        The pointer to the data is in the first upvalue.
-    */
-    template <class T>
-    static int getVariable(lua_State* L)
-    {
-        assert(lua_islightuserdata(L, lua_upvalueindex(1)));
-        T const* ptr = static_cast<T const*>(lua_touserdata(L, lua_upvalueindex(1)));
-        assert(ptr != nullptr);
-        Stack<T>::push(L, *ptr);
-        return 1;
-    }
-
-    //----------------------------------------------------------------------------
-    /**
-        lua_CFunction to set a variable.
-
-        This is used for global variables or class static data members.
-
-        The pointer to the data is in the first upvalue.
-    */
-    template <class T>
-    static int setVariable(lua_State* L)
-    {
-        assert(lua_islightuserdata(L, lua_upvalueindex(1)));
-        T* ptr = static_cast<T*>(lua_touserdata(L, lua_upvalueindex(1)));
-        assert(ptr != nullptr);
-        *ptr = Stack<T>::get(L, 1);
-        return 0;
-    }
-
     //--------------------------------------------------------------------------
     /**
         __gc metamethod for a class.
@@ -241,31 +181,66 @@ struct CFunc
         ud->~Userdata();
         return 0;
     }
+};
 
-    /**
-        __gc metamethod for an arbitrary class.
-    */
-    template <class T>
-    static int gcMetaMethodAny(lua_State* L)
+//=================================================================================================
+
+template <class T, class C = void>
+struct property_getter;
+
+/**
+ * @brief lua_CFunction to get a variable.
+ *
+ * This is used for global variables or class static data members. The pointer to the data is in the first upvalue.
+ */
+template <class T>
+struct property_getter<T, void>
+{
+    static int call(lua_State* L)
     {
-        assert(isfulluserdata(L, 1));
-        T* t = align<T>(lua_touserdata(L, 1));
-        t->~T();
-        return 0;
+        assert(lua_islightuserdata(L, lua_upvalueindex(1)));
+
+        T* ptr = static_cast<T*>(lua_touserdata(L, lua_upvalueindex(1)));
+        assert(ptr != nullptr);
+
+        Stack<T&>::push(L, *ptr);
+
+        return 1;
     }
+};
 
-    //--------------------------------------------------------------------------
-    /**
-        lua_CFunction to get a class data member.
-
-        The pointer-to-member is in the first upvalue.
-        The class userdata object is at the top of the Lua stack.
-    */
-    template <class C, typename T>
-    static int getProperty(lua_State* L)
+/*
+template <class T>
+struct property_getter<std::reference_wrapper<T>, void>
+{
+    static int call(lua_State* L)
     {
-        C* const c = Userdata::get<C>(L, 1, true);
+        assert(lua_islightuserdata(L, lua_upvalueindex(1)));
+
+        std::reference_wrapper<T>* ptr = static_cast<std::reference_wrapper<T>*>(lua_touserdata(L, lua_upvalueindex(1)));
+        assert(ptr != nullptr);
+
+        Stack<T&>::push(L, ptr->get());
+
+        return 1;
+    }
+};
+*/
+
+/**
+ * @brief lua_CFunction to get a class data member.
+ *
+ * The pointer-to-member is in the first upvalue. The class userdata object is at the top of the Lua stack.
+ */
+template <class T, class C>
+struct property_getter
+{
+    static int call(lua_State* L)
+    {
+        C* c = Userdata::get<C>(L, 1, true);
+        
         T C::** mp = static_cast<T C::**>(lua_touserdata(L, lua_upvalueindex(1)));
+        
         try
         {
             Stack<T&>::push(L, c->**mp);
@@ -274,21 +249,84 @@ struct CFunc
         {
             luaL_error(L, e.what());
         }
+
         return 1;
     }
+};
 
-    //--------------------------------------------------------------------------
-    /**
-        lua_CFunction to set a class data member.
+/**
+ * @brief Helper function to push a property getter on a table at a specific index.
+ */
+inline void add_property_getter(lua_State* L, const char* name, int tableIndex)
+{
+    assert(name != nullptr);
+    assert(lua_istable(L, tableIndex));
+    assert(lua_iscfunction(L, -1)); // Stack: getter
 
-        The pointer-to-member is in the first upvalue.
-        The class userdata object is at the top of the Lua stack.
-    */
-    template <class C, typename T>
-    static int setProperty(lua_State* L)
+    lua_rawgetp(L, tableIndex, getPropgetKey()); // Stack: getter, propget table (pg)
+    lua_pushvalue(L, -2); // Stack: getter, pg, getter
+    rawsetfield(L, -2, name); // Stack: getter, pg
+    lua_pop(L, 2); // Stack: -
+}
+
+//=================================================================================================
+
+template <class T, class C = void>
+struct property_setter;
+
+/**
+ * @brief lua_CFunction to set a variable.
+ *
+ * This is used for global variables or class static data members. The pointer to the data is in the first upvalue.
+ */
+template <class T>
+struct property_setter<T, void>
+{
+    static int call(lua_State* L)
     {
-        C* const c = Userdata::get<C>(L, 1, false);
+        assert(lua_islightuserdata(L, lua_upvalueindex(1)));
+
+        T* ptr = static_cast<T*>(lua_touserdata(L, lua_upvalueindex(1)));
+        assert(ptr != nullptr);
+
+        *ptr = Stack<T>::get(L, 1);
+
+        return 0;
+    }
+};
+
+/*
+template <class T>
+struct property_setter<std::reference_wrapper<T>, void>
+{
+    static int call(lua_State* L)
+    {
+        assert(lua_islightuserdata(L, lua_upvalueindex(1)));
+
+        std::reference_wrapper<T>* ptr = static_cast<std::reference_wrapper<T>*>(lua_touserdata(L, lua_upvalueindex(1)));
+        assert(ptr != nullptr);
+
+        ptr->get() = Stack<T>::get(L, 1);
+
+        return 0;
+    }
+};
+*/
+ 
+/**
+ * @brief lua_CFunction to set a class data member.
+ *
+ * The pointer-to-member is in the first upvalue. The class userdata object is at the top of the Lua stack.
+ */
+template <class T, class C>
+struct property_setter
+{
+    static int call(lua_State* L)
+    {
+        C* c = Userdata::get<C>(L, 1, false);
+
         T C::** mp = static_cast<T C::**>(lua_touserdata(L, lua_upvalueindex(1)));
+
         try
         {
             c->** mp = Stack<T>::get(L, 2);
@@ -297,17 +335,32 @@ struct CFunc
         {
             luaL_error(L, e.what());
         }
+
         return 0;
     }
 };
 
-//----------------------------------------------------------------------------
 /**
-    lua_CFunction to call a class member function with a return value.
+ * @brief Helper function to push a property setter on a table at a specific index.
+ */
+inline void add_property_setter(lua_State* L, const char* name, int tableIndex)
+{
+    assert(name != nullptr);
+    assert(lua_istable(L, tableIndex));
+    assert(lua_iscfunction(L, -1)); // Stack: setter
 
-    The member function pointer is in the first upvalue.
-    The class userdata object is at the top of the Lua stack.
-*/
+    lua_rawgetp(L, tableIndex, getPropsetKey()); // Stack: setter, propset table (ps)
+    lua_pushvalue(L, -2); // Stack: setter, ps, setter
+    rawsetfield(L, -2, name); // Stack: setter, ps
+    lua_pop(L, 2); // Stack: -
+}
+
+//=================================================================================================
+/**
+ * @brief lua_CFunction to call a class member function with a return value.
+ *
+ * The member function pointer is in the first upvalue. The class userdata object is at the top of the Lua stack.
+ */
 template <class F, class T>
 int invoke_member_function(lua_State* L)
 {
@@ -315,12 +368,12 @@ int invoke_member_function(lua_State* L)
 
     assert(isfulluserdata(L, lua_upvalueindex(1)));
 
-    T* const ptr = Userdata::get<T>(L, 1, false);
+    T* ptr = Userdata::get<T>(L, 1, false);
 
-    F const& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
+    const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
     assert(func != nullptr);
 
-    return dispatcher<2, typename FnTraits::result_type, typename FnTraits::argument_types>::call(L, ptr, func);
+    return function<typename FnTraits::result_type, typename FnTraits::argument_types, 2>::call(L, ptr, func);
 }
 
 template <class F, class T>
@@ -330,21 +383,20 @@ int invoke_const_member_function(lua_State* L)
 
     assert(isfulluserdata(L, lua_upvalueindex(1)));
 
-    const T* const ptr = Userdata::get<T>(L, 1, true);
+    const T* ptr = Userdata::get<T>(L, 1, true);
 
-    F const& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
+    const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
     assert(func != nullptr);
 
-    return dispatcher<2, typename FnTraits::result_type, typename FnTraits::argument_types>::call(L, ptr, func);
+    return function<typename FnTraits::result_type, typename FnTraits::argument_types, 2>::call(L, ptr, func);
 }
 
-//--------------------------------------------------------------------------
+//=================================================================================================
 /**
-    lua_CFunction to call a class member lua_CFunction.
-
-    The member function pointer is in the first upvalue.
-    The object userdata ('this') value is at top ot the Lua stack.
-*/
+ * @brief lua_CFunction to call a class member lua_CFunction.
+ *
+ * The member function pointer is in the first upvalue. The object userdata ('this') value is at top ot the Lua stack.
+ */
 template <class T>
 int invoke_member_cfunction(lua_State* L)
 {
@@ -352,9 +404,9 @@ int invoke_member_cfunction(lua_State* L)
 
     assert(isfulluserdata(L, lua_upvalueindex(1)));
 
-    T* const t = Userdata::get<T>(L, 1, false);
+    T* t = Userdata::get<T>(L, 1, false);
     
-    F const& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
+    const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
     assert(func != nullptr);
 
     return (t->*func)(L);
@@ -367,21 +419,20 @@ int invoke_const_member_cfunction(lua_State* L)
 
     assert(isfulluserdata(L, lua_upvalueindex(1)));
 
-    T const* const t = Userdata::get<T>(L, 1, true);
+    const T* t = Userdata::get<T>(L, 1, true);
     
-    F const& func = *static_cast<F const*>(lua_touserdata(L, lua_upvalueindex(1)));
+    const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
     assert(func != nullptr);
     
     return (t->*func)(L);
 }
 
-//--------------------------------------------------------------------------
+//=================================================================================================
 /**
-    lua_CFunction to call on a object.
-
-    The proxy function pointer (lightuserdata) is in the first upvalue.
-    The class userdata object is at the top of the Lua stack.
-*/
+ * @brief lua_CFunction to call on a object via function pointer.
+ *
+ * The proxy function pointer (lightuserdata) is in the first upvalue. The class userdata object is at the top of the Lua stack.
+ */
 template <class F>
 int invoke_proxy_function(lua_State* L)
 {
@@ -392,9 +443,15 @@ int invoke_proxy_function(lua_State* L)
     auto func = reinterpret_cast<F>(lua_touserdata(L, lua_upvalueindex(1)));
     assert(func != nullptr);
 
-    return dispatcher<1, typename FnTraits::result_type, typename FnTraits::argument_types>::call(L, func);
+    return function<typename FnTraits::result_type, typename FnTraits::argument_types, 1>::call(L, func);
 }
 
+//=================================================================================================
+/**
+ * @brief lua_CFunction to call on a object via functor (lambda wrapped in a std::function).
+ *
+ * The proxy std::function (lightuserdata) is in the first upvalue. The class userdata object is at the top of the Lua stack.
+ */
 template <class F>
 int invoke_proxy_functor(lua_State* L)
 {
@@ -404,7 +461,7 @@ int invoke_proxy_functor(lua_State* L)
 
     auto& func = *align<F>(lua_touserdata(L, lua_upvalueindex(1)));
 
-    return dispatcher<1, typename FnTraits::result_type, typename FnTraits::argument_types>::call(L, func);
+    return function<typename FnTraits::result_type, typename FnTraits::argument_types, 1>::call(L, func);
 }
 
 } // namespace detail

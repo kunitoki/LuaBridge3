@@ -21,29 +21,6 @@ namespace luabridge {
 
 //------------------------------------------------------------------------------
 /**
-    Helper for iterating through tuple arguments, pushing eash argument to the
-    stack. Adapted from https://stackoverflow.com/a/6894436
-*/
-
-template <std::size_t I = 0, typename... Tp>
-auto push_arguments(lua_State*, const std::tuple<Tp...>&)
-    -> std::enable_if_t<I == sizeof...(Tp)>
-{
-}
-
-template <std::size_t I = 0, typename... Tp>
-auto push_arguments(lua_State* L, const std::tuple<Tp...>& t)
-    -> std::enable_if_t<I < sizeof...(Tp)>
-{
-    using ArgumentType = std::tuple_element_t<I, std::tuple<Tp...>>;
-
-    Stack<ArgumentType>::push(L, std::get<I>(t));
-
-    push_arguments<I + 1, Tp...>(L, t);
-}
-
-//------------------------------------------------------------------------------
-/**
  * @brief Type tag for representing LUA_TNIL.
  *
  * Construct one of these using `LuaNil ()` to represent a Lua nil. This is faster
@@ -63,16 +40,22 @@ struct LuaNil
 /**
  * @code Stack specialization for LuaNil.
  */
-template<>
+template <>
 struct Stack<LuaNil>
 {
-    static void push(lua_State* L, LuaNil) { lua_pushnil(L); }
+    static void push(lua_State* L, LuaNil)
+    {
+        lua_pushnil(L);
+    }
 
-    static bool isInstance(lua_State* L, int index) { return lua_type(L, index) == LUA_TTABLE; }
+    static bool isInstance(lua_State* L, int index)
+    {
+        return lua_type(L, index) == LUA_TTABLE;
+    }
 };
 
 /**
- * Base class for Lua variables and table item reference classes.
+ * @brief Base class for Lua variables and table item reference classes.
  */
 template<class Impl, class LuaRef>
 class LuaRefBase
@@ -378,16 +361,32 @@ public:
         return Stack<T>::isInstance(m_L, -1);
     }
 
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
-        Type cast operator.
-
-        @returns A value of the type T converted from this reference.
-    */
-    template<class T>
+     * @brief Type cast operator.
+     *
+     * @returns A value of the type T converted from this reference.
+     */
+    template <class T>
     operator T() const
     {
         return cast<T>();
+    }
+
+    //=============================================================================================
+    /**
+     * @brief Type cast operator to optional value
+     *
+     * @returns An optional value of the type T converted from this reference if conversion is possible, nullopt otherwise.
+     */
+    template <class T>
+    operator std::optional<T>() const
+    {
+        StackPop p(m_L, 1);
+
+        impl().push();
+
+        return Stack<T>::isInstance(m_L, -1) ? std::make_optional(Stack<T>::get(m_L, -1)) : std::nullopt;
     }
 
     //----------------------------------------------------------------------------
@@ -593,9 +592,9 @@ public:
     {
         impl().push();
 
-        push_arguments(m_L, std::forward_as_tuple(args...));
+        detail::push_arguments(m_L, std::forward_as_tuple(args...));
 
-        LuaException::pcall (m_L, sizeof...(args), 1);
+        LuaException::pcall(m_L, sizeof...(Args), 1);
 
         return LuaRef::fromStack(m_L);
     }
@@ -1021,28 +1020,33 @@ private:
 
 //------------------------------------------------------------------------------
 /**
- * Stack specialization for `LuaRef`.
+ * @brief Stack specialization for `LuaRef`.
  */
-template<>
+template <>
 struct Stack<LuaRef>
 {
-    // The value is const& to prevent a copy construction.
-    //
-    static void push(lua_State* L, LuaRef const& v) { v.push(L); }
+    static void push(lua_State* L, const LuaRef& v)
+    {
+        v.push(L);
+    }
 
-    static LuaRef get(lua_State* L, int index) { return LuaRef::fromStack(L, index); }
+    static LuaRef get(lua_State* L, int index)
+    {
+        return LuaRef::fromStack(L, index);
+    }
 };
 
 //------------------------------------------------------------------------------
 /**
- * Stack specialization for `TableItem`.
+ * @brief Stack specialization for `TableItem`.
  */
-template<>
-struct Stack<LuaRef::TableItem>
+template <>
+struct Stack <LuaRef::TableItem>
 {
-    // The value is const& to prevent a copy construction.
-    //
-    static void push(lua_State* L, LuaRef::TableItem const& v) { v.push(L); }
+    static void push(lua_State* L, const LuaRef::TableItem& v)
+    {
+        v.push(L);
+    }
 };
 
 //------------------------------------------------------------------------------
