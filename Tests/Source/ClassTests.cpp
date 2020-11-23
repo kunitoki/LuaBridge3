@@ -1886,3 +1886,27 @@ TEST_F(ClassTests, NonVirtualMethodInBaseClassCannotBeExposed)
     lua_close(L);
     L = nullptr;
 }
+
+TEST_F(ClassTests, ReferenceWrapper)
+{
+    int x = 13;
+    std::reference_wrapper<int> ref_wrap_x(x);
+
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("test")
+        .addProperty("ref_wrap_x", &ref_wrap_x)
+        .addFunction("changeReference", [](std::reference_wrapper<int> r) { r.get() = 100; })
+        .endNamespace();
+
+    runLua(R"(
+        result = test.ref_wrap_x
+        test.changeReference(test.ref_wrap_x)
+    )");
+
+    EXPECT_TRUE(result().isUserdata());
+    EXPECT_EQ(x, result().cast<std::reference_wrapper<int>>().get());
+    EXPECT_EQ(100, x);
+
+    lua_close(L);
+    L = nullptr;
+}

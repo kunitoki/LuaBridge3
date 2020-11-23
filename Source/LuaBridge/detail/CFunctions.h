@@ -209,7 +209,7 @@ struct property_getter<T, void>
     }
 };
 
-/*
+#if 0
 template <class T>
 struct property_getter<std::reference_wrapper<T>, void>
 {
@@ -225,7 +225,7 @@ struct property_getter<std::reference_wrapper<T>, void>
         return 1;
     }
 };
-*/
+#endif
 
 /**
  * @brief lua_CFunction to get a class data member.
@@ -295,7 +295,7 @@ struct property_setter<T, void>
     }
 };
 
-/*
+#if 0
 template <class T>
 struct property_setter<std::reference_wrapper<T>, void>
 {
@@ -311,8 +311,8 @@ struct property_setter<std::reference_wrapper<T>, void>
         return 0;
     }
 };
-*/
- 
+#endif
+
 /**
  * @brief lua_CFunction to set a class data member.
  *
