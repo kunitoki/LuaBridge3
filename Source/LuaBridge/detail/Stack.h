@@ -14,11 +14,13 @@
 #include <functional>
 #include <string>
 #include <string_view>
+#include <tuple>
+
 #include <iostream>
 
 namespace luabridge {
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Lua stack traits for C++ types.
  *
@@ -27,7 +29,7 @@ namespace luabridge {
 template <class T>
 struct Stack;
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Specialization for void type.
  */
@@ -39,7 +41,7 @@ struct Stack<void>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Receive the lua_State* as an argument.
  */
@@ -52,7 +54,7 @@ struct Stack<lua_State*>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for a lua_CFunction.
  */
@@ -75,7 +77,7 @@ struct Stack<lua_CFunction>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `bool`.
  */
@@ -98,7 +100,7 @@ struct Stack<bool>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `std::byte`.
  */
@@ -121,7 +123,7 @@ struct Stack<std::byte>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `char`.
  */
@@ -144,7 +146,7 @@ struct Stack<char>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `unsigned char`.
  */
@@ -167,7 +169,7 @@ struct Stack<unsigned char>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
     Stack specialization for `short`.
 */
@@ -190,7 +192,7 @@ struct Stack<short>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `unsigned short`.
  */
@@ -213,7 +215,7 @@ struct Stack<unsigned short>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `int`.
  */
@@ -236,7 +238,7 @@ struct Stack<int>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `unsigned int`.
  */
@@ -259,7 +261,7 @@ struct Stack<unsigned int>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `long`.
  */
@@ -282,7 +284,7 @@ struct Stack<long>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `unsigned long`.
  */
@@ -305,7 +307,7 @@ struct Stack<unsigned long>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `long long`.
  */
@@ -328,7 +330,7 @@ struct Stack<long long>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `unsigned long long`.
  */
@@ -351,7 +353,7 @@ struct Stack<unsigned long long>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `float`.
  */
@@ -374,7 +376,7 @@ struct Stack<float>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `double`.
  */
@@ -397,7 +399,7 @@ struct Stack<double>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `const char*`.
  */
@@ -423,7 +425,7 @@ struct Stack<char const*>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `std::string_view`.
  */
@@ -446,7 +448,7 @@ struct Stack<std::string_view>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `std::string`.
  */
@@ -481,6 +483,87 @@ struct Stack<std::string>
     static bool isInstance(lua_State* L, int index)
     {
         return lua_type(L, index) == LUA_TSTRING;
+    }
+};
+
+//=================================================================================================
+/**
+ * @brief Stack specialization for `std::tuple`.
+ */
+template <class... Types>
+struct Stack<std::tuple<Types...>>
+{
+    static void push(lua_State* L, const std::tuple<Types...>& t)
+    {
+        lua_createtable(L, static_cast<int>(Size), 0);
+
+        push_element(L, t);
+    }
+
+    static std::tuple<Types...> get(lua_State* L, int index)
+    {
+        if (!lua_istable(L, index))
+            luaL_error(L, "#%d argment must be a table", index);
+
+        if (get_length(L, index) != Size)
+            luaL_error(L, "table size should be %d but is %d", Size, get_length(L, index));
+
+        std::tuple<Types...> value;
+
+        int absIndex = lua_absindex(L, index);
+        lua_pushnil(L);
+
+        pop_element(L, absIndex, value);
+        
+        return value;
+    }
+
+    static bool isInstance(lua_State* L, int index)
+    {
+        return lua_type(L, index) == LUA_TTABLE;
+    }
+
+private:
+    static constexpr std::size_t Size = std::tuple_size_v<std::tuple<Types...>>;
+
+    template <std::size_t Index = 0>
+    static auto push_element(lua_State*, const std::tuple<Types...>&)
+        -> std::enable_if_t<Index == sizeof...(Types)>
+    {
+    }
+
+    template <std::size_t Index = 0>
+    static auto push_element(lua_State* L, const std::tuple<Types...>& t)
+        -> std::enable_if_t<Index < sizeof...(Types)>
+    {
+        using T = std::tuple_element_t<Index, std::tuple<Types...>>;
+        
+        lua_pushinteger(L, static_cast<lua_Integer>(Index + 1));
+        Stack<T>::push(L, std::get<Index>(t));
+        lua_settable(L, -3);
+        
+        push_element<Index + 1>(L, t);
+    }
+
+    template <std::size_t Index = 0>
+    static auto pop_element(lua_State*, int, std::tuple<Types...>&)
+        -> std::enable_if_t<Index == sizeof...(Types)>
+    {
+    }
+
+    template <std::size_t Index = 0>
+    static auto pop_element(lua_State* L, int absIndex, std::tuple<Types...>& t)
+        -> std::enable_if_t<Index < sizeof...(Types)>
+    {
+        using T = std::tuple_element_t<Index, std::tuple<Types...>>;
+        
+        if (lua_next(L, absIndex) == 0)
+            return;
+
+        std::get<Index>(t) = Stack<T>::get(L, -1);
+        lua_pop(L, 1);
+        
+        pop_element<Index + 1>(L, absIndex, t);
     }
 };
 

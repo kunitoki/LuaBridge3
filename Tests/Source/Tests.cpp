@@ -206,6 +206,38 @@ TEST_F(LuaBridgeTest, CFunction)
     }
 }
 
+TEST_F(LuaBridgeTest, Tuple)
+{
+    std::tuple<int, float> t = std::make_tuple(1, 2.0f);
+    
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("tuple")
+            .addProperty("t", &t)
+        .endNamespace();
+
+    {
+        resetResult();
+        runLua("result = { 1, 2 }");
+        ASSERT_EQ(true, result().isTable());
+        EXPECT_EQ((std::make_tuple(1, 2)), (result<std::tuple<int, int>>()));
+    }
+
+    {
+        resetResult();
+        runLua("tuple.t = { 2, 4.0 }");
+        EXPECT_EQ(2, std::get<0>(t));
+        EXPECT_FLOAT_EQ(4.0f, std::get<1>(t));
+    }
+
+    {
+        resetResult();
+        runLua("result = tuple.t");
+        ASSERT_EQ(true, result().isTable());
+        EXPECT_EQ(2, std::get<0>(result<std::tuple<int, float>>()));
+        EXPECT_FLOAT_EQ(4.0f, std::get<1>(result<std::tuple<int, float>>()));
+    }
+}
+
 template<class T>
 struct TestClass
 {
