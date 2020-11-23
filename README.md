@@ -89,16 +89,13 @@ been taken over by Vinnie Falco, who added new functionality, wrote the new
 documentation, and incorporated contributions from Nigel Atkinson.
 
 For questions, comments, or bug reports feel free to open a Github issue
-or contact Vinnie Falco directly at the email address indicated below.
+or contact Lucio Asnaghi directly at the email address indicated below.
 
 Copyright 2020, Lucio Asnaghi (<kunitoki@gmail.com>)<br>
 Copyright 2019, Dmitry Tarakanov<br>
 Copyright 2012, Vinnie Falco (<vinnie.falco@gmail.com>)<br>
 Copyright 2008, Nigel Atkinson<br>
 Copyright 2007, Nathan Reed<br>
-
-Portions from The Loki Library:<br>
-Copyright (C) 2001 by Andrei Alexandrescu
 
 Older versions of LuaBridge up to and including 0.2 are distributed under the
 BSD 3-Clause License. See the corresponding license file in those versions

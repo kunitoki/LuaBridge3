@@ -11,6 +11,7 @@
 
 #include <cassert>
 #include <stdexcept>
+#include <type_traits>
 
 namespace luabridge {
 namespace detail {
@@ -428,7 +429,7 @@ private:
     UserdataShared(UserdataShared<C> const&);
     UserdataShared<C>& operator=(UserdataShared<C> const&);
 
-    typedef typename TypeTraits::removeConst<typename ContainerTraits<C>::Type>::Type T;
+    using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
 
     C m_c;
 
@@ -470,7 +471,7 @@ public:
 template<class C, bool makeObjectConst>
 struct UserdataSharedHelper
 {
-    typedef typename TypeTraits::removeConst<typename ContainerTraits<C>::Type>::Type T;
+    using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
 
     static void push(lua_State* L, C const& c)
     {
@@ -509,7 +510,7 @@ struct UserdataSharedHelper
 template<class C>
 struct UserdataSharedHelper<C, true>
 {
-    typedef typename TypeTraits::removeConst<typename ContainerTraits<C>::Type>::Type T;
+    using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
 
     static void push(lua_State* L, C const& c)
     {
@@ -553,18 +554,20 @@ struct UserdataSharedHelper<C, true>
   either be of the intrusive variety, or in the style of the RefCountedPtr
   type provided by LuaBridge (that uses a global hash table).
 */
-template<class C, bool byContainer>
+template <class T, bool byContainer>
 struct StackHelper
 {
-    static void push(lua_State* L, C const& c)
+    using ReturnType = std::remove_const_t<typename ContainerTraits<T>::Type>;
+
+    static void push(lua_State* L, T const& t)
     {
-        UserdataSharedHelper<C, TypeTraits::isConst<typename ContainerTraits<C>::Type>::value>::
-            push(L, c);
+        UserdataSharedHelper<T, std::is_const_v<typename ContainerTraits<T>::Type>>::push(L, t);
     }
 
-    typedef typename TypeTraits::removeConst<typename ContainerTraits<C>::Type>::Type T;
-
-    static C get(lua_State* L, int index) { return Userdata::get<T>(L, index, true); }
+    static T get(lua_State* L, int index)
+    {
+        return Userdata::get<ReturnType>(L, index, true);
+    }
 };
 
 /**
@@ -574,12 +577,15 @@ struct StackHelper
   reference to an object outside the activation record in which it was
   retrieved may result in undefined behavior if Lua garbage collected it.
 */
-template<class T>
+template <class T>
 struct StackHelper<T, false>
 {
-    static inline void push(lua_State* L, T const& t) { UserdataValue<T>::push(L, t); }
+    static void push(lua_State* L, T const& t)
+    {
+        UserdataValue<T>::push(L, t);
+    }
 
-    static inline T const& get(lua_State* L, int index)
+    static T const& get(lua_State* L, int index)
     {
         return *Userdata::get<T>(L, index, true);
     }
@@ -594,30 +600,34 @@ struct StackHelper<T, false>
   handling of the const and volatile qualifiers happens in UserdataPtr.
 */
 
-template<class C, bool byContainer>
+template <class C, bool byContainer>
 struct RefStackHelper
 {
-    typedef C return_type;
+    using ReturnType = C;
+    using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
 
     static inline void push(lua_State* L, C const& t)
     {
-        UserdataSharedHelper<C, TypeTraits::isConst<typename ContainerTraits<C>::Type>::value>::
-            push(L, t);
+        UserdataSharedHelper<C, std::is_const_v<typename ContainerTraits<C>::Type>>::push(L, t);
     }
 
-    typedef typename TypeTraits::removeConst<typename ContainerTraits<C>::Type>::Type T;
-
-    static return_type get(lua_State* L, int index) { return Userdata::get<T>(L, index, true); }
+    static ReturnType get(lua_State* L, int index)
+    {
+        return Userdata::get<T>(L, index, true);
+    }
 };
 
-template<class T>
+template <class T>
 struct RefStackHelper<T, false>
 {
-    typedef T& return_type;
+    using ReturnType = T&;
 
-    static void push(lua_State* L, T const& t) { UserdataPtr::push(L, &t); }
+    static void push(lua_State* L, T const& t)
+    {
+        UserdataPtr::push(L, &t);
+    }
 
-    static return_type get(lua_State* L, int index)
+    static ReturnType get(lua_State* L, int index)
     {
         T* t = Userdata::get<T>(L, index, true);
 
@@ -626,17 +636,6 @@ struct RefStackHelper<T, false>
 
         return *t;
     }
-};
-
-/**
- * Voider class template. Used to force a comiler to instantiate
- * an otherwise probably unused template parameter type T.
- * See the C++20 std::void_t <> for details.
- */
-template<class T>
-struct Void
-{
-    typedef void Type;
 };
 
 /**
@@ -653,7 +652,7 @@ struct UserdataGetter
 };
 
 template<class T>
-struct UserdataGetter<T, typename Void<T (*)()>::Type>
+struct UserdataGetter<T, std::void_t<T (*)()>>
 {
     typedef T ReturnType;
 
@@ -670,21 +669,23 @@ struct UserdataGetter<T, typename Void<T (*)()>::Type>
 /**
   Lua stack conversions for class objects passed by value.
 */
-template<class T>
+template <class T>
 struct Stack
 {
-    typedef void IsUserdata;
+    using IsUserdata = void;
 
-    typedef detail::UserdataGetter<T> Getter;
-    typedef typename Getter::ReturnType ReturnType;
+    using Getter = detail::UserdataGetter<T>;
+    using ReturnType = typename Getter::ReturnType;
 
     static void push(lua_State* L, T const& value)
     {
-        using namespace detail;
-        StackHelper<T, TypeTraits::isContainer<T>::value>::push(L, value);
+        detail::StackHelper<T, detail::TypeTraits::isContainer<T>::value>::push(L, value);
     }
 
-    static ReturnType get(lua_State* L, int index) { return Getter::get(L, index); }
+    static ReturnType get(lua_State* L, int index)
+    {
+        return Getter::get(L, index);
+    }
 
     static bool isInstance(lua_State* L, int index)
     {
@@ -706,7 +707,7 @@ struct IsUserdata
 };
 
 template<class T>
-struct IsUserdata<T, typename Void<typename Stack<T>::IsUserdata>::Type>
+struct IsUserdata<T, std::void_t<typename Stack<T>::IsUserdata>>
 {
     static const bool value = true;
 };
@@ -748,7 +749,7 @@ template<class T>
 struct StackOpSelector<T&, true>
 {
     typedef RefStackHelper<T, TypeTraits::isContainer<T>::value> Helper;
-    typedef typename Helper::return_type ReturnType;
+    typedef typename Helper::ReturnType ReturnType;
 
     static void push(lua_State* L, T& value) { UserdataPtr::push(L, &value); }
 
@@ -762,7 +763,7 @@ template<class T>
 struct StackOpSelector<const T&, true>
 {
     typedef RefStackHelper<T, TypeTraits::isContainer<T>::value> Helper;
-    typedef typename Helper::return_type ReturnType;
+    typedef typename Helper::ReturnType ReturnType;
 
     static void push(lua_State* L, const T& value) { Helper::push(L, value); }
 

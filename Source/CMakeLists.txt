@@ -16,7 +16,6 @@ set (LUABRIDGE_DETAIL_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/CFunctions.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/ClassInfo.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Config.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Constructor.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Dump.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/FuncTraits.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Iterator.h
@@ -25,7 +24,6 @@ set (LUABRIDGE_DETAIL_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/LuaRef.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Namespace.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Stack.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/TypeList.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/TypeTraits.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Userdata.h
 )

@@ -14,8 +14,10 @@
 namespace luabridge {
 
 // These are for Lua versions prior to 5.2.0.
-
 #if LUA_VERSION_NUM < 502
+
+using lua_Unsigned = lua_Integer;
+
 inline int lua_absindex(lua_State* L, int idx)
 {
     if (idx > LUA_REGISTRYINDEX && idx < 0)
@@ -86,6 +88,19 @@ inline int get_length(lua_State* L, int idx)
 #else
 #define LUABRIDGE_LUA_OK LUA_OK
 #endif
+
+/**
+ * @brief Helper to set unsigned.
+ */
+template <class T>
+void pushunsigned(lua_State* L, T value)
+{
+#if LUA_VERSION_NUM != 502
+    lua_pushinteger(L, static_cast<lua_Unsigned>(value));
+#else
+    lua_pushunsigned(L, static_cast<lua_Unsigned>(value));
+#endif
+}
 
 /**
  * @brief Get a table value, bypassing metamethods.
@@ -163,9 +178,26 @@ template <class T, class... Args>
 void* lua_newuserdata_aligned(lua_State* L, Args&&... args)
 {
     void* pointer = lua_newuserdata(L, maximum_space_needed_to_align<T>());
+
     T* aligned = align<T>(pointer);
+
     new (aligned) T(std::forward<Args>(args)...);
+
     return pointer;
+}
+
+/**
+ * @brief Deallocate lua userdata taking into account alignment.
+ */
+template <class T>
+int lua_deleteuserdata_aligned(lua_State* L)
+{
+    assert(isfulluserdata(L, 1));
+
+    T* t = align<T>(lua_touserdata(L, 1));
+    t->~T();
+
+    return 0;
 }
 
 } // namespace luabridge
