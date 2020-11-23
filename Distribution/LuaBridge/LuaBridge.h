@@ -19,7 +19,6 @@
 #include <string_view>
 #include <tuple>
 #include <type_traits>
-#include <typeinfo>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -53,8 +52,10 @@
 namespace luabridge {
 
 // These are for Lua versions prior to 5.2.0.
-
 #if LUA_VERSION_NUM < 502
+
+using lua_Unsigned = lua_Integer;
+
 inline int lua_absindex(lua_State* L, int idx)
 {
     if (idx > LUA_REGISTRYINDEX && idx < 0)
@@ -125,6 +126,19 @@ inline int get_length(lua_State* L, int idx)
 #else
 #define LUABRIDGE_LUA_OK LUA_OK
 #endif
+
+/**
+ * @brief Helper to set unsigned.
+ */
+template <class T>
+void pushunsigned(lua_State* L, T value)
+{
+#if LUA_VERSION_NUM != 502
+    lua_pushinteger(L, static_cast<lua_Unsigned>(value));
+#else
+    lua_pushunsigned(L, static_cast<lua_Unsigned>(value));
+#endif
+}
 
 /**
  * @brief Get a table value, bypassing metamethods.
@@ -202,9 +216,26 @@ template <class T, class... Args>
 void* lua_newuserdata_aligned(lua_State* L, Args&&... args)
 {
     void* pointer = lua_newuserdata(L, maximum_space_needed_to_align<T>());
+
     T* aligned = align<T>(pointer);
+
     new (aligned) T(std::forward<Args>(args)...);
+
     return pointer;
+}
+
+/**
+ * @brief Deallocate lua userdata taking into account alignment.
+ */
+template <class T>
+int lua_deleteuserdata_aligned(lua_State* L)
+{
+    assert(isfulluserdata(L, 1));
+
+    T* t = align<T>(lua_touserdata(L, 1));
+    t->~T();
+
+    return 0;
 }
 
 } // namespace luabridge
@@ -408,6 +439,7 @@ template<class T>
 struct ContainerTraits
 {
     typedef bool isNotContainer;
+
     typedef T Type;
 };
 
@@ -433,47 +465,15 @@ struct TypeTraits
         typedef char yes[1]; // sizeof (yes) == 1
         typedef char no[2]; // sizeof (no)  == 2
 
-        template<typename C>
-        static no& test(typename C::isNotContainer*);
+        template <typename C>
+        static constexpr no& test(typename C::isNotContainer*);
 
-        template<typename>
-        static yes& test(...);
+        template <typename>
+        static constexpr yes& test(...);
 
     public:
-        static const bool value = sizeof(test<ContainerTraits<T>>(0)) == sizeof(yes);
+        static constexpr bool value = sizeof(test<ContainerTraits<T>>(0)) == sizeof(yes);
     };
-
-    /** Determine if T is const qualified.
-     */
-    /** @{ */
-    template<class T>
-    struct isConst
-    {
-        static bool const value = false;
-    };
-
-    template<class T>
-    struct isConst<T const>
-    {
-        static bool const value = true;
-    };
-    /** @} */
-
-    /** Remove the const qualifier from T.
-     */
-    /** @{ */
-    template<class T>
-    struct removeConst
-    {
-        typedef T Type;
-    };
-
-    template<class T>
-    struct removeConst<T const>
-    {
-        typedef T Type;
-    };
-    /**@}*/
 };
 
 } // namespace detail
@@ -909,7 +909,7 @@ private:
     UserdataShared(UserdataShared<C> const&);
     UserdataShared<C>& operator=(UserdataShared<C> const&);
 
-    typedef typename TypeTraits::removeConst<typename ContainerTraits<C>::Type>::Type T;
+    using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
 
     C m_c;
 
@@ -951,7 +951,7 @@ public:
 template<class C, bool makeObjectConst>
 struct UserdataSharedHelper
 {
-    typedef typename TypeTraits::removeConst<typename ContainerTraits<C>::Type>::Type T;
+    using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
 
     static void push(lua_State* L, C const& c)
     {
@@ -990,7 +990,7 @@ struct UserdataSharedHelper
 template<class C>
 struct UserdataSharedHelper<C, true>
 {
-    typedef typename TypeTraits::removeConst<typename ContainerTraits<C>::Type>::Type T;
+    using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
 
     static void push(lua_State* L, C const& c)
     {
@@ -1034,18 +1034,20 @@ struct UserdataSharedHelper<C, true>
   either be of the intrusive variety, or in the style of the RefCountedPtr
   type provided by LuaBridge (that uses a global hash table).
 */
-template<class C, bool byContainer>
+template <class T, bool byContainer>
 struct StackHelper
 {
-    static void push(lua_State* L, C const& c)
+    using ReturnType = std::remove_const_t<typename ContainerTraits<T>::Type>;
+
+    static void push(lua_State* L, T const& t)
     {
-        UserdataSharedHelper<C, TypeTraits::isConst<typename ContainerTraits<C>::Type>::value>::
-            push(L, c);
+        UserdataSharedHelper<T, std::is_const_v<typename ContainerTraits<T>::Type>>::push(L, t);
     }
 
-    typedef typename TypeTraits::removeConst<typename ContainerTraits<C>::Type>::Type T;
-
-    static C get(lua_State* L, int index) { return Userdata::get<T>(L, index, true); }
+    static T get(lua_State* L, int index)
+    {
+        return Userdata::get<ReturnType>(L, index, true);
+    }
 };
 
 /**
@@ -1055,12 +1057,15 @@ struct StackHelper
   reference to an object outside the activation record in which it was
   retrieved may result in undefined behavior if Lua garbage collected it.
 */
-template<class T>
+template <class T>
 struct StackHelper<T, false>
 {
-    static inline void push(lua_State* L, T const& t) { UserdataValue<T>::push(L, t); }
+    static void push(lua_State* L, T const& t)
+    {
+        UserdataValue<T>::push(L, t);
+    }
 
-    static inline T const& get(lua_State* L, int index)
+    static T const& get(lua_State* L, int index)
     {
         return *Userdata::get<T>(L, index, true);
     }
@@ -1075,30 +1080,34 @@ struct StackHelper<T, false>
   handling of the const and volatile qualifiers happens in UserdataPtr.
 */
 
-template<class C, bool byContainer>
+template <class C, bool byContainer>
 struct RefStackHelper
 {
-    typedef C return_type;
+    using ReturnType = C;
+    using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
 
     static inline void push(lua_State* L, C const& t)
     {
-        UserdataSharedHelper<C, TypeTraits::isConst<typename ContainerTraits<C>::Type>::value>::
-            push(L, t);
+        UserdataSharedHelper<C, std::is_const_v<typename ContainerTraits<C>::Type>>::push(L, t);
     }
 
-    typedef typename TypeTraits::removeConst<typename ContainerTraits<C>::Type>::Type T;
-
-    static return_type get(lua_State* L, int index) { return Userdata::get<T>(L, index, true); }
+    static ReturnType get(lua_State* L, int index)
+    {
+        return Userdata::get<T>(L, index, true);
+    }
 };
 
-template<class T>
+template <class T>
 struct RefStackHelper<T, false>
 {
-    typedef T& return_type;
+    using ReturnType = T&;
 
-    static void push(lua_State* L, T const& t) { UserdataPtr::push(L, &t); }
+    static void push(lua_State* L, T const& t)
+    {
+        UserdataPtr::push(L, &t);
+    }
 
-    static return_type get(lua_State* L, int index)
+    static ReturnType get(lua_State* L, int index)
     {
         T* t = Userdata::get<T>(L, index, true);
 
@@ -1107,17 +1116,6 @@ struct RefStackHelper<T, false>
 
         return *t;
     }
-};
-
-/**
- * Voider class template. Used to force a comiler to instantiate
- * an otherwise probably unused template parameter type T.
- * See the C++20 std::void_t <> for details.
- */
-template<class T>
-struct Void
-{
-    typedef void Type;
 };
 
 /**
@@ -1134,7 +1132,7 @@ struct UserdataGetter
 };
 
 template<class T>
-struct UserdataGetter<T, typename Void<T (*)()>::Type>
+struct UserdataGetter<T, std::void_t<T (*)()>>
 {
     typedef T ReturnType;
 
@@ -1151,21 +1149,23 @@ struct UserdataGetter<T, typename Void<T (*)()>::Type>
 /**
   Lua stack conversions for class objects passed by value.
 */
-template<class T>
+template <class T>
 struct Stack
 {
-    typedef void IsUserdata;
+    using IsUserdata = void;
 
-    typedef detail::UserdataGetter<T> Getter;
-    typedef typename Getter::ReturnType ReturnType;
+    using Getter = detail::UserdataGetter<T>;
+    using ReturnType = typename Getter::ReturnType;
 
     static void push(lua_State* L, T const& value)
     {
-        using namespace detail;
-        StackHelper<T, TypeTraits::isContainer<T>::value>::push(L, value);
+        detail::StackHelper<T, detail::TypeTraits::isContainer<T>::value>::push(L, value);
     }
 
-    static ReturnType get(lua_State* L, int index) { return Getter::get(L, index); }
+    static ReturnType get(lua_State* L, int index)
+    {
+        return Getter::get(L, index);
+    }
 
     static bool isInstance(lua_State* L, int index)
     {
@@ -1187,7 +1187,7 @@ struct IsUserdata
 };
 
 template<class T>
-struct IsUserdata<T, typename Void<typename Stack<T>::IsUserdata>::Type>
+struct IsUserdata<T, std::void_t<typename Stack<T>::IsUserdata>>
 {
     static const bool value = true;
 };
@@ -1229,7 +1229,7 @@ template<class T>
 struct StackOpSelector<T&, true>
 {
     typedef RefStackHelper<T, TypeTraits::isContainer<T>::value> Helper;
-    typedef typename Helper::return_type ReturnType;
+    typedef typename Helper::ReturnType ReturnType;
 
     static void push(lua_State* L, T& value) { UserdataPtr::push(L, &value); }
 
@@ -1243,7 +1243,7 @@ template<class T>
 struct StackOpSelector<const T&, true>
 {
     typedef RefStackHelper<T, TypeTraits::isContainer<T>::value> Helper;
-    typedef typename Helper::return_type ReturnType;
+    typedef typename Helper::ReturnType ReturnType;
 
     static void push(lua_State* L, const T& value) { Helper::push(L, value); }
 
@@ -1269,9 +1269,10 @@ struct StackOpSelector<const T&, true>
 
 
 
+
 namespace luabridge {
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Lua stack traits for C++ types.
  *
@@ -1280,7 +1281,7 @@ namespace luabridge {
 template <class T>
 struct Stack;
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Specialization for void type.
  */
@@ -1292,7 +1293,7 @@ struct Stack<void>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Receive the lua_State* as an argument.
  */
@@ -1305,7 +1306,7 @@ struct Stack<lua_State*>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for a lua_CFunction.
  */
@@ -1328,7 +1329,7 @@ struct Stack<lua_CFunction>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `bool`.
  */
@@ -1351,7 +1352,7 @@ struct Stack<bool>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `std::byte`.
  */
@@ -1360,11 +1361,7 @@ struct Stack<std::byte>
 {
     static void push(lua_State* L, std::byte value)
     {
-#if LUA_VERSION_NUM < 503
-        lua_pushinteger(L, std::to_integer<lua_Integer>(value));
-#else
-        lua_pushinteger(L, std::to_integer<lua_Unsigned>(value));
-#endif
+        pushunsigned(L, std::to_integer<lua_Unsigned>(value));
     }
 
     static std::byte get(lua_State* L, int index)
@@ -1378,7 +1375,7 @@ struct Stack<std::byte>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `char`.
  */
@@ -1401,7 +1398,7 @@ struct Stack<char>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `unsigned char`.
  */
@@ -1410,11 +1407,7 @@ struct Stack<unsigned char>
 {
     static void push(lua_State* L, unsigned char value)
     {
-#if LUA_VERSION_NUM < 503
-        lua_pushinteger(L, static_cast<lua_Integer>(value));
-#else
-        lua_pushinteger(L, static_cast<lua_Unsigned>(value));
-#endif
+        pushunsigned(L, value);
     }
 
     static unsigned char get(lua_State* L, int index)
@@ -1428,7 +1421,7 @@ struct Stack<unsigned char>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
     Stack specialization for `short`.
 */
@@ -1451,7 +1444,7 @@ struct Stack<short>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `unsigned short`.
  */
@@ -1460,11 +1453,7 @@ struct Stack<unsigned short>
 {
     static void push(lua_State* L, unsigned short value)
     {
-#if LUA_VERSION_NUM < 503
-        lua_pushinteger(L, static_cast<lua_Integer>(value));
-#else
-        lua_pushinteger(L, static_cast<lua_Unsigned>(value));
-#endif
+        pushunsigned(L, value);
     }
 
     static unsigned short get(lua_State* L, int index)
@@ -1478,7 +1467,7 @@ struct Stack<unsigned short>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `int`.
  */
@@ -1501,7 +1490,7 @@ struct Stack<int>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `unsigned int`.
  */
@@ -1510,11 +1499,7 @@ struct Stack<unsigned int>
 {
     static void push(lua_State* L, unsigned int value)
     {
-#if LUA_VERSION_NUM < 503
-        lua_pushinteger(L, static_cast<lua_Integer>(value));
-#else
-        lua_pushinteger(L, static_cast<lua_Unsigned>(value));
-#endif
+        pushunsigned(L, value);
     }
 
     static unsigned int get(lua_State* L, int index)
@@ -1528,7 +1513,7 @@ struct Stack<unsigned int>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `long`.
  */
@@ -1551,7 +1536,7 @@ struct Stack<long>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `unsigned long`.
  */
@@ -1560,11 +1545,7 @@ struct Stack<unsigned long>
 {
     static void push(lua_State* L, unsigned long value)
     {
-#if LUA_VERSION_NUM < 503
-        lua_pushinteger(L, static_cast<lua_Integer>(value));
-#else
-        lua_pushinteger(L, static_cast<lua_Unsigned>(value));
-#endif
+        pushunsigned(L, value);
     }
 
     static unsigned long get(lua_State* L, int index)
@@ -1578,7 +1559,7 @@ struct Stack<unsigned long>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `long long`.
  */
@@ -1601,7 +1582,7 @@ struct Stack<long long>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `unsigned long long`.
  */
@@ -1610,11 +1591,7 @@ struct Stack<unsigned long long>
 {
     static void push(lua_State* L, unsigned long long value)
     {
-#if LUA_VERSION_NUM < 503
-        lua_pushinteger(L, static_cast<lua_Integer>(value));
-#else
-        lua_pushinteger(L, static_cast<lua_Unsigned>(value));
-#endif
+        pushunsigned(L, value);
     }
 
     static unsigned long long get(lua_State* L, int index)
@@ -1628,7 +1605,7 @@ struct Stack<unsigned long long>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `float`.
  */
@@ -1651,7 +1628,7 @@ struct Stack<float>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `double`.
  */
@@ -1674,7 +1651,7 @@ struct Stack<double>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `const char*`.
  */
@@ -1700,7 +1677,7 @@ struct Stack<char const*>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `std::string_view`.
  */
@@ -1723,7 +1700,7 @@ struct Stack<std::string_view>
     }
 };
 
-//-------------------------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `std::string`.
  */
@@ -1758,6 +1735,87 @@ struct Stack<std::string>
     static bool isInstance(lua_State* L, int index)
     {
         return lua_type(L, index) == LUA_TSTRING;
+    }
+};
+
+//=================================================================================================
+/**
+ * @brief Stack specialization for `std::tuple`.
+ */
+template <class... Types>
+struct Stack<std::tuple<Types...>>
+{
+    static void push(lua_State* L, const std::tuple<Types...>& t)
+    {
+        lua_createtable(L, static_cast<int>(Size), 0);
+
+        push_element(L, t);
+    }
+
+    static std::tuple<Types...> get(lua_State* L, int index)
+    {
+        if (!lua_istable(L, index))
+            luaL_error(L, "#%d argment must be a table", index);
+
+        if (get_length(L, index) != Size)
+            luaL_error(L, "table size should be %d but is %d", Size, get_length(L, index));
+
+        std::tuple<Types...> value;
+
+        int absIndex = lua_absindex(L, index);
+        lua_pushnil(L);
+
+        pop_element(L, absIndex, value);
+        
+        return value;
+    }
+
+    static bool isInstance(lua_State* L, int index)
+    {
+        return lua_type(L, index) == LUA_TTABLE;
+    }
+
+private:
+    static constexpr std::size_t Size = std::tuple_size_v<std::tuple<Types...>>;
+
+    template <std::size_t Index = 0>
+    static auto push_element(lua_State*, const std::tuple<Types...>&)
+        -> std::enable_if_t<Index == sizeof...(Types)>
+    {
+    }
+
+    template <std::size_t Index = 0>
+    static auto push_element(lua_State* L, const std::tuple<Types...>& t)
+        -> std::enable_if_t<Index < sizeof...(Types)>
+    {
+        using T = std::tuple_element_t<Index, std::tuple<Types...>>;
+        
+        lua_pushinteger(L, static_cast<lua_Integer>(Index + 1));
+        Stack<T>::push(L, std::get<Index>(t));
+        lua_settable(L, -3);
+        
+        push_element<Index + 1>(L, t);
+    }
+
+    template <std::size_t Index = 0>
+    static auto pop_element(lua_State*, int, std::tuple<Types...>&)
+        -> std::enable_if_t<Index == sizeof...(Types)>
+    {
+    }
+
+    template <std::size_t Index = 0>
+    static auto pop_element(lua_State* L, int absIndex, std::tuple<Types...>& t)
+        -> std::enable_if_t<Index < sizeof...(Types)>
+    {
+        using T = std::tuple_element_t<Index, std::tuple<Types...>>;
+        
+        if (lua_next(L, absIndex) == 0)
+            return;
+
+        std::get<Index>(t) = Stack<T>::get(L, -1);
+        lua_pop(L, 1);
+        
+        pop_element<Index + 1>(L, absIndex, t);
     }
 };
 
@@ -2618,238 +2676,6 @@ struct ContainerTraits<RefCountedPtr<T>>
 
 // End File: Source/LuaBridge/RefCountedPtr.h
 
-// Begin File: Source/LuaBridge/detail/TypeList.h
-
-// https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
-// Copyright 2019, George Tokmaji
-// Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
-// Copyright 2007, Nathan Reed
-// SPDX-License-Identifier: MIT
-
-//=================================================================================================
-/*
-  This file incorporates work covered by the following copyright and
-  permission notice:
-
-    The Loki Library
-    Copyright (c) 2001 by Andrei Alexandrescu
-    This code accompanies the book:
-    Alexandrescu, Andrei. "Modern C++ Design: Generic Programming and Design
-        Patterns Applied". Copyright (c) 2001. Addison-Wesley.
-    Permission to use, copy, modify, distribute and sell this software for any
-        purpose is hereby granted without fee, provided that the above copyright
-        notice appear in all copies and that both that copyright notice and this
-        permission notice appear in supporting documentation.
-    The author or Addison-Welsey Longman make no representations about the
-        suitability of this software for any purpose. It is provided "as is"
-        without express or implied warranty.
-*/
-//=================================================================================================
-
-
-
-
-namespace luabridge {
-namespace detail {
-
-//=================================================================================================
-/**
- * @brief None type means void parameters or return value.
- */
-using None = void;
-
-//=================================================================================================
-/**
- * @brief Type list type pack..
- */
-template <class Head, class Tail = None>
-struct TypeList
-{
-    typedef Tail TailType;
-};
-
-template <class List>
-struct TypeListSize
-{
-    static constexpr size_t value = TypeListSize<typename List::TailType>::value + 1;
-};
-
-template <>
-struct TypeListSize<None>
-{
-    static constexpr size_t value = 0u;
-};
-
-template <class... Params>
-struct MakeTypeList;
-
-template <class Param, class... Params>
-struct MakeTypeList<Param, Params...>
-{
-    using Result = TypeList<Param, typename MakeTypeList<Params...>::Result>;
-};
-
-template <>
-struct MakeTypeList<>
-{
-    using Result = None;
-};
-
-//=================================================================================================
-/**
- * @brief A TypeList with actual values.
- */
-template <class List>
-struct TypeListValues
-{
-    static std::string const tostring(bool) { return ""; }
-};
-
-//=================================================================================================
-/**
- * @brief TypeListValues recursive template definition.
- */
-template <class Head, class Tail>
-struct TypeListValues<TypeList<Head, Tail>>
-{
-    Head hd;
-    TypeListValues<Tail> tl;
-
-    TypeListValues(Head hd_, const TypeListValues<Tail>& tl_)
-        : hd(hd_)
-        , tl(tl_)
-    {
-    }
-
-    static std::string tostring(bool comma = false)
-    {
-        std::string s;
-
-        if (comma)
-            s = ", ";
-
-        s = s + typeid(Head).name();
-
-        return s + TypeListValues<Tail>::tostring(true);
-    }
-};
-
-// Specializations of type/value list for head types that are references and
-// const-references.  We need to handle these specially since we can't count
-// on the referenced object hanging around for the lifetime of the list.
-
-template <class Head, class Tail>
-struct TypeListValues<TypeList<Head&, Tail>>
-{
-    Head hd;
-    TypeListValues<Tail> tl;
-
-    TypeListValues(Head& hd_, const TypeListValues<Tail>& tl_)
-        : hd(hd_)
-        , tl(tl_)
-    {
-    }
-
-    static std::string tostring(bool comma = false)
-    {
-        std::string s;
-
-        if (comma)
-            s = ", ";
-
-        s = s + typeid(Head).name() + "&";
-
-        return s + TypeListValues<Tail>::tostring(true);
-    }
-};
-
-template <class Head, class Tail>
-struct TypeListValues<TypeList<const Head&, Tail>>
-{
-    Head hd;
-    TypeListValues<Tail> tl;
-
-    TypeListValues(Head const& hd_, const TypeListValues<Tail>& tl_)
-        : hd(hd_)
-        , tl(tl_)
-    {
-    }
-
-    static std::string tostring(bool comma = false)
-    {
-        std::string s;
-
-        if (comma)
-            s = ", ";
-
-        s = s + typeid(Head).name() + " const&";
-
-        return s + TypeListValues<Tail>::tostring(true);
-    }
-};
-
-//==============================================================================
-/**
- * @brief Type list to tuple forwarder.
- */
-template <class Head, class Tail>
-auto typeListValuesTuple(TypeListValues<TypeList<Head, Tail>>& tvl)
-{
-    if constexpr (std::is_same_v<Tail, void>)
-    {
-        return std::forward_as_tuple(tvl.hd);
-    }
-    else
-    {
-        return std::tuple_cat(std::forward_as_tuple(tvl.hd), typeListValuesTuple(tvl.tl));
-    }
-}
-
-template <class Head, class Tail>
-auto typeListValuesTuple(const TypeListValues<TypeList<Head, Tail>>& tvl)
-{
-    if constexpr (std::is_same_v<Tail, void>)
-    {
-        return std::forward_as_tuple(tvl.hd);
-    }
-    else
-    {
-        return std::tuple_cat(std::forward_as_tuple(tvl.hd), typeListValuesTuple(tvl.tl));
-    }
-}
-
-//==============================================================================
-/**
- * @brief Subclass of a TypeListValues constructable from the Lua stack.
- */
-template <class List, size_t Start = 1>
-struct ArgList
-{
-};
-
-template <size_t Start>
-struct ArgList<None, Start> : public TypeListValues<None>
-{
-    ArgList(lua_State*)
-    {
-    }
-};
-
-template <class Head, class Tail, size_t Start>
-struct ArgList<TypeList<Head, Tail>, Start> : public TypeListValues<TypeList<Head, Tail>>
-{
-    ArgList(lua_State* L)
-        : TypeListValues<TypeList<Head, Tail>>(Stack<Head>::get(L, Start), ArgList<Tail, Start + 1>(L))
-    {
-    }
-};
-
-} // namespace detail
-} // namespace luabridge
-
-// End File: Source/LuaBridge/detail/TypeList.h
-
 // Begin File: Source/LuaBridge/detail/FuncTraits.h
 
 // https://github.com/kunitoki/LuaBridge3
@@ -2867,57 +2693,12 @@ namespace detail {
 
 //=================================================================================================
 /**
- * @brief Traits class for unrolling the type list values into function arguments.
- */
-template <class ReturnType, size_t NUM_PARAMS>
-struct Caller
-{
-    template <class Fn, class Params>
-    static ReturnType f(Fn& fn, TypeListValues<Params>& tvl)
-    {
-        return std::apply(fn, typeListValuesTuple(tvl));
-    }
-
-    template <class T, class MemFn, class Params>
-    static ReturnType f(T* obj, MemFn& fn, TypeListValues<Params>& tvl)
-    {
-        auto func = [obj, fn](auto&&... args) { return (obj->*fn)(std::forward<decltype(args)>(args)...); };
-
-        return std::apply(func, typeListValuesTuple(tvl));
-    }
-};
-
-template <class ReturnType>
-struct Caller<ReturnType, 0>
-{
-    template <class Fn, class Params>
-    static ReturnType f(Fn& fn, TypeListValues<Params>&)
-    {
-        return fn();
-    }
-
-    template <class T, class MemFn, class Params>
-    static ReturnType f(T* obj, MemFn& fn, TypeListValues<Params>&)
-    {
-        return (obj->*fn)();
-    }
-};
-
-template <class ReturnType, class Fn, class Params>
-ReturnType doCall(Fn& fn, TypeListValues<Params>& tvl)
-{
-    return Caller<ReturnType, TypeListSize<Params>::value>::f(fn, tvl);
-}
-
-template <class ReturnType, class T, class MemFn, class Params>
-ReturnType doCall(T* obj, MemFn& fn, TypeListValues<Params>& tvl)
-{
-    return Caller<ReturnType, TypeListSize<Params>::value>::f(obj, fn, tvl);
-}
-
-//=================================================================================================
-/**
  * @brief Generic function traits.
+ *
+ * @tparam IsMember True if the function is a member function pointer.
+ * @tparam IsConst True if the function is const.
+ * @tparam R Return type of the function.
+ * @tparam Args Arguments types as variadic parameter pack.
  */
 template <bool IsMember, bool IsConst, class R, class... Args>
 struct function_traits_base
@@ -2976,11 +2757,54 @@ struct function_traits_impl<R (C::*)(Args...) const noexcept> : function_traits_
 {
 };
 
+#if _MSC_VER && _M_IX86 // Windows: WINAPI (a.k.a. __stdcall) function pointers (32bit only).
+template <class R, class... Args>
+struct function_traits_impl<R __stdcall(Args...)> : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class R, class... Args>
+struct function_traits_impl<R (__stdcall *)(Args...)> : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (__stdcall C::*)(Args...)> : function_traits_base<true, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (__stdcall C::*)(Args...) const> : function_traits_base<true, true, R, Args...>
+{
+};
+
+template <class R, class... Args>
+struct function_traits_impl<R __stdcall(Args...) noexcept> : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class R, class... Args>
+struct function_traits_impl<R (__stdcall *)(Args...) noexcept> : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (__stdcall C::*)(Args...) noexcept> : function_traits_base<true, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (__stdcall C::*)(Args...) const noexcept> : function_traits_base<true, true, R, Args...>
+{
+};
+#endif
+
 template <class F>
 struct functor_traits_impl : function_traits_impl<decltype(&F::operator())>
 {
 };
 
+//=================================================================================================
 /**
  * @brief Traits class for callable objects (e.g. function pointers, lambdas)
  *
@@ -2993,6 +2817,7 @@ struct function_traits : std::conditional<std::is_class<F>::value,
 {
 };
 
+//=================================================================================================
 /**
  * @brief Deduces the return type of a callble object.
  *
@@ -3009,6 +2834,14 @@ using function_result_t = typename function_traits<F>::result_type;
  */
 template <std::size_t I, class F>
 using function_argument_t = std::tuple_element_t<I, typename function_traits<F>::argument_types>;
+
+/**
+ * @brief Deduces the arguments type of a callble object.
+ *
+ * @tparam F Callable object.
+ */
+template <class F>
+using function_arguments_t = typename function_traits<F>::argument_types;
 
 /**
  * @brief An integral constant expression that gives the number of arguments accepted by the callable object.
@@ -3034,8 +2867,11 @@ static constexpr bool function_is_member_v = function_traits<F>::is_member;
 template <class F>
 static constexpr bool function_is_const_v = function_traits<F>::is_const;
 
+//=================================================================================================
 /**
  * @brief Detect if we are a `std::function`.
+ *
+ * @tparam F Callable object.
  */
 template <class F, class...>
 struct is_std_function : std::false_type
@@ -3055,189 +2891,193 @@ struct is_std_function<std::function<Signature>> : std::true_type
 template <class F>
 static constexpr bool is_std_function_v = is_std_function<F>::value;
 
+//=================================================================================================
 /**
  * @brief Reconstruct a function signature from return type and args.
  */
-template <class, class>
+template <class, class...>
 struct to_std_function_type
 {
 };
 
-template <class ReturnType, typename... Ts>
-struct to_std_function_type<ReturnType, std::tuple<Ts...>>
+template <class ReturnType, typename... Args>
+struct to_std_function_type<ReturnType, std::tuple<Args...>>
 {
-    using type = std::function<ReturnType(Ts...)>;
+    using type = std::function<ReturnType(Args...)>;
 };
 
-template <class ReturnType, typename... Ts>
-using to_std_function_type_t = typename to_std_function_type<ReturnType, Ts...>::type;
+template <class ReturnType, typename... Args>
+using to_std_function_type_t = typename to_std_function_type<ReturnType, Args...>::type;
 
 //=================================================================================================
 /**
- * @brief Traits for function pointers.
+ * @brief Simple make_tuple alternative that doesn't decay the types.
  *
- * There are three types of functions: global, non-const member, and const member. These templates determine the type of function, which
- * class type it belongs to if it is a class member, the const-ness if it is a member function, and the type information for the return value and
- * argument list.
+ * @tparam Types Argument types that will compose the tuple.
  */
-template <class MemFn, class D = MemFn>
-struct FuncTraits
+template <class... Types>
+auto tupleize(Types&&... types)
 {
-};
+    return std::tuple<Types...>(std::forward<Types>(types)...);
+}
 
-// Ordinary function pointers.
-template <class R, class... ParamList>
-struct FuncTraits<R (*)(ParamList...)>
+//=================================================================================================
+/**
+ * @brief Make argument lists extracting them from the lua state, starting at a stack index.
+ *
+ * @tparam ArgsPack Arguments pack to extract from the lua stack.
+ * @tparam Start Start index where stack variables are located in the lua stack.
+ */
+template <class ArgsPack, std::size_t Start, std::size_t... Indices>
+auto make_arguments_list_impl(lua_State* L, std::index_sequence<Indices...>)
 {
-    static constexpr bool isMemberFunction = false;
-    static constexpr bool isConstMemberFunction = false;
-    using DeclType = R (*)(ParamList...);
-    using ReturnType = R;
-    using Params = typename MakeTypeList<ParamList...>::Result;
+    return tupleize(Stack<std::tuple_element_t<Indices, ArgsPack>>::get(L, Start + Indices)...);
+}
 
-    static R call(const DeclType& fp, TypeListValues<Params>& tvl)
+template <class ArgsPack, std::size_t Start>
+auto make_arguments_list(lua_State* L)
+{
+    return make_arguments_list_impl<ArgsPack, Start>(L, std::make_index_sequence<std::tuple_size_v<ArgsPack>>());
+}
+
+//=================================================================================================
+/**
+ * @brief Helpers for iterating through tuple arguments, pushing eash argument to the lua stack.
+ */
+template <std::size_t Index = 0, typename... Types>
+auto push_arguments(lua_State*, const std::tuple<Types...>&)
+    -> std::enable_if_t<Index == sizeof...(Types)>
+{
+}
+
+template <std::size_t Index = 0, typename... Types>
+auto push_arguments(lua_State* L, const std::tuple<Types...>& t)
+    -> std::enable_if_t<Index < sizeof...(Types)>
+{
+    using T = std::tuple_element_t<Index, std::tuple<Types...>>;
+
+    Stack<T>::push(L, std::get<Index>(t));
+
+    push_arguments<Index + 1, Types...>(L, t);
+}
+
+//=================================================================================================
+/**
+ * @brief Function generator.
+ */
+template <class ReturnType, class ArgsPack, std::size_t Start = 1u>
+struct function
+{
+    template <class F>
+    static int call(lua_State* L, F func)
     {
-        return doCall<R>(fp, tvl);
+        try
+        {
+            Stack<ReturnType>::push(L, std::apply(func, make_arguments_list<ArgsPack, Start>(L)));
+            
+            return 1;
+        }
+        catch (const std::exception& e)
+        {
+            return luaL_error(L, e.what());
+        }
+    }
+
+    template <class T, class F>
+    static int call(lua_State* L, T* ptr, F func)
+    {
+        try
+        {
+            auto f = [ptr, func](auto&&... args) -> ReturnType { return (ptr->*func)(std::forward<decltype(args)>(args)...); };
+
+            Stack<ReturnType>::push(L, std::apply(f, make_arguments_list<ArgsPack, Start>(L)));
+
+            return 1;
+        }
+        catch (const std::exception& e)
+        {
+            return luaL_error(L, e.what());
+        }
     }
 };
 
-// Windows: WINAPI (a.k.a. __stdcall) function pointers (32bit only).
-#ifdef _M_IX86
-template <class R, class... ParamList>
-struct FuncTraits<R(__stdcall*)(ParamList...)>
+template <class ArgsPack, std::size_t Start>
+struct function<void, ArgsPack, Start>
 {
-    static constexpr bool isMemberFunction = false;
-    static constexpr bool isConstMemberFunction = false;
-    using DeclType = R(__stdcall*)(ParamList...);
-    using ReturnType = R;
-    using Params = typename MakeTypeList<ParamList...>::Result;
-
-    static R call(const DeclType& fp, TypeListValues<Params>& tvl)
+    template <class F>
+    static int call(lua_State* L, F func)
     {
-        return doCall<R>(fp, tvl);
+        try
+        {
+            std::apply(func, make_arguments_list<ArgsPack, Start>(L));
+
+            return 0;
+        }
+        catch (const std::exception& e)
+        {
+            return luaL_error(L, e.what());
+        }
     }
-};
-#endif // _M_IX86
 
-// Non-const member function pointers.
-template <class T, class R, class... ParamList>
-struct FuncTraits<R (T::*)(ParamList...)>
-{
-    static constexpr bool isMemberFunction = true;
-    static constexpr bool isConstMemberFunction = false;
-    using DeclType = R (T::*)(ParamList...);
-    using ClassType = T;
-    using ReturnType = R;
-    using Params = typename MakeTypeList<ParamList...>::Result;
-
-    static R call(ClassType* obj, const DeclType& fp, TypeListValues<Params>& tvl)
+    template <class T, class F>
+    static int call(lua_State* L, T* ptr, F func)
     {
-        return doCall<R>(obj, fp, tvl);
-    }
-};
+        try
+        {
+            auto f = [ptr, func](auto&&... args) { (ptr->*func)(std::forward<decltype(args)>(args)...); };
 
-// Const member function pointers.
-template <class T, class R, class... ParamList>
-struct FuncTraits<R (T::*)(ParamList...) const>
-{
-    static constexpr bool isMemberFunction = true;
-    static constexpr bool isConstMemberFunction = true;
-    using DeclType = R (T::*)(ParamList...) const;
-    using ClassType = T;
-    using ReturnType = R;
-    using Params = typename MakeTypeList<ParamList...>::Result;
+            std::apply(f, make_arguments_list<ArgsPack, Start>(L));
 
-    static R call(const ClassType* obj, const DeclType& fp, TypeListValues<Params>& tvl)
-    {
-        return doCall<R>(obj, fp, tvl);
-    }
-};
-
-// std::function
-template <class R, class... ParamList>
-struct FuncTraits<std::function<R(ParamList...)>>
-{
-    static constexpr bool isMemberFunction = false;
-    static constexpr bool isConstMemberFunction = false;
-    using DeclType = std::function<R(ParamList...)>;
-    using ReturnType = R;
-    using Params = typename MakeTypeList<ParamList...>::Result;
-
-    static ReturnType call(DeclType& fn, TypeListValues<Params>& tvl)
-    {
-        return doCall<ReturnType>(fn, tvl);
+            return 0;
+        }
+        catch (const std::exception& e)
+        {
+            return luaL_error(L, e.what());
+        }
     }
 };
 
 //=================================================================================================
 /**
- * @brief Invoke object that unpacks the arguments into stack values then call the functor.
+ * @brief Constructor generators.
+ *
+ * These templates call operator new with the contents of a type/value list passed to the constructor. Two versions of call() are provided.
+ * One performs a regular new, the other performs a placement new.
  */
-template< class ReturnType, class Params, int startParam>
-struct Invoke
+template <class T, class Args>
+struct constructor;
+
+template <class T>
+struct constructor<T, void>
 {
-    template <class Fn>
-    static int run(lua_State* L, Fn& fn)
+    using empty = std::tuple<>;
+
+    static T* call(const empty&)
     {
-        try
-        {
-            ArgList<Params, startParam> args(L);
-            Stack<ReturnType>::push(L, FuncTraits<Fn>::call(fn, args));
-            return 1;
-        }
-        catch (const std::exception& e)
-        {
-            return luaL_error(L, e.what());
-        }
+        return new T;
     }
 
-    template <class T, class MemFn>
-    static int run(lua_State* L, T* object, const MemFn& fn)
+    static T* call(void* ptr, const empty&)
     {
-        try
-        {
-            ArgList<Params, startParam> args(L);
-            Stack<ReturnType>::push(L, FuncTraits<MemFn>::call(object, fn, args));
-            return 1;
-        }
-        catch (const std::exception& e)
-        {
-            return luaL_error(L, e.what());
-        }
+        return new (ptr) T;
     }
 };
 
-template <class Params, int startParam>
-struct Invoke<void, Params, startParam>
+template <class T, class Args>
+struct constructor
 {
-    template <class Fn>
-    static int run(lua_State* L, Fn& fn)
+    static T* call(const Args& args)
     {
-        try
-        {
-            ArgList<Params, startParam> args(L);
-            FuncTraits<Fn>::call(fn, args);
-            return 0;
-        }
-        catch (const std::exception& e)
-        {
-            return luaL_error(L, e.what());
-        }
+        auto alloc = [](auto&&... args) { return new T(std::forward<decltype(args)>(args)...); };
+        
+        return std::apply(alloc, args);
     }
-
-    template <class T, class MemFn>
-    static int run(lua_State* L, T* object, const MemFn& fn)
+    
+    static T* call(void* ptr, const Args& args)
     {
-        try
-        {
-            ArgList<Params, startParam> args(L);
-            FuncTraits<MemFn>::call(object, fn, args);
-            return 0;
-        }
-        catch (const std::exception& e)
-        {
-            return luaL_error(L, e.what());
-        }
+        auto alloc = [ptr](auto&&... args) { return new (ptr) T(std::forward<decltype(args)>(args)...); };
+
+        return std::apply(alloc, args);
     }
 };
 
@@ -3262,30 +3102,6 @@ namespace detail {
 
 struct CFunc
 {
-    static void addGetter(lua_State* L, const char* name, int tableIndex)
-    {
-        assert(name != nullptr);
-        assert(lua_istable(L, tableIndex));
-        assert(lua_iscfunction(L, -1)); // Stack: getter
-
-        lua_rawgetp(L, tableIndex, getPropgetKey()); // Stack: getter, propget table (pg)
-        lua_pushvalue(L, -2); // Stack: getter, pg, getter
-        rawsetfield(L, -2, name); // Stack: getter, pg
-        lua_pop(L, 2); // Stack: -
-    }
-
-    static void addSetter(lua_State* L, const char* name, int tableIndex)
-    {
-        assert(name != nullptr);
-        assert(lua_istable(L, tableIndex));
-        assert(lua_iscfunction(L, -1)); // Stack: setter
-
-        lua_rawgetp(L, tableIndex, getPropsetKey()); // Stack: setter, propset table (ps)
-        lua_pushvalue(L, -2); // Stack: setter, ps, setter
-        rawsetfield(L, -2, name); // Stack: setter, ps
-        lua_pop(L, 2); // Stack: -
-    }
-
     //----------------------------------------------------------------------------
     /**
         __index metamethod for a namespace or class static and non-static members.
@@ -3439,204 +3255,6 @@ struct CFunc
         return luaL_error(L, s.c_str());
     }
 
-    //----------------------------------------------------------------------------
-    /**
-        lua_CFunction to get a variable.
-
-        This is used for global variables or class static data members.
-
-        The pointer to the data is in the first upvalue.
-    */
-    template <class T>
-    static int getVariable(lua_State* L)
-    {
-        assert(lua_islightuserdata(L, lua_upvalueindex(1)));
-        T const* ptr = static_cast<T const*>(lua_touserdata(L, lua_upvalueindex(1)));
-        assert(ptr != nullptr);
-        Stack<T>::push(L, *ptr);
-        return 1;
-    }
-
-    //----------------------------------------------------------------------------
-    /**
-        lua_CFunction to set a variable.
-
-        This is used for global variables or class static data members.
-
-        The pointer to the data is in the first upvalue.
-    */
-    template <class T>
-    static int setVariable(lua_State* L)
-    {
-        assert(lua_islightuserdata(L, lua_upvalueindex(1)));
-        T* ptr = static_cast<T*>(lua_touserdata(L, lua_upvalueindex(1)));
-        assert(ptr != nullptr);
-        *ptr = Stack<T>::get(L, 1);
-        return 0;
-    }
-
-    //----------------------------------------------------------------------------
-    /**
-        lua_CFunction to call a function with a return value.
-
-        This is used for global functions, global properties, class static methods,
-        and class static properties.
-
-        The function pointer (lightuserdata) in the first upvalue.
-    */
-    template <class FnPtr>
-    struct Call
-    {
-        using Params = typename FuncTraits<FnPtr>::Params;
-        using ReturnType = typename FuncTraits<FnPtr>::ReturnType;
-
-        static int f(lua_State* L)
-        {
-            assert(lua_islightuserdata(L, lua_upvalueindex(1)));
-            FnPtr fnptr = reinterpret_cast<FnPtr>(lua_touserdata(L, lua_upvalueindex(1)));
-            assert(fnptr != nullptr);
-            return Invoke<ReturnType, Params, 1>::run(L, fnptr);
-        }
-    };
-
-    //----------------------------------------------------------------------------
-    /**
-        lua_CFunction to call a class member function with a return value.
-
-        The member function pointer is in the first upvalue.
-        The class userdata object is at the top of the Lua stack.
-    */
-    template <class MemFnPtr, class T>
-    struct CallMember
-    {
-        using Params = typename FuncTraits<MemFnPtr>::Params;
-        using ReturnType = typename FuncTraits<MemFnPtr>::ReturnType;
-
-        static int f(lua_State* L)
-        {
-            assert(isfulluserdata(L, lua_upvalueindex(1)));
-            T* const t = Userdata::get<T>(L, 1, false);
-            MemFnPtr const& fnptr = *static_cast<MemFnPtr const*>(lua_touserdata(L, lua_upvalueindex(1)));
-            assert(fnptr != nullptr);
-            return Invoke<ReturnType, Params, 2>::run(L, t, fnptr);
-        }
-    };
-
-    template <class MemFnPtr, class T>
-    struct CallConstMember
-    {
-        using Params = typename FuncTraits<MemFnPtr>::Params;
-        using ReturnType = typename FuncTraits<MemFnPtr>::ReturnType;
-
-        static int f(lua_State* L)
-        {
-            assert(isfulluserdata(L, lua_upvalueindex(1)));
-            T const* const t = Userdata::get<T>(L, 1, true);
-            MemFnPtr const& fnptr = *static_cast<MemFnPtr const*>(lua_touserdata(L, lua_upvalueindex(1)));
-            assert(fnptr != nullptr);
-            return Invoke<ReturnType, Params, 2>::run(L, t, fnptr);
-        }
-    };
-
-    //--------------------------------------------------------------------------
-    /**
-        lua_CFunction to call a class member lua_CFunction.
-
-        The member function pointer is in the first upvalue.
-        The object userdata ('this') value is at top ot the Lua stack.
-    */
-    template <class T>
-    struct CallMemberCFunction
-    {
-        static int f(lua_State* L)
-        {
-            assert(isfulluserdata(L, lua_upvalueindex(1)));
-            typedef int (T::*MFP)(lua_State * L);
-            T* const t = Userdata::get<T>(L, 1, false);
-            MFP const& fnptr = *static_cast<MFP const*>(lua_touserdata(L, lua_upvalueindex(1)));
-            assert(fnptr != nullptr);
-            return (t->*fnptr)(L);
-        }
-    };
-
-    template <class T>
-    struct CallConstMemberCFunction
-    {
-        static int f(lua_State* L)
-        {
-            assert(isfulluserdata(L, lua_upvalueindex(1)));
-            typedef int (T::*MFP)(lua_State * L) const;
-            T const* const t = Userdata::get<T>(L, 1, true);
-            MFP const& fnptr = *static_cast<MFP const*>(lua_touserdata(L, lua_upvalueindex(1)));
-            assert(fnptr != nullptr);
-            return (t->*fnptr)(L);
-        }
-    };
-
-    //--------------------------------------------------------------------------
-    /**
-        lua_CFunction to call on a object.
-
-        The proxy function pointer (lightuserdata) is in the first upvalue.
-        The class userdata object is at the top of the Lua stack.
-    */
-    template <class FnPtr>
-    struct CallProxyFunction
-    {
-        using Params = typename FuncTraits<FnPtr>::Params;
-        using ReturnType = typename FuncTraits<FnPtr>::ReturnType;
-
-        static int f(lua_State* L)
-        {
-            assert(lua_islightuserdata(L, lua_upvalueindex(1)));
-            auto fnptr = reinterpret_cast<FnPtr>(lua_touserdata(L, lua_upvalueindex(1)));
-            assert(fnptr != nullptr);
-            return Invoke<ReturnType, Params, 1>::run(L, fnptr);
-        }
-    };
-
-    template <class Functor>
-    struct CallProxyFunctor
-    {
-        using Params = typename FuncTraits<Functor>::Params;
-        using ReturnType = typename FuncTraits<Functor>::ReturnType;
-
-        static int f(lua_State* L)
-        {
-            assert(isfulluserdata(L, lua_upvalueindex(1)));
-            Functor& fn = *align<Functor>(lua_touserdata(L, lua_upvalueindex(1)));
-            return Invoke<ReturnType, Params, 1>::run(L, fn);
-        }
-    };
-
-    //--------------------------------------------------------------------------
-
-    // SFINAE Helpers
-
-    template <class MemFnPtr, class T, bool isConst>
-    struct CallMemberFunctionHelper
-    {
-        static void add(lua_State* L, char const* name, MemFnPtr mf)
-        {
-            new (lua_newuserdata(L, sizeof(MemFnPtr))) MemFnPtr(mf);
-            lua_pushcclosure(L, &CallConstMember<MemFnPtr, T>::f, 1);
-            lua_pushvalue(L, -1);
-            rawsetfield(L, -5, name); // const table
-            rawsetfield(L, -3, name); // class table
-        }
-    };
-
-    template <class MemFnPtr, class T>
-    struct CallMemberFunctionHelper<MemFnPtr, T, false>
-    {
-        static void add(lua_State* L, char const* name, MemFnPtr mf)
-        {
-            new (lua_newuserdata(L, sizeof(MemFnPtr))) MemFnPtr(mf);
-            lua_pushcclosure(L, &CallMember<MemFnPtr, T>::f, 1);
-            rawsetfield(L, -3, name); // class table
-        }
-    };
-
     //--------------------------------------------------------------------------
     /**
         __gc metamethod for a class.
@@ -3648,31 +3266,66 @@ struct CFunc
         ud->~Userdata();
         return 0;
     }
+};
 
-    /**
-        __gc metamethod for an arbitrary class.
-    */
-    template <class T>
-    static int gcMetaMethodAny(lua_State* L)
+//=================================================================================================
+
+template <class T, class C = void>
+struct property_getter;
+
+/**
+ * @brief lua_CFunction to get a variable.
+ *
+ * This is used for global variables or class static data members. The pointer to the data is in the first upvalue.
+ */
+template <class T>
+struct property_getter<T, void>
+{
+    static int call(lua_State* L)
     {
-        assert(isfulluserdata(L, 1));
-        T* t = align<T>(lua_touserdata(L, 1));
-        t->~T();
-        return 0;
+        assert(lua_islightuserdata(L, lua_upvalueindex(1)));
+
+        T* ptr = static_cast<T*>(lua_touserdata(L, lua_upvalueindex(1)));
+        assert(ptr != nullptr);
+
+        Stack<T&>::push(L, *ptr);
+
+        return 1;
     }
+};
 
-    //--------------------------------------------------------------------------
-    /**
-        lua_CFunction to get a class data member.
-
-        The pointer-to-member is in the first upvalue.
-        The class userdata object is at the top of the Lua stack.
-    */
-    template <class C, typename T>
-    static int getProperty(lua_State* L)
+/*
+template <class T>
+struct property_getter<std::reference_wrapper<T>, void>
+{
+    static int call(lua_State* L)
     {
-        C* const c = Userdata::get<C>(L, 1, true);
+        assert(lua_islightuserdata(L, lua_upvalueindex(1)));
+
+        std::reference_wrapper<T>* ptr = static_cast<std::reference_wrapper<T>*>(lua_touserdata(L, lua_upvalueindex(1)));
+        assert(ptr != nullptr);
+
+        Stack<T&>::push(L, ptr->get());
+
+        return 1;
+    }
+};
+*/
+
+/**
+ * @brief lua_CFunction to get a class data member.
+ *
+ * The pointer-to-member is in the first upvalue. The class userdata object is at the top of the Lua stack.
+ */
+template <class T, class C>
+struct property_getter
+{
+    static int call(lua_State* L)
+    {
+        C* c = Userdata::get<C>(L, 1, true);
+        
         T C::** mp = static_cast<T C::**>(lua_touserdata(L, lua_upvalueindex(1)));
+        
         try
         {
             Stack<T&>::push(L, c->**mp);
@@ -3681,21 +3334,84 @@ struct CFunc
         {
             luaL_error(L, e.what());
         }
+
         return 1;
     }
+};
 
-    //--------------------------------------------------------------------------
-    /**
-        lua_CFunction to set a class data member.
+/**
+ * @brief Helper function to push a property getter on a table at a specific index.
+ */
+inline void add_property_getter(lua_State* L, const char* name, int tableIndex)
+{
+    assert(name != nullptr);
+    assert(lua_istable(L, tableIndex));
+    assert(lua_iscfunction(L, -1)); // Stack: getter
 
-        The pointer-to-member is in the first upvalue.
-        The class userdata object is at the top of the Lua stack.
-    */
-    template <class C, typename T>
-    static int setProperty(lua_State* L)
+    lua_rawgetp(L, tableIndex, getPropgetKey()); // Stack: getter, propget table (pg)
+    lua_pushvalue(L, -2); // Stack: getter, pg, getter
+    rawsetfield(L, -2, name); // Stack: getter, pg
+    lua_pop(L, 2); // Stack: -
+}
+
+//=================================================================================================
+
+template <class T, class C = void>
+struct property_setter;
+
+/**
+ * @brief lua_CFunction to set a variable.
+ *
+ * This is used for global variables or class static data members. The pointer to the data is in the first upvalue.
+ */
+template <class T>
+struct property_setter<T, void>
+{
+    static int call(lua_State* L)
     {
-        C* const c = Userdata::get<C>(L, 1, false);
+        assert(lua_islightuserdata(L, lua_upvalueindex(1)));
+
+        T* ptr = static_cast<T*>(lua_touserdata(L, lua_upvalueindex(1)));
+        assert(ptr != nullptr);
+
+        *ptr = Stack<T>::get(L, 1);
+
+        return 0;
+    }
+};
+
+/*
+template <class T>
+struct property_setter<std::reference_wrapper<T>, void>
+{
+    static int call(lua_State* L)
+    {
+        assert(lua_islightuserdata(L, lua_upvalueindex(1)));
+
+        std::reference_wrapper<T>* ptr = static_cast<std::reference_wrapper<T>*>(lua_touserdata(L, lua_upvalueindex(1)));
+        assert(ptr != nullptr);
+
+        ptr->get() = Stack<T>::get(L, 1);
+
+        return 0;
+    }
+};
+*/
+ 
+/**
+ * @brief lua_CFunction to set a class data member.
+ *
+ * The pointer-to-member is in the first upvalue. The class userdata object is at the top of the Lua stack.
+ */
+template <class T, class C>
+struct property_setter
+{
+    static int call(lua_State* L)
+    {
+        C* c = Userdata::get<C>(L, 1, false);
+
         T C::** mp = static_cast<T C::**>(lua_touserdata(L, lua_upvalueindex(1)));
+
         try
         {
             c->** mp = Stack<T>::get(L, 2);
@@ -3704,75 +3420,139 @@ struct CFunc
         {
             luaL_error(L, e.what());
         }
+
         return 0;
     }
 };
+
+/**
+ * @brief Helper function to push a property setter on a table at a specific index.
+ */
+inline void add_property_setter(lua_State* L, const char* name, int tableIndex)
+{
+    assert(name != nullptr);
+    assert(lua_istable(L, tableIndex));
+    assert(lua_iscfunction(L, -1)); // Stack: setter
+
+    lua_rawgetp(L, tableIndex, getPropsetKey()); // Stack: setter, propset table (ps)
+    lua_pushvalue(L, -2); // Stack: setter, ps, setter
+    rawsetfield(L, -2, name); // Stack: setter, ps
+    lua_pop(L, 2); // Stack: -
+}
+
+//=================================================================================================
+/**
+ * @brief lua_CFunction to call a class member function with a return value.
+ *
+ * The member function pointer is in the first upvalue. The class userdata object is at the top of the Lua stack.
+ */
+template <class F, class T>
+int invoke_member_function(lua_State* L)
+{
+    using FnTraits = detail::function_traits<F>;
+
+    assert(isfulluserdata(L, lua_upvalueindex(1)));
+
+    T* ptr = Userdata::get<T>(L, 1, false);
+
+    const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
+    assert(func != nullptr);
+
+    return function<typename FnTraits::result_type, typename FnTraits::argument_types, 2>::call(L, ptr, func);
+}
+
+template <class F, class T>
+int invoke_const_member_function(lua_State* L)
+{
+    using FnTraits = detail::function_traits<F>;
+
+    assert(isfulluserdata(L, lua_upvalueindex(1)));
+
+    const T* ptr = Userdata::get<T>(L, 1, true);
+
+    const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
+    assert(func != nullptr);
+
+    return function<typename FnTraits::result_type, typename FnTraits::argument_types, 2>::call(L, ptr, func);
+}
+
+//=================================================================================================
+/**
+ * @brief lua_CFunction to call a class member lua_CFunction.
+ *
+ * The member function pointer is in the first upvalue. The object userdata ('this') value is at top ot the Lua stack.
+ */
+template <class T>
+int invoke_member_cfunction(lua_State* L)
+{
+    using F = int (T::*)(lua_State * L);
+
+    assert(isfulluserdata(L, lua_upvalueindex(1)));
+
+    T* t = Userdata::get<T>(L, 1, false);
+    
+    const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
+    assert(func != nullptr);
+
+    return (t->*func)(L);
+}
+
+template <class T>
+int invoke_const_member_cfunction(lua_State* L)
+{
+    using F = int (T::*)(lua_State * L) const;
+
+    assert(isfulluserdata(L, lua_upvalueindex(1)));
+
+    const T* t = Userdata::get<T>(L, 1, true);
+    
+    const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
+    assert(func != nullptr);
+    
+    return (t->*func)(L);
+}
+
+//=================================================================================================
+/**
+ * @brief lua_CFunction to call on a object via function pointer.
+ *
+ * The proxy function pointer (lightuserdata) is in the first upvalue. The class userdata object is at the top of the Lua stack.
+ */
+template <class F>
+int invoke_proxy_function(lua_State* L)
+{
+    using FnTraits = detail::function_traits<F>;
+    
+    assert(lua_islightuserdata(L, lua_upvalueindex(1)));
+
+    auto func = reinterpret_cast<F>(lua_touserdata(L, lua_upvalueindex(1)));
+    assert(func != nullptr);
+
+    return function<typename FnTraits::result_type, typename FnTraits::argument_types, 1>::call(L, func);
+}
+
+//=================================================================================================
+/**
+ * @brief lua_CFunction to call on a object via functor (lambda wrapped in a std::function).
+ *
+ * The proxy std::function (lightuserdata) is in the first upvalue. The class userdata object is at the top of the Lua stack.
+ */
+template <class F>
+int invoke_proxy_functor(lua_State* L)
+{
+    using FnTraits = detail::function_traits<F>;
+    
+    assert(isfulluserdata(L, lua_upvalueindex(1)));
+
+    auto& func = *align<F>(lua_touserdata(L, lua_upvalueindex(1)));
+
+    return function<typename FnTraits::result_type, typename FnTraits::argument_types, 1>::call(L, func);
+}
 
 } // namespace detail
 } // namespace luabridge
 
 // End File: Source/LuaBridge/detail/CFunctions.h
-
-// Begin File: Source/LuaBridge/detail/Constructor.h
-
-// https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
-// Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
-// Copyright 2007, Nathan Reed
-// SPDX-License-Identifier: MIT
-
-
-
-namespace luabridge {
-namespace detail {
-
-//=================================================================================================
-/**
- * @brief Constructor generators.
- *
- * These templates call operator new with the contents of a type/value list passed to the Constructor
- * with up to 8 parameters. Two versions of call() are provided. One performs a regular new, the other
- * performs a placement new.
- */
-template <class T, class Params>
-struct Constructor;
-
-template <class T>
-struct Constructor<T, None>
-{
-    static T* call(const TypeListValues<None>&)
-    {
-        return new T;
-    }
-
-    static T* call(void* ptr, const TypeListValues<None>&)
-    {
-        return new (ptr) T;
-    }
-};
-
-template <class T, class Params>
-struct Constructor
-{
-    static T* call(const TypeListValues<Params>& tvl)
-    {
-        auto alloc = [](auto&&... args) { return new T(std::forward<decltype(args)>(args)...); };
-        
-        return std::apply(alloc, typeListValuesTuple(tvl));
-    }
-    
-    static T* call(void* ptr, const TypeListValues<Params>& tvl)
-    {
-        auto alloc = [ptr](auto&&... args) { return new (ptr) T(std::forward<decltype(args)>(args)...); };
-
-        return std::apply(alloc, typeListValuesTuple(tvl));
-    }
-};
-
-} // namespace detail
-} // namespace luabridge
-
-// End File: Source/LuaBridge/detail/Constructor.h
 
 // Begin File: Source/LuaBridge/detail/LuaException.h
 
@@ -3892,29 +3672,6 @@ namespace luabridge {
 
 //------------------------------------------------------------------------------
 /**
-    Helper for iterating through tuple arguments, pushing eash argument to the
-    stack. Adapted from https://stackoverflow.com/a/6894436
-*/
-
-template <std::size_t I = 0, typename... Tp>
-auto push_arguments(lua_State*, const std::tuple<Tp...>&)
-    -> std::enable_if_t<I == sizeof...(Tp)>
-{
-}
-
-template <std::size_t I = 0, typename... Tp>
-auto push_arguments(lua_State* L, const std::tuple<Tp...>& t)
-    -> std::enable_if_t<I < sizeof...(Tp)>
-{
-    using ArgumentType = std::tuple_element_t<I, std::tuple<Tp...>>;
-
-    Stack<ArgumentType>::push(L, std::get<I>(t));
-
-    push_arguments<I + 1, Tp...>(L, t);
-}
-
-//------------------------------------------------------------------------------
-/**
  * @brief Type tag for representing LUA_TNIL.
  *
  * Construct one of these using `LuaNil ()` to represent a Lua nil. This is faster
@@ -3934,16 +3691,22 @@ struct LuaNil
 /**
  * @code Stack specialization for LuaNil.
  */
-template<>
+template <>
 struct Stack<LuaNil>
 {
-    static void push(lua_State* L, LuaNil) { lua_pushnil(L); }
+    static void push(lua_State* L, LuaNil)
+    {
+        lua_pushnil(L);
+    }
 
-    static bool isInstance(lua_State* L, int index) { return lua_type(L, index) == LUA_TTABLE; }
+    static bool isInstance(lua_State* L, int index)
+    {
+        return lua_type(L, index) == LUA_TTABLE;
+    }
 };
 
 /**
- * Base class for Lua variables and table item reference classes.
+ * @brief Base class for Lua variables and table item reference classes.
  */
 template<class Impl, class LuaRef>
 class LuaRefBase
@@ -4249,16 +4012,32 @@ public:
         return Stack<T>::isInstance(m_L, -1);
     }
 
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
-        Type cast operator.
-
-        @returns A value of the type T converted from this reference.
-    */
-    template<class T>
+     * @brief Type cast operator.
+     *
+     * @returns A value of the type T converted from this reference.
+     */
+    template <class T>
     operator T() const
     {
         return cast<T>();
+    }
+
+    //=============================================================================================
+    /**
+     * @brief Type cast operator to optional value
+     *
+     * @returns An optional value of the type T converted from this reference if conversion is possible, nullopt otherwise.
+     */
+    template <class T>
+    operator std::optional<T>() const
+    {
+        StackPop p(m_L, 1);
+
+        impl().push();
+
+        return Stack<T>::isInstance(m_L, -1) ? std::make_optional(Stack<T>::get(m_L, -1)) : std::nullopt;
     }
 
     //----------------------------------------------------------------------------
@@ -4464,9 +4243,9 @@ public:
     {
         impl().push();
 
-        push_arguments(m_L, std::forward_as_tuple(args...));
+        detail::push_arguments(m_L, std::forward_as_tuple(args...));
 
-        LuaException::pcall (m_L, sizeof...(args), 1);
+        LuaException::pcall(m_L, sizeof...(Args), 1);
 
         return LuaRef::fromStack(m_L);
     }
@@ -4892,28 +4671,33 @@ private:
 
 //------------------------------------------------------------------------------
 /**
- * Stack specialization for `LuaRef`.
+ * @brief Stack specialization for `LuaRef`.
  */
-template<>
+template <>
 struct Stack<LuaRef>
 {
-    // The value is const& to prevent a copy construction.
-    //
-    static void push(lua_State* L, LuaRef const& v) { v.push(L); }
+    static void push(lua_State* L, const LuaRef& v)
+    {
+        v.push(L);
+    }
 
-    static LuaRef get(lua_State* L, int index) { return LuaRef::fromStack(L, index); }
+    static LuaRef get(lua_State* L, int index)
+    {
+        return LuaRef::fromStack(L, index);
+    }
 };
 
 //------------------------------------------------------------------------------
 /**
- * Stack specialization for `TableItem`.
+ * @brief Stack specialization for `TableItem`.
  */
-template<>
-struct Stack<LuaRef::TableItem>
+template <>
+struct Stack <LuaRef::TableItem>
 {
-    // The value is const& to prevent a copy construction.
-    //
-    static void push(lua_State* L, LuaRef::TableItem const& v) { v.push(L); }
+    static void push(lua_State* L, const LuaRef::TableItem& v)
+    {
+        v.push(L);
+    }
 };
 
 //------------------------------------------------------------------------------
@@ -5399,13 +5183,13 @@ class Namespace : public detail::Registrar
         /**
           lua_CFunction to construct a class object wrapped in a container.
         */
-        template<class Params, class C>
+        template <class Args, class C>
         static int ctorContainerProxy(lua_State* L)
         {
             using T = typename ContainerTraits<C>::Type;
             
-            detail::ArgList<Params, 2> args(L);
-            T* const p = detail::Constructor<T, Params>::call(args);
+            T* const p = detail::constructor<T, Args>::call(detail::make_arguments_list<Args, 2>(L));
+
             detail::UserdataSharedHelper<C, false>::push(L, p);
 
             return 1;
@@ -5415,13 +5199,15 @@ class Namespace : public detail::Registrar
         /**
           lua_CFunction to construct a class object in-place in the userdata.
         */
-        template<class Params, class T>
+        template <class Args, class T>
         static int ctorPlacementProxy(lua_State* L)
         {
-            detail::ArgList<Params, 2> args(L);
             detail::UserdataValue<T>* value = detail::UserdataValue<T>::place(L);
-            detail::Constructor<T, Params>::call(value->getObject(), args);
+
+            detail::constructor<T, Args>::call(value->getObject(), detail::make_arguments_list<Args, 2>(L));
+
             value->commit();
+
             return 1;
         }
 
@@ -5611,13 +5397,13 @@ class Namespace : public detail::Registrar
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             lua_pushlightuserdata(L, value); // Stack: co, cl, st, pointer
-            lua_pushcclosure(L, &CFunc::getVariable<U>, 1); // Stack: co, cl, st, getter
-            CFunc::addGetter(L, name, -2); // Stack: co, cl, st
+            lua_pushcclosure(L, &detail::property_getter<U>::call, 1); // Stack: co, cl, st, getter
+            detail::add_property_getter(L, name, -2); // Stack: co, cl, st
 
             if (isWritable)
             {
                 lua_pushlightuserdata(L, value); // Stack: co, cl, st, ps, pointer
-                lua_pushcclosure(L, &CFunc::setVariable<U>, 1); // Stack: co, cl, st, ps, setter
+                lua_pushcclosure(L, &detail::property_setter<U>::call, 1); // Stack: co, cl, st, ps, setter
             }
             else
             {
@@ -5625,7 +5411,7 @@ class Namespace : public detail::Registrar
                 lua_pushcclosure(L, &CFunc::readOnlyError, 1); // Stack: co, cl, st, error_fn
             }
 
-            CFunc::addSetter(L, name, -2); // Stack: co, cl, st
+            detail::add_property_setter(L, name, -2); // Stack: co, cl, st
 
             return *this;
         }
@@ -5647,13 +5433,13 @@ class Namespace : public detail::Registrar
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); // Stack: co, cl, st, function ptr
-            lua_pushcclosure(L, &CFunc::Call<U (*)()>::f, 1); // Stack: co, cl, st, getter
-            CFunc::addGetter(L, name, -2); // Stack: co, cl, st
+            lua_pushcclosure(L, &detail::invoke_proxy_function<U (*)()>, 1); // Stack: co, cl, st, getter
+            detail::add_property_getter(L, name, -2); // Stack: co, cl, st
 
             if (set != nullptr)
             {
                 lua_pushlightuserdata(L, reinterpret_cast<void*>(set)); // Stack: co, cl, st, function ptr
-                lua_pushcclosure(L, &CFunc::Call<void (*)(U)>::f, 1); // Stack: co, cl, st, setter
+                lua_pushcclosure(L, &detail::invoke_proxy_function<void (*)(U)>, 1); // Stack: co, cl, st, setter
             }
             else
             {
@@ -5661,7 +5447,7 @@ class Namespace : public detail::Registrar
                 lua_pushcclosure(L, &CFunc::readOnlyError, 1); // Stack: co, cl, st, error_fn
             }
 
-            CFunc::addSetter(L, name, -2); // Stack: co, cl, st
+            detail::add_property_setter(L, name, -2); // Stack: co, cl, st
 
             return *this;
         }
@@ -5677,7 +5463,7 @@ class Namespace : public detail::Registrar
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             lua_pushlightuserdata(L, reinterpret_cast<void*>(fp)); // Stack: co, cl, st, function ptr
-            lua_pushcclosure(L, &CFunc::Call<FP>::f, 1); // co, cl, st, function
+            lua_pushcclosure(L, &detail::invoke_proxy_function<FP>, 1); // co, cl, st, function
             rawsetfield(L, -2, name); // co, cl, st
 
             return *this;
@@ -5697,10 +5483,10 @@ class Namespace : public detail::Registrar
 
             lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: co, cl, st, function userdata (ud)
             lua_newtable(L); // Stack: co, cl, st, ud, ud metatable (mt)
-            lua_pushcfunction(L, &CFunc::gcMetaMethodAny<FnType>); // Stack: co, cl, st, ud, mt, gc function
+            lua_pushcfunction(L, &lua_deleteuserdata_aligned<FnType>); // Stack: co, cl, st, ud, mt, gc function
             rawsetfield(L, -2, "__gc"); // Stack: co, cl, st, ud, mt
             lua_setmetatable(L, -2); // Stack: co, cl, st, ud
-            lua_pushcclosure(L, &CFunc::CallProxyFunctor<FnType>::f, 1); // Stack: co, cl, st, function
+            lua_pushcclosure(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: co, cl, st, function
             rawsetfield(L, -2, name); // Stack: co, cl, st
 
             return *this;
@@ -5754,16 +5540,16 @@ class Namespace : public detail::Registrar
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             new (lua_newuserdata(L, sizeof(mp_t))) mp_t(mp); // Stack: co, cl, st, field ptr
-            lua_pushcclosure(L, &CFunc::getProperty<T, U>, 1); // Stack: co, cl, st, getter
+            lua_pushcclosure(L, &detail::property_getter<U, T>::call, 1); // Stack: co, cl, st, getter
             lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
-            CFunc::addGetter(L, name, -5); // Stack: co, cl, st, getter
-            CFunc::addGetter(L, name, -3); // Stack: co, cl, st
+            detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
+            detail::add_property_getter(L, name, -3); // Stack: co, cl, st
 
             if (isWritable)
             {
                 new (lua_newuserdata(L, sizeof(mp_t))) mp_t(mp); // Stack: co, cl, st, field ptr
-                lua_pushcclosure(L, &CFunc::setProperty<T, U>, 1); // Stack: co, cl, st, setter
-                CFunc::addSetter(L, name, -3); // Stack: co, cl, st
+                lua_pushcclosure(L, &detail::property_setter<U, T>::call, 1); // Stack: co, cl, st, setter
+                detail::add_property_setter(L, name, -3); // Stack: co, cl, st
             }
 
             return *this;
@@ -5783,16 +5569,16 @@ class Namespace : public detail::Registrar
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             new (lua_newuserdata(L, sizeof(get_t))) get_t(get); // Stack: co, cl, st, funcion ptr
-            lua_pushcclosure(L, &CFunc::CallConstMember<get_t, T>::f, 1); // Stack: co, cl, st, getter
+            lua_pushcclosure(L, &detail::invoke_const_member_function<get_t, T>, 1); // Stack: co, cl, st, getter
             lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
-            CFunc::addGetter(L, name, -5); // Stack: co, cl, st, getter
-            CFunc::addGetter(L, name, -3); // Stack: co, cl, st
+            detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
+            detail::add_property_getter(L, name, -3); // Stack: co, cl, st
 
             if (set != 0)
             {
                 new (lua_newuserdata(L, sizeof(set_t))) set_t(set); // Stack: co, cl, st, function ptr
-                lua_pushcclosure(L, &CFunc::CallMember<set_t, T>::f, 1); // Stack: co, cl, st, setter
-                CFunc::addSetter(L, name, -3); // Stack: co, cl, st
+                lua_pushcclosure(L, &detail::invoke_member_function<set_t, T>, 1); // Stack: co, cl, st, setter
+                detail::add_property_setter(L, name, -3); // Stack: co, cl, st
             }
 
             return *this;
@@ -5812,16 +5598,16 @@ class Namespace : public detail::Registrar
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             new (lua_newuserdata(L, sizeof(get_t))) get_t(get); // Stack: co, cl, st, funcion ptr
-            lua_pushcclosure(L, &CFunc::CallConstMember<get_t, T>::f, 1); // Stack: co, cl, st, getter
+            lua_pushcclosure(L, &detail::invoke_const_member_function<get_t, T>, 1); // Stack: co, cl, st, getter
             lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
-            CFunc::addGetter(L, name, -5); // Stack: co, cl, st, getter
-            CFunc::addGetter(L, name, -3); // Stack: co, cl, st
+            detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
+            detail::add_property_getter(L, name, -3); // Stack: co, cl, st
 
             if (set != nullptr)
             {
                 new (lua_newuserdata(L, sizeof(set_t))) set_t(set); // Stack: co, cl, st, function ptr
-                lua_pushcclosure(L, &CFunc::CallMember<set_t, T>::f, 1); // Stack: co, cl, st, setter
-                CFunc::addSetter(L, name, -3); // Stack: co, cl, st
+                lua_pushcclosure(L, &detail::invoke_member_function<set_t, T>, 1); // Stack: co, cl, st, setter
+                detail::add_property_setter(L, name, -3); // Stack: co, cl, st
             }
 
             return *this;
@@ -5845,16 +5631,16 @@ class Namespace : public detail::Registrar
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); // Stack: co, cl, st, function ptr
-            lua_pushcclosure(L, &CFunc::Call<TG (*)(const T*)>::f, 1); // Stack: co, cl, st, getter
+            lua_pushcclosure(L, &detail::invoke_proxy_function<TG (*)(const T*)>, 1); // Stack: co, cl, st, getter
             lua_pushvalue(L, -1); // Stack: co, cl, st,, getter, getter
-            CFunc::addGetter(L, name, -5); // Stack: co, cl, st, getter
-            CFunc::addGetter(L, name, -3); // Stack: co, cl, st
+            detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
+            detail::add_property_getter(L, name, -3); // Stack: co, cl, st
 
             if (set != nullptr)
             {
                 lua_pushlightuserdata( L, reinterpret_cast<void*>(set)); // Stack: co, cl, st, function ptr
-                lua_pushcclosure(L, &CFunc::Call<void (*)(T*, TS)>::f, 1); // Stack: co, cl, st, setter
-                CFunc::addSetter(L, name, -3); // Stack: co, cl, st
+                lua_pushcclosure(L, &detail::invoke_proxy_function<void (*)(T*, TS)>, 1); // Stack: co, cl, st, setter
+                detail::add_property_setter(L, name, -3); // Stack: co, cl, st
             }
 
             return *this;
@@ -5878,13 +5664,13 @@ class Namespace : public detail::Registrar
 
             lua_pushcfunction(L, get);
             lua_pushvalue(L, -1); // Stack: co, cl, st,, getter, getter
-            CFunc::addGetter(L, name, -5); // Stack: co, cl, st,, getter
-            CFunc::addGetter(L, name, -3); // Stack: co, cl, st,
+            detail::add_property_getter(L, name, -5); // Stack: co, cl, st,, getter
+            detail::add_property_getter(L, name, -3); // Stack: co, cl, st,
 
             if (set != nullptr)
             {
                 lua_pushcfunction(L, set);
-                CFunc::addSetter(L, name, -3); // Stack: co, cl, st,
+                detail::add_property_setter(L, name, -3); // Stack: co, cl, st,
             }
 
             return *this;
@@ -5900,13 +5686,13 @@ class Namespace : public detail::Registrar
 
             lua_newuserdata_aligned<GetType>(L, std::move(get)); // Stack: co, cl, st, function userdata (ud)
             lua_newtable(L); // Stack: co, cl, st, ud, ud metatable (mt)
-            lua_pushcfunction(L, &CFunc::gcMetaMethodAny<GetType>); // Stack: co, cl, st, ud, mt, gc function
+            lua_pushcfunction(L, &lua_deleteuserdata_aligned<GetType>); // Stack: co, cl, st, ud, mt, gc function
             rawsetfield(L, -2, "__gc"); // Stack: co, cl, st, ud, mt
             lua_setmetatable(L, -2); // Stack: co, cl, st, ud
-            lua_pushcclosure(L, &CFunc::CallProxyFunctor<GetType>::f, 1); // Stack: co, cl, st, getter
+            lua_pushcclosure(L, &detail::invoke_proxy_functor<GetType>, 1); // Stack: co, cl, st, getter
             lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
-            CFunc::addGetter(L, name, -4); // Stack: co, cl, st, getter
-            CFunc::addGetter(L, name, -4); // Stack: co, cl, st
+            detail::add_property_getter(L, name, -4); // Stack: co, cl, st, getter
+            detail::add_property_getter(L, name, -4); // Stack: co, cl, st
 
             if (set != nullptr)
             {
@@ -5914,11 +5700,11 @@ class Namespace : public detail::Registrar
 
                 lua_newuserdata_aligned<SetType>(L, std::move(set)); // Stack: co, cl, st, function userdata (ud)
                 lua_newtable(L); // Stack: co, cl, st, ud, ud metatable (mt)
-                lua_pushcfunction(L, &CFunc::gcMetaMethodAny<SetType>); // Stack: co, cl, st, ud, mt, gc function
+                lua_pushcfunction(L, &lua_deleteuserdata_aligned<SetType>); // Stack: co, cl, st, ud, mt, gc function
                 rawsetfield(L, -2, "__gc"); // Stack: co, cl, st, ud, mt
                 lua_setmetatable(L, -2); // Stack: co, cl, st, ud
-                lua_pushcclosure(L, &CFunc::CallProxyFunctor<SetType>::f, 1); // Stack: co, cl, st, setter
-                CFunc::addSetter(L, name, -3); // Stack: co, cl, st
+                lua_pushcclosure(L, &detail::invoke_proxy_functor<SetType>, 1); // Stack: co, cl, st, setter
+                detail::add_property_setter(L, name, -3); // Stack: co, cl, st
             }
 
             return *this;
@@ -5954,10 +5740,10 @@ class Namespace : public detail::Registrar
 
             lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: co, cl, st, function userdata (ud)
             lua_newtable(L); // Stack: co, cl, st, ud, ud metatable (mt)
-            lua_pushcfunction(L, &CFunc::gcMetaMethodAny<FnType>); // Stack: co, cl, st, ud, mt, gc function
+            lua_pushcfunction(L, &lua_deleteuserdata_aligned<FnType>); // Stack: co, cl, st, ud, mt, gc function
             rawsetfield(L, -2, "__gc"); // Stack: co, cl, st, ud, mt
             lua_setmetatable(L, -2); // Stack: co, cl, st, ud
-            lua_pushcclosure(L, &CFunc::CallProxyFunctor<FnType>::f, 1); // Stack: co, cl, st, function
+            lua_pushcclosure(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: co, cl, st, function
             rawsetfield(L, -3, name); // Stack: co, cl, st
 
             return *this;
@@ -5977,10 +5763,10 @@ class Namespace : public detail::Registrar
 
             lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: co, cl, st, function userdata (ud)
             lua_newtable(L); // Stack: co, cl, st, ud, ud metatable (mt)
-            lua_pushcfunction(L, &CFunc::gcMetaMethodAny<FnType>); // Stack: co, cl, st, ud, mt, gc function
+            lua_pushcfunction(L, &lua_deleteuserdata_aligned<FnType>); // Stack: co, cl, st, ud, mt, gc function
             rawsetfield(L, -2, "__gc"); // Stack: co, cl, st, ud, mt
             lua_setmetatable(L, -2); // Stack: co, cl, st, ud
-            lua_pushcclosure(L, &CFunc::CallProxyFunctor<FnType>::f, 1); // Stack: co, cl, st, function
+            lua_pushcclosure(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: co, cl, st, function
             lua_pushvalue(L, -1); // Stack: co, cl, st, function, function
             rawsetfield(L, -4, name); // Stack: co, cl, st, function
             rawsetfield(L, -4, name); // Stack: co, cl, st
@@ -5997,7 +5783,7 @@ class Namespace : public detail::Registrar
         {
             static_assert(std::is_base_of_v<U, T>);
 
-            using MemFn = ReturnType (U::*)(Params...);
+            using MemFn = decltype(mf);
 
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
@@ -6006,7 +5792,10 @@ class Namespace : public detail::Registrar
             if (name == GC)
                 throw std::logic_error(GC + " metamethod registration is forbidden");
 
-            CFunc::CallMemberFunctionHelper<MemFn, T, false>::add(L, name, mf);
+            new (lua_newuserdata(L, sizeof(MemFn))) MemFn(mf);
+            lua_pushcclosure(L, &detail::invoke_member_function<MemFn, T>, 1);
+            rawsetfield(L, -3, name); // class table
+
             return *this;
         }
 
@@ -6015,7 +5804,7 @@ class Namespace : public detail::Registrar
         {
             static_assert(std::is_base_of_v<U, T>);
 
-            using MemFn = ReturnType (U::*)(Params...) const;
+            using MemFn = decltype(mf);
 
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
@@ -6024,7 +5813,12 @@ class Namespace : public detail::Registrar
             if (name == GC)
                 throw std::logic_error(GC + " metamethod registration is forbidden");
 
-            CFunc::CallMemberFunctionHelper<MemFn, T, true>::add(L, name, mf);
+            new (lua_newuserdata(L, sizeof(MemFn))) MemFn(mf);
+            lua_pushcclosure(L, &detail::invoke_const_member_function<MemFn, T>, 1);
+            lua_pushvalue(L, -1);
+            rawsetfield(L, -5, name); // const table
+            rawsetfield(L, -3, name); // class table
+
             return *this;
         }
 
@@ -6035,6 +5829,8 @@ class Namespace : public detail::Registrar
         template <class ReturnType, class... Params>
         Class<T>& addFunction(char const* name, ReturnType (*proxyFn)(T* object, Params...))
         {
+            using FnType = decltype(proxyFn);
+
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
@@ -6042,16 +5838,18 @@ class Namespace : public detail::Registrar
             if (name == GC)
                 throw std::logic_error(GC + " metamethod registration is forbidden");
 
-            using FnType = decltype(proxyFn);
             lua_pushlightuserdata(L, reinterpret_cast<void*>(proxyFn)); // Stack: co, cl, st, function ptr
-            lua_pushcclosure(L, &CFunc::CallProxyFunction<FnType>::f, 1); // Stack: co, cl, st, function
+            lua_pushcclosure(L, &detail::invoke_proxy_function<FnType>, 1); // Stack: co, cl, st, function
             rawsetfield(L, -3, name); // Stack: co, cl, st
+
             return *this;
         }
 
         template <class ReturnType, class... Params>
         Class<T>& addFunction(char const* name, ReturnType (*proxyFn)(const T* object, Params...))
         {
+            using FnType = decltype(proxyFn);
+
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
@@ -6059,12 +5857,12 @@ class Namespace : public detail::Registrar
             if (name == GC)
                 throw std::logic_error(GC + " metamethod registration is forbidden");
 
-            using FnType = decltype(proxyFn);
             lua_pushlightuserdata(L, reinterpret_cast<void*>(proxyFn)); // Stack: co, cl, st, function ptr
-            lua_pushcclosure(L, &CFunc::CallProxyFunction<FnType>::f, 1); // Stack: co, cl, st, function
+            lua_pushcclosure(L, &detail::invoke_proxy_function<FnType>, 1); // Stack: co, cl, st, function
             lua_pushvalue(L, -1); // Stack: co, cl, st, function, function
             rawsetfield(L, -4, name); // Stack: co, cl, st, function
             rawsetfield(L, -4, name); // Stack: co, cl, st
+
             return *this;
         }
 
@@ -6089,13 +5887,13 @@ class Namespace : public detail::Registrar
         {
             static_assert(std::is_base_of_v<U, T>);
 
-            typedef int (U::*MFP)(lua_State*);
+            using F = decltype(mfp);
 
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            new (lua_newuserdata(L, sizeof(mfp))) MFP(mfp); // Stack: co, cl, st, function ptr
-            lua_pushcclosure(L, &CFunc::CallMemberCFunction<T>::f, 1); // Stack: co, cl, st, function
+            new (lua_newuserdata(L, sizeof(mfp))) F(mfp); // Stack: co, cl, st, function ptr
+            lua_pushcclosure(L, &detail::invoke_member_cfunction<T>, 1); // Stack: co, cl, st, function
             rawsetfield(L, -3, name); // Stack: co, cl, st
 
             return *this;
@@ -6122,13 +5920,13 @@ class Namespace : public detail::Registrar
         {
             static_assert(std::is_base_of_v<U, T>);
             
-            typedef int (U::*MFP)(lua_State*) const;
+            using F = decltype(mfp);
 
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            new (lua_newuserdata(L, sizeof(mfp))) MFP(mfp);
-            lua_pushcclosure(L, &CFunc::CallConstMemberCFunction<T>::f, 1);
+            new (lua_newuserdata(L, sizeof(mfp))) F(mfp);
+            lua_pushcclosure(L, &detail::invoke_const_member_cfunction<T>, 1);
             lua_pushvalue(L, -1); // Stack: co, cl, st, function, function
             rawsetfield(L, -4, name); // Stack: co, cl, st, function
             rawsetfield(L, -4, name); // Stack: co, cl, st
@@ -6152,7 +5950,7 @@ class Namespace : public detail::Registrar
         {
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            lua_pushcclosure(L, &ctorContainerProxy<typename detail::FuncTraits<MemFn>::Params, C>, 0);
+            lua_pushcclosure(L, &ctorContainerProxy<detail::function_arguments_t<MemFn>, C>, 0);
             rawsetfield(L, -2, "__call");
 
             return *this;
@@ -6163,7 +5961,7 @@ class Namespace : public detail::Registrar
         {
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            lua_pushcclosure(L, &ctorPlacementProxy<typename detail::FuncTraits<MemFn>::Params, T>, 0);
+            lua_pushcclosure(L, &ctorPlacementProxy<detail::function_arguments_t<MemFn>, T>, 0);
             rawsetfield(L, -2, "__call");
 
             return *this;
@@ -6304,21 +6102,6 @@ public:
     template <class T>
     Namespace& addProperty(char const* name, T* value, bool isWritable = true)
     {
-        return addVariable(name, value, isWritable);
-    }
-
-    //----------------------------------------------------------------------------
-    /**
-        Add or replace a property.
-
-        @param name       The property name.
-        @param value      A value pointer.
-        @param isWritable True for a read-write, false for read-only property.
-        @returns This namespace registration object.
-    */
-    template <class T>
-    Namespace& addVariable(char const* name, T* value, bool isWritable = true)
-    {
         if (m_stackSize == 1)
             throw std::logic_error("addProperty () called on global namespace");
 
@@ -6326,13 +6109,13 @@ public:
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 
         lua_pushlightuserdata(L, value); // Stack: ns, pointer
-        lua_pushcclosure(L, &CFunc::getVariable<T>, 1); // Stack: ns, getter
-        CFunc::addGetter(L, name, -2); // Stack: ns
+        lua_pushcclosure(L, &detail::property_getter<T>::call, 1); // Stack: ns, getter
+        detail::add_property_getter(L, name, -2); // Stack: ns
 
         if (isWritable)
         {
             lua_pushlightuserdata(L, value); // Stack: ns, pointer
-            lua_pushcclosure(L, &CFunc::setVariable<T>, 1); // Stack: ns, setter
+            lua_pushcclosure(L, &detail::property_setter<T>::call, 1); // Stack: ns, setter
         }
         else
         {
@@ -6340,7 +6123,7 @@ public:
             lua_pushcclosure(L, &CFunc::readOnlyError, 1); // Stack: ns, error_fn
         }
 
-        CFunc::addSetter(L, name, -2); // Stack: ns
+        detail::add_property_setter(L, name, -2); // Stack: ns
 
         return *this;
     }
@@ -6365,13 +6148,13 @@ public:
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 
         lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); // Stack: ns, function ptr
-        lua_pushcclosure(L, &CFunc::Call<TG (*)()>::f, 1); // Stack: ns, getter
-        CFunc::addGetter(L, name, -2);
+        lua_pushcclosure(L, &detail::invoke_proxy_function<TG (*)()>, 1); // Stack: ns, getter
+        detail::add_property_getter(L, name, -2);
 
         if (set != 0)
         {
             lua_pushlightuserdata(L, reinterpret_cast<void*>(set)); // Stack: ns, function ptr
-            lua_pushcclosure(L, &CFunc::Call<void (*)(TS)>::f, 1);
+            lua_pushcclosure(L, &detail::invoke_proxy_function<void (*)(TS)>, 1);
         }
         else
         {
@@ -6379,7 +6162,7 @@ public:
             lua_pushcclosure(L, &CFunc::readOnlyError, 1);
         }
 
-        CFunc::addSetter(L, name, -2);
+        detail::add_property_setter(L, name, -2);
 
         return *this;
     }
@@ -6403,18 +6186,18 @@ public:
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 
         lua_pushcfunction(L, get); // Stack: ns, getter
-        CFunc::addGetter(L, name, -2); // Stack: ns
+        detail::add_property_getter(L, name, -2); // Stack: ns
 
         if (set != 0)
         {
             lua_pushcfunction(L, set); // Stack: ns, setter
-            CFunc::addSetter(L, name, -2); // Stack: ns
+            detail::add_property_setter(L, name, -2); // Stack: ns
         }
         else
         {
             lua_pushstring(L, name); // Stack: ns, name
             lua_pushcclosure(L, &CFunc::readOnlyError, 1); // Stack: ns, name, readOnlyError
-            CFunc::addSetter(L, name, -2); // Stack: ns
+            detail::add_property_setter(L, name, -2); // Stack: ns
         }
 
         return *this;
@@ -6438,10 +6221,10 @@ public:
 
         lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: ns, function userdata (ud)
         lua_newtable(L); // Stack: ns, ud, ud metatable (mt)
-        lua_pushcfunction(L, &CFunc::gcMetaMethodAny<FnType>); // Stack: ns, ud, mt, gc function
+        lua_pushcfunction(L, &lua_deleteuserdata_aligned<FnType>); // Stack: ns, ud, mt, gc function
         rawsetfield(L, -2, "__gc"); // Stack: ns, ud, mt
         lua_setmetatable(L, -2); // Stack: ns, ud
-        lua_pushcclosure(L, &CFunc::CallProxyFunctor<FnType>::f, 1); // Stack: ns, function
+        lua_pushcclosure(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: ns, function
         rawsetfield(L, -2, name); // Stack: ns
 
         return *this;
@@ -6460,7 +6243,7 @@ public:
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 
         lua_pushlightuserdata(L, reinterpret_cast<void*>(fp)); // Stack: ns, function ptr
-        lua_pushcclosure(L, &CFunc::Call<FnType>::f, 1); // Stack: ns, function
+        lua_pushcclosure(L, &detail::invoke_proxy_function<FnType>, 1); // Stack: ns, function
         rawsetfield(L, -2, name); // Stack: ns
 
         return *this;
@@ -6669,8 +6452,8 @@ struct Stack<std::array<T, Size>>
         if (!lua_istable(L, index))
             luaL_error(L, "#%d argment must be a table", index);
 
-        if (index != Size)
-            luaL_error(L, "array size should be %d", Size);
+        if (get_length(L, index) != Size)
+            luaL_error(L, "table size should be %d but is %d", Size, get_length(L, index));
 
         std::array<T, Size> array;
 
