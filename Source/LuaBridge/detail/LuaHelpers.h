@@ -111,8 +111,8 @@ inline lua_State* main_thread(lua_State* threadL)
     return threadL;
 #else
     lua_rawgeti(threadL, LUA_REGISTRYINDEX, LUA_RIDX_MAINTHREAD );
-    lua_State* L = lua_tothread(threadL, -1 );
-    lua_pop(threadL, 1 );
+    lua_State* L = lua_tothread(threadL, -1);
+    lua_pop(threadL, 1);
     return L;
 #endif
 }
