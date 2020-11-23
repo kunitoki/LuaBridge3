@@ -103,6 +103,21 @@ void pushunsigned(lua_State* L, T value)
 }
 
 /**
+ * @brief Get main thread, not supported on 5.1.
+ */
+inline lua_State* main_thread(lua_State* threadL)
+{
+#if LUA_VERSION_NUM < 502
+    return threadL;
+#else
+    lua_rawgeti(threadL, LUA_REGISTRYINDEX, LUA_RIDX_MAINTHREAD );
+    lua_State* L = lua_tothread(threadL, -1 );
+    lua_pop(threadL, 1 );
+    return L;
+#endif
+}
+
+/**
  * @brief Get a table value, bypassing metamethods.
  */
 inline void rawgetfield(lua_State* L, int index, char const* key)

@@ -57,7 +57,7 @@ struct Stack<LuaNil>
 /**
  * @brief Base class for Lua variables and table item reference classes.
  */
-template<class Impl, class LuaRef>
+template <class Impl, class LuaRef>
 class LuaRefBase
 {
 protected:
@@ -106,7 +106,10 @@ protected:
     {
     };
 
-    LuaRefBase(lua_State* L) : m_L(L) {}
+    LuaRefBase(lua_State* L)
+        : m_L(main_thread(L))
+    {
+    }
 
     //----------------------------------------------------------------------------
     /**
@@ -775,7 +778,11 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         @param L A Lua state.
         @note The object is popped.
     */
-    LuaRef(lua_State* L, FromStack) : LuaRefBase(L), m_ref(luaL_ref(m_L, LUA_REGISTRYINDEX)) {}
+    LuaRef(lua_State* L, FromStack)
+        : LuaRefBase(L)
+        , m_ref(luaL_ref(m_L, LUA_REGISTRYINDEX))
+    {
+    }
 
     //----------------------------------------------------------------------------
     /**
@@ -787,7 +794,9 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         @param index The index of the value on the Lua stack.
         @note The object is not popped.
     */
-    LuaRef(lua_State* L, int index, FromStack) : LuaRefBase(L), m_ref(LUA_NOREF)
+    LuaRef(lua_State* L, int index, FromStack)
+        : LuaRefBase(L)
+        , m_ref(LUA_NOREF)
     {
         lua_pushvalue(m_L, index);
         m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX);
@@ -801,7 +810,11 @@ public:
 
         @param L A Lua state.
     */
-    LuaRef(lua_State* L) : LuaRefBase(L), m_ref(LUA_NOREF) {}
+    LuaRef(lua_State* L)
+        : LuaRefBase(L)
+        , m_ref(LUA_NOREF)
+    {
+    }
 
     //----------------------------------------------------------------------------
     /**
@@ -811,7 +824,9 @@ public:
         @param v A value to push.
     */
     template<class T>
-    LuaRef(lua_State* L, T v) : LuaRefBase(L), m_ref(LUA_NOREF)
+    LuaRef(lua_State* L, T v)
+        : LuaRefBase(L)
+        , m_ref(LUA_NOREF)
     {
         Stack<T>::push(m_L, v);
         m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX);
@@ -823,7 +838,11 @@ public:
 
         @param v A table item reference.
     */
-    LuaRef(TableItem const& v) : LuaRefBase(v.state()), m_ref(v.createRef()) {}
+    LuaRef(TableItem const& v)
+        : LuaRefBase(v.state())
+        , m_ref(v.createRef())
+    {
+    }
 
     //----------------------------------------------------------------------------
     /**
@@ -831,7 +850,11 @@ public:
 
         @param other An existing reference.
     */
-    LuaRef(LuaRef const& other) : LuaRefBase(other.m_L), m_ref(other.createRef()) {}
+    LuaRef(LuaRef const& other)
+        : LuaRefBase(other.m_L)
+        , m_ref(other.createRef())
+    {
+    }
 
     //----------------------------------------------------------------------------
     /**
@@ -843,7 +866,10 @@ public:
               caller to ensure that the thread still exists when the LuaRef
               is destroyed.
     */
-    ~LuaRef() { luaL_unref(m_L, LUA_REGISTRYINDEX, m_ref); }
+    ~LuaRef()
+    {
+        luaL_unref(m_L, LUA_REGISTRYINDEX, m_ref);
+    }
 
     //----------------------------------------------------------------------------
     /**
@@ -853,7 +879,10 @@ public:
         @param L A Lua state.
         @returns A reference to a value on the top of a Lua stack.
     */
-    static LuaRef fromStack(lua_State* L) { return LuaRef(L, FromStack()); }
+    static LuaRef fromStack(lua_State* L)
+    {
+        return LuaRef(L, FromStack());
+    }
 
     //----------------------------------------------------------------------------
     /**
