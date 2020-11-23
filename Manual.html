@@ -299,10 +299,23 @@ LuaBridge does not support:
 <li>Overloaded functions, methods, or constructors.
 <li>Global variables (variables must be wrapped in a named scope).
 <li>Automatic conversion between STL container types and Lua tables
-    (conversion can be enabled for <code>std::list</code>, <code>std::vector</code>,
-    <code>std::map</code> or <code>std::unordered_map</code> by including
-    <code>List.h</code>, <code>Vector.h</code>, <code>Map</code> or
-    <code>UnorderedMap.h</code> respectively)
+    (conversion can be enabled for
+      <code>std::array</code>,
+      <code>std::vector</code>,
+      <code>std::map</code>,
+      <code>std::unordered_map</code>,
+      <code>std::set</code>
+      <code>std::list</code>,
+      <code>std::optional</code>,
+    by including
+      <code>LuaBridge/Array.h</code>,
+      <code>LuaBridge/Vector.h</code>,
+      <code>LuaBridge/Map</code>,
+      <code>LuaBridge/UnorderedMap.h</code>,
+      <code>LuaBridge/Set.h</code>,
+      <code>LuaBridge/List.h</code>,
+      <code>LuaBridge/Optional.h</code>
+    respectively)
 <li>Inheriting Lua classes from C++ classes.
 <li>Passing nil to a C++ function that expects a pointer or reference.
 <li>Standard containers like <code>std::shared_ptr</code>.
@@ -367,7 +380,7 @@ other Lua to C++ binding contributions from Nigel Atkinson.
 
 <p>
 For questions, comments, or bug reports feel free to open a Github issue
-or contact Vinnie Falco directly at the email address indicated below.
+or contact Lucio Asnaghi directly at the email address indicated below.
 </p>
 
 <ul>
@@ -376,7 +389,6 @@ or contact Vinnie Falco directly at the email address indicated below.
 <li>Copyright 2012, Vinnie Falco <a href="mailto:vinnie.falco@gmail.com">&lt;vinnie.falco@gmail.com&gt;</a></li>
 <li>Copyright 2008, Nigel Atkinson <a href="mailto:suprapilot+LuaCode@gmail.com">&lt;suprapilot+LuaCode@gmail.com&gt;</a></li>
 <li>Copyright 2007, Nathan Reed</li>
-<li>Portions from The Loki Library: Copyright 2001 by Andrei Alexandrescu</li>
 </ul>
 
 <p>
@@ -558,6 +570,8 @@ std::string stringProperty;
 std::string getString () { return stringProperty; }
 void setString (std::string s) { stringProperty = s; }
 
+std::tuple<int, std::string> tuple;
+
 int foo () { return 42; }
 void bar (char const*) { }
 int cFunc (lua_State* L) { return 0; }
@@ -574,6 +588,7 @@ getGlobalNamespace (L)
     .addProperty ("var2", &amp;staticVar, false) // read-only
     .addProperty ("prop1", getString, setString)
     .addProperty ("prop2", getString)            // read only
+    .addProperty ("tup", &amp;tuple)
     .addFunction ("foo", foo)
     .addFunction ("bar", bar)
     .addFunction ("cfunc", cFunc)
@@ -594,6 +609,7 @@ test.var1   -- a lua_Number property
 test.var2   -- a read-only lua_Number property
 test.prop1  -- a lua_String property
 test.prop2  -- a read-only lua_String property
+test.tup    -- a lua_Table property mapping to a c++ tuple
 test.foo    -- a function returning a lua_Number
 test.bar    -- a function taking a lua_String as a parameter
 test.cfunc  -- a function with a variable argument list and multi-return
@@ -611,6 +627,8 @@ test.var2 = 6         -- error: var2 is not writable
 test.prop1 = "Hello"  -- okay
 test.prop1 = 68       -- okay, Lua converts the number to a string
 test.prop2 = "bar"    -- error: prop2 is not writable
+test.tup = { 1, "a" } -- okay, converts a table to tuple with the same size
+test.tup = { "size" } -- error: table has different size than tuple
 
 test.foo ()           -- calls foo and discards the return value
 test.var1 = foo ()    -- calls foo and stores the result in var1
