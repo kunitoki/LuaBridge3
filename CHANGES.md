@@ -7,12 +7,14 @@
 * Allow specifying a non virtual base class method when declaring a class function not exposed in the inherited class
 * Allow using capturing lambdas in `Namespace::addFunction` and `Class<T>::addFunction`
 * Fixed unaligned access in user allocated member pointers in 64bit machines reported by ASAN.
-* Added support for `std::optional`
-* Added support for `std::byte`
-* Added support for `std::set`
-* Added support for `std::string_view`
+* Added support for `std::byte`  as stack value type
+* Added support for `std::string_view` as stack value type
+* Added support for `std::tuple` as stack value type
+* Added support for `std::optional` as stack value type by using `LuaBridge/Optional.h`
+* Added support for `std::set` as stack value type by using `LuaBridge/Set.h`
 * Added single header amalgamated distribution file, to simplify including in projects.
-* Removed juce traces from unit tests, simplified unit tests run.
+* Removed `TypeList` from loki, using parameter packs and `std::tuple` with `std::apply`.
+* Removed juce traces from unit tests, simplified unit tests runs.
 * Bumped unit tests from lua 5.2.0 to 5.2.4.
 * Added unit tests against lua 5.3.6 and 5.4.1.
 * Added more asserts for functions and property names
