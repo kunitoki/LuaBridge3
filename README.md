@@ -86,7 +86,9 @@ LuaBridge is published under the terms of the [MIT License][4].
 
 The original version of LuaBridge was written by Nathan Reed. The project has
 been taken over by Vinnie Falco, who added new functionality, wrote the new
-documentation, and incorporated contributions from Nigel Atkinson.
+documentation, and incorporated contributions from Nigel Atkinson. Then it has
+been forked from the original https://github.com/vinniefalco/LuaBridge into its
+own LuaBridge3 repository, and development continued there.
 
 For questions, comments, or bug reports feel free to open a Github issue
 or contact Lucio Asnaghi directly at the email address indicated below.
@@ -105,4 +107,4 @@ BSD 3-Clause License. See the corresponding license file in those versions
 [2]:  http://lua.org "The Lua Programming Language"
 [3]:  http://luajit.org/ "The LuaJIT Probject"
 [4]:  http://www.opensource.org/licenses/mit-license.html "The MIT License"
-[5]:  http://kunitoki.github.com/LuaBridge "LuaBridge Reference Manual"
+[5]:  http://kunitoki.github.com/LuaBridge3 "LuaBridge Reference Manual"
