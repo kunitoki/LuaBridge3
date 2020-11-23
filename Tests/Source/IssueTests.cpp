@@ -118,13 +118,9 @@ struct WideVector : Vector
 TEST_F(IssueTests, Issue178)
 {
     luabridge::getGlobalNamespace(L)
-        .beginClass<Vector>("Vector")
-        .addFunction("getX", &Vector::getX)
-        .addProperty("X", &Vector::getX)
-        .addData("x", &Vector::x, true)
-        .endClass()
-        .deriveClass<WideVector, Vector>("WideVector")
+        .beginClass<WideVector>("WideVector")
         .addConstructor<void (*)(float, float, float, float)>()
+        .addProperty("x", &Vector::x, true)
         .endClass();
 
     runLua("result = WideVector (0, 1, 2, 3).x");

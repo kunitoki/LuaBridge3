@@ -575,25 +575,20 @@ class Namespace : public detail::Registrar
         }
 
         //--------------------------------------------------------------------------
-        template <class U>
-        Class<T>& addProperty(char const* name, U T::*mp, bool isWritable = true)
-        {
-            return addData(name, mp, isWritable);
-        }
-
-        //--------------------------------------------------------------------------
         /**
-          Add or replace a data member.
+          Add or replace a property member.
         */
-        template <class U>
-        Class<T>& addData(char const* name, U T::*mp, bool isWritable = true)
+        template <class U, class V>
+        Class<T>& addProperty(char const* name, U V::*mp, bool isWritable = true)
         {
-            typedef const U T::*mp_t;
+            static_assert(std::is_base_of_v<V, T>);
+
+            using MemberPtrType = decltype(mp);
 
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            new (lua_newuserdata(L, sizeof(mp_t))) mp_t(mp); // Stack: co, cl, st, field ptr
+            new (lua_newuserdata(L, sizeof(MemberPtrType))) MemberPtrType(mp); // Stack: co, cl, st, field ptr
             lua_pushcclosure(L, &detail::property_getter<U, T>::call, 1); // Stack: co, cl, st, getter
             lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
             detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
@@ -601,7 +596,7 @@ class Namespace : public detail::Registrar
 
             if (isWritable)
             {
-                new (lua_newuserdata(L, sizeof(mp_t))) mp_t(mp); // Stack: co, cl, st, field ptr
+                new (lua_newuserdata(L, sizeof(MemberPtrType))) MemberPtrType(mp); // Stack: co, cl, st, field ptr
                 lua_pushcclosure(L, &detail::property_setter<U, T>::call, 1); // Stack: co, cl, st, setter
                 detail::add_property_setter(L, name, -3); // Stack: co, cl, st
             }

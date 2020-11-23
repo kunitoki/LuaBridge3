@@ -2108,9 +2108,9 @@ Namespace addProperty(const char* name,
 /// Registers a member variable, writable or read-only.
 ///
 template&lt;class V&gt;
-Namespace addData(const char* name,
-                  V T::* varPtr,
-                  bool isWritable = true);
+Namespace addProperty(const char* name,
+                      V T::* varPtr,
+                      bool isWritable = true);
 </pre>
 
 <h3>Static Function Registration</h3>

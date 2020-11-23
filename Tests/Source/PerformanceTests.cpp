@@ -75,7 +75,7 @@ void addToState(lua_State* L)
         .addFunction("mf2", &A::mf2)
         .addFunction("mf3", &A::mf3)
         .addFunction("vf1", &A::vf1)
-        .addData("data", &A::data)
+        .addProperty("data", &A::data)
         .addProperty("prop", &A::getprop, &A::setprop)
         .endClass();
 }
