@@ -376,7 +376,7 @@ class Namespace : public detail::Registrar
             createStaticTable(name); // Stack: ns, co, cl, st
             ++m_stackSize;
 
-            lua_rawgetp( L, LUA_REGISTRYINDEX, staticKey); // Stack: ns, co, cl, st, parent st (pst) | nil
+            lua_rawgetp(L, LUA_REGISTRYINDEX, staticKey); // Stack: ns, co, cl, st, parent st (pst) | nil
             if (lua_isnil(L, -1)) // Stack: ns, co, cl, st, nil
             {
                 ++m_stackSize;

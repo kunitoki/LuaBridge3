@@ -1041,7 +1041,7 @@ struct Stack<LuaRef>
  * @brief Stack specialization for `TableItem`.
  */
 template <>
-struct Stack <LuaRef::TableItem>
+struct Stack<LuaRef::TableItem>
 {
     static void push(lua_State* L, const LuaRef::TableItem& v)
     {

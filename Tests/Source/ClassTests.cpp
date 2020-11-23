@@ -1900,7 +1900,7 @@ TEST_F(ClassTests, ReferenceWrapper)
 
     runLua(R"(
         result = test.ref_wrap_x
-        test.changeReference(test.ref_wrap_x)
+        test.changeReference(result)
     )");
 
     EXPECT_TRUE(result().isUserdata());
