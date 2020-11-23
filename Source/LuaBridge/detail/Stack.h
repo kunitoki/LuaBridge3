@@ -576,14 +576,12 @@ struct Stack<std::reference_wrapper<T>>
 {
     static void push(lua_State* L, const std::reference_wrapper<T>& ref)
     {
-        std::reference_wrapper<T>* ptr = reinterpret_cast<std::reference_wrapper<T>*>(lua_newuserdata_aligned<std::reference_wrapper<T>>(L, ref.get()));
+        lua_newuserdata_aligned<std::reference_wrapper<T>>(L, ref.get());
 
         lua_newtable(L);
         lua_pushcfunction(L, &lua_deleteuserdata_aligned<std::reference_wrapper<T>>);
         rawsetfield(L, -2, "__gc");
         lua_setmetatable(L, -2);
-        
-        return ptr;
     }
 
     static std::reference_wrapper<T> get(lua_State* L, int index)
