@@ -75,13 +75,17 @@ struct TestBase : public ::testing::Test
         }
     }
 
-    template<class T = luabridge::LuaRef>
+    template <class T = luabridge::LuaRef>
     T result() const
     {
         return luabridge::getGlobal(L, "result").cast<T>();
     }
 
-    void resetResult() const { luabridge::setGlobal(L, luabridge::LuaRef(L), "result"); }
+
+    void resetResult() const
+    {
+        luabridge::setGlobal(L, luabridge::LuaRef(L), "result");
+    }
 
     void printStack() const
     {
