@@ -35,8 +35,8 @@ struct Stack<std::array<T, Size>>
         if (!lua_istable(L, index))
             luaL_error(L, "#%d argment must be a table", index);
 
-        if (index != Size)
-            luaL_error(L, "array size should be %d", Size);
+        if (get_length(L, index) != Size)
+            luaL_error(L, "table size should be %d but is %d", Size, get_length(L, index));
 
         std::array<T, Size> array;
 
