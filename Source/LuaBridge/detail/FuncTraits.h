@@ -268,7 +268,7 @@ auto make_arguments_list(lua_State* L)
 
 //=================================================================================================
 /**
- * @brief Helpers for iterating through tuple arguments, pushing eash argument to the lua stack.
+ * @brief Helpers for iterating through tuple arguments, pushing each argument to the lua stack.
  */
 template <std::size_t Index = 0, typename... Types>
 auto push_arguments(lua_State*, const std::tuple<Types...>&)
@@ -286,6 +286,28 @@ auto push_arguments(lua_State* L, const std::tuple<Types...>& t)
     Stack<T>::push(L, std::get<Index>(t));
 
     return push_arguments<Index + 1, Types...>(L, t);
+}
+
+//=================================================================================================
+/**
+ * @brief Helpers for iterating through tuple arguments, popping each argument from the lua stack.
+ */
+template <std::ptrdiff_t Start, std::ptrdiff_t Index = 0, typename... Types>
+auto pop_arguments(lua_State*, std::tuple<Types...>&)
+    -> std::enable_if_t<Index == sizeof...(Types), std::size_t>
+{
+    return sizeof...(Types);
+}
+
+template <std::ptrdiff_t Start, std::ptrdiff_t Index = 0, typename... Types>
+auto pop_arguments(lua_State* L, std::tuple<Types...>& t)
+    -> std::enable_if_t<Index < sizeof...(Types), std::size_t>
+{
+    using T = std::tuple_element_t<Index, std::tuple<Types...>>;
+
+    std::get<Index>(t) = Stack<T>::get(L, Start - Index);
+
+    return pop_arguments<Start, Index + 1, Types...>(L, t);
 }
 
 //=================================================================================================
