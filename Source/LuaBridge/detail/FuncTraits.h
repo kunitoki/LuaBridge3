@@ -137,9 +137,9 @@ struct functor_traits_impl : function_traits_impl<decltype(&F::operator())>
  * @tparam F Callable object.
  */
 template <class F>
-struct function_traits : std::conditional<std::is_class<F>::value,
-                                          detail::functor_traits_impl<F>,
-                                          detail::function_traits_impl<F>>::type
+struct function_traits : std::conditional_t<std::is_class_v<F>,
+                                            detail::functor_traits_impl<F>,
+                                            detail::function_traits_impl<F>>
 {
 };
 

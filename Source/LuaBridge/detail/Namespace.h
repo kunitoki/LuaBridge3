@@ -763,8 +763,8 @@ class Namespace : public detail::Registrar
         /**
             Add or replace a namespace function by convertible to std::function (capturing lambdas).
         */
-        template <class Function, typename = std::enable_if_t<! detail::is_std_function_v<Function>>>
-        Class<T>& addFunction(char const* name, Function function)
+        template <class Function, typename = std::enable_if_t<detail::function_arity_v<Function> != 0>>
+        Class<T> addFunction(char const* name, Function function)
         {
             using FnTraits = detail::function_traits<Function>;
             
@@ -772,17 +772,8 @@ class Namespace : public detail::Registrar
                 typename FnTraits::result_type,
                 typename FnTraits::argument_types>;
             
-            return addFunction(name, FnType(function));
-        }
-
-        //--------------------------------------------------------------------------
-        /**
-            Add or replace a member function by std::function.
-        */
-        template <class ReturnType, class... Params>
-        Class<T>& addFunction(char const* name, std::function<ReturnType(T*, Params...)> function)
-        {
-            using FnType = decltype(function);
+            using FirstArg = detail::function_argument_t<0, Function>;
+            static_assert(std::is_same_v<std::remove_cv_t<std::remove_pointer_t<FirstArg>>, T>);
 
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
@@ -792,34 +783,20 @@ class Namespace : public detail::Registrar
             lua_pushcfunction(L, &lua_deleteuserdata_aligned<FnType>); // Stack: co, cl, st, ud, mt, gc function
             rawsetfield(L, -2, "__gc"); // Stack: co, cl, st, ud, mt
             lua_setmetatable(L, -2); // Stack: co, cl, st, ud
+
             lua_pushcclosure(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: co, cl, st, function
-            rawsetfield(L, -3, name); // Stack: co, cl, st
 
-            return *this;
-        }
-        
-        //--------------------------------------------------------------------------
-        /**
-            Add or replace a const member function by std::function.
-        */
-        template <class ReturnType, class... Params>
-        Class<T>& addFunction(char const* name, std::function<ReturnType(const T*, Params...)> function)
-        {
-            using FnType = decltype(function);
-
-            assert(name != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: co, cl, st, function userdata (ud)
-            lua_newtable(L); // Stack: co, cl, st, ud, ud metatable (mt)
-            lua_pushcfunction(L, &lua_deleteuserdata_aligned<FnType>); // Stack: co, cl, st, ud, mt, gc function
-            rawsetfield(L, -2, "__gc"); // Stack: co, cl, st, ud, mt
-            lua_setmetatable(L, -2); // Stack: co, cl, st, ud
-            lua_pushcclosure(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: co, cl, st, function
-            lua_pushvalue(L, -1); // Stack: co, cl, st, function, function
-            rawsetfield(L, -4, name); // Stack: co, cl, st, function
-            rawsetfield(L, -4, name); // Stack: co, cl, st
-
+            if constexpr (std::is_same_v<FirstArg, T*>)
+            {
+                rawsetfield(L, -3, name); // Stack: co, cl, st
+            }
+            else if constexpr (std::is_same_v<FirstArg, const T*>)
+            {
+                lua_pushvalue(L, -1); // Stack: co, cl, st, function, function
+                rawsetfield(L, -4, name); // Stack: co, cl, st, function
+                rawsetfield(L, -4, name); // Stack: co, cl, st
+            }
+            
             return *this;
         }
 
