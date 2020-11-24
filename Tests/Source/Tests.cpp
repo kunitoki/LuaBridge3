@@ -74,7 +74,8 @@ TEST_F(LuaBridgeTest, LambdaClassMethods)
     {
         Inner() = default;
         
-        int normalMethod() const { return 42; }
+        int normalMethod0() const { return 42; }
+        int normalMethod1(int) const { return 42; }
     };
     
     luabridge::getGlobalNamespace(L)
@@ -82,7 +83,8 @@ TEST_F(LuaBridgeTest, LambdaClassMethods)
         .addConstructor<void (*)()>()
         .addFunction("test", [x](Inner*, int v) -> int { return v + x; })
         .addFunction("test2", [x](const Inner*, int v) -> int { return v + x; })
-        .addFunction("normalMethod", &Inner::normalMethod)
+        .addFunction("normalMethod0", &Inner::normalMethod0)
+        .addFunction("normalMethod1", &Inner::normalMethod1)
         .endClass();
 
     runLua("x = Inner () result = x:test (255)");
