@@ -17,7 +17,6 @@ provided with lua 5.2.4, 5.3.6 and 5.4.1 as well as [LuaJit][3].
 LuaBridge is usable from a compliant C++17 compiler and offers the following features:
 
 - [MIT Licensed][4]
-- Useful [Reference Manual][5].
 - Headers-only: No Makefile, no .cpp files, just one #include and one header file (optional) !
 - Simple, light, and nothing else needed (like Boost).
 - No macros, settings, or configuration scripts needed.
