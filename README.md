@@ -17,7 +17,7 @@ provided with lua 5.2.4, 5.3.6 and 5.4.1 as well as [LuaJit][3].
 LuaBridge is usable from a compliant C++17 compiler and offers the following features:
 
 - [MIT Licensed][4]
-- A printable [Reference Manual][5].
+- Useful [Reference Manual][5].
 - Headers-only: No Makefile, no .cpp files, just one #include and one header file (optional) !
 - Simple, light, and nothing else needed (like Boost).
 - No macros, settings, or configuration scripts needed.
@@ -107,4 +107,4 @@ BSD 3-Clause License. See the corresponding license file in those versions
 [2]:  http://lua.org "The Lua Programming Language"
 [3]:  http://luajit.org/ "The LuaJIT Probject"
 [4]:  http://www.opensource.org/licenses/mit-license.html "The MIT License"
-[5]:  http://kunitoki.github.com/LuaBridge3 "LuaBridge Reference Manual"
+[5]:  https://github.com/kunitoki/LuaBridge3/blob/master/Manual.md "LuaBridge Reference Manual"
