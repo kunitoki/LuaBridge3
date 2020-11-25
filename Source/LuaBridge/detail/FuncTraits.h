@@ -311,6 +311,20 @@ auto pop_arguments(lua_State* L, std::tuple<Types...>& t)
 }
 
 //=================================================================================================
+
+template <class...>
+struct tuple_pop_front;
+
+template <class T, class... Ts>
+struct tuple_pop_front<std::tuple<T, Ts...>>
+{
+    using type = std::tuple<Ts...>;
+};
+
+template <class T>
+using tuple_pop_front_t = typename tuple_pop_front<T>::type;
+
+//=================================================================================================
 /**
  * @brief Function generator.
  */
@@ -401,6 +415,12 @@ struct constructor<T, void>
 {
     using empty = std::tuple<>;
 
+    template <class F>
+    static void inplace(const F& func, void* ptr, const empty&)
+    {
+        func(ptr);
+    }
+
     static T* call(const empty&)
     {
         return new T;
@@ -415,6 +435,14 @@ struct constructor<T, void>
 template <class T, class Args>
 struct constructor
 {
+    template <class F>
+    static void inplace(const F& func, void* ptr, const Args& args)
+    {
+        auto alloc = [ptr, &func](auto&&... args) { func(ptr, std::forward<decltype(args)>(args)...); };
+        
+        std::apply(alloc, args);
+    }
+
     static T* call(const Args& args)
     {
         auto alloc = [](auto&&... args) { return new T(std::forward<decltype(args)>(args)...); };

@@ -263,6 +263,48 @@ TEST_F(LuaBridgeTest, TupleAsFunctionReturnValue)
     EXPECT_EQ(std::make_tuple(x, 42), (result<std::tuple<int, int>>()));
 }
 
+TEST_F(LuaBridgeTest, FactoryConstructorNoArgs)
+{
+    struct Inner
+    {
+        Inner(int x) : value(x) {}
+        
+        int value = 0;
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Inner>("Inner")
+        .addFactory([](void* ptr) { new (ptr) Inner(42); })
+        .addProperty("value", &Inner::value)
+        .endClass();
+
+    runLua("x = Inner () result = x.value");
+    EXPECT_EQ(true, result().isNumber());
+    EXPECT_EQ(42, result<int>());
+}
+
+TEST_F(LuaBridgeTest, FactoryConstructorArgs)
+{
+    struct Inner
+    {
+        Inner(int a, int b, int c) : value(a + b + c) {}
+        
+        int value = 0;
+    };
+
+    int y = 1;
+    
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Inner>("Inner")
+        .addFactory([y](void* ptr, int a, int b, int c) { new (ptr) Inner(a + y, b, c); })
+        .addProperty("value", &Inner::value)
+        .endClass();
+
+    runLua("x = Inner (0, 10, 100) result = x.value");
+    EXPECT_EQ(true, result().isNumber());
+    EXPECT_EQ(111, result<int>());
+}
+
 template<class T>
 struct TestClass
 {

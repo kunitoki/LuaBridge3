@@ -13,6 +13,8 @@
 #include "Security.h"
 #include "TypeTraits.h"
 
+#include "Dump.h"
+
 #include <stdexcept>
 #include <string_view>
 #include <string>
@@ -233,7 +235,7 @@ class Namespace : public detail::Registrar
             }
         }
 
-        //==========================================================================
+        //=========================================================================================
         /**
           lua_CFunction to construct a class object wrapped in a container.
         */
@@ -249,7 +251,7 @@ class Namespace : public detail::Registrar
             return 1;
         }
 
-        //--------------------------------------------------------------------------
+        //=========================================================================================
         /**
           lua_CFunction to construct a class object in-place in the userdata.
         */
@@ -259,6 +261,29 @@ class Namespace : public detail::Registrar
             detail::UserdataValue<T>* value = detail::UserdataValue<T>::place(L);
 
             detail::constructor<T, Args>::call(value->getObject(), detail::make_arguments_list<Args, 2>(L));
+
+            value->commit();
+
+            return 1;
+        }
+
+        //=========================================================================================
+        /**
+          lua_CFunction to construct a class object wrapped in a container.
+        */
+        template <class F, class T>
+        static int ctorFunctorProxy(lua_State* L)
+        {
+            detail::UserdataValue<T>* value = detail::UserdataValue<T>::place(L);
+            
+            using FnTraits = detail::function_traits<F>;
+            using PartialArguments = detail::tuple_pop_front_t<typename FnTraits::argument_types>;
+            
+            assert(isfulluserdata(L, lua_upvalueindex(1)));
+
+            auto& func = *align<F>(lua_touserdata(L, lua_upvalueindex(1)));
+
+            detail::constructor<T, PartialArguments>::inplace(func, value->getObject(), detail::make_arguments_list<PartialArguments, 2>(L));
 
             value->commit();
 
@@ -988,6 +1013,41 @@ class Namespace : public detail::Registrar
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             lua_pushcclosure(L, &ctorPlacementProxy<detail::function_arguments_t<MemFn>, T>, 0);
+            rawsetfield(L, -2, "__call");
+
+            return *this;
+        }
+
+        //--------------------------------------------------------------------------
+        /**
+          Add or replace a Constructor from factory function.
+
+          The primary Constructor is invoked when calling the class type table
+          like a function.
+
+          The template parameter should be a function pointer type that matches
+          the desired Constructor (since you can't take the address of a Constructor
+          and pass it as an argument).
+        */
+        template <class Function>
+        Class<T>& addFactory(Function function)
+        {
+            using FnTraits = detail::function_traits<Function>;
+            
+            using FnType = detail::to_std_function_type_t<
+                typename FnTraits::result_type,
+                typename FnTraits::argument_types>;
+
+            assert(lua_istable(L, -1)); // Stack: namespace table (ns)
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: ns, function userdata (ud)
+            lua_newtable(L); // Stack: ns, ud, ud metatable (mt)
+            lua_pushcfunction(L, &lua_deleteuserdata_aligned<FnType>); // Stack: ns, ud, mt, gc function
+            rawsetfield(L, -2, "__gc"); // Stack: ns, ud, mt
+            lua_setmetatable(L, -2); // Stack: ns, ud
+            //lua_pushcclosure(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: ns, function
+            lua_pushcclosure(L, &ctorFunctorProxy<FnType, T>, 1);
             rawsetfield(L, -2, "__call");
 
             return *this;
