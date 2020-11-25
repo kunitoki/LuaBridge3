@@ -328,13 +328,13 @@ public:
 
     /** @} */
 
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
-        Perform an explicit conversion to the type T.
-
-        @returns A value of the type T converted from this reference.
-    */
-    template<class T>
+     * @brief Perform an explicit conversion to the type T.
+     *
+     * @returns A value of the type T converted from this reference.
+     */
+    template <class T>
     T cast() const
     {
         StackPop p(m_L, 1);
@@ -344,14 +344,13 @@ public:
         return Stack<T>::get(m_L, -1);
     }
 
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
-        Indicate if this reference is convertible to the type T.
-
-        @returns True if the referred value is convertible to the type T,
-                false otherwise.
-    */
-    template<class T>
+     * @brief Indicate if this reference is convertible to the type T.
+     *
+     * @returns True if the referred value is convertible to the type T, false otherwise.
+     */
+    template <class T>
     bool isInstance() const
     {
         StackPop p(m_L, 1);
@@ -375,26 +374,10 @@ public:
 
     //=============================================================================================
     /**
-     * @brief Type cast operator to optional value
+     * @brief Get the metatable for the LuaRef.
      *
-     * @returns An optional value of the type T converted from this reference if conversion is possible, nullopt otherwise.
+     * @returns A LuaRef holding the metatable of the lua object.
      */
-    template <class T>
-    operator std::optional<T>() const
-    {
-        StackPop p(m_L, 1);
-
-        impl().push();
-
-        return Stack<T>::isInstance(m_L, -1) ? std::make_optional(Stack<T>::get(m_L, -1)) : std::nullopt;
-    }
-
-    //----------------------------------------------------------------------------
-    /**
-        Get the metatable for the LuaRef.
-
-        @returns A LuaRef holding the metatable of the lua object.
-    */
     LuaRef getMetatable() const
     {
         if (isNil())
