@@ -269,7 +269,7 @@ class Namespace : public detail::Registrar
 
         //=========================================================================================
         /**
-          lua_CFunction to construct a class object wrapped in a container.
+          lua_CFunction to in place construct a class object from custom user functor.
         */
         template <class F, class T>
         static int ctorFunctorProxy(lua_State* L)
@@ -1022,15 +1022,10 @@ class Namespace : public detail::Registrar
         /**
           Add or replace a Constructor from factory function.
 
-          The primary Constructor is invoked when calling the class type table
-          like a function.
-
-          The template parameter should be a function pointer type that matches
-          the desired Constructor (since you can't take the address of a Constructor
-          and pass it as an argument).
+          The user functor is is invoked with the first argument being the pointer where to invoke placement new.
         */
         template <class Function>
-        Class<T>& addFactory(Function function)
+        Class<T>& addConstructor(Function function)
         {
             using FnTraits = detail::function_traits<Function>;
             
@@ -1038,7 +1033,6 @@ class Namespace : public detail::Registrar
                 typename FnTraits::result_type,
                 typename FnTraits::argument_types>;
 
-            assert(lua_istable(L, -1)); // Stack: namespace table (ns)
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: ns, function userdata (ud)
@@ -1046,7 +1040,6 @@ class Namespace : public detail::Registrar
             lua_pushcfunction(L, &lua_deleteuserdata_aligned<FnType>); // Stack: ns, ud, mt, gc function
             rawsetfield(L, -2, "__gc"); // Stack: ns, ud, mt
             lua_setmetatable(L, -2); // Stack: ns, ud
-            //lua_pushcclosure(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: ns, function
             lua_pushcclosure(L, &ctorFunctorProxy<FnType, T>, 1);
             rawsetfield(L, -2, "__call");
 

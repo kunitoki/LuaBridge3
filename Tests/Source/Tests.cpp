@@ -274,7 +274,7 @@ TEST_F(LuaBridgeTest, FactoryConstructorNoArgs)
 
     luabridge::getGlobalNamespace(L)
         .beginClass<Inner>("Inner")
-        .addFactory([](void* ptr) { new (ptr) Inner(42); })
+        .addConstructor([](void* ptr) { new (ptr) Inner(42); })
         .addProperty("value", &Inner::value)
         .endClass();
 
@@ -296,7 +296,7 @@ TEST_F(LuaBridgeTest, FactoryConstructorArgs)
     
     luabridge::getGlobalNamespace(L)
         .beginClass<Inner>("Inner")
-        .addFactory([y](void* ptr, int a, int b, int c) { new (ptr) Inner(a + y, b, c); })
+        .addConstructor([y](void* ptr, int a, int b, int c) { new (ptr) Inner(a + y, b, c); })
         .addProperty("value", &Inner::value)
         .endClass();
 

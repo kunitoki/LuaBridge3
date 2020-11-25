@@ -31,7 +31,7 @@ Contents
     *   [2.3 - Class Objects](#23---class-objects)
     *   [2.4 - Property Member Proxies](#24---property-member-proxies)
     *   [2.5 - Function Member Proxies](#25---function-member-proxies)
-    *   [2.6 - Constructors and Factories](#26---constructors-and-factories)
+    *   [2.6 - Constructors](#26---constructors)
     *   [2.7 - Lua Stack](#27---lua-stack)
     *   [2.8 - lua_State](#28---lua_state)
 
@@ -482,8 +482,8 @@ getGlobalNamespace (L)
   .endClass ()
 ```
 
-2.6 - Constructors and Factories
---------------------------------
+2.6 - Constructors
+------------------
 
 A single constructor may be added for a class using `addConstructor`. LuaBridge cannot automatically determine the number and types of constructor parameters like it can for functions and methods, so you must provide them. This is done by specifying the signature of the desired constructor function as the first template parameter to `addConstructor`. The parameter types will be extracted from this (the return type is ignored). For example, these statements register constructors for the given classes:
 
@@ -517,7 +517,7 @@ b = test.B ("hello", 5) -- Create a new B.
 b = test.B ()           -- Error: expected string in argument 1
 ```
 
-Sometimes is not possible to use a constructor for a class, because some of the constructor arguments have types that couldn't be exposed to lua. So it is possible to workaround that problem by using `addFactory`, which will allow to placement new the c++ class in a c++ lambda, specifying any custom parameter there:
+Sometimes is not possible to use a constructor for a class, because some of the constructor arguments have types that couldn't be exposed to lua. So it is possible to workaround that problem by using a specific `addConstructor` function that takes a lambda, which will allow to placement new the c++ class, specifying any custom parameter there:
 
 ```cpp
 struct NotExposed
@@ -535,7 +535,7 @@ NotExposed shouldNotSeeMe;
 getGlobalNamespace (L)
   .beginNamespace ("test")
     .beginClass <HardToCreate> ("HardToCreate")
-      .addFactory ([&shouldNotSeeMe](void* ptr, int easy) { new (ptr) HardToCreate(shouldNotSeeMe, easy); })
+      .addConstructor ([&shouldNotSeeMe](void* ptr, int easy) { new (ptr) HardToCreate(shouldNotSeeMe, easy); })
     .endClass ()
   .endNamespace ();
 ```
@@ -544,6 +544,13 @@ Then in lua:
 
 ```lua
 hard = test.HardToCreate (5) -- Create a new HardToCreate.
+```
+
+Notice that the lambda passed in should always take a `void*` or `ClassName*` as first parameter, then any other parameter after will be passed from lua:
+
+```cpp
+
+void (*)(void* ptr, ...) /* or */ void (*)(ClassName* ptr, ...)
 ```
 
 2.7 - Lua Stack
