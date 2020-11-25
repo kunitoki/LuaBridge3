@@ -20,42 +20,42 @@ Contents
 
 *   [1 - Introduction](#1---introduction)
 
-    *   [1.1 - Design](#1.1---design)
-    *   [1.2 - Repository](#1.2---repository)
-    *   [1.3 - License and Credits](#1.3---license-and-credits)
+    *   [1.1 - Design](#11---design)
+    *   [1.2 - Repository](#12---repository)
+    *   [1.3 - License and Credits](#13---license-and-credits)
 
-*   [2 - Accessing C++ from Lua](#2---accessing-c++-from-lua)
+*   [2 - Accessing C++ from Lua](#2---accessing-c-from-lua)
 
-    *   [2.1 - Namespaces](#2.1---namespaces)
-    *   [2.2 - Properties and Functions](#2.2---properties-and-functions)
-    *   [2.3 - Class Objects](#2.3---class-objects)
-    *   [2.4 - Property Member Proxies](#2.4---property-member-proxies)
-    *   [2.5 - Function Member Proxies](#2.5---function-member-proxies)
-    *   [2.6 - Constructors and Factories](#2.6---constructors-and-factories)
-    *   [2.7 - Lua Stack](#2.7---lua-stack)
-    *   [2.8 - lua_State](#2.8---lua_state)
+    *   [2.1 - Namespaces](#21---namespaces)
+    *   [2.2 - Properties and Functions](#22---properties-and-functions)
+    *   [2.3 - Class Objects](#23---class-objects)
+    *   [2.4 - Property Member Proxies](#24---property-member-proxies)
+    *   [2.5 - Function Member Proxies](#25---function-member-proxies)
+    *   [2.6 - Constructors and Factories](#26---constructors-and-factories)
+    *   [2.7 - Lua Stack](#27---lua-stack)
+    *   [2.8 - lua_State](#28---lua_state)
 
 *   [3 - Passing Objects](#3---passing-objects)
 
-    *   [3.1 - C++ Lifetime](#3.1---c++-lifetime)
-    *   [3.2 - Lua Lifetime](#3.2---lua-lifetime)
-    *   [3.3 - Pointers, References, and Pass by Value](#3.3---pointers,-references,-and-pass-by-value)
-    *   [3.4 - Shared Lifetime](#3.4---shared-lifetime)
-        *   [3.4.1 - Class RefCountedObjectPtr](#3.4.1---class-refcountedobjectptr)
-        *   [3.4.2 - Class RefCountedPtr](#3.4.2---class-refcountedptr)
-        *   [3.4.3 - User-defined Containers](#3.4.3---user-defined-containers)
-        *   [3.4.4 - Container Constructors](#3.4.4---container-constructors)
-    *   [3.5 - Mixing Lifetimes](#3.5---mixing-lifetimes)
-    *   [3.6 - Convenience Functions](#3.6---convenience-functions)
+    *   [3.1 - C++ Lifetime](#31---c-lifetime)
+    *   [3.2 - Lua Lifetime](#32---lua-lifetime)
+    *   [3.3 - Pointers, References, and Pass by Value](#33---pointers-references-and-pass-by-value)
+    *   [3.4 - Shared Lifetime](#34---shared-lifetime)
+        *   [3.4.1 - Class RefCountedObjectPtr](#341---class-refcountedobjectptr)
+        *   [3.4.2 - Class RefCountedPtr](#342---class-refcountedptr)
+        *   [3.4.3 - User-defined Containers](#343---user-defined-containers)
+        *   [3.4.4 - Container Constructors](#344---container-constructors)
+    *   [3.5 - Mixing Lifetimes](#35---mixing-lifetimes)
+    *   [3.6 - Convenience Functions](#36---convenience-functions)
 
-*   [4 - Accessing Lua from C++](#4---accessing-lua-from-c++)
+*   [4 - Accessing Lua from C++](#4---accessing-lua-from-c)
 
-    *   [4.1 - Class LuaRef](#4.1---class-luaref)
-        *   [4.1.1 - Type Conversions](#4.1.1---type-conversions)
-        *   [4.1.2 - Visual Studio 2010, 2012](#4.1.2---visual-studio-2010,-2012)
-    *   [4.2 - Table Proxies](#4.2---table-proxies)
-    *   [4.3 - Calling Lua](#4.3---calling-lua)
-        *   [4.3.1 - Class LuaException](#4.3.1---class-luaexception)
+    *   [4.1 - Class LuaRef](#41---class-luaref)
+        *   [4.1.1 - Type Conversions](#411---type-conversions)
+        *   [4.1.2 - Visual Studio 2010, 2012](#412---visual-studio-2010-2012)
+    *   [4.2 - Table Proxies](#42---table-proxies)
+    *   [4.3 - Calling Lua](#43---calling-lua)
+        *   [4.3.1 - Class LuaException](#431---class-luaexception)
 
 *   [5 - Security](#5---security)
 
@@ -89,7 +89,7 @@ To expose Lua objects to C++, a class called `LuaRef` is provided. The implement
 
 LuaBridge tries to be efficient as possible when creating the "glue" that exposes C++ data and functions to Lua. At the same time, the code was written with the intention that it is all as simple and clear as possible, without resorting to obscure C++ idioms, ugly preprocessor macros, or configuration settings. Furthermore, it is designed to be "header-only", making it very easy to integrate into your projects.
 
-Because LuaBridge was written with simplicity in mind there are some features that are not available. Although it comes close to the highest possible performance, LuaBridge is not quite the fastest, [OOLua](http://code.google.com/p/oolua/) and [sol2](https://github.com/ThePhD/sol2) outperforms LuaBridge in some tests, but they are also bigger and slower to compile. LuaBridge also does not try to implement every possible feature, [LuaBind](http://www.rasterbar.com/products/luabind.html) (requires Boost) and [sol2](https://github.com/ThePhD/sol2) explore every corner of the C++ language.
+Because LuaBridge was written with simplicity in mind there are some features that are not available. Although it comes close to the highest possible performance, LuaBridge is not quite the fastest, [OOLua](http://code.google.com/p/oolua/) and [sol2](https://github.com/ThePhD/sol2) outperforms LuaBridge in some tests, but they are also bigger and slower to compile. While being powerful, LuaBridge is pretty compact and simpler to understand and debug, and also does not try to implement every possible feature: [LuaBind](http://www.rasterbar.com/products/luabind.html) (requires Boost) and [sol2](https://github.com/ThePhD/sol2) explore every corner of the C++ language.
 
 LuaBridge does not support:
 
