@@ -1671,6 +1671,35 @@ unsigned OuterClass::destructorCallCount;
 
 //} // namespace
 
+TEST_F(ClassTests, ConstructorWithReferences)
+{
+    struct InnerClass
+    {
+        InnerClass() = default;
+    };
+
+    struct OuterClass
+    {
+        OuterClass(const InnerClass& x) : y(x) {}
+        
+    private:
+        InnerClass y;
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<InnerClass>("InnerClass")
+            .addConstructor<void (*)()>()
+        .endClass()
+        .beginClass<OuterClass>("OuterClass")
+            .addConstructor<void (*)(const InnerClass&)>()
+        .endClass();
+
+    runLua("x = InnerClass () result = OuterClass (x)");
+
+    lua_close(L);
+    L = nullptr;
+}
+
 TEST_F(ClassTests, DestructorIsNotCalledIfConstructorThrows)
 {
     luabridge::getGlobalNamespace(L)

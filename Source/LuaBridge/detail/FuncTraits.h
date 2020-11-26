@@ -242,7 +242,7 @@ using to_std_function_type_t = typename to_std_function_type<ReturnType, Args...
  * @tparam Types Argument types that will compose the tuple.
  */
 template <class... Types>
-auto tupleize(Types&&... types)
+constexpr auto tupleize(Types&&... types)
 {
     return std::tuple<Types...>(std::forward<Types>(types)...);
 }
