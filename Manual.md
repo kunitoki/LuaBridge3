@@ -239,14 +239,16 @@ std::string stringProperty;
 std::string getString () { return stringProperty; }
 void setString (std::string s) { stringProperty = s; }
 
-std::tuple tuple;
+std::tuple <int, std::string> tuple;
 
 int foo () { return 42; }
 void bar (char const*) { }
 int cFunc (lua_State* L) { return 0; }
+```
 
 These are registered with:
 
+```cpp
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
     .addProperty ("var1", &globalVar)
