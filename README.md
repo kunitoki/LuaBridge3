@@ -14,6 +14,8 @@ fast, lightweight, embeddable scripting language). LuaBridge has been tested
 and works with Lua revisions starting from 5.1.5, and also compatibility is
 provided with lua 5.2.4, 5.3.6 and 5.4.1 as well as [LuaJit][3].
 
+## Features
+
 LuaBridge is usable from a compliant C++17 compiler and offers the following features:
 
 - [MIT Licensed][4]
@@ -27,11 +29,13 @@ LuaBridge is usable from a compliant C++17 compiler and offers the following fea
 - Interoperable with most common c++ standard library container types.
 - Written in a clear and easy to debug style.
 
-Please read the [LuaBridge Reference Manual][5] for more details on the API.
-
 ## Status
 
 ![CMake](https://github.com/kunitoki/LuaBridge3/workflows/CMake/badge.svg?branch=master)
+
+## Documentation
+
+Please read the [LuaBridge Reference Manual][5] for more details on the API.
 
 ## Release Notes
 
@@ -91,7 +95,7 @@ The original version of LuaBridge was written by Nathan Reed. The project has
 been taken over by Vinnie Falco, who added new functionality, wrote the new
 documentation, and incorporated contributions from Nigel Atkinson. Then it has
 been forked from the original https://github.com/vinniefalco/LuaBridge into its
-own LuaBridge3 repository, and development continued there.
+own LuaBridge3 repository by Lucio Asnaghi, and development continued there.
 
 For questions, comments, or bug reports feel free to open a Github issue
 or contact Lucio Asnaghi directly at the email address indicated below.
@@ -101,10 +105,6 @@ Copyright 2019, Dmitry Tarakanov<br>
 Copyright 2012, Vinnie Falco (<vinnie.falco@gmail.com>)<br>
 Copyright 2008, Nigel Atkinson<br>
 Copyright 2007, Nathan Reed<br>
-
-Older versions of LuaBridge up to and including 0.2 are distributed under the
-BSD 3-Clause License. See the corresponding license file in those versions
-(distributed separately) for more details.
 
 [1]:  https://github.com/kunitoki/LuaBridge3 "LuaBridge"
 [2]:  http://lua.org "The Lua Programming Language"
