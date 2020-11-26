@@ -33,6 +33,10 @@ Please read the [LuaBridge Reference Manual][5] for more details on the API.
 
 ![CMake](https://github.com/kunitoki/LuaBridge3/workflows/CMake/badge.svg?branch=master)
 
+## Release Notes
+
+Plase read the [LuaBridge Release Notes][6] for more details
+
 ## Unit Tests
 
 Unit test build requires a CMake and C++17 compliant compiler.
@@ -107,3 +111,4 @@ BSD 3-Clause License. See the corresponding license file in those versions
 [3]:  http://luajit.org/ "The LuaJIT Probject"
 [4]:  http://www.opensource.org/licenses/mit-license.html "The MIT License"
 [5]:  https://kunitoki.github.io/LuaBridge3/Manual "LuaBridge Reference Manual"
+[6]:  https://kunitoki.github.io/LuaBridge3/CHANGES "LuaBridge Release Notes"
