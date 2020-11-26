@@ -21,7 +21,6 @@ endif ()
 add_custom_target (Documentation SOURCES
     CHANGES.md
     README.md
+    Manual.md
     Doxyfile
-    index.html
-    Manual.html
 )

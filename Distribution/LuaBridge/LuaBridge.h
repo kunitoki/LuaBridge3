@@ -2811,9 +2811,9 @@ struct functor_traits_impl : function_traits_impl<decltype(&F::operator())>
  * @tparam F Callable object.
  */
 template <class F>
-struct function_traits : std::conditional<std::is_class<F>::value,
-                                          detail::functor_traits_impl<F>,
-                                          detail::function_traits_impl<F>>::type
+struct function_traits : std::conditional_t<std::is_class_v<F>,
+                                            detail::functor_traits_impl<F>,
+                                            detail::function_traits_impl<F>>
 {
 };
 
@@ -2942,23 +2942,46 @@ auto make_arguments_list(lua_State* L)
 
 //=================================================================================================
 /**
- * @brief Helpers for iterating through tuple arguments, pushing eash argument to the lua stack.
+ * @brief Helpers for iterating through tuple arguments, pushing each argument to the lua stack.
  */
 template <std::size_t Index = 0, typename... Types>
 auto push_arguments(lua_State*, const std::tuple<Types...>&)
-    -> std::enable_if_t<Index == sizeof...(Types)>
+    -> std::enable_if_t<Index == sizeof...(Types), std::size_t>
 {
+    return sizeof...(Types);
 }
 
 template <std::size_t Index = 0, typename... Types>
 auto push_arguments(lua_State* L, const std::tuple<Types...>& t)
-    -> std::enable_if_t<Index < sizeof...(Types)>
+    -> std::enable_if_t<Index < sizeof...(Types), std::size_t>
 {
     using T = std::tuple_element_t<Index, std::tuple<Types...>>;
 
     Stack<T>::push(L, std::get<Index>(t));
 
-    push_arguments<Index + 1, Types...>(L, t);
+    return push_arguments<Index + 1, Types...>(L, t);
+}
+
+//=================================================================================================
+/**
+ * @brief Helpers for iterating through tuple arguments, popping each argument from the lua stack.
+ */
+template <std::ptrdiff_t Start, std::ptrdiff_t Index = 0, typename... Types>
+auto pop_arguments(lua_State*, std::tuple<Types...>&)
+    -> std::enable_if_t<Index == sizeof...(Types), std::size_t>
+{
+    return sizeof...(Types);
+}
+
+template <std::ptrdiff_t Start, std::ptrdiff_t Index = 0, typename... Types>
+auto pop_arguments(lua_State* L, std::tuple<Types...>& t)
+    -> std::enable_if_t<Index < sizeof...(Types), std::size_t>
+{
+    using T = std::tuple_element_t<Index, std::tuple<Types...>>;
+
+    std::get<Index>(t) = Stack<T>::get(L, Start - Index);
+
+    return pop_arguments<Start, Index + 1, Types...>(L, t);
 }
 
 //=================================================================================================
@@ -3979,13 +4002,13 @@ public:
 
     /** @} */
 
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
-        Perform an explicit conversion to the type T.
-
-        @returns A value of the type T converted from this reference.
-    */
-    template<class T>
+     * @brief Perform an explicit conversion to the type T.
+     *
+     * @returns A value of the type T converted from this reference.
+     */
+    template <class T>
     T cast() const
     {
         StackPop p(m_L, 1);
@@ -3995,14 +4018,13 @@ public:
         return Stack<T>::get(m_L, -1);
     }
 
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
-        Indicate if this reference is convertible to the type T.
-
-        @returns True if the referred value is convertible to the type T,
-                false otherwise.
-    */
-    template<class T>
+     * @brief Indicate if this reference is convertible to the type T.
+     *
+     * @returns True if the referred value is convertible to the type T, false otherwise.
+     */
+    template <class T>
     bool isInstance() const
     {
         StackPop p(m_L, 1);
@@ -4026,26 +4048,10 @@ public:
 
     //=============================================================================================
     /**
-     * @brief Type cast operator to optional value
+     * @brief Get the metatable for the LuaRef.
      *
-     * @returns An optional value of the type T converted from this reference if conversion is possible, nullopt otherwise.
+     * @returns A LuaRef holding the metatable of the lua object.
      */
-    template <class T>
-    operator std::optional<T>() const
-    {
-        StackPop p(m_L, 1);
-
-        impl().push();
-
-        return Stack<T>::isInstance(m_L, -1) ? std::make_optional(Stack<T>::get(m_L, -1)) : std::nullopt;
-    }
-
-    //----------------------------------------------------------------------------
-    /**
-        Get the metatable for the LuaRef.
-
-        @returns A LuaRef holding the metatable of the lua object.
-    */
     LuaRef getMetatable() const
     {
         if (isNil())
@@ -5521,25 +5527,20 @@ class Namespace : public detail::Registrar
         }
 
         //--------------------------------------------------------------------------
-        template <class U>
-        Class<T>& addProperty(char const* name, U T::*mp, bool isWritable = true)
-        {
-            return addData(name, mp, isWritable);
-        }
-
-        //--------------------------------------------------------------------------
         /**
-          Add or replace a data member.
+          Add or replace a property member.
         */
-        template <class U>
-        Class<T>& addData(char const* name, U T::*mp, bool isWritable = true)
+        template <class U, class V>
+        Class<T>& addProperty(char const* name, U V::*mp, bool isWritable = true)
         {
-            typedef const U T::*mp_t;
+            static_assert(std::is_base_of_v<V, T>);
+
+            using MemberPtrType = decltype(mp);
 
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            new (lua_newuserdata(L, sizeof(mp_t))) mp_t(mp); // Stack: co, cl, st, field ptr
+            new (lua_newuserdata(L, sizeof(MemberPtrType))) MemberPtrType(mp); // Stack: co, cl, st, field ptr
             lua_pushcclosure(L, &detail::property_getter<U, T>::call, 1); // Stack: co, cl, st, getter
             lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
             detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
@@ -5547,7 +5548,7 @@ class Namespace : public detail::Registrar
 
             if (isWritable)
             {
-                new (lua_newuserdata(L, sizeof(mp_t))) mp_t(mp); // Stack: co, cl, st, field ptr
+                new (lua_newuserdata(L, sizeof(MemberPtrType))) MemberPtrType(mp); // Stack: co, cl, st, field ptr
                 lua_pushcclosure(L, &detail::property_setter<U, T>::call, 1); // Stack: co, cl, st, setter
                 detail::add_property_setter(L, name, -3); // Stack: co, cl, st
             }
@@ -5714,8 +5715,8 @@ class Namespace : public detail::Registrar
         /**
             Add or replace a namespace function by convertible to std::function (capturing lambdas).
         */
-        template <class Function, typename = std::enable_if_t<! detail::is_std_function_v<Function>>>
-        Class<T>& addFunction(char const* name, Function function)
+        template <class Function, typename = std::enable_if_t<detail::function_arity_v<Function> != 0>>
+        Class<T> addFunction(char const* name, Function function)
         {
             using FnTraits = detail::function_traits<Function>;
             
@@ -5723,17 +5724,8 @@ class Namespace : public detail::Registrar
                 typename FnTraits::result_type,
                 typename FnTraits::argument_types>;
             
-            return addFunction(name, FnType(function));
-        }
-
-        //--------------------------------------------------------------------------
-        /**
-            Add or replace a member function by std::function.
-        */
-        template <class ReturnType, class... Params>
-        Class<T>& addFunction(char const* name, std::function<ReturnType(T*, Params...)> function)
-        {
-            using FnType = decltype(function);
+            using FirstArg = detail::function_argument_t<0, Function>;
+            static_assert(std::is_same_v<std::remove_cv_t<std::remove_pointer_t<FirstArg>>, T>);
 
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
@@ -5743,34 +5735,20 @@ class Namespace : public detail::Registrar
             lua_pushcfunction(L, &lua_deleteuserdata_aligned<FnType>); // Stack: co, cl, st, ud, mt, gc function
             rawsetfield(L, -2, "__gc"); // Stack: co, cl, st, ud, mt
             lua_setmetatable(L, -2); // Stack: co, cl, st, ud
+
             lua_pushcclosure(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: co, cl, st, function
-            rawsetfield(L, -3, name); // Stack: co, cl, st
 
-            return *this;
-        }
-        
-        //--------------------------------------------------------------------------
-        /**
-            Add or replace a const member function by std::function.
-        */
-        template <class ReturnType, class... Params>
-        Class<T>& addFunction(char const* name, std::function<ReturnType(const T*, Params...)> function)
-        {
-            using FnType = decltype(function);
-
-            assert(name != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: co, cl, st, function userdata (ud)
-            lua_newtable(L); // Stack: co, cl, st, ud, ud metatable (mt)
-            lua_pushcfunction(L, &lua_deleteuserdata_aligned<FnType>); // Stack: co, cl, st, ud, mt, gc function
-            rawsetfield(L, -2, "__gc"); // Stack: co, cl, st, ud, mt
-            lua_setmetatable(L, -2); // Stack: co, cl, st, ud
-            lua_pushcclosure(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: co, cl, st, function
-            lua_pushvalue(L, -1); // Stack: co, cl, st, function, function
-            rawsetfield(L, -4, name); // Stack: co, cl, st, function
-            rawsetfield(L, -4, name); // Stack: co, cl, st
-
+            if constexpr (std::is_same_v<FirstArg, T*>)
+            {
+                rawsetfield(L, -3, name); // Stack: co, cl, st
+            }
+            else if constexpr (std::is_same_v<FirstArg, const T*>)
+            {
+                lua_pushvalue(L, -1); // Stack: co, cl, st, function, function
+                rawsetfield(L, -4, name); // Stack: co, cl, st, function
+                rawsetfield(L, -4, name); // Stack: co, cl, st
+            }
+            
             return *this;
         }
 
