@@ -1,4 +1,4 @@
-<a href="https://github.com/kunitoki/LuaBridge3">
+<a href="https://kunitoki.github.io/LuaBridge3">
 <img src="https://github.com/kunitoki/LuaBridge3/blob/master/logo.png?raw=true">
 </a>
 <a href="https://lua.org">
@@ -106,4 +106,4 @@ BSD 3-Clause License. See the corresponding license file in those versions
 [2]:  http://lua.org "The Lua Programming Language"
 [3]:  http://luajit.org/ "The LuaJIT Probject"
 [4]:  http://www.opensource.org/licenses/mit-license.html "The MIT License"
-[5]:  https://github.com/kunitoki/LuaBridge3/blob/master/Manual.md "LuaBridge Reference Manual"
+[5]:  https://kunitoki.github.io/LuaBridge3/Manual "LuaBridge Reference Manual"
