@@ -1,24 +1,26 @@
 ## Version 3.0
 
-* Moved to c++17 as minimum supported standard c++ version.
-* Renamed `luabridge::Nil` to `luabridge::LuaNil` to allow including LuaBridge in Obj-C sources.
-* Removed the limitation of maximum 8 parameters in functions.
-* Removed the limitation of maximum 8 parameters in constructors.
+* Moved to C++17 as minimum supported standard C++ version.
+* Fixed unaligned access in user allocated member pointers in 64bit machines reported by ASAN.
 * Allow specifying a non virtual base class method when declaring class members (functions or variables) not exposed in the inherited class.
 * Allow using capturing lambdas in `Namespace::addFunction` and `Class<T>::addFunction`.
-* Fixed unaligned access in user allocated member pointers in 64bit machines reported by ASAN.
-* Added support for `std::byte`  as stack value type.
+* Added support for specifying a capturing lambda in `Class<T>::addConstructor` to do placement new of the object instance.
+* Added support for `std::byte` as stack value type.
 * Added support for `std::string_view` as stack value type.
 * Added support for `std::tuple` as stack value type.
 * Added support for `std::optional` as stack value type by using `LuaBridge/Optional.h`.
 * Added support for `std::set` as stack value type by using `LuaBridge/Set.h`.
 * Added single header amalgamated distribution file, to simplify including in projects.
+* Added more asserts for functions and property names.
+* Renamed `luabridge::Nil` to `luabridge::LuaNil` to allow including LuaBridge in Obj-C sources.
+* Removed the limitation of maximum 8 parameters in functions.
+* Removed the limitation of maximum 8 parameters in constructors.
 * Removed `Class<T>::addData`, it was just an alias for `Class<T>::addproperty`.
 * Removed `TypeList` from loki, using parameter packs and `std::tuple` with `std::apply`.
 * Removed juce traces from unit tests, simplified unit tests runs.
-* Bumped unit tests from lua 5.2.0 to 5.2.4.
-* Added unit tests against lua 5.3.6 and 5.4.1.
-* Added more asserts for functions and property names
+* Bumped lua 5.2.x in unit tests from lua 5.2.0 to 5.2.4.
+* Run against lua 5.3.6 and 5.4.1 in unit tests.
+* Converted the manual from html to markdown.
 * Small improvements to code and doxygen comments readability.
 
 ## Version 2.6
