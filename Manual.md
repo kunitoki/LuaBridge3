@@ -168,7 +168,7 @@ A regular function, member function, or static member function that uses the `lu
 
 Global properties, property members, and static property members. These appear like data to Lua, but are implemented in C++ using functions to get and set the values.
 
-Both data and properties can be marked as _read-only_ at the time of registration. This is different from `const`; the values of these objects can be modified on the C++ side, but Lua scripts cannot change them. Code samples that follow are in C++ or Lua, depending on context. For brevity of exposition code samples in C++ assume the traditional variable `lua_State* L` is defined, and that a `using namespace luabridge` using-directive is in effect.
+Both data and properties can be marked as _read-only_ at the time of registration. This is different from `const`; the values of these objects can be modified on the C++ side, but Lua scripts cannot change them. Code samples that follow are in C++ or Lua, depending on context. For brevity of exposition code samples in C++ assume the traditional variable `lua_State* L` is defined.
 
 2.1 - Namespaces
 ----------------
@@ -176,20 +176,20 @@ Both data and properties can be marked as _read-only_ at the time of registratio
 All LuaBridge registrations take place in a _namespace_. When we refer to a _namespace_ we are always talking about a namespace in the Lua sense, which is implemented using tables. The namespace need not correspond to a C++ namespace; in fact no C++ namespaces need to exist at all unless you want them to. LuaBridge namespaces are visible only to Lua scripts; they are used as a logical grouping tool. To obtain access to the global namespace we write:
 
 ```cpp
-getGlobalNamespace (L);
+luabridge::getGlobalNamespace (L);
 ```
 
 This returns an object on which further registrations can be performed. The subsequent registrations will go into the global namespace, a practice which is not recommended. Instead, we can add our own namespace by writing:
 
 ```cpp
-getGlobalNamespace (L)
+luabridge::getGlobalNamespace (L)
   .beginNamespace ("test");
 ```
 
 This creates a table in `_G` called "test". Since we have not performed any registrations, this table will be empty except for some bookkeeping key/value pairs. LuaBridge reserves all identifiers that start with a double underscore. So `__test` would be an invalid name (although LuaBridge will silently accept it). Functions like `beginNamespace` return the corresponding object on which we can make more registrations. Given:
 
 ```cpp
-getGlobalNamespace (L)
+luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
     .beginNamespace ("detail")
     .endNamespace ()
@@ -203,12 +203,12 @@ The results are accessible to Lua as `test`, `test.detail`, and `test.utility`. 
 A namespace can be re-opened later to add more functions. This lets you split up the registration between different source files. These are equivalent:
 
 ```cpp
-getGlobalNamespace (L)
+luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
     .addFunction ("foo", foo)
   .endNamespace ();
 
-getGlobalNamespace (L)
+luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
     .addFunction ("bar", bar)
   .endNamespace ();
@@ -217,7 +217,7 @@ getGlobalNamespace (L)
 and
 
 ```cpp
-getGlobalNamespace (L)
+luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
     .addFunction ("foo", foo)
     .addFunction ("bar", bar)
@@ -247,7 +247,7 @@ int cFunc (lua_State* L) { return 0; }
 
 These are registered with:
 
-getGlobalNamespace (L)
+luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
     .addProperty ("var1", &globalVar)
     .addProperty ("var2", &staticVar, false) // read-only
@@ -339,7 +339,7 @@ float A::staticProperty;
 are registered using:
 
 ```cpp
-getGlobalNamespace (L)
+luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
     .beginClass <A> ("A")
       .addStaticProperty ("staticData", &A::staticData)
@@ -410,7 +410,7 @@ struct VecHelper
 This helper class is only used to provide property member proxies. `Vec` continues to be used in the C++ code as it was before. Now we can register the `Vec` class with property member proxies for `x`, `y`, and `z`:
 
 ```cpp
-getGlobalNamespace (L)
+luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
     .beginClass <Vec> ("Vec")
       .addProperty ("x", &VecHelper::get <0>, &VecHelper::set <0>)
@@ -423,14 +423,28 @@ getGlobalNamespace (L)
 It is also possible to use both capturing and non capturing lambdas, as well as `std::function <>` instances as proxies:
 
 ```cpp
-getGlobalNamespace (L)
+luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
     .beginClass <Vec> ("Vec")
       .addProperty ("x",
         std::function <float (const Vec*)> (
-          [] (const Vec* vec) {return vec->coord [0];}),
+          [] (const Vec* vec) { return vec->coord [0]; }),
         std::function <void (Vec*, float)> (
-          [] (Vec* vec, float v) {vec->coord [0] = v;}))
+          [] (Vec* vec, float v) { vec->coord [0] = v; }))
+      // ... same for "y" and "z"
+    .endClass ()
+  .endNamespace ();
+```
+
+Or the more concise version (notice the `+` before the lambda is mandatory to convert a non capturing lambda to a function pointer):
+
+```cpp
+luabridge::getGlobalNamespace (L)
+  .beginNamespace ("test")
+    .beginClass <Vec> ("Vec")
+      .addProperty ("x",
+        +[] (const Vec* vec) { return vec->coord [0]; },
+        +[] (Vec* vec, float v) { vec->coord [0] = v; })
       // ... same for "y" and "z"
     .endClass ()
   .endNamespace ();
@@ -463,7 +477,7 @@ void scale (float value)
 Now we can register the `Vec` class with a member function `scale`:
 
 ```cpp
-getGlobalNamespace (L)
+luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
     .beginClass <Vec> ("Vec")
       .addFunction ("scale", &scale)
@@ -471,16 +485,20 @@ getGlobalNamespace (L)
   .endNamespace ();
 ```
 
-It is also possible to use `std::function <>` instances as proxies:
+It is also possible to use lambdas (both capturing and non capturing) as functions proxies:
 
 ```cpp
-getGlobalNamespace (L)
+float y = atan(1.0f) * 4.0f;
+
+luabridge::getGlobalNamespace (L)
   .beginClass <Vec> ("Vec")
-    .addFunction ("scaleX",
-      std::function <void (Vec*, float)> (
-        [] (Vec* vec, float v) {vec->coord [0] *= v;}))
+    .addFunction ("scaleX", [] (Vec* vec, float v) {vec->coord [0] *= v;})
+    .addFunction ("scaleY", [y] (Vec* vec, float v) {vec->coord [1] *= v * y;})
   .endClass ()
 ```
+
+Of course when not capturing, it is better to prefix the lambda with `+` so it is converted and stored internally to a function pointer instead of an `std::function`, so it is actually lighter to store and faster to call.
+
 
 2.6 - Constructors and Factories
 --------------------------------
@@ -498,7 +516,7 @@ struct B
   explicit B (char const* s, int nChars);
 };
 
-getGlobalNamespace (L)
+luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
     .beginClass <A> ("A")
       .addConstructor <void (*) (void)> ()
@@ -532,7 +550,7 @@ struct HardToCreate
 
 NotExposed shouldNotSeeMe;
 
-getGlobalNamespace (L)
+luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
     .beginClass <HardToCreate> ("HardToCreate")
       .addFactory ([&shouldNotSeeMe](void* ptr, int easy) { new (ptr) HardToCreate(shouldNotSeeMe, easy); })
@@ -552,6 +570,8 @@ hard = test.HardToCreate (5) -- Create a new HardToCreate.
 In the Lua C API, all operations on the `lua_State` are performed through the Lua stack. In order to pass values back and forth between C++ and Lua, LuaBridge uses specializations of this template class concept:
 
 ```cpp
+namespace luabridge {
+
 template <class T>
 struct Stack
 {
@@ -559,6 +579,8 @@ struct Stack
   static T get (lua_State* L, int index);
   static bool isInstance (lua_State* L, int index);
 };
+
+} // namespace luabridge
 ```
 
 When a specialization of `Stack` exists for a given type `T` we say that the `T` is _convertible_. Throughout this document and the LuaBridge API, these types can be used anywhere a convertible type is expected.
@@ -573,6 +595,8 @@ The Stack template class specializations are used automatically for variables, p
 User-defined types which are convertible to one of the basic types are possible, simply provide a `Stack <>` specialization in the `luabridge` namespace for your user-defined type, modeled after the existing types. For example, here is a specialization for a `juce::String`:
 
 ```cpp
+namespace luabridge {
+
 template <>
 struct Stack <juce::String>
 {
@@ -591,6 +615,8 @@ struct Stack <juce::String>
     return lua_type (L, index) == LUA_TSTRING;
   }
 };
+
+} // namespace luabridge
 ```
 
 2.8 - lua_State
@@ -601,7 +627,7 @@ Sometimes it is convenient from within a bound function or member function to ga
 ```cpp
 void useState (lua_State* L);
 
-getGlobalNamespace (L).addFunction ("useState", &useState);
+luabridge::getGlobalNamespace (L).addFunction ("useState", &useState);
 ```
 
 You can still include regular arguments while receiving the state:
@@ -609,7 +635,7 @@ You can still include regular arguments while receiving the state:
 ```cpp
 void useStateAndArgs (int i, std::string s, lua_State* L);
 
-getGlobalNamespace (L).addFunction ("useStateAndArgs", &useStateAndArgs);
+luabridge::getGlobalNamespace (L).addFunction ("useStateAndArgs", &useStateAndArgs);
 ```
 
 When the script calls `useStateAndArgs`, it passes only the integer and string parameters. LuaBridge takes care of inserting the `lua_State*` into the argument list for the corresponding C++ function. This will work correctly even for the state created by coroutines. Undefined behavior results if the `lua_State*` is not the last parameter.
@@ -653,16 +679,16 @@ The creation and deletion of objects with _C++ lifetime_ is controlled by the C+
 ```cpp
 A a;
 
-push (L, &a);              // pointer to 'a', C++ lifetime
+luabridge::push (L, &a);              // pointer to 'a', C++ lifetime
 lua_setglobal (L, "a");
 
-push (L, (A const*) &a);   // pointer to 'a const', C++ lifetime
+luabridge::push (L, (A const*) &a);   // pointer to 'a const', C++ lifetime
 lua_setglobal (L, "ac");
 
-push <A const*> (L, &a);   // equivalent to push (L, (A const*) &a)
+luabridge::push <A const*> (L, &a);   // equivalent to push (L, (A const*) &a)
 lua_setglobal (L, "ac2");
 
-push (L, new A);           // compiles, but will leak memory
+luabridge::push (L, new A);           // compiles, but will leak memory
 lua_setglobal (L, "ap");
 ```
 
@@ -674,7 +700,7 @@ When an object of a registered class is passed by value to Lua, it will have _Lu
 ```cpp
 B b;
 
-push (L, b);                    // Copy of b passed, Lua lifetime.
+luabridge::push (L, b);                    // Copy of b passed, Lua lifetime.
 lua_setglobal (L, "b");
 ```
 
@@ -744,10 +770,10 @@ void func6 (B* b);
 These Lua statements hold:
 
 ```lua
-func5 (b)   - Passes a copy of b, using B's copy constructor.
-func6 (b)   - Passes a pointer to b.
-func6 (a)   - Error: Pointer to B expected.
-func1 (b)   - Okay, b is a subclass of a.
+func5 (b)   -- Passes a copy of b, using B's copy constructor.
+func6 (b)   -- Passes a pointer to b.
+func6 (a)   -- Error: Pointer to B expected.
+func1 (b)   -- Okay, b is a subclass of a.
 ```
 
 When a pointer or pointer to const is passed to Lua and the pointer is null (zero), LuaBridge will pass Lua a `nil` instead. When Lua passes a `nil` to C++ where a pointer is expected, a null (zero) is passed instead. Attempting to pass a null pointer to a C++ function expecting a reference results in `lua_error` being called.
@@ -763,7 +789,7 @@ This is an intrusive style container. Your existing class declaration must be ch
 
 ```cpp
 // A is reference counted.
-struct A : public RefCountedObject
+struct A : public luabridge::RefCountedObject
 {
   void foo () { }
 };
@@ -773,7 +799,7 @@ struct B
   RefCountedObjectPtr <A> a; // holds a reference to A
 };
 
-void bar (RefCountedObjectPtr <A> a)
+void bar (luabridge::RefCountedObjectPtr <A> a)
 {
   a->foo ();
 }
@@ -791,15 +817,15 @@ struct A
 
 struct B
 {
-  RefCountedPtr <A> a;
+  luabridge::RefCountedPtr <A> a;
 };
 
-RefCountedPtr <A> createA ()
+luabridge::RefCountedPtr <A> createA ()
 {
   return new A;
 }
 
-void bar (RefCountedPtr <A> a)
+void bar (luabridge::RefCountedPtr <A> a)
 {
   a->foo ();
 }
@@ -818,6 +844,8 @@ void callFoo ()
 If you have your own container, you must provide a specialization of `ContainerTraits` in the `luabridge` namespace for your type before it will be recognized by LuaBridge (or else the code will not compile):
 
 ```cpp
+namespace luabridge {
+
 template <class T>
 struct ContainerTraits <CustomContainer <T> >
 {
@@ -828,6 +856,8 @@ struct ContainerTraits <CustomContainer <T> >
     return c.getPointerToObject ();
   }
 };
+
+} // namespace luabridge
 ```
 
 Standard containers like `std::shared_ptr` or `boost::shared_ptr` **will not work**. This is because of type erasure; when the object goes from C++ to Lua and back to C++, there is no way to associate the object with the original container. The new container is constructed from a pointer to the object instead of an existing container. The result is undefined behavior since there are now two sets of reference counts.
@@ -837,7 +867,7 @@ Standard containers like `std::shared_ptr` or `boost::shared_ptr` **will not wor
 When a constructor is registered for a class, there is an additional optional second template parameter describing the type of container to use. If this parameter is specified, calls to the constructor will create the object dynamically, via operator new, and place it a container of that type. The container must have been previously specialized in `ContainerTraits`, or else a compile error will result. This code will register two objects, each using a constructor that creates an object with Lua lifetime using the specified container:
 
 ```cpp
-class C : public RefCountedObject
+class C : public luabridge::RefCountedObject
 {
   C () { }
 };
@@ -847,13 +877,13 @@ class D
   D () { }
 };
 
-getGlobalNamespace (L)
+luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
     .beginClass <C> ("C")
-      .addConstructor <void (*) (void), RefCountedObjectPtr <C> > ()
+      .addConstructor <void (*) (void), luabridge::RefCountedObjectPtr <C> > ()
     .endClass ()
     .beginClass <D> ("D")
-      .addConstructor <void (*) (void), RefCountedPtr <D> > ()
+      .addConstructor <void (*) (void), luabridge::RefCountedPtr <D> > ()
     .endClass ();
   .endNamespace ()
 ```
@@ -881,16 +911,16 @@ The `LuaRef` class is a container which references any Lua type. It can hold any
 A `LuaRef` variable constructed with no parameters produces a reference to **nil**:
 
 ```cpp
-LuaRef v (L); // References nil
+luabridge::LuaRef v (L); // References nil
 ```
 
 To construct a `LuaRef` to a specific value, the two parameter constructor is used:
 
 ```cpp
-LuaRef v1 (L, 1);                   // A LUA_TNUMBER
-LuaRef v2 (L, 1.1);                 // Also a LUA_TNUMBER
-LuaRef v3 (L, true);                // A LUA_TBOOLEAN
-LuaRef v4 (L, "string");            // A LUA_TSTRING
+luabridge::LuaRef v1 (L, 1);                   // A LUA_TNUMBER
+luabridge::LuaRef v2 (L, 1.1);                 // Also a LUA_TNUMBER
+luabridge::LuaRef v3 (L, true);                // A LUA_TBOOLEAN
+luabridge::LuaRef v4 (L, "string");            // A LUA_TSTRING
 ```
 
 The functions `newTable` and `getGlobal` create references to new empty table and an existing value in the global table respectively:
@@ -904,30 +934,32 @@ A `LuaRef` can hold classes _registered_ using LuaBridge:
 
 ```cpp
 class A;
+
 //...
-LuaRef v (L, new A); // A LuaBridge userdata holding a pointer to A
+
+luabridge::LuaRef v (L, new A); // A LuaBridge userdata holding a pointer to A
 ```
 
 Any convertible type may be assigned to an already-existing `LuaRef`:
 
 ```cpp
-LuaRef v (L);         // Nil
-v = newTable (L);     // An empty table
-v = "string"          // A string. The prevous value becomes
-                      // eligible for garbage collection.
+luabridge::LuaRef v (L);        // Nil
+v = luabridge::newTable (L);    // An empty table
+v = "string";                   // A string. The prevous value becomes
+                                // eligible for garbage collection.
 ```
 
 A `LuaRef` is itself a convertible type, and the convertible type `Nil` can be used to represent a Lua **nil**.
 
 ```cpp
-LuaRef v1 (L, "x");   // assign "x"
-LuaRef v2 (L, "y");   // assign "y"
-v2 = v1;              // v2 becomes "x"
-v1 = "z";             // v1 becomes "z", v2 is unchanged
-v1 = newTable (L);    // An empty table
-v2 = v1;              // v2 references the same table as v1
-v1 = Nil ();          // v1 becomes nil, table is still
-                      // referenced by v2.
+luabridge::LuaRef v1 (L, "x");  // assign "x"
+luabridge::LuaRef v2 (L, "y");  // assign "y"
+v2 = v1;                        // v2 becomes "x"
+v1 = "z";                       // v1 becomes "z", v2 is unchanged
+v1 = luabridge::newTable (L);   // An empty table
+v2 = v1;                        // v2 references the same table as v1
+v1 = luabridge::LuaNil ();      // v1 becomes nil, table is still
+                                // referenced by v2.
 ```
 
 Values stored in a `LuaRef` object obey the same rules as variables in Lua: tables, functions, threads, and full userdata values are _objects_. The `LuaRef` does not actually _contain_ these values, only _references_ to them. Assignment, parameter passing, and function returns always manipulate references to such values; these operations do not imply any kind of copy.
@@ -942,7 +974,7 @@ void passBool (bool);
 void passString (std::string);
 void passObject (A*);
 
-LuaRef v (L);
+luabridge::LuaRef v (L);
 //...
 passInt (v);        // implicit conversion to int
 passBool (v);       // implicit conversion to bool
@@ -958,7 +990,7 @@ When an explicit conversion is required (such as when writing templates), use th
 ```cpp
 void passString (std::string);
 
-LuaRef v (L);
+luabridge::LuaRef v (L);
 
 // The following are all equivalent:
 
@@ -974,17 +1006,17 @@ passString (v.cast <std::string> ());
 As tables are the sole data structuring mechanism in Lua, the `LuaRef` class provides robust facilities for accessing and manipulating table elements using a simple, precise syntax. Any convertible type may be used as a key or value. Applying the array indexing operator `[]` to a `LuaRef` returns a special temporary object called a _table proxy_ which supports all the operations which can be performed on a `LuaRef`. In addition, assignments made to table proxies change the underlying table. Because table proxies are compiler-created temporary objects, you don't work with them directly. A LuaBridge table proxy should not be confused with the Lua proxy table technique described in the book "Programming in Lua"; the LuaBridge table proxy is simply an intermediate C++ class object that works behind the scenes to make table manipulation syntax conform to C++ idioms. These operations all invoke table proxies:
 
 ```cpp
-LuaRef v (L);
-v = newTable (L);
+luabridge::LuaRef v (L);
+v = luabridge::newTable (L);
 
-v ["name"] = "John Doe";      // string key, string value
-v [1] = 200;                  // integer key, integer value
-v [2] = newTable (L);         // integer key, LuaRef value
-v [3] = v [1];                // assign 200 to integer index 3
-v [1] = 100;                  // v[1] is 100, v[3] is still 200
-v [3] = v [2];                // v[2] and v[3] reference the same table
-v [2] = Nil ();               // Removes the value with key = 2. The table
-                              //   is still referenced by v[3].
+v ["name"] = "John Doe";         // string key, string value
+v [1] = 200;                     // integer key, integer value
+v [2] = luabridge::newTable (L); // integer key, LuaRef value
+v [3] = v [1];                   // assign 200 to integer index 3
+v [1] = 100;                     // v[1] is 100, v[3] is still 200
+v [3] = v [2];                   // v[2] and v[3] reference the same table
+v [2] = luabridge::LuaNil ();    // Removes the value with key = 2. The table
+                                 //   is still referenced by v[3].
 ```
 
 4.3 - Calling Lua
@@ -999,7 +1031,7 @@ end
 ```
 
 ```cpp
-LuaRef same = getGlobal (L, "same");
+luabridge::LuaRef same = luabridge::getGlobal (L, "same");
 
 // These all evaluate to true
 same (1,1);
@@ -1027,7 +1059,7 @@ t[3] = "foo"
 ```
 
 ```cpp
-LuaRef v = getGlobal (L, "t");
+luabridge::LuaRef v = luabridge::getGlobal (L, "t");
 ```
 
 ### 4.3.1 - Class LuaException
@@ -1035,12 +1067,12 @@ LuaRef v = getGlobal (L, "t");
 When `LuaRef` is used to call into Lua using the `()` operator it issues a protected call using `lua_pcall`. LuaBridge uses the C++ exception handling mechanism, throwing a `LuaException` object:
 
 ```cpp
-LuaRef f (L) = getGlobal (L, "fail");
+luabridge::LuaRef f (L) = luabridge::getGlobal (L, "fail");
 
 try {
   f ();
 }
-catch (LuaException const& e) {
+catch (luabridge::LuaException const& e) {
   std::cerr && e.what ();
 }
 
@@ -1073,16 +1105,13 @@ Free Functions
 
 ```cpp
 /// Gets a global Lua variable reference.
-///
 LuaRef getGlobal(lua_State* L, const char* name);
 
 /// Sets a global Lua variable.
-///
-template<class V>
+template <class V>
 void setGlobal(lua_State* L, V* varPtr, const char* name);
 
 /// Gets the global namespace registration object.
-///
 Namespace getGlobalNamespace(lua_State* L);
 ```
 
@@ -1090,101 +1119,70 @@ Namespace Registration - Namespace
 ----------------------------------
 
 ```cpp
-/// Begins or continues class registration, returns this class object.
-///
-template<class T>
-Class<T> beginClass(const char* name);
-
-/// Begins derived class registration, returns this class object.
-///
-template<class T, class Base>
-Class<T> deriveClass(const char* name);
-
 /// Begin or continues namespace registration, returns this namespace object.
-///
-template<class T>
+template <class T>
 Namespace beginNamespace(const char* name);
 
 /// Ends namespace registration, returns the parent namespace object.
-///
-template<class T>
+template <class T>
 Namespace endNamespace();
 
 /// Registers a function.
-///
-template<class R, class... Params>>
-Namespace addFunction(const char* name,
-                      R (*fn)(Params...));
+template <class R, class... Params>
+Namespace addFunction(const char* name, R (*fn)(Params...));
 
 /// Registers a function.
-///
-template<class R, class... Params>>
-Namespace addFunction(const char* name,
-                      std::function<R (Params...)> fn);
+template <class R, class... Params>
+Namespace addFunction(const char* name, std::function<R (Params...)> fn);
 
 /// Registers a function with an extra Lua state parameter.
-///
-template<class R, class... Params>>
-Namespace addFunction(const char* name,
-                      R (*fn)(Params..., lua_State*))
+template <class R, class... Params>
+Namespace addFunction(const char* name, R (*fn)(Params..., lua_State*))
 
 /// Registers a C-function.
-///
-Namespace addFunction(const char* name,
-                      int (*fn)(lua_State*));
+Namespace addFunction(const char* name, int (*fn)(lua_State*));
 
 /// Registers a property with a getter and setter.
-///
-template<class V>
-Namespace addProperty(const char* name,
-                      V (*getFn)(),
-                      void (*setFn)(V));
+template <class V>
+Namespace addProperty(const char* name, V (*getFn)(), void (*setFn)(V));
 
 /// Registers a property with a getter and setter.
-///
-template<class V>
-Namespace addProperty(const char* name,
-                      std::function<V ()> getFn,
-                      std::function<void (V)> setFn);
+template <class V>
+Namespace addProperty(const char* name, std::function<V ()> getFn, std::function<void (V)> setFn);
 
 /// Registers a property with a C-function getter and setter.
-///
-Namespace addProperty(const char* name,
-                      int (*getFn)(lua_State*),
-                      int (*setFn)(lua_State*));
+Namespace addProperty(const char* name, int (*getFn)(lua_State*), int (*setFn)(lua_State*));
 
 /// Registers a read-only property with a getter function.
-///
-template<class V>
-Namespace addProperty(const char* name,
-                      V (*getFn)());
+template <class V>
+Namespace addProperty(const char* name, V (*getFn)());
 
 /// Registers a read-only property with a getter function.
-///
-template<class V>
-Namespace addProperty(const char* name,
-                      std::function<V ()> getFn);
+template <class V>
+Namespace addProperty(const char* name, std::function<V ()> getFn);
 
 /// Registers a read-only property with a C-function getter.
-///
-Namespace addProperty(const char* name,
-                      int (*getFn)(lua_State*));
+Namespace addProperty(const char* name, int (*getFn)(lua_State*));
 
 /// Registers a variable, writable or read-only.
-///
-template<class V>
-Namespace addVariable(const char* name,
-                      V* varPtr,
-                      bool isWritable = true);
+template <class V>
+Namespace addVariable(const char* name, V* varPtr, bool isWritable = true);
 ```
 
 Class Registration - Class<T>
 -----------------------------
 
 ```cpp
+/// Begins or continues class registration, returns this class object.
+template <class T>
+Class<T> beginClass(const char* name);
+
+/// Begins derived class registration, returns this class object.
+template <class T, class Base>
+Class<T> deriveClass(const char* name);
+
 /// Ends class registration, returns the parent namespace object.
-///
-template<class T>
+template <class T>
 Namespace endClass();
 ```
 
@@ -1192,149 +1190,97 @@ Namespace endClass();
 
 ```cpp
 /// Registers a member function.
-///
-template<class R, class... Params>>
-Namespace addFunction(const char* name,
-                      R (T::* fn)(Params...));
+template <class R, class... Params>
+Namespace addFunction(const char* name, R (T::* fn)(Params...));
 
 /// Registers a function.
-///
-template<class R, class... Params>>
-Namespace addFunction(const char* name,
-                      std::function<R (Params...)> fn);
+template <class R, class... Params>
+Namespace addFunction(const char* name, std::function<R (Params...)> fn);
 
 /// Registers a function with an extra Lua state parameter.
-///
-template<class R, class... Params>>
-Namespace addFunction(const char* name,
-                      R (T::* fn)(Params..., lua_State*))
+template <class R, class... Params>
+Namespace addFunction(const char* name, R (T::* fn)(Params..., lua_State*))
 
 /// Registers a C-function.
-///
-Namespace addFunction(const char* name,
-                      int (*fn)(lua_State*));
+Namespace addFunction(const char* name, int (*fn)(lua_State*));
 ```
 
 ### Member Property Registration
 
 ```cpp
 /// Registers a property with a getter and setter.
-///
-template<class V>
-Namespace addProperty(const char* name,
-                      V (T::* getFn)(),
-                      void (T::* setFn)(V));
+template <class V>
+Namespace addProperty(const char* name, V (T::* getFn)(), void (T::* setFn)(V));
 
 /// Registers a property with a getter and setter.
-///
-template<class V>
-Namespace addProperty(const char* name,
-                      std::function<V ()> getFn,
-                      std::function<void (V)> setFn);
+template <class V>
+Namespace addProperty(const char* name, std::function<V ()> getFn, std::function<void (V)> setFn);
 
 /// Registers a property with a C-function getter and setter.
-///
-Namespace addProperty(const char* name,
-                      int (*getFn)(lua_State*),
-                      int (*setFn)(lua_State*));
+Namespace addProperty(const char* name, int (*getFn)(lua_State*), int (*setFn)(lua_State*));
 
 /// Registers a read-only property with a getter member function.
-///
-template<class V>
-Namespace addProperty(const char* name,
-                      V (T::* getFn)());
+template <class V>
+Namespace addProperty(const char* name, V (T::* getFn)());
 
 /// Registers a read-only property with a getter function.
-///
-template<class V>
-Namespace addProperty(const char* name,
-                      std::function<V ()> getFn);
+template <class V>
+Namespace addProperty(const char* name, std::function<V ()> getFn);
 
 /// Registers a read-only property with a C-function getter.
-///
-Namespace addProperty(const char* name,
-                      int (*getFn)(lua_State*));
+Namespace addProperty(const char* name, int (*getFn)(lua_State*));
 
 /// Registers a member variable, writable or read-only.
-///
-template<class V>
-Namespace addProperty(const char* name,
-                      V T::* varPtr,
-                      bool isWritable = true);
+template <class V>
+Namespace addProperty(const char* name, V T::* varPtr, bool isWritable = true);
 ```
 
 ### Static Function Registration
 
 ```cpp
 /// Registers a function.
-///
-template<class R, class... Params>>
-Namespace addStaticFunction(const char* name,
-                            R (*fn)(Params...));
+template <class R, class... Params>
+Namespace addStaticFunction(const char* name, R (*fn)(Params...));
 
 /// Registers a function.
-///
-template<class R, class... Params>>
-Namespace addStaticFunction(const char* name,
-                            std::function<R (Params...)> fn);
+template <class R, class... Params>
+Namespace addStaticFunction(const char* name, std::function<R (Params...)> fn);
 
 /// Registers a function with an extra Lua state parameter.
-///
-template<class R, class... Params>>
-Namespace addStaticFunction(const char* name,
-                            R (*fn)(Params..., lua_State*))
+template <class R, class... Params>
+Namespace addStaticFunction(const char* name, R (*fn)(Params..., lua_State*))
 
 /// Registers a C-function.
-///
-Namespace addStaticFunction(const char* name,
-                            int (*fn)(lua_State*));
+Namespace addStaticFunction(const char* name, int (*fn)(lua_State*));
 ```
 
 ### Static Property Registration
 
 ```cpp
 /// Registers a property with a getter and setter.
-///
-template<class V>
-Namespace addStaticProperty(const char* name,
-                            V (*getFn)(),
-                            void (*setFn)(V));
+template <class V>
+Namespace addStaticProperty(const char* name, V (*getFn)(), void (*setFn)(V));
 
 /// Registers a property with a getter and setter.
-///
-template<class V>
-Namespace addStaticProperty(const char* name,
-                            std::function<V ()> getFn,
-                            std::function<void (V)> setFn);
+template <class V>
+Namespace addStaticProperty(const char* name, std::function<V ()> getFn, std::function<void (V)> setFn);
 
 /// Registers a property with a C-function getter and setter.
-///
-Namespace addStaticProperty(const char* name,
-                            int (*getFn)(lua_State*),
-                            int (*setFn)(lua_State*));
+Namespace addStaticProperty(const char* name, int (*getFn)(lua_State*), int (*setFn)(lua_State*));
 
 /// Registers a read-only property with a getter function.
-///
-template<class V>
-Namespace addStaticProperty(const char* name,
-                            V (*getFn)());
+template <class V>
+Namespace addStaticProperty(const char* name, V (*getFn)());
 
 /// Registers a read-only property with a getter function.
-///
-template<class V>
-Namespace addStaticProperty(const char* name,
-                            std::function<V ()> getFn);
+template <class V>
+Namespace addStaticProperty(const char* name, std::function<V ()> getFn);
 
 /// Registers a read-only property with a C-function getter.
-///
-Namespace addStaticProperty(const char* name,
-                            int (*getFn)(lua_State*));
+Namespace addStaticProperty(const char* name, int (*getFn)(lua_State*));
 
 /// Registers a variable, writable or read-only.
-///
-Namespace addStaticData(const char* name,
-                        T* varPtr,
-                        bool isWritable = true);
+Namespace addStaticData(const char* name, T* varPtr, bool isWritable = true);
 ```
 
 Lua Variable Reference - LuaRef
@@ -1342,37 +1288,33 @@ Lua Variable Reference - LuaRef
 
 ```cpp
 /// Creates a nil reference.
-///
 LuaRef(lua_State* L);
 
 /// Returns native Lua string representation.
-///
 std::string tostring() const;
 
 /// Dumps reference to a stream.
-///
 void print(std::ostream& stream) const;
 
 /// Returns the Lua state.
-///
 lua_State* state() const;
 
 /// Place the object onto the Lua stack.
-///
 void push(lua_State* L);
 
 /// Return the lua_type.
-///
 int type() const;
 
+/// Perform implicit type conversion.
+template <class T>
+operator T() const;
+
 /// Perform the explicit type conversion.
-///
-template<class T>
+template <class T>
 T cast() const;
 
 /// Check if the Lua value is convertible to the type T.
-///
-template<class T>
+template <class T>
 bool isInstance() const;
 ```
 
@@ -1381,14 +1323,11 @@ Stack Traits - Stack<T>
 
 ```cpp
 /// Converts the C++ value into the Lua value at the top of the Lua stack.
-///
 void put (lua_State* L, T value);
 
 /// Converts the Lua value at the index into the C++ value of the type T.
-///
 T get (lua_State* L, int index);
 
 /// Checks if the Lua value at the index is convertible into the C++ value of the type T.
-///
 bool isInstance (lua_State* L, int index);
 ```
