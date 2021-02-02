@@ -148,7 +148,7 @@ inline bool isfulluserdata(lua_State* L, int index)
  *
  * This can determine if two different lua_State objects really point
  * to the same global state, such as when using coroutines.
- * 
+ *
  * @note This is used for assertions.
  */
 inline bool equalstates(lua_State* L1, lua_State* L2)

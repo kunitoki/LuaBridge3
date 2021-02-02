@@ -50,7 +50,7 @@ struct Stack<LuaNil>
 
     static bool isInstance(lua_State* L, int index)
     {
-        return lua_type(L, index) == LUA_TTABLE;
+        return lua_type(L, index) == LUA_TNIL;
     }
 };
 
@@ -945,7 +945,10 @@ public:
     */
     using LuaRefBase::push;
 
-    void push() const { lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_ref); }
+    void push() const
+    {
+        lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_ref);
+    }
 
     //----------------------------------------------------------------------------
     /**
