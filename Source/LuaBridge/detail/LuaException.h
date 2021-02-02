@@ -6,9 +6,13 @@
 #pragma once
 
 #include "Config.h"
+#include "LuaHelpers.h"
 
-#include <exception>
 #include <string>
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+#include <exception>
+#endif
 
 namespace luabridge {
 
@@ -109,7 +113,7 @@ private:
     
     static int logAtPanic(lua_State* L)
     {
-        luai_writestringerror("PANIC: unprotected error in call to Lua API (%s)\n", lua_tostring(L, -1));
+        writestringerror("Unprotected error in call to Lua API (%s)\n", lua_tostring(L, -1));
         return 0;
     }
 };

@@ -9,6 +9,7 @@
 #include "Config.h"
 
 #include <cassert>
+#include <cstdio>
 #include <utility>
 
 namespace luabridge {
@@ -88,6 +89,15 @@ inline int get_length(lua_State* L, int idx)
 #else
 #define LUABRIDGE_LUA_OK LUA_OK
 #endif
+
+/**
+ * @brief Helper to write a lua string error.
+ */
+inline void writestringerror(const char* fmt, const char* text)
+{
+    fprintf(stderr, fmt, text);
+    fflush(stderr);
+}
 
 /**
  * @brief Helper to set unsigned.
