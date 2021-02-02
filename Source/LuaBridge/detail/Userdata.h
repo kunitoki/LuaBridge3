@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "Config.h"
 #include "ClassInfo.h"
 #include "TypeTraits.h"
 
@@ -308,8 +309,14 @@ public:
         lua_rawgetp(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>());
 
         if (!lua_istable(L, -1))
+        {
+#if LUABRIDGE_HAS_EXCEPTIONS
             throw std::logic_error("The class is not registered in LuaBridge");
-
+#else
+            assert(false);
+#endif
+        }
+        
         lua_setmetatable(L, -2);
 
         return ud;
@@ -369,7 +376,13 @@ private:
         if (!lua_istable(L, -1))
         {
             lua_pop(L, 1); // possibly: a nil
+            
+#if LUABRIDGE_HAS_EXCEPTIONS
             throw std::logic_error("The class is not registered in LuaBridge");
+#else
+            assert(false);
+            return;
+#endif
         }
 
         lua_setmetatable(L, -2);

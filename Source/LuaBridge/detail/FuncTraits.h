@@ -320,33 +320,43 @@ struct function
     template <class F>
     static int call(lua_State* L, F func)
     {
+#if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
+#endif
             Stack<ReturnType>::push(L, std::apply(func, make_arguments_list<ArgsPack, Start>(L)));
             
             return 1;
+
+#if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
         {
             return luaL_error(L, e.what());
         }
+#endif
     }
 
     template <class T, class F>
     static int call(lua_State* L, T* ptr, F func)
     {
+#if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
+#endif
             auto f = [ptr, func](auto&&... args) -> ReturnType { return (ptr->*func)(std::forward<decltype(args)>(args)...); };
 
             Stack<ReturnType>::push(L, std::apply(f, make_arguments_list<ArgsPack, Start>(L)));
 
             return 1;
+
+#if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
         {
             return luaL_error(L, e.what());
         }
+#endif
     }
 };
 
@@ -356,33 +366,43 @@ struct function<void, ArgsPack, Start>
     template <class F>
     static int call(lua_State* L, F func)
     {
+#if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
+#endif
             std::apply(func, make_arguments_list<ArgsPack, Start>(L));
 
             return 0;
+
+#if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
         {
             return luaL_error(L, e.what());
         }
+#endif
     }
 
     template <class T, class F>
     static int call(lua_State* L, T* ptr, F func)
     {
+#if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
+#endif
             auto f = [ptr, func](auto&&... args) { (ptr->*func)(std::forward<decltype(args)>(args)...); };
 
             std::apply(f, make_arguments_list<ArgsPack, Start>(L));
 
             return 0;
+
+#if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
         {
             return luaL_error(L, e.what());
         }
+#endif
     }
 };
 
@@ -417,14 +437,14 @@ struct constructor
 {
     static T* call(const Args& args)
     {
-        auto alloc = [](auto&&... args) { return new T(std::forward<decltype(args)>(args)...); };
+        auto alloc = [](auto&&... args) { return new T{ std::forward<decltype(args)>(args)... }; };
         
         return std::apply(alloc, args);
     }
     
     static T* call(void* ptr, const Args& args)
     {
-        auto alloc = [ptr](auto&&... args) { return new (ptr) T(std::forward<decltype(args)>(args)...); };
+        auto alloc = [ptr](auto&&... args) { return new (ptr) T{ std::forward<decltype(args)>(args)... }; };
 
         return std::apply(alloc, args);
     }

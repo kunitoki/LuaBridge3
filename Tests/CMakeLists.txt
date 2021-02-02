@@ -72,6 +72,23 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++17")
   endif (MSVC)
 
+  if (NOT LUABRIDGE_EXCEPTIONS)
+    add_definitions (-DLUA_USE_LONGJMP=1)
+    if (APPLE)
+      target_compile_options (${LUABRIDGE_TEST_NAME} PUBLIC -fno-exceptions)
+      set_target_properties (${LUABRIDGE_TEST_NAME} PROPERTIES XCODE_ATTRIBUTE_GCC_ENABLE_CPP_EXCEPTIONS "NO")
+      set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions")
+    elseif (WIN32)
+      target_compile_options (${LUABRIDGE_TEST_NAME} PUBLIC /EHs-c-)
+      string (REGEX REPLACE "/EH[a-z]+" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
+      set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHs-c-")
+      add_definitions (-D_HAS_EXCEPTIONS=0)
+    else ()
+      target_compile_options (${LUABRIDGE_TEST_NAME} PUBLIC -fno-exceptions)
+      set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions")
+    endif ()
+  endif ()
+
   target_link_libraries (${LUABRIDGE_TEST_NAME}
     LuaBridge
     gtest

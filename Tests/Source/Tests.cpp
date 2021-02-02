@@ -319,14 +319,22 @@ TEST_F(LuaBridgeTest, ClassFunction)
     EXPECT_EQ(10, outer.data.data);
 
     outer.data.data = 2;
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("outer:getConstPtr ().data = 20"), std::runtime_error);
+#else
+    ASSERT_FALSE(runLua("outer:getConstPtr ().data = 20"));
+#endif
 
     outer.data.data = 3;
     runLua("outer:getRef().data = 30");
     EXPECT_EQ(30, outer.data.data);
 
     outer.data.data = 4;
+#if LUABRIDGE_HAS_EXCEPTIONS
     EXPECT_THROW(runLua("outer:getConstPtr ().data = 40"), std::runtime_error);
+#else
+    ASSERT_FALSE(runLua("outer:getConstPtr ().data = 40"));
+#endif
 
     outer.data.data = 5;
     runLua("outer:getValueConst ().data = 50");
@@ -337,12 +345,20 @@ TEST_F(LuaBridgeTest, ClassFunction)
     EXPECT_EQ(60, outer.data.data);
 
     outer.data.data = 7;
+#if LUABRIDGE_HAS_EXCEPTIONS
     EXPECT_THROW(runLua("outer:getConstPtr ().data = 70"), std::runtime_error);
+#else
+    ASSERT_FALSE(runLua("outer:getConstPtr ().data = 70"));
+#endif
 
     outer.data.data = 8;
     runLua("outer:getRef().data = 80");
     EXPECT_EQ(80, outer.data.data);
 
     outer.data.data = 9;
+#if LUABRIDGE_HAS_EXCEPTIONS
     EXPECT_THROW(runLua("outer:getConstPtr ().data = 90"), std::runtime_error);
+#else
+    ASSERT_FALSE(runLua("outer:getConstPtr ().data = 90"));
+#endif
 }

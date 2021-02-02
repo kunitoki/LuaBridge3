@@ -50,7 +50,12 @@ TEST_F(MapTests, CastToMap)
 
     using IntToInt = std::map<int, int>;
     runLua("result = {[1] = 2, a = 3}");
+
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW((result().cast<IntToInt>()), std::exception);
+#else
+    ASSERT_DEATH((result().cast<IntToInt>()), "");
+#endif
 }
 
 TEST_F(MapTests, PassToFunction)

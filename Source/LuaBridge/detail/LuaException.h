@@ -45,29 +45,44 @@ public:
         breakpoints before the stack is unwound, or otherwise customize the
         behavior.
     */
-    template<class Exception>
-    static void Throw(Exception e)
+    template <class Exception>
+    static void Throw(lua_State* L, Exception e)
     {
+#if LUABRIDGE_HAS_EXCEPTIONS
         throw e;
+#else
+        luaL_error(L, "%s\n", e);
+#endif
     }
-
+    
     //----------------------------------------------------------------------------
     /**
-        Wrapper for lua_pcall that throws.
+        Wrapper for lua_pcall that throws if exceptions are enabled.
     */
-    static void pcall(lua_State* L, int nargs = 0, int nresults = 0, int msgh = 0)
+    static int pcall(lua_State* L, int nargs = 0, int nresults = 0, int msgh = 0)
     {
         int code = lua_pcall(L, nargs, nresults, msgh);
 
+#if LUABRIDGE_HAS_EXCEPTIONS
         if (code != LUABRIDGE_LUA_OK)
-            Throw(LuaException(L, code));
+            Throw(L, LuaException(L, code));
+#endif
+        
+        return code;
     }
 
     //----------------------------------------------------------------------------
     /**
         Initializes error handling. Subsequent Lua errors are translated to C++ exceptions.
     */
-    static void enableExceptions(lua_State* L) { lua_atpanic(L, throwAtPanic); }
+    static void enableExceptions(lua_State* L)
+    {
+#if LUABRIDGE_HAS_EXCEPTIONS
+        lua_atpanic(L, throwAtPanic);
+#else
+        lua_atpanic(L, logAtPanic);
+#endif
+    }
 
 protected:
     void whatFromStack()
@@ -85,7 +100,18 @@ protected:
     }
 
 private:
-    static int throwAtPanic(lua_State* L) { throw LuaException(L, -1); }
+#if LUABRIDGE_HAS_EXCEPTIONS
+    static int throwAtPanic(lua_State* L)
+    {
+        throw LuaException(L, -1);
+    }
+#endif
+    
+    static int logAtPanic(lua_State* L)
+    {
+        luai_writestringerror("PANIC: unprotected error in call to Lua API (%s)\n", lua_tostring(L, -1));
+        return 0;
+    }
 };
 
 //----------------------------------------------------------------------------

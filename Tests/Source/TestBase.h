@@ -61,18 +61,29 @@ struct TestBase : public ::testing::Test
         }
     }
 
-    void runLua(const std::string& script) const
+    bool runLua(const std::string& script) const
     {
         if (luaL_loadstring(L, script.c_str()) != 0)
         {
+#if LUABRIDGE_HAS_EXCEPTIONS
             throw std::runtime_error(lua_tostring(L, -1));
+#else
+            return false;
+#endif
         }
 
         if (lua_pcall(L, 0, 0, -2) != 0)
         {
+#if LUABRIDGE_HAS_EXCEPTIONS
             auto errorString = lua_tostring(L, -1);
+
             throw std::runtime_error(errorString ? errorString : "Unknown lua error");
+#else
+            return false;
+#endif
         }
+        
+        return true;
     }
 
     template <class T = luabridge::LuaRef>

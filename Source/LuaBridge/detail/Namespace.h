@@ -68,7 +68,11 @@ protected:
     {
         if (m_stackSize == 0)
         {
+#if LUABRIDGE_HAS_EXCEPTIONS
             throw std::logic_error("Unable to continue registration");
+#else
+            assert(false);
+#endif
         }
     }
 };
@@ -380,7 +384,12 @@ class Namespace : public detail::Registrar
             if (lua_isnil(L, -1)) // Stack: ns, co, cl, st, nil
             {
                 ++m_stackSize;
+
+#if LUABRIDGE_HAS_EXCEPTIONS
                 throw std::runtime_error("Base class is not registered");
+#else
+                assert(false);
+#endif
             }
 
             assert(lua_istable(L, -1)); // Stack: ns, co, cl, st, pst
@@ -773,7 +782,7 @@ class Namespace : public detail::Registrar
                 typename FnTraits::argument_types>;
             
             using FirstArg = detail::function_argument_t<0, Function>;
-            static_assert(std::is_same_v<std::remove_cv_t<std::remove_pointer_t<FirstArg>>, T>);
+            static_assert(std::is_same_v<std::decay_t<std::remove_pointer_t<FirstArg>>, T>);
 
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
@@ -786,11 +795,11 @@ class Namespace : public detail::Registrar
 
             lua_pushcclosure(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: co, cl, st, function
 
-            if constexpr (std::is_same_v<FirstArg, T*>)
+            if constexpr (! std::is_const_v<std::remove_reference_t<std::remove_pointer_t<FirstArg>>>)
             {
                 rawsetfield(L, -3, name); // Stack: co, cl, st
             }
-            else if constexpr (std::is_same_v<FirstArg, const T*>)
+            else
             {
                 lua_pushvalue(L, -1); // Stack: co, cl, st, function, function
                 rawsetfield(L, -4, name); // Stack: co, cl, st, function
@@ -814,10 +823,16 @@ class Namespace : public detail::Registrar
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            static const std::string GC = "__gc";
-            if (name == GC)
-                throw std::logic_error(GC + " metamethod registration is forbidden");
-
+            if (name == std::string_view("__gc"))
+            {
+#if LUABRIDGE_HAS_EXCEPTIONS
+                throw std::logic_error("__gc metamethod registration is forbidden");
+#else
+                assert(false);
+                return *this;
+#endif
+            }
+            
             new (lua_newuserdata(L, sizeof(MemFn))) MemFn(mf);
             lua_pushcclosure(L, &detail::invoke_member_function<MemFn, T>, 1);
             rawsetfield(L, -3, name); // class table
@@ -835,10 +850,16 @@ class Namespace : public detail::Registrar
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            static const std::string GC = "__gc";
-            if (name == GC)
-                throw std::logic_error(GC + " metamethod registration is forbidden");
-
+            if (name == std::string_view("__gc"))
+            {
+#if LUABRIDGE_HAS_EXCEPTIONS
+                throw std::logic_error("__gc metamethod registration is forbidden");
+#else
+                assert(false);
+                return *this;
+#endif
+            }
+            
             new (lua_newuserdata(L, sizeof(MemFn))) MemFn(mf);
             lua_pushcclosure(L, &detail::invoke_const_member_function<MemFn, T>, 1);
             lua_pushvalue(L, -1);
@@ -860,10 +881,16 @@ class Namespace : public detail::Registrar
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            static const std::string GC = "__gc";
-            if (name == GC)
-                throw std::logic_error(GC + " metamethod registration is forbidden");
-
+            if (name == std::string_view("__gc"))
+            {
+#if LUABRIDGE_HAS_EXCEPTIONS
+                throw std::logic_error("__gc metamethod registration is forbidden");
+#else
+                assert(false);
+                return *this;
+#endif
+            }
+            
             lua_pushlightuserdata(L, reinterpret_cast<void*>(proxyFn)); // Stack: co, cl, st, function ptr
             lua_pushcclosure(L, &detail::invoke_proxy_function<FnType>, 1); // Stack: co, cl, st, function
             rawsetfield(L, -3, name); // Stack: co, cl, st
@@ -879,10 +906,16 @@ class Namespace : public detail::Registrar
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            static const std::string GC = "__gc";
-            if (name == GC)
-                throw std::logic_error(GC + " metamethod registration is forbidden");
-
+            if (name == std::string_view("__gc"))
+            {
+#if LUABRIDGE_HAS_EXCEPTIONS
+                throw std::logic_error("__gc metamethod registration is forbidden");
+#else
+                assert(false);
+                return *this;
+#endif
+            }
+            
             lua_pushlightuserdata(L, reinterpret_cast<void*>(proxyFn)); // Stack: co, cl, st, function ptr
             lua_pushcclosure(L, &detail::invoke_proxy_function<FnType>, 1); // Stack: co, cl, st, function
             lua_pushvalue(L, -1); // Stack: co, cl, st, function, function
@@ -1108,8 +1141,15 @@ public:
     Namespace endNamespace()
     {
         if (m_stackSize == 1)
-            throw std::logic_error("endNamespace () called on global namespace");
-
+        {
+#if LUABRIDGE_HAS_EXCEPTIONS
+            throw std::logic_error("endNamespace() called on global namespace");
+#else
+            assert(false);
+            return Namespace(*this);
+#endif
+        }
+        
         assert(m_stackSize > 1);
         --m_stackSize;
         lua_pop(L, 1);
@@ -1129,8 +1169,14 @@ public:
     Namespace& addProperty(char const* name, T* value, bool isWritable = true)
     {
         if (m_stackSize == 1)
-            throw std::logic_error("addProperty () called on global namespace");
-
+        {
+#if LUABRIDGE_HAS_EXCEPTIONS
+            throw std::logic_error("addProperty() called on global namespace");
+#else
+            assert(false);
+#endif
+        }
+        
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 
@@ -1168,8 +1214,14 @@ public:
     Namespace& addProperty(char const* name, TG (*get)(), void (*set)(TS) = 0)
     {
         if (m_stackSize == 1)
-            throw std::logic_error("addProperty () called on global namespace");
-
+        {
+#if LUABRIDGE_HAS_EXCEPTIONS
+            throw std::logic_error("addProperty() called on global namespace");
+#else
+            assert(false);
+#endif
+        }
+        
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 
@@ -1206,7 +1258,14 @@ public:
     Namespace& addProperty(char const* name, int (*get)(lua_State*), int (*set)(lua_State*) = 0)
     {
         if (m_stackSize == 1)
-            throw std::logic_error("addProperty () called on global namespace");
+        {
+#if LUABRIDGE_HAS_EXCEPTIONS
+            throw std::logic_error("addProperty() called on global namespace");
+#else
+            assert(false);
+            return *this;
+#endif
+        }
 
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)

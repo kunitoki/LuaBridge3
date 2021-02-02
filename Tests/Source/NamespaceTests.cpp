@@ -22,8 +22,10 @@ TEST_F(NamespaceTests, Variables)
     auto any = luabridge::newTable(L);
     any["a"] = 1;
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(luabridge::getGlobalNamespace(L).addProperty("int", &int_), std::logic_error);
-
+#endif
+    
     runLua("result = int");
     ASSERT_TRUE(result().isNil());
 
@@ -51,8 +53,10 @@ TEST_F(NamespaceTests, ReadOnlyVariables)
     auto any = luabridge::newTable(L);
     any["a"] = 1;
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(luabridge::getGlobalNamespace(L).addProperty("int", &int_), std::logic_error);
-
+#endif
+    
     runLua("result = int");
     ASSERT_TRUE(result().isNil());
 
@@ -65,10 +69,20 @@ TEST_F(NamespaceTests, ReadOnlyVariables)
     ASSERT_EQ(-10, variable<int>("ns.int"));
     ASSERT_EQ(any, variable<luabridge::LuaRef>("ns.any"));
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("ns.int = -20"), std::runtime_error);
+#else
+    ASSERT_FALSE(runLua("ns.int = -20"));
+#endif
+    
     ASSERT_EQ(-10, variable<int>("ns.int"));
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("ns.any = {b = 2}"), std::runtime_error);
+#else
+    ASSERT_FALSE(runLua("ns.any = {b = 2}"));
+#endif
+
     ASSERT_EQ(any, variable<luabridge::LuaRef>("ns.any"));
 }
 
@@ -101,10 +115,12 @@ TEST_F(NamespaceTests, Properties)
 {
     setProperty<int>(-10);
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(
         luabridge::getGlobalNamespace(L).addProperty("int", &getProperty<int>, &setProperty<int>),
         std::logic_error);
-
+#endif
+    
     runLua("result = int");
     ASSERT_TRUE(result().isNil());
 
@@ -123,9 +139,11 @@ TEST_F(NamespaceTests, ReadOnlyProperties)
 {
     setProperty<int>(-10);
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(luabridge::getGlobalNamespace(L).addProperty("int", &getProperty<int>),
                  std::logic_error);
-
+#endif
+    
     runLua("result = int");
     ASSERT_TRUE(result().isNil());
 
@@ -136,7 +154,12 @@ TEST_F(NamespaceTests, ReadOnlyProperties)
 
     ASSERT_EQ(-10, variable<int>("ns.int"));
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("ns.int = -20"), std::runtime_error);
+#else
+    ASSERT_FALSE(runLua("ns.int = -20"));
+#endif
+
     ASSERT_EQ(-10, getProperty<int>());
 }
 
@@ -192,7 +215,13 @@ TEST_F(NamespaceTests, Properties_ProxyCFunctions_ReadOnly)
         .endNamespace();
 
     Storage<int>::value = 1;
+
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("ns.value = 2"), std::exception);
+#else
+    ASSERT_FALSE(runLua("ns.value = 2"));
+#endif
+
     ASSERT_EQ(1, Storage<int>::value);
 
     Storage<int>::value = 3;
@@ -242,9 +271,10 @@ TEST_F(NamespaceTests, LuaStackIntegrity)
         }
         ASSERT_EQ(1, lua_gettop(L)); // Stack: ...
 
+#if LUABRIDGE_HAS_EXCEPTIONS
         ASSERT_THROW(globalNs.beginNamespace("namespace"), std::exception);
-
         ASSERT_THROW(globalNs.beginClass<Class>("Class"), std::exception);
+#endif
     }
 
     {

@@ -240,16 +240,21 @@ struct property_getter
         C* c = Userdata::get<C>(L, 1, true);
         
         T C::** mp = static_cast<T C::**>(lua_touserdata(L, lua_upvalueindex(1)));
-        
+
+#if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
+#endif
             Stack<T&>::push(L, c->**mp);
+
+#if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
         {
             luaL_error(L, e.what());
         }
-
+#endif
+        
         return 1;
     }
 };
@@ -327,15 +332,20 @@ struct property_setter
 
         T C::** mp = static_cast<T C::**>(lua_touserdata(L, lua_upvalueindex(1)));
 
+#if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
+#endif
             c->** mp = Stack<T>::get(L, 2);
+
+#if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
         {
             luaL_error(L, e.what());
         }
-
+#endif
+        
         return 0;
     }
 };
