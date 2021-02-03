@@ -112,7 +112,7 @@ struct Stack<std::byte>
 {
     static bool push(lua_State* L, std::byte value)
     {
-        detail::pushunsigned(L, std::to_integer<lua_Unsigned>(value));
+        pushunsigned(L, std::to_integer<lua_Unsigned>(value));
         return true;
     }
 
@@ -160,7 +160,7 @@ struct Stack<unsigned char>
 {
     static bool push(lua_State* L, unsigned char value)
     {
-        detail::pushunsigned(L, value);
+        pushunsigned(L, value);
         return true;
     }
 
@@ -208,7 +208,7 @@ struct Stack<unsigned short>
 {
     static bool push(lua_State* L, unsigned short value)
     {
-        detail::pushunsigned(L, value);
+        pushunsigned(L, value);
         return true;
     }
 
@@ -256,7 +256,7 @@ struct Stack<unsigned int>
 {
     static bool push(lua_State* L, unsigned int value)
     {
-        detail::pushunsigned(L, value);
+        pushunsigned(L, value);
         return true;
     }
 
@@ -304,7 +304,7 @@ struct Stack<unsigned long>
 {
     static bool push(lua_State* L, unsigned long value)
     {
-        detail::pushunsigned(L, value);
+        pushunsigned(L, value);
         return true;
     }
 
@@ -352,7 +352,7 @@ struct Stack<unsigned long long>
 {
     static bool push(lua_State* L, unsigned long long value)
     {
-        detail::pushunsigned(L, value);
+        pushunsigned(L, value);
         return true;
     }
 
@@ -525,8 +525,8 @@ struct Stack<std::tuple<Types...>>
         if (!lua_istable(L, index))
             luaL_error(L, "#%d argment must be a table", index);
 
-        if (detail::get_length(L, index) != Size)
-            luaL_error(L, "table size should be %d but is %d", Size, detail::get_length(L, index));
+        if (get_length(L, index) != Size)
+            luaL_error(L, "table size should be %d but is %d", Size, get_length(L, index));
 
         std::tuple<Types...> value;
 

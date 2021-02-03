@@ -339,7 +339,7 @@ public:
 
         if (!ud)
         {
-            detail::throw_or_luaerror<std::logic_error>(L, "The class is not registered in LuaBridge");
+            throw_or_luaerror<std::logic_error>(L, "The class is not registered in LuaBridge");
             return false;
         }
         
@@ -392,7 +392,7 @@ private:
 
             ptr->~UserdataPtr();
             
-            detail::throw_or_nothing<std::logic_error>("The class is not registered in LuaBridge");
+            throw_or_nothing<std::logic_error>("The class is not registered in LuaBridge");
 
             return false;
         }

@@ -224,7 +224,7 @@ public:
     */
     void push(lua_State* L) const
     {
-        assert(detail::equalstates(L, m_L));
+        assert(equalstates(L, m_L));
         (void) L;
 
         impl().push();
@@ -238,7 +238,7 @@ public:
     */
     void pop(lua_State* L)
     {
-        assert(detail::equalstates(L, m_L));
+        assert(equalstates(L, m_L));
         (void) L;
 
         impl().pop();
@@ -561,7 +561,7 @@ public:
 
         impl().push();
 
-        return detail::get_length(m_L, -1);
+        return get_length(m_L, -1);
     }
 
     //----------------------------------------------------------------------------

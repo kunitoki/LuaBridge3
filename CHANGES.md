@@ -1,3 +1,9 @@
+## Master
+
+* Reworked the whole library to be able to use it without c++ exceptions enabled.
+* Breaking change: The method `Stack<T>::push` now needs to return a boolean if the push could be performed.
+* Added unit tests when not using exceptions.
+
 ## Version 3.0
 
 * Moved to C++17 as minimum supported standard C++ version.

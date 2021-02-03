@@ -14,7 +14,6 @@
 #include <utility>
 
 namespace luabridge {
-namespace detail {
 
 // These are for Lua versions prior to 5.2.0.
 #if LUA_VERSION_NUM < 502
@@ -264,5 +263,4 @@ inline void writestringerror(const char* fmt, const char* text)
     fflush(stderr);
 }
 
-} // namespace detail
 } // namespace luabridge

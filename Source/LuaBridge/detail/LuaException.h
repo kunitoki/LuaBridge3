@@ -113,7 +113,7 @@ private:
     
     static int logAtPanic(lua_State* L)
     {
-        detail::writestringerror("Unprotected error in call (%s)", lua_tostring(L, -1));
+        writestringerror("Unprotected error in call (%s)", lua_tostring(L, -1));
         return 0;
     }
 };

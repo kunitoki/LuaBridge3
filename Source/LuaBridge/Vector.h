@@ -44,7 +44,7 @@ struct Stack<std::vector<T>>
             luaL_error(L, "#%d argument must be a table", index);
 
         Type vector;
-        vector.reserve(static_cast<std::size_t>(detail::get_length(L, index)));
+        vector.reserve(static_cast<std::size_t>(get_length(L, index)));
 
         int absIndex = lua_absindex(L, index);
         lua_pushnil(L);
