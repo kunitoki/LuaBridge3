@@ -135,15 +135,16 @@ enum class MyEnum
     VALUE1,
 };
 
-template<typename T>
+template <class T>
 struct EnumWrapper
 {
-    static typename std::enable_if<std::is_enum<T>::value, void>::type push(lua_State* L, T value)
+    static auto push(lua_State* L, T value) -> std::enable_if_t<std::is_enum_v<T>, bool>
     {
         lua_pushnumber(L, static_cast<std::size_t>(value));
+        return true;
     }
 
-    static typename std::enable_if<std::is_enum<T>::value, T>::type get(lua_State* L, int index)
+    static auto get(lua_State* L, int index) -> std::enable_if_t<std::is_enum_v<T>, T>
     {
         return static_cast<T>(lua_tointeger(L, index));
     }

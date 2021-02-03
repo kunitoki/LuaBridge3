@@ -17,24 +17,35 @@ namespace luabridge {
 template <class K, class V>
 struct Stack<std::set<K, V>>
 {
-    static void push(lua_State* L, const std::set<K, V>& set)
+    using Type = std::set<K, V>;
+    
+    static bool push(lua_State* L, const Type& set)
     {
         lua_createtable(L, 0, static_cast<int>(set.size()));
 
+        bool result;
         for (auto it = set.begin(); it != set.end(); ++it)
         {
-            Stack<K>::push(L, it->first);
-            Stack<V>::push(L, it->second);
+            result = Stack<K>::push(L, it->first);
+            if (!result)
+                return false; // TODO - must pop ?
+
+            result = Stack<V>::push(L, it->second);
+            if (!result)
+                return false; // TODO - must pop ?
+
             lua_settable(L, -3);
         }
+        
+        return true;
     }
 
-    static std::set<K, V> get(lua_State* L, int index)
+    static Type get(lua_State* L, int index)
     {
         if (!lua_istable(L, index))
             luaL_error(L, "#%d argument must be a table", index);
 
-        std::set<K, V> set;
+        Type set;
 
         int absIndex = lua_absindex(L, index);
         lua_pushnil(L);

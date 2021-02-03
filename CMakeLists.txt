@@ -9,8 +9,6 @@ set (CMAKE_CXX_STANDARD 17)
 cmake_dependent_option (LUABRIDGE_TESTING "Build tests" ON
   "CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR" OFF)
 
-option (LUABRIDGE_EXCEPTIONS "Build with exceptions" ON)
-
 add_subdirectory (Source)
 
 if (LUABRIDGE_TESTING)

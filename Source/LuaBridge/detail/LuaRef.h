@@ -43,9 +43,10 @@ struct LuaNil
 template <>
 struct Stack<LuaNil>
 {
-    static void push(lua_State* L, LuaNil)
+    static bool push(lua_State* L, LuaNil)
     {
         lua_pushnil(L);
+        return true;
     }
 
     static bool isInstance(lua_State* L, int index)
@@ -223,8 +224,9 @@ public:
     */
     void push(lua_State* L) const
     {
-        assert(equalstates(L, m_L));
+        assert(detail::equalstates(L, m_L));
         (void) L;
+
         impl().push();
     }
 
@@ -236,8 +238,9 @@ public:
     */
     void pop(lua_State* L)
     {
-        assert(equalstates(L, m_L));
+        assert(detail::equalstates(L, m_L));
         (void) L;
+
         impl().pop();
     }
 
@@ -558,7 +561,7 @@ public:
 
         impl().push();
 
-        return get_length(m_L, -1);
+        return detail::get_length(m_L, -1);
     }
 
     //----------------------------------------------------------------------------
@@ -570,14 +573,19 @@ public:
 
         @returns A result of the call.
     */
-    template <typename... Args>
-    LuaRef operator()(Args&&... args) const
+    template <class... Args>
+    std::optional<LuaRef> operator()(Args&&... args) const
     {
         impl().push();
 
-        detail::push_arguments(m_L, std::forward_as_tuple(args...));
+        bool argumentsResult = detail::push_arguments(m_L, std::forward_as_tuple(args...));
+        if (! argumentsResult)
+            return std::nullopt;
 
-        LuaException::pcall(m_L, sizeof...(Args), 1);
+        int code = LuaException::pcall(m_L, sizeof...(Args), 1);
+        
+        if (code != LUABRIDGE_LUA_OK)
+            return std::nullopt;
 
         return LuaRef::fromStack(m_L);
     }
@@ -1011,9 +1019,9 @@ private:
 template <>
 struct Stack<LuaRef>
 {
-    static void push(lua_State* L, const LuaRef& v)
+    static bool push(lua_State* L, const LuaRef& v)
     {
-        v.push(L);
+        return v.push(L), true;
     }
 
     static LuaRef get(lua_State* L, int index)
@@ -1029,9 +1037,9 @@ struct Stack<LuaRef>
 template <>
 struct Stack <LuaRef::TableItem>
 {
-    static void push(lua_State* L, const LuaRef::TableItem& v)
+    static bool push(lua_State* L, const LuaRef::TableItem& v)
     {
-        v.push(L);
+        return v.push(L), true;
     }
 };
 

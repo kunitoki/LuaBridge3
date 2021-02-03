@@ -272,20 +272,20 @@ auto make_arguments_list(lua_State* L)
  */
 template <std::size_t Index = 0, typename... Types>
 auto push_arguments(lua_State*, const std::tuple<Types...>&)
-    -> std::enable_if_t<Index == sizeof...(Types), std::size_t>
+    -> std::enable_if_t<Index == sizeof...(Types), bool>
 {
-    return sizeof...(Types);
+    return true;
 }
 
 template <std::size_t Index = 0, typename... Types>
 auto push_arguments(lua_State* L, const std::tuple<Types...>& t)
-    -> std::enable_if_t<Index < sizeof...(Types), std::size_t>
+    -> std::enable_if_t<Index < sizeof...(Types), bool>
 {
     using T = std::tuple_element_t<Index, std::tuple<Types...>>;
 
-    Stack<T>::push(L, std::get<Index>(t));
+    bool result = Stack<T>::push(L, std::get<Index>(t));
 
-    return push_arguments<Index + 1, Types...>(L, t);
+    return result && push_arguments<Index + 1, Types...>(L, t);
 }
 
 //=================================================================================================
@@ -324,7 +324,13 @@ struct function
         try
         {
 #endif
-            Stack<ReturnType>::push(L, std::apply(func, make_arguments_list<ArgsPack, Start>(L)));
+            bool result = Stack<ReturnType>::push(L, std::apply(func, make_arguments_list<ArgsPack, Start>(L)));
+            
+            if (! result)
+            {
+                luaL_error(L, "Error while handling function return value");
+                lua_pushnil(L);
+            }
             
             return 1;
 
@@ -333,6 +339,10 @@ struct function
         catch (const std::exception& e)
         {
             return luaL_error(L, e.what());
+        }
+        catch (...)
+        {
+            luaL_error(L, "Error while calling function");
         }
 #endif
     }
@@ -346,7 +356,13 @@ struct function
 #endif
             auto f = [ptr, func](auto&&... args) -> ReturnType { return (ptr->*func)(std::forward<decltype(args)>(args)...); };
 
-            Stack<ReturnType>::push(L, std::apply(f, make_arguments_list<ArgsPack, Start>(L)));
+            bool result = Stack<ReturnType>::push(L, std::apply(f, make_arguments_list<ArgsPack, Start>(L)));
+
+            if (! result)
+            {
+                luaL_error(L, "Error while handling function return value");
+                lua_pushnil(L);
+            }
 
             return 1;
 
@@ -355,6 +371,10 @@ struct function
         catch (const std::exception& e)
         {
             return luaL_error(L, e.what());
+        }
+        catch (...)
+        {
+            luaL_error(L, "Error while calling method");
         }
 #endif
     }
@@ -380,6 +400,10 @@ struct function<void, ArgsPack, Start>
         {
             return luaL_error(L, e.what());
         }
+        catch (...)
+        {
+            luaL_error(L, "Error while calling function");
+        }
 #endif
     }
 
@@ -401,6 +425,10 @@ struct function<void, ArgsPack, Start>
         catch (const std::exception& e)
         {
             return luaL_error(L, e.what());
+        }
+        catch (...)
+        {
+            luaL_error(L, "Error while calling method");
         }
 #endif
     }

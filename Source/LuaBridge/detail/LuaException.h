@@ -43,26 +43,24 @@ public:
 
     //============================================================================
     /**
-        Throw an exception.
-
-        This centralizes all the exceptions thrown, so that we can set
-        breakpoints before the stack is unwound, or otherwise customize the
-        behavior.
-    */
+     * @brief Throw an exception or raises a luaerror when exceptions are disabled.
+     *
+     * This centralizes all the exceptions thrown, so that we can set breakpoints before the stack is unwound, or otherwise customize the behavior.
+     */
     template <class Exception>
-    static void Throw(lua_State* L, Exception e)
+    static void Throw(lua_State* L, const Exception& e)
     {
 #if LUABRIDGE_HAS_EXCEPTIONS
         throw e;
 #else
-        luaL_error(L, "%s\n", e);
+        luaL_error(L, "%s", e);
 #endif
     }
     
     //----------------------------------------------------------------------------
     /**
-        Wrapper for lua_pcall that throws if exceptions are enabled.
-    */
+     * @brief Wrapper for lua_pcall that throws if exceptions are enabled.
+     */
     static int pcall(lua_State* L, int nargs = 0, int nresults = 0, int msgh = 0)
     {
         int code = lua_pcall(L, nargs, nresults, msgh);
@@ -77,8 +75,10 @@ public:
 
     //----------------------------------------------------------------------------
     /**
-        Initializes error handling. Subsequent Lua errors are translated to C++ exceptions.
-    */
+     * @brief Initializes error handling.
+     *
+     * Subsequent Lua errors are translated to C++ exceptions, or logging only if exceptions are disabled.
+     */
     static void enableExceptions(lua_State* L)
     {
 #if LUABRIDGE_HAS_EXCEPTIONS
@@ -113,7 +113,7 @@ private:
     
     static int logAtPanic(lua_State* L)
     {
-        writestringerror("Unprotected error in call to Lua API (%s)\n", lua_tostring(L, -1));
+        detail::writestringerror("Unprotected error in call (%s)", lua_tostring(L, -1));
         return 0;
     }
 };

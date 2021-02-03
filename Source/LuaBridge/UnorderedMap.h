@@ -18,26 +18,35 @@ namespace luabridge {
 template <class K, class V>
 struct Stack<std::unordered_map<K, V>>
 {
-    typedef std::unordered_map<K, V> Map;
+    using Type = std::unordered_map<K, V>;
 
-    static void push(lua_State* L, const std::unordered_map<K, V>& map)
+    static bool push(lua_State* L, const Type& map)
     {
         lua_createtable(L, 0, static_cast<int>(map.size()));
 
+        bool result;
         for (auto it = map.begin(); it != map.end(); ++it)
         {
-            Stack<K>::push(L, it->first);
-            Stack<V>::push(L, it->second);
+            result = Stack<K>::push(L, it->first);
+            if (!result)
+                return false; // TODO - must pop ?
+            
+            result = Stack<V>::push(L, it->second);
+            if (!result)
+                return false; // TODO - must pop ?
+
             lua_settable(L, -3);
         }
+        
+        return true;
     }
 
-    static std::unordered_map<K, V> get(lua_State* L, int index)
+    static Type get(lua_State* L, int index)
     {
         if (!lua_istable(L, index))
             luaL_error(L, "#%d argument must be a table", index);
 
-        std::unordered_map<K, V> map;
+        Type map;
 
         int absIndex = lua_absindex(L, index);
         lua_pushnil(L);

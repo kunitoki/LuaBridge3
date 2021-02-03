@@ -17,15 +17,18 @@ namespace luabridge {
 template <class T>
 struct Stack<std::optional<T>>
 {
-    static void push(lua_State* L, const std::optional<T>& value)
+    using Type = std::optional<T>;
+    
+    static bool push(lua_State* L, const Type& value)
     {
         if (value)
-            Stack<T>::push(L, *value);
-        else
-            lua_pushnil(L);
+            return Stack<T>::push(L, *value);
+
+        lua_pushnil(L);
+        return true;
     }
 
-    static std::optional<T> get(lua_State* L, int index)
+    static Type get(lua_State* L, int index)
     {
         if (lua_type(L, index) == LUA_TNIL)
             return std::nullopt;

@@ -253,6 +253,10 @@ struct property_getter
         {
             luaL_error(L, e.what());
         }
+        catch (...)
+        {
+            luaL_error(L, "Error while getting property");
+        }
 #endif
         
         return 1;
@@ -343,6 +347,10 @@ struct property_setter
         catch (const std::exception& e)
         {
             luaL_error(L, e.what());
+        }
+        catch (...)
+        {
+            luaL_error(L, "Error while setting property");
         }
 #endif
         

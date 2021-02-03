@@ -76,7 +76,6 @@ struct TestBase : public ::testing::Test
         {
 #if LUABRIDGE_HAS_EXCEPTIONS
             auto errorString = lua_tostring(L, -1);
-
             throw std::runtime_error(errorString ? errorString : "Unknown lua error");
 #else
             return false;
@@ -91,7 +90,6 @@ struct TestBase : public ::testing::Test
     {
         return luabridge::getGlobal(L, "result").cast<T>();
     }
-
 
     void resetResult() const
     {

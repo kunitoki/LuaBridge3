@@ -68,11 +68,7 @@ protected:
     {
         if (m_stackSize == 0)
         {
-#if LUABRIDGE_HAS_EXCEPTIONS
-            throw std::logic_error("Unable to continue registration");
-#else
-            assert(false);
-#endif
+            detail::throw_or_assert<std::logic_error>("Unable to continue registration");
         }
     }
 };
@@ -153,10 +149,10 @@ class Namespace : public detail::Registrar
             lua_rawsetp(L, -2, detail::getTypeKey()); // co [typeKey] = name. Stack: ns, co
 
             lua_pushcfunction(L, &CFunc::indexMetaMethod);
-            rawsetfield(L, -2, "__index");
+            detail::rawsetfield(L, -2, "__index");
 
             lua_pushcfunction(L, &CFunc::newindexObjectMetaMethod);
-            rawsetfield(L, -2, "__newindex");
+            detail::rawsetfield(L, -2, "__newindex");
 
             lua_newtable(L);
             lua_rawsetp(L, -2, detail::getPropgetKey());
@@ -164,7 +160,7 @@ class Namespace : public detail::Registrar
             if (Security::hideMetatables())
             {
                 lua_pushnil(L);
-                rawsetfield(L, -2, "__metatable");
+                detail::rawsetfield(L, -2, "__metatable");
             }
         }
 
@@ -207,7 +203,7 @@ class Namespace : public detail::Registrar
             lua_pushvalue(L, -1); // Stack: ns, co, cl, vst, st, st
             lua_setmetatable(L, -3); // st.__metatable = mt. Stack: ns, co, cl, vst, st
             lua_insert(L, -2); // Stack: ns, co, cl, st, vst
-            rawsetfield(L, -5, name); // ns [name] = vst. Stack: ns, co, cl, st
+            detail::rawsetfield(L, -5, name); // ns [name] = vst. Stack: ns, co, cl, st
 
 #if 0
             lua_pushlightuserdata (L, this);
@@ -216,10 +212,10 @@ class Namespace : public detail::Registrar
 #endif
 
             lua_pushcfunction(L, &CFunc::indexMetaMethod);
-            rawsetfield(L, -2, "__index");
+            detail::rawsetfield(L, -2, "__index");
 
             lua_pushcfunction(L, &CFunc::newindexStaticMetaMethod);
-            rawsetfield(L, -2, "__newindex");
+            detail::rawsetfield(L, -2, "__newindex");
 
             lua_newtable(L); // Stack: ns, co, cl, st, proget table (pg)
             lua_rawsetp(L, -2, detail::getPropgetKey()); // st [propgetKey] = pg. Stack: ns, co, cl, st
@@ -233,7 +229,7 @@ class Namespace : public detail::Registrar
             if (Security::hideMetatables())
             {
                 lua_pushnil(L);
-                rawsetfield(L, -2, "__metatable");
+                detail::rawsetfield(L, -2, "__metatable");
             }
         }
 
@@ -310,7 +306,7 @@ class Namespace : public detail::Registrar
             assert(name != nullptr);
             assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 
-            rawgetfield(L, -1, name); // Stack: ns, static table (st) | nil
+            detail::rawgetfield(L, -1, name); // Stack: ns, static table (st) | nil
 
             if (lua_isnil(L, -1)) // Stack: ns, nil
             {
@@ -318,12 +314,12 @@ class Namespace : public detail::Registrar
 
                 createConstTable(name); // Stack: ns, const table (co)
                 lua_pushcfunction(L, &CFunc::gcMetaMethod<T>); // Stack: ns, co, function
-                rawsetfield(L, -2, "__gc"); // co ["__gc"] = function. Stack: ns, co
+                detail::rawsetfield(L, -2, "__gc"); // co ["__gc"] = function. Stack: ns, co
                 ++m_stackSize;
 
                 createClassTable(name); // Stack: ns, co, class table (cl)
                 lua_pushcfunction(L, &CFunc::gcMetaMethod<T>); // Stack: ns, co, cl, function
-                rawsetfield(L, -2, "__gc"); // cl ["__gc"] = function. Stack: ns, co, cl
+                detail::rawsetfield(L, -2, "__gc"); // cl ["__gc"] = function. Stack: ns, co, cl
                 ++m_stackSize;
 
                 createStaticTable(name); // Stack: ns, co, cl, st
@@ -369,12 +365,12 @@ class Namespace : public detail::Registrar
 
             createConstTable(name); // Stack: ns, const table (co)
             lua_pushcfunction(L, &CFunc::gcMetaMethod<T>); // Stack: ns, co, function
-            rawsetfield(L, -2, "__gc"); // co ["__gc"] = function. Stack: ns, co
+            detail::rawsetfield(L, -2, "__gc"); // co ["__gc"] = function. Stack: ns, co
             ++m_stackSize;
 
             createClassTable(name); // Stack: ns, co, class table (cl)
             lua_pushcfunction(L, &CFunc::gcMetaMethod<T>); // Stack: ns, co, cl, function
-            rawsetfield(L, -2, "__gc"); // cl ["__gc"] = function. Stack: ns, co, cl
+            detail::rawsetfield(L, -2, "__gc"); // cl ["__gc"] = function. Stack: ns, co, cl
             ++m_stackSize;
 
             createStaticTable(name); // Stack: ns, co, cl, st
@@ -385,11 +381,7 @@ class Namespace : public detail::Registrar
             {
                 ++m_stackSize;
 
-#if LUABRIDGE_HAS_EXCEPTIONS
-                throw std::runtime_error("Base class is not registered");
-#else
-                assert(false);
-#endif
+                detail::throw_or_assert<std::logic_error>("Base class is not registered");
             }
 
             assert(lua_istable(L, -1)); // Stack: ns, co, cl, st, pst
@@ -527,7 +519,7 @@ class Namespace : public detail::Registrar
 
             lua_pushlightuserdata(L, reinterpret_cast<void*>(fp)); // Stack: co, cl, st, function ptr
             lua_pushcclosure(L, &detail::invoke_proxy_function<FP>, 1); // co, cl, st, function
-            rawsetfield(L, -2, name); // co, cl, st
+            detail::rawsetfield(L, -2, name); // co, cl, st
 
             return *this;
         }
@@ -544,13 +536,13 @@ class Namespace : public detail::Registrar
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: co, cl, st, function userdata (ud)
+            detail::lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: co, cl, st, function userdata (ud)
             lua_newtable(L); // Stack: co, cl, st, ud, ud metatable (mt)
-            lua_pushcfunction(L, &lua_deleteuserdata_aligned<FnType>); // Stack: co, cl, st, ud, mt, gc function
-            rawsetfield(L, -2, "__gc"); // Stack: co, cl, st, ud, mt
+            lua_pushcfunction(L, &detail::lua_deleteuserdata_aligned<FnType>); // Stack: co, cl, st, ud, mt, gc function
+            detail::rawsetfield(L, -2, "__gc"); // Stack: co, cl, st, ud, mt
             lua_setmetatable(L, -2); // Stack: co, cl, st, ud
             lua_pushcclosure(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: co, cl, st, function
-            rawsetfield(L, -2, name); // Stack: co, cl, st
+            detail::rawsetfield(L, -2, name); // Stack: co, cl, st
 
             return *this;
         }
@@ -742,10 +734,10 @@ class Namespace : public detail::Registrar
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            lua_newuserdata_aligned<GetType>(L, std::move(get)); // Stack: co, cl, st, function userdata (ud)
+            detail::lua_newuserdata_aligned<GetType>(L, std::move(get)); // Stack: co, cl, st, function userdata (ud)
             lua_newtable(L); // Stack: co, cl, st, ud, ud metatable (mt)
-            lua_pushcfunction(L, &lua_deleteuserdata_aligned<GetType>); // Stack: co, cl, st, ud, mt, gc function
-            rawsetfield(L, -2, "__gc"); // Stack: co, cl, st, ud, mt
+            lua_pushcfunction(L, &detail::lua_deleteuserdata_aligned<GetType>); // Stack: co, cl, st, ud, mt, gc function
+            detail::rawsetfield(L, -2, "__gc"); // Stack: co, cl, st, ud, mt
             lua_setmetatable(L, -2); // Stack: co, cl, st, ud
             lua_pushcclosure(L, &detail::invoke_proxy_functor<GetType>, 1); // Stack: co, cl, st, getter
             lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
@@ -756,10 +748,10 @@ class Namespace : public detail::Registrar
             {
                 using SetType = decltype(set);
 
-                lua_newuserdata_aligned<SetType>(L, std::move(set)); // Stack: co, cl, st, function userdata (ud)
+                detail::lua_newuserdata_aligned<SetType>(L, std::move(set)); // Stack: co, cl, st, function userdata (ud)
                 lua_newtable(L); // Stack: co, cl, st, ud, ud metatable (mt)
-                lua_pushcfunction(L, &lua_deleteuserdata_aligned<SetType>); // Stack: co, cl, st, ud, mt, gc function
-                rawsetfield(L, -2, "__gc"); // Stack: co, cl, st, ud, mt
+                lua_pushcfunction(L, &detail::lua_deleteuserdata_aligned<SetType>); // Stack: co, cl, st, ud, mt, gc function
+                detail::rawsetfield(L, -2, "__gc"); // Stack: co, cl, st, ud, mt
                 lua_setmetatable(L, -2); // Stack: co, cl, st, ud
                 lua_pushcclosure(L, &detail::invoke_proxy_functor<SetType>, 1); // Stack: co, cl, st, setter
                 detail::add_property_setter(L, name, -3); // Stack: co, cl, st
@@ -787,23 +779,23 @@ class Namespace : public detail::Registrar
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: co, cl, st, function userdata (ud)
+            detail::lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: co, cl, st, function userdata (ud)
             lua_newtable(L); // Stack: co, cl, st, ud, ud metatable (mt)
-            lua_pushcfunction(L, &lua_deleteuserdata_aligned<FnType>); // Stack: co, cl, st, ud, mt, gc function
-            rawsetfield(L, -2, "__gc"); // Stack: co, cl, st, ud, mt
+            lua_pushcfunction(L, &detail::lua_deleteuserdata_aligned<FnType>); // Stack: co, cl, st, ud, mt, gc function
+            detail::rawsetfield(L, -2, "__gc"); // Stack: co, cl, st, ud, mt
             lua_setmetatable(L, -2); // Stack: co, cl, st, ud
 
             lua_pushcclosure(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: co, cl, st, function
 
             if constexpr (! std::is_const_v<std::remove_reference_t<std::remove_pointer_t<FirstArg>>>)
             {
-                rawsetfield(L, -3, name); // Stack: co, cl, st
+                detail::rawsetfield(L, -3, name); // Stack: co, cl, st
             }
             else
             {
                 lua_pushvalue(L, -1); // Stack: co, cl, st, function, function
-                rawsetfield(L, -4, name); // Stack: co, cl, st, function
-                rawsetfield(L, -4, name); // Stack: co, cl, st
+                detail::rawsetfield(L, -4, name); // Stack: co, cl, st, function
+                detail::rawsetfield(L, -4, name); // Stack: co, cl, st
             }
             
             return *this;
@@ -825,17 +817,13 @@ class Namespace : public detail::Registrar
 
             if (name == std::string_view("__gc"))
             {
-#if LUABRIDGE_HAS_EXCEPTIONS
-                throw std::logic_error("__gc metamethod registration is forbidden");
-#else
-                assert(false);
+                detail::throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
                 return *this;
-#endif
             }
             
             new (lua_newuserdata(L, sizeof(MemFn))) MemFn(mf);
             lua_pushcclosure(L, &detail::invoke_member_function<MemFn, T>, 1);
-            rawsetfield(L, -3, name); // class table
+            detail::rawsetfield(L, -3, name); // class table
 
             return *this;
         }
@@ -852,19 +840,15 @@ class Namespace : public detail::Registrar
 
             if (name == std::string_view("__gc"))
             {
-#if LUABRIDGE_HAS_EXCEPTIONS
-                throw std::logic_error("__gc metamethod registration is forbidden");
-#else
-                assert(false);
+                detail::throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
                 return *this;
-#endif
             }
             
             new (lua_newuserdata(L, sizeof(MemFn))) MemFn(mf);
             lua_pushcclosure(L, &detail::invoke_const_member_function<MemFn, T>, 1);
             lua_pushvalue(L, -1);
-            rawsetfield(L, -5, name); // const table
-            rawsetfield(L, -3, name); // class table
+            detail::rawsetfield(L, -5, name); // const table
+            detail::rawsetfield(L, -3, name); // class table
 
             return *this;
         }
@@ -883,17 +867,13 @@ class Namespace : public detail::Registrar
 
             if (name == std::string_view("__gc"))
             {
-#if LUABRIDGE_HAS_EXCEPTIONS
-                throw std::logic_error("__gc metamethod registration is forbidden");
-#else
-                assert(false);
+                detail::throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
                 return *this;
-#endif
             }
             
             lua_pushlightuserdata(L, reinterpret_cast<void*>(proxyFn)); // Stack: co, cl, st, function ptr
             lua_pushcclosure(L, &detail::invoke_proxy_function<FnType>, 1); // Stack: co, cl, st, function
-            rawsetfield(L, -3, name); // Stack: co, cl, st
+            detail::rawsetfield(L, -3, name); // Stack: co, cl, st
 
             return *this;
         }
@@ -908,19 +888,15 @@ class Namespace : public detail::Registrar
 
             if (name == std::string_view("__gc"))
             {
-#if LUABRIDGE_HAS_EXCEPTIONS
-                throw std::logic_error("__gc metamethod registration is forbidden");
-#else
-                assert(false);
+                detail::throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
                 return *this;
-#endif
             }
             
             lua_pushlightuserdata(L, reinterpret_cast<void*>(proxyFn)); // Stack: co, cl, st, function ptr
             lua_pushcclosure(L, &detail::invoke_proxy_function<FnType>, 1); // Stack: co, cl, st, function
             lua_pushvalue(L, -1); // Stack: co, cl, st, function, function
-            rawsetfield(L, -4, name); // Stack: co, cl, st, function
-            rawsetfield(L, -4, name); // Stack: co, cl, st
+            detail::rawsetfield(L, -4, name); // Stack: co, cl, st, function
+            detail::rawsetfield(L, -4, name); // Stack: co, cl, st
 
             return *this;
         }
@@ -953,7 +929,7 @@ class Namespace : public detail::Registrar
 
             new (lua_newuserdata(L, sizeof(mfp))) F(mfp); // Stack: co, cl, st, function ptr
             lua_pushcclosure(L, &detail::invoke_member_cfunction<T>, 1); // Stack: co, cl, st, function
-            rawsetfield(L, -3, name); // Stack: co, cl, st
+            detail::rawsetfield(L, -3, name); // Stack: co, cl, st
 
             return *this;
         }
@@ -987,8 +963,8 @@ class Namespace : public detail::Registrar
             new (lua_newuserdata(L, sizeof(mfp))) F(mfp);
             lua_pushcclosure(L, &detail::invoke_const_member_cfunction<T>, 1);
             lua_pushvalue(L, -1); // Stack: co, cl, st, function, function
-            rawsetfield(L, -4, name); // Stack: co, cl, st, function
-            rawsetfield(L, -4, name); // Stack: co, cl, st
+            detail::rawsetfield(L, -4, name); // Stack: co, cl, st, function
+            detail::rawsetfield(L, -4, name); // Stack: co, cl, st
 
             return *this;
         }
@@ -1010,7 +986,7 @@ class Namespace : public detail::Registrar
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             lua_pushcclosure(L, &ctorContainerProxy<detail::function_arguments_t<MemFn>, C>, 0);
-            rawsetfield(L, -2, "__call");
+            detail::rawsetfield(L, -2, "__call");
 
             return *this;
         }
@@ -1021,7 +997,7 @@ class Namespace : public detail::Registrar
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             lua_pushcclosure(L, &ctorPlacementProxy<detail::function_arguments_t<MemFn>, T>, 0);
-            rawsetfield(L, -2, "__call");
+            detail::rawsetfield(L, -2, "__call");
 
             return *this;
         }
@@ -1054,7 +1030,7 @@ private:
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: parent namespace (pns)
 
-        rawgetfield(L, -1, name); // Stack: pns, namespace (ns) | nil
+        detail::rawgetfield(L, -1, name); // Stack: pns, namespace (ns) | nil
 
         if (lua_isnil(L, -1)) // Stack: pns, nil
         {
@@ -1068,11 +1044,11 @@ private:
 
             // ns.__index = indexMetaMethod
             lua_pushcfunction(L, &CFunc::indexMetaMethod);
-            rawsetfield(L, -2, "__index"); // Stack: pns, ns
+            detail::rawsetfield(L, -2, "__index"); // Stack: pns, ns
 
             // ns.__newindex = newindexMetaMethod
             lua_pushcfunction(L, &CFunc::newindexStaticMetaMethod);
-            rawsetfield(L, -2, "__newindex"); // Stack: pns, ns
+            detail::rawsetfield(L, -2, "__newindex"); // Stack: pns, ns
 
             lua_newtable(L); // Stack: pns, ns, propget table (pg)
             lua_rawsetp(L, -2, detail::getPropgetKey()); // ns [propgetKey] = pg. Stack: pns, ns
@@ -1082,7 +1058,7 @@ private:
 
             // pns [name] = ns
             lua_pushvalue(L, -1); // Stack: pns, ns, ns
-            rawsetfield(L, -3, name); // Stack: pns, ns
+            detail::rawsetfield(L, -3, name); // Stack: pns, ns
         }
 
         ++m_stackSize;
@@ -1142,12 +1118,9 @@ public:
     {
         if (m_stackSize == 1)
         {
-#if LUABRIDGE_HAS_EXCEPTIONS
-            throw std::logic_error("endNamespace() called on global namespace");
-#else
-            assert(false);
+            detail::throw_or_assert<std::logic_error>("endNamespace() called on global namespace");
+
             return Namespace(*this);
-#endif
         }
         
         assert(m_stackSize > 1);
@@ -1170,11 +1143,9 @@ public:
     {
         if (m_stackSize == 1)
         {
-#if LUABRIDGE_HAS_EXCEPTIONS
-            throw std::logic_error("addProperty() called on global namespace");
-#else
-            assert(false);
-#endif
+            detail::throw_or_assert<std::logic_error>("addProperty() called on global namespace");
+
+            return *this;
         }
         
         assert(name != nullptr);
@@ -1215,11 +1186,9 @@ public:
     {
         if (m_stackSize == 1)
         {
-#if LUABRIDGE_HAS_EXCEPTIONS
-            throw std::logic_error("addProperty() called on global namespace");
-#else
-            assert(false);
-#endif
+            detail::throw_or_assert<std::logic_error>("addProperty() called on global namespace");
+
+            return *this;
         }
         
         assert(name != nullptr);
@@ -1259,12 +1228,9 @@ public:
     {
         if (m_stackSize == 1)
         {
-#if LUABRIDGE_HAS_EXCEPTIONS
-            throw std::logic_error("addProperty() called on global namespace");
-#else
-            assert(false);
+            detail::throw_or_assert<std::logic_error>("addProperty() called on global namespace");
+
             return *this;
-#endif
         }
 
         assert(name != nullptr);
@@ -1304,13 +1270,13 @@ public:
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 
-        lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: ns, function userdata (ud)
+        detail::lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: ns, function userdata (ud)
         lua_newtable(L); // Stack: ns, ud, ud metatable (mt)
-        lua_pushcfunction(L, &lua_deleteuserdata_aligned<FnType>); // Stack: ns, ud, mt, gc function
-        rawsetfield(L, -2, "__gc"); // Stack: ns, ud, mt
+        lua_pushcfunction(L, &detail::lua_deleteuserdata_aligned<FnType>); // Stack: ns, ud, mt, gc function
+        detail::rawsetfield(L, -2, "__gc"); // Stack: ns, ud, mt
         lua_setmetatable(L, -2); // Stack: ns, ud
         lua_pushcclosure(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: ns, function
-        rawsetfield(L, -2, name); // Stack: ns
+        detail::rawsetfield(L, -2, name); // Stack: ns
 
         return *this;
     }
@@ -1329,7 +1295,7 @@ public:
 
         lua_pushlightuserdata(L, reinterpret_cast<void*>(fp)); // Stack: ns, function ptr
         lua_pushcclosure(L, &detail::invoke_proxy_function<FnType>, 1); // Stack: ns, function
-        rawsetfield(L, -2, name); // Stack: ns
+        detail::rawsetfield(L, -2, name); // Stack: ns
 
         return *this;
     }
@@ -1361,7 +1327,7 @@ public:
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 
         lua_pushcfunction(L, fp); // Stack: ns, function
-        rawsetfield(L, -2, name); // Stack: ns
+        detail::rawsetfield(L, -2, name); // Stack: ns
 
         return *this;
     }

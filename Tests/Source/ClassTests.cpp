@@ -155,10 +155,10 @@ TEST_F(ClassTests, PassingUnregisteredClassToLuaThrows)
     ASSERT_THROW(process_fn(&value), std::exception);
     ASSERT_THROW(process_fn(&constValue), std::exception);
 #else
-    ASSERT_DEBUG_DEATH(process_fn(value), "");
-    ASSERT_DEBUG_DEATH(process_fn(constValue), "");
-    ASSERT_DEBUG_DEATH(process_fn(&value), "");
-    ASSERT_DEBUG_DEATH(process_fn(&constValue), "");
+    EXPECT_FALSE(process_fn(value));
+    EXPECT_FALSE(process_fn(constValue));
+    EXPECT_FALSE(process_fn(&value));
+    EXPECT_FALSE(process_fn(&constValue));
 #endif
 }
 
@@ -334,11 +334,11 @@ TEST_F(ClassTests, PassingUnregisteredClassFromLuaThrows)
     ASSERT_THROW(runLua("result = returnConstPtr ()"), std::exception);
     ASSERT_THROW(runLua("result = returnValue ()"), std::exception);
 #else
-    ASSERT_DEBUG_DEATH(runLua("result = returnRef ()"), "");
-    ASSERT_DEBUG_DEATH(runLua("result = returnConstRef ()"), "");
-    ASSERT_DEBUG_DEATH(runLua("result = returnPtr ()"), "");
-    ASSERT_DEBUG_DEATH(runLua("result = returnConstPtr ()"), "");
-    ASSERT_DEBUG_DEATH(runLua("result = returnValue ()"), "");
+    ASSERT_FALSE(runLua("result = returnRef ()"));
+    ASSERT_FALSE(runLua("result = returnConstRef ()"));
+    ASSERT_FALSE(runLua("result = returnPtr ()"));
+    ASSERT_FALSE(runLua("result = returnConstPtr ()"));
+    ASSERT_FALSE(runLua("result = returnValue ()"));
 #endif
 }
 

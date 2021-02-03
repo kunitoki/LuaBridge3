@@ -58,7 +58,7 @@ file (GLOB_RECURSE LUABRIDGE_TEST_LUA54_FILES
 
 # ====================================================== Macro
 
-macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_FILES)
+macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_FILES LUABRIDGE_EXCEPTIONS)
 
   add_executable (${LUABRIDGE_TEST_NAME}
     ${LUABRIDGE_TEST_SOURCE_FILES}
@@ -98,7 +98,14 @@ endmacro (add_test_app)
 
 # ====================================================== Real Unit Tests
 
-add_test_app (LuaBridgeTests51 501 "${LUABRIDGE_TEST_LUA51_FILES}")
-add_test_app (LuaBridgeTests52 502 "${LUABRIDGE_TEST_LUA52_FILES}")
-add_test_app (LuaBridgeTests53 503 "${LUABRIDGE_TEST_LUA53_FILES}")
-add_test_app (LuaBridgeTests54 504 "${LUABRIDGE_TEST_LUA54_FILES}")
+add_test_app (LuaBridgeTests51 501 "${LUABRIDGE_TEST_LUA51_FILES}" 1)
+add_test_app (LuaBridgeTests51NoExcept 501 "${LUABRIDGE_TEST_LUA51_FILES}" 0)
+
+add_test_app (LuaBridgeTests52 502 "${LUABRIDGE_TEST_LUA52_FILES}" 1)
+add_test_app (LuaBridgeTests52Noexcept 502 "${LUABRIDGE_TEST_LUA52_FILES}" 0)
+
+add_test_app (LuaBridgeTests53 503 "${LUABRIDGE_TEST_LUA53_FILES}" 1)
+add_test_app (LuaBridgeTests53Noexcept 503 "${LUABRIDGE_TEST_LUA53_FILES}" 0)
+
+add_test_app (LuaBridgeTests54 504 "${LUABRIDGE_TEST_LUA54_FILES}" 1)
+add_test_app (LuaBridgeTests54Noexcept 504 "${LUABRIDGE_TEST_LUA54_FILES}" 0)
