@@ -23,7 +23,7 @@ jobs:
 
     - name: Build
       working-directory: ${{runner.workspace}}/build
-      run: cmake --build . --config $BUILD_TYPE
+      run: cmake --build . --config $BUILD_TYPE -- -j4
 
     - name: Test Lua 5.1
       working-directory: ${{runner.workspace}}/build/Tests

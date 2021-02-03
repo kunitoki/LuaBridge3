@@ -1,3 +1,5 @@
+cmake_minimum_required (VERSION 3.5)
+
 # ====================================================== Unit Tests Files
 
 set (LUABRIDGE_TEST_SOURCE_FILES
