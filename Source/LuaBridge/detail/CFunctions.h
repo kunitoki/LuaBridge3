@@ -7,6 +7,7 @@
 #pragma once
 
 #include "Config.h"
+#include "Errors.h"
 #include "FuncTraits.h"
 #include "LuaHelpers.h"
 
@@ -15,173 +16,179 @@
 namespace luabridge {
 namespace detail {
 
-struct CFunc
+//=================================================================================================
+/**
+ * @brief __index metamethod for a namespace or class static and non-static members.
+ *
+ * Retrieves functions from metatables and properties from propget tables. Looks through the class hierarchy if inheritance is present.
+ */
+inline int index_metamethod(lua_State* L)
 {
-    //----------------------------------------------------------------------------
-    /**
-        __index metamethod for a namespace or class static and non-static members.
-        Retrieves functions from metatables and properties from propget tables.
-        Looks through the class hierarchy if inheritance is present.
-    */
-    static int indexMetaMethod(lua_State* L)
+    assert(lua_istable(L, 1) || lua_isuserdata(L, 1)); // Stack (further not shown): table | userdata, name
+
+    lua_getmetatable(L, 1); // Stack: class/const table (mt)
+    assert(lua_istable(L, -1));
+
+    for (;;)
     {
-        assert(lua_istable(L, 1) || lua_isuserdata(L, 1)); // Stack (further not shown): table | userdata, name
+        lua_pushvalue(L, 2); // Stack: mt, field name
+        lua_rawget(L, -2); // Stack: mt, field | nil
 
-        lua_getmetatable(L, 1); // Stack: class/const table (mt)
-        assert(lua_istable(L, -1));
-
-        for (;;)
+        if (lua_iscfunction(L, -1)) // Stack: mt, field
         {
-            lua_pushvalue(L, 2); // Stack: mt, field name
-            lua_rawget(L, -2); // Stack: mt, field | nil
-
-            if (lua_iscfunction(L, -1)) // Stack: mt, field
-            {
-                lua_remove(L, -2); // Stack: field
-                return 1;
-            }
-
-            assert(lua_isnil(L, -1)); // Stack: mt, nil
-            lua_pop(L, 1); // Stack: mt
-
-            lua_rawgetp(L, -1, getPropgetKey()); // Stack: mt, propget table (pg)
-            assert(lua_istable(L, -1));
-
-            lua_pushvalue(L, 2); // Stack: mt, pg, field name
-            lua_rawget(L, -2); // Stack: mt, pg, getter | nil
-            lua_remove(L, -2); // Stack: mt, getter | nil
-
-            if (lua_iscfunction(L, -1)) // Stack: mt, getter
-            {
-                lua_remove(L, -2); // Stack: getter
-                lua_pushvalue(L, 1); // Stack: getter, table | userdata
-                lua_call(L, 1, 1); // Stack: value
-                return 1;
-            }
-
-            assert(lua_isnil(L, -1)); // Stack: mt, nil
-            lua_pop(L, 1); // Stack: mt
-
-            // It may mean that the field may be in const table and it's constness violation.
-            // Don't check that, just return nil
-
-            // Repeat the lookup in the parent metafield,
-            // or return nil if the field doesn't exist.
-            lua_rawgetp(L, -1, getParentKey()); // Stack: mt, parent mt | nil
-
-            if (lua_isnil(L, -1)) // Stack: mt, nil
-            {
-                lua_remove(L, -2); // Stack: nil
-                return 1;
-            }
-
-            // Removethe  metatable and repeat the search in the parent one.
-            assert(lua_istable(L, -1)); // Stack: mt, parent mt
-            lua_remove(L, -2); // Stack: parent mt
+            lua_remove(L, -2); // Stack: field
+            return 1;
         }
 
-        // no return
-    }
+        assert(lua_isnil(L, -1)); // Stack: mt, nil
+        lua_pop(L, 1); // Stack: mt
 
-    //----------------------------------------------------------------------------
-    /**
-        __newindex metamethod for namespace or class static members.
-        Retrieves properties from propset tables.
-    */
-    static int newindexStaticMetaMethod(lua_State* L)
-    {
-        return newindexMetaMethod(L, false);
-    }
-
-    //----------------------------------------------------------------------------
-    /**
-        __newindex metamethod for non-static members.
-        Retrieves properties from propset tables.
-    */
-    static int newindexObjectMetaMethod(lua_State* L)
-    {
-        return newindexMetaMethod(L, true);
-    }
-
-    static int newindexMetaMethod(lua_State* L, bool pushSelf)
-    {
-        assert(lua_istable(L, 1) || lua_isuserdata(L, 1)); // Stack (further not shown): table | userdata, name, new value
-
-        lua_getmetatable(L, 1); // Stack: metatable (mt)
+        lua_rawgetp(L, -1, getPropgetKey()); // Stack: mt, propget table (pg)
         assert(lua_istable(L, -1));
 
-        for (;;)
+        lua_pushvalue(L, 2); // Stack: mt, pg, field name
+        lua_rawget(L, -2); // Stack: mt, pg, getter | nil
+        lua_remove(L, -2); // Stack: mt, getter | nil
+
+        if (lua_iscfunction(L, -1)) // Stack: mt, getter
         {
-            lua_rawgetp(L, -1, getPropsetKey()); // Stack: mt, propset table (ps) | nil
-
-            if (lua_isnil(L, -1)) // Stack: mt, nil
-            {
-                lua_pop(L, 2); // Stack: -
-                return luaL_error(L, "No member named '%s'", lua_tostring(L, 2));
-            }
-
-            assert(lua_istable(L, -1));
-
-            lua_pushvalue(L, 2); // Stack: mt, ps, field name
-            lua_rawget(L, -2); // Stack: mt, ps, setter | nil
-            lua_remove(L, -2); // Stack: mt, setter | nil
-
-            if (lua_iscfunction(L, -1)) // Stack: mt, setter
-            {
-                lua_remove(L, -2); // Stack: setter
-                if (pushSelf)
-                    lua_pushvalue(L, 1); // Stack: setter, table | userdata
-                lua_pushvalue(L, 3); // Stack: setter, table | userdata, new value
-                lua_call(L, pushSelf ? 2 : 1, 0); // Stack: -
-                return 0;
-            }
-
-            assert(lua_isnil(L, -1)); // Stack: mt, nil
-            lua_pop(L, 1); // Stack: mt
-
-            lua_rawgetp(L, -1, getParentKey()); // Stack: mt, parent mt | nil
-
-            if (lua_isnil(L, -1)) // Stack: mt, nil
-            {
-                lua_pop(L, 1); // Stack: -
-                return luaL_error(L, "No writable member '%s'", lua_tostring(L, 2));
-            }
-
-            assert(lua_istable(L, -1)); // Stack: mt, parent mt
-            lua_remove(L, -2); // Stack: parent mt
-            // Repeat the search in the parent
+            lua_remove(L, -2); // Stack: getter
+            lua_pushvalue(L, 1); // Stack: getter, table | userdata
+            lua_call(L, 1, 1); // Stack: value
+            return 1;
         }
 
-        // no return
+        assert(lua_isnil(L, -1)); // Stack: mt, nil
+        lua_pop(L, 1); // Stack: mt
+
+        // It may mean that the field may be in const table and it's constness violation.
+        // Don't check that, just return nil
+
+        // Repeat the lookup in the parent metafield,
+        // or return nil if the field doesn't exist.
+        lua_rawgetp(L, -1, getParentKey()); // Stack: mt, parent mt | nil
+
+        if (lua_isnil(L, -1)) // Stack: mt, nil
+        {
+            lua_remove(L, -2); // Stack: nil
+            return 1;
+        }
+
+        // Removethe  metatable and repeat the search in the parent one.
+        assert(lua_istable(L, -1)); // Stack: mt, parent mt
+        lua_remove(L, -2); // Stack: parent mt
     }
 
-    //----------------------------------------------------------------------------
-    /**
-        lua_CFunction to report an error writing to a read-only value.
+    // no return
+}
 
-        The name of the variable is in the first upvalue.
-    */
-    static int readOnlyError(lua_State* L)
+//=================================================================================================
+/**
+ * @brief __newindex metamethod for non-static members.
+ *
+ * Retrieves properties from propset tables.
+ */
+inline int newindex_metamethod(lua_State* L, bool pushSelf)
+{
+    assert(lua_istable(L, 1) || lua_isuserdata(L, 1)); // Stack (further not shown): table | userdata, name, new value
+
+    lua_getmetatable(L, 1); // Stack: metatable (mt)
+    assert(lua_istable(L, -1));
+
+    for (;;)
     {
-        std::string s;
+        lua_rawgetp(L, -1, getPropsetKey()); // Stack: mt, propset table (ps) | nil
 
-        s = s + "'" + lua_tostring(L, lua_upvalueindex(1)) + "' is read-only";
+        if (lua_isnil(L, -1)) // Stack: mt, nil
+        {
+            lua_pop(L, 2); // Stack: -
+            return luaL_error(L, "No member named '%s'", lua_tostring(L, 2));
+        }
 
-        return luaL_error(L, s.c_str());
+        assert(lua_istable(L, -1));
+
+        lua_pushvalue(L, 2); // Stack: mt, ps, field name
+        lua_rawget(L, -2); // Stack: mt, ps, setter | nil
+        lua_remove(L, -2); // Stack: mt, setter | nil
+
+        if (lua_iscfunction(L, -1)) // Stack: mt, setter
+        {
+            lua_remove(L, -2); // Stack: setter
+            if (pushSelf)
+                lua_pushvalue(L, 1); // Stack: setter, table | userdata
+            lua_pushvalue(L, 3); // Stack: setter, table | userdata, new value
+            lua_call(L, pushSelf ? 2 : 1, 0); // Stack: -
+            return 0;
+        }
+
+        assert(lua_isnil(L, -1)); // Stack: mt, nil
+        lua_pop(L, 1); // Stack: mt
+
+        lua_rawgetp(L, -1, getParentKey()); // Stack: mt, parent mt | nil
+
+        if (lua_isnil(L, -1)) // Stack: mt, nil
+        {
+            lua_pop(L, 1); // Stack: -
+            return luaL_error(L, "No writable member '%s'", lua_tostring(L, 2));
+        }
+
+        assert(lua_istable(L, -1)); // Stack: mt, parent mt
+        lua_remove(L, -2); // Stack: parent mt
+        // Repeat the search in the parent
     }
 
-    //--------------------------------------------------------------------------
-    /**
-        __gc metamethod for a class.
-    */
-    template <class C>
-    static int gcMetaMethod(lua_State* L)
-    {
-        Userdata* const ud = Userdata::getExact<C>(L, 1);
-        ud->~Userdata();
-        return 0;
-    }
-};
+    // no return
+}
+
+//=================================================================================================
+/**
+ * @brief __newindex metamethod for objects.
+ */
+inline int newindex_object_metamethod(lua_State* L)
+{
+    return newindex_metamethod(L, true);
+}
+
+//=================================================================================================
+/**
+ * @brief __newindex metamethod for namespace or class static members.
+ *
+ * Retrieves properties from propset tables.
+ */
+inline int newindex_static_metamethod(lua_State* L)
+{
+    return newindex_metamethod(L, false);
+}
+
+//=================================================================================================
+/**
+ * @brief lua_CFunction to report an error writing to a read-only value.
+ *
+ * The name of the variable is in the first upvalue.
+ */
+inline int read_only_error(lua_State* L)
+{
+    std::string s;
+
+    s = s + "'" + lua_tostring(L, lua_upvalueindex(1)) + "' is read-only";
+
+    return luaL_error(L, s.c_str());
+}
+
+//=================================================================================================
+/**
+ * @brief __gc metamethod for a class.
+ */
+template <class C>
+static int gc_metamethod(lua_State* L)
+{
+    Userdata* ud = Userdata::getExact<C>(L, 1);
+    assert(ud);
+
+    ud->~Userdata();
+
+    return 0;
+}
 
 //=================================================================================================
 
@@ -203,13 +210,15 @@ struct property_getter<T, void>
         T* ptr = static_cast<T*>(lua_touserdata(L, lua_upvalueindex(1)));
         assert(ptr != nullptr);
 
-        Stack<T&>::push(L, *ptr);
-
+        std::error_code ec;
+        if (! Stack<T&>::push(L, *ptr, ec))
+            luaL_error(L, ec.message().c_str());
+        
         return 1;
     }
 };
 
-/*
+#if 0
 template <class T>
 struct property_getter<std::reference_wrapper<T>, void>
 {
@@ -220,12 +229,14 @@ struct property_getter<std::reference_wrapper<T>, void>
         std::reference_wrapper<T>* ptr = static_cast<std::reference_wrapper<T>*>(lua_touserdata(L, lua_upvalueindex(1)));
         assert(ptr != nullptr);
 
-        Stack<T&>::push(L, ptr->get());
+        std::error_code ec;
+        if (! Stack<T&>::push(L, ptr->get(), ec))
+            luaL_error(L, ec.message().c_str());
 
         return 1;
     }
 };
-*/
+#endif
 
 /**
  * @brief lua_CFunction to get a class data member.
@@ -245,7 +256,9 @@ struct property_getter
         try
         {
 #endif
-            Stack<T&>::push(L, c->**mp);
+            std::error_code ec;
+            if (! Stack<T&>::push(L, c->**mp, ec))
+                luaL_error(L, ec.message().c_str());
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
@@ -304,7 +317,7 @@ struct property_setter<T, void>
     }
 };
 
-/*
+#if 0
 template <class T>
 struct property_setter<std::reference_wrapper<T>, void>
 {
@@ -320,7 +333,7 @@ struct property_setter<std::reference_wrapper<T>, void>
         return 0;
     }
 };
-*/
+#endif
  
 /**
  * @brief lua_CFunction to set a class data member.

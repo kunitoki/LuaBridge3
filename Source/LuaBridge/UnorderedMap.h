@@ -20,20 +20,26 @@ struct Stack<std::unordered_map<K, V>>
 {
     using Type = std::unordered_map<K, V>;
 
-    static bool push(lua_State* L, const Type& map)
+    static bool push(lua_State* L, const Type& map, std::error_code& ec)
     {
         lua_createtable(L, 0, static_cast<int>(map.size()));
 
         bool result;
         for (auto it = map.begin(); it != map.end(); ++it)
         {
-            result = Stack<K>::push(L, it->first);
-            if (!result)
+            std::error_code errorCodeKey;
+            if (! Stack<K>::push(L, it->first, errorCodeKey))
+            {
+                ec = errorCodeKey;
                 return false; // TODO - must pop ?
+            }
             
-            result = Stack<V>::push(L, it->second);
-            if (!result)
+            std::error_code errorCodeValue;
+            if (! Stack<V>::push(L, it->second, errorCodeValue))
+            {
+                ec = errorCodeValue;
                 return false; // TODO - must pop ?
+            }
 
             lua_settable(L, -3);
         }

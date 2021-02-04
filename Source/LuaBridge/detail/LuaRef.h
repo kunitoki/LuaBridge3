@@ -8,7 +8,9 @@
 
 #pragma once
 
+#include "Config.h"
 #include "LuaException.h"
+#include "Errors.h"
 #include "Stack.h"
 
 #include <iostream>
@@ -43,7 +45,7 @@ struct LuaNil
 template <>
 struct Stack<LuaNil>
 {
-    static bool push(lua_State* L, LuaNil)
+    static bool push(lua_State* L, LuaNil, std::error_code&)
     {
         lua_pushnil(L);
         return true;
@@ -131,10 +133,13 @@ public:
     std::string tostring() const
     {
         lua_getglobal(m_L, "tostring");
+
         impl().push();
+
         lua_call(m_L, 1, 1);
         const char* str = lua_tostring(m_L, -1);
         lua_pop(m_L, 1);
+
         return str;
     }
 
@@ -404,14 +409,16 @@ public:
         @param rhs A value to compare with.
         @returns True if the referred value is equal to the specified one.
     */
-    template<class T>
+    template <class T>
     bool operator==(T rhs) const
     {
         StackPop p(m_L, 2);
 
         impl().push();
 
-        Stack<T>::push(m_L, rhs);
+        std::error_code ec;
+        if (! Stack<T>::push(m_L, rhs, ec))
+            return false;
 
         return lua_compare(m_L, -2, -1, LUA_OPEQ) == 1;
     }
@@ -423,14 +430,16 @@ public:
         @param rhs A value to compare with.
         @returns True if the referred value is less than the specified one.
     */
-    template<class T>
+    template <class T>
     bool operator<(T rhs) const
     {
         StackPop p(m_L, 2);
 
         impl().push();
 
-        Stack<T>::push(m_L, rhs);
+        std::error_code ec;
+        if (! Stack<T>::push(m_L, rhs, ec))
+            return false;
 
         int lhsType = lua_type(m_L, -2);
         int rhsType = lua_type(m_L, -1);
@@ -447,14 +456,16 @@ public:
         @param rhs A value to compare with.
         @returns True if the referred value is less than or equal to the specified one.
     */
-    template<class T>
+    template <class T>
     bool operator<=(T rhs) const
     {
         StackPop p(m_L, 2);
 
         impl().push();
 
-        Stack<T>::push(m_L, rhs);
+        std::error_code ec;
+        if (! Stack<T>::push(m_L, rhs, ec))
+            return false;
 
         int lhsType = lua_type(m_L, -2);
         int rhsType = lua_type(m_L, -1);
@@ -471,14 +482,16 @@ public:
         @param rhs A value to compare with.
         @returns True if the referred value is greater than the specified one.
     */
-    template<class T>
+    template <class T>
     bool operator>(T rhs) const
     {
         StackPop p(m_L, 2);
 
         impl().push();
 
-        Stack<T>::push(m_L, rhs);
+        std::error_code ec;
+        if (! Stack<T>::push(m_L, rhs, ec))
+            return false;
 
         int lhsType = lua_type(m_L, -2);
         int rhsType = lua_type(m_L, -1);
@@ -495,14 +508,16 @@ public:
         @param rhs A value to compare with.
         @returns True if the referred value is greater than or equal to the specified one.
     */
-    template<class T>
+    template <class T>
     bool operator>=(T rhs) const
     {
         StackPop p(m_L, 2);
 
         impl().push();
 
-        Stack<T>::push(m_L, rhs);
+        std::error_code ec;
+        if (! Stack<T>::push(m_L, rhs, ec))
+            return false;
 
         int lhsType = lua_type(m_L, -2);
         int rhsType = lua_type(m_L, -1);
@@ -519,14 +534,17 @@ public:
         @param rhs A value to compare with.
         @returns True if the referred value is equal to the specified one.
     */
-    template<class T>
-    bool rawequal(T rhs) const
+    template <class T>
+    bool rawequal(T v) const
     {
         StackPop p(m_L, 2);
 
         impl().push();
 
-        Stack<T>::push(m_L, rhs);
+        std::error_code ec;
+        if (! Stack<T>::push(m_L, v, ec))
+            return false;
+
         return lua_rawequal(m_L, -1, -2) == 1;
     }
     /** @} */
@@ -538,12 +556,15 @@ public:
 
         @param v A value to append to the table.
     */
-    template<class T>
+    template <class T>
     void append(T v) const
     {
         impl().push();
 
-        Stack<T>::push(m_L, v);
+        std::error_code ec;
+        if (! Stack<T>::push(m_L, v, ec))
+            return;
+
         luaL_ref(m_L, -2);
         lua_pop(m_L, 1);
     }
@@ -578,7 +599,8 @@ public:
     {
         impl().push();
 
-        bool argumentsResult = detail::push_arguments(m_L, std::forward_as_tuple(args...));
+        std::error_code ec; // TODO - do something with it
+        bool argumentsResult = detail::push_arguments(m_L, std::forward_as_tuple(args...), ec);
         if (! argumentsResult)
             return std::nullopt;
 
@@ -679,7 +701,11 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             StackPop p(m_L, 1);
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_tableRef);
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_keyRef);
-            Stack<T>::push(m_L, v);
+            
+            std::error_code ec;
+            if (! Stack<T>::push(m_L, v, ec))
+                return *this;
+
             lua_settable(m_L, -3);
             return *this;
         }
@@ -699,7 +725,11 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             StackPop p(m_L, 1);
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_tableRef);
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_keyRef);
-            Stack<T>::push(m_L, v);
+
+            std::error_code ec;
+            if (! Stack<T>::push(m_L, v, ec))
+                return *this;
+
             lua_rawset(m_L, -3);
             return *this;
         }
@@ -766,7 +796,11 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         @param L A Lua state.
         @note The object is popped.
     */
-    LuaRef(lua_State* L, FromStack) : LuaRefBase(L), m_ref(luaL_ref(m_L, LUA_REGISTRYINDEX)) {}
+    LuaRef(lua_State* L, FromStack)
+        : LuaRefBase(L)
+        , m_ref(luaL_ref(m_L, LUA_REGISTRYINDEX))
+    {
+    }
 
     //----------------------------------------------------------------------------
     /**
@@ -778,7 +812,9 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         @param index The index of the value on the Lua stack.
         @note The object is not popped.
     */
-    LuaRef(lua_State* L, int index, FromStack) : LuaRefBase(L), m_ref(LUA_NOREF)
+    LuaRef(lua_State* L, int index, FromStack)
+        : LuaRefBase(L)
+        , m_ref(LUA_NOREF)
     {
         lua_pushvalue(m_L, index);
         m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX);
@@ -792,7 +828,11 @@ public:
 
         @param L A Lua state.
     */
-    LuaRef(lua_State* L) : LuaRefBase(L), m_ref(LUA_NOREF) {}
+    LuaRef(lua_State* L)
+        : LuaRefBase(L)
+        , m_ref(LUA_NOREF)
+    {
+    }
 
     //----------------------------------------------------------------------------
     /**
@@ -802,9 +842,14 @@ public:
         @param v A value to push.
     */
     template<class T>
-    LuaRef(lua_State* L, T v) : LuaRefBase(L), m_ref(LUA_NOREF)
+    LuaRef(lua_State* L, T v)
+        : LuaRefBase(L)
+        , m_ref(LUA_NOREF)
     {
-        Stack<T>::push(m_L, v);
+        std::error_code ec;
+        if (! Stack<T>::push(m_L, v, ec))
+            return;
+
         m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX);
     }
 
@@ -814,7 +859,11 @@ public:
 
         @param v A table item reference.
     */
-    LuaRef(TableItem const& v) : LuaRefBase(v.state()), m_ref(v.createRef()) {}
+    LuaRef(TableItem const& v)
+        : LuaRefBase(v.state())
+        , m_ref(v.createRef())
+    {
+    }
 
     //----------------------------------------------------------------------------
     /**
@@ -822,7 +871,11 @@ public:
 
         @param other An existing reference.
     */
-    LuaRef(LuaRef const& other) : LuaRefBase(other.m_L), m_ref(other.createRef()) {}
+    LuaRef(LuaRef const& other)
+        : LuaRefBase(other.m_L)
+        , m_ref(other.createRef())
+    {
+    }
 
     //----------------------------------------------------------------------------
     /**
@@ -834,7 +887,11 @@ public:
               caller to ensure that the thread still exists when the LuaRef
               is destroyed.
     */
-    ~LuaRef() { luaL_unref(m_L, LUA_REGISTRYINDEX, m_ref); }
+    ~LuaRef()
+    {
+        if (m_ref != LUA_NOREF)
+            luaL_unref(m_L, LUA_REGISTRYINDEX, m_ref);
+    }
 
     //----------------------------------------------------------------------------
     /**
@@ -844,7 +901,10 @@ public:
         @param L A Lua state.
         @returns A reference to a value on the top of a Lua stack.
     */
-    static LuaRef fromStack(lua_State* L) { return LuaRef(L, FromStack()); }
+    static LuaRef fromStack(lua_State* L)
+    {
+        return LuaRef(L, FromStack());
+    }
 
     //----------------------------------------------------------------------------
     /**
@@ -976,10 +1036,13 @@ public:
         @param key A key in the table.
         @returns A reference to the table item.
     */
-    template<class T>
+    template <class T>
     TableItem operator[](T key) const
     {
-        Stack<T>::push(m_L, key);
+        std::error_code ec;
+        if (! Stack<T>::push(m_L, key, ec))
+            return TableItem(m_L, m_ref); // TODO - return optional ?
+
         return TableItem(m_L, m_ref);
     }
 
@@ -992,12 +1055,17 @@ public:
         @param key A key in the table.
         @returns A reference to the table item.
     */
-    template<class T>
+    template <class T>
     LuaRef rawget(T key) const
     {
         StackPop(m_L, 1);
+
         push(m_L);
-        Stack<T>::push(m_L, key);
+
+        std::error_code ec;
+        if (! Stack<T>::push(m_L, key, ec))
+            return LuaRef(m_L); // TODO - return optional ?
+
         lua_rawget(m_L, -2);
         return LuaRef(m_L, FromStack());
     }
@@ -1019,7 +1087,7 @@ private:
 template <>
 struct Stack<LuaRef>
 {
-    static bool push(lua_State* L, const LuaRef& v)
+    static bool push(lua_State* L, const LuaRef& v, std::error_code&)
     {
         return v.push(L), true;
     }
@@ -1037,7 +1105,7 @@ struct Stack<LuaRef>
 template <>
 struct Stack <LuaRef::TableItem>
 {
-    static bool push(lua_State* L, const LuaRef::TableItem& v)
+    static bool push(lua_State* L, const LuaRef::TableItem& v, std::error_code&)
     {
         return v.push(L), true;
     }

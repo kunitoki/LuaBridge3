@@ -116,13 +116,16 @@ TEST_F(ClassTests, IsInstance)
         .endClass();
 
     BaseClass base;
-    luabridge::push(L, base);
+    std::error_code ec1;
+    luabridge::push(L, base, ec1);
 
     DerivedClass derived;
-    luabridge::push(L, derived);
+    std::error_code ec2;
+    luabridge::push(L, derived, ec2);
 
     OtherClass other;
-    luabridge::push(L, other);
+    std::error_code ec3;
+    luabridge::push(L, other, ec3);
 
     ASSERT_TRUE(luabridge::isInstance<BaseClass>(L, -3));
     ASSERT_FALSE(luabridge::isInstance<DerivedClass>(L, -3)); // BaseClass is not DerivedClass
@@ -985,7 +988,8 @@ int getDataC(lua_State* L)
 {
     auto objectRef = luabridge::LuaRef::fromStack(L, 1);
     auto* object = objectRef.cast<const Class<T, BaseClass>*>();
-    luabridge::Stack<T>::push(L, object->data);
+    std::error_code ec;
+    luabridge::Stack<T>::push(L, object->data, ec);
     return 1;
 }
 

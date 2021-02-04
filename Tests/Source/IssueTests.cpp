@@ -60,7 +60,10 @@ void pushArgs(lua_State*)
 template<class Arg, class... Args>
 void pushArgs(lua_State* L, Arg arg, Args... args)
 {
-    luabridge::Stack<Arg>::push(L, arg);
+    std::error_code ec;
+
+    luabridge::Stack<Arg>::push(L, arg, ec);
+
     pushArgs(L, args...);
 }
 

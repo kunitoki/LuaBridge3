@@ -82,8 +82,6 @@ protected:
 */
 class Namespace : public detail::Registrar
 {
-    typedef detail::CFunc CFunc;
-
     //============================================================================
 #if 0
   /**
@@ -148,10 +146,10 @@ class Namespace : public detail::Registrar
             lua_pushstring(L, type_name.c_str());
             lua_rawsetp(L, -2, detail::getTypeKey()); // co [typeKey] = name. Stack: ns, co
 
-            lua_pushcfunction(L, &CFunc::indexMetaMethod);
+            lua_pushcfunction(L, &detail::index_metamethod);
             rawsetfield(L, -2, "__index");
 
-            lua_pushcfunction(L, &CFunc::newindexObjectMetaMethod);
+            lua_pushcfunction(L, &detail::newindex_object_metamethod);
             rawsetfield(L, -2, "__newindex");
 
             lua_newtable(L);
@@ -211,10 +209,10 @@ class Namespace : public detail::Registrar
             rawsetfield (L, -2, "__tostring");
 #endif
 
-            lua_pushcfunction(L, &CFunc::indexMetaMethod);
+            lua_pushcfunction(L, &detail::index_metamethod);
             rawsetfield(L, -2, "__index");
 
-            lua_pushcfunction(L, &CFunc::newindexStaticMetaMethod);
+            lua_pushcfunction(L, &detail::newindex_static_metamethod);
             rawsetfield(L, -2, "__newindex");
 
             lua_newtable(L); // Stack: ns, co, cl, st, proget table (pg)
@@ -244,7 +242,8 @@ class Namespace : public detail::Registrar
             
             T* const p = detail::constructor<T, Args>::call(detail::make_arguments_list<Args, 2>(L));
 
-            detail::UserdataSharedHelper<C, false>::push(L, p);
+            std::error_code ec;
+            detail::UserdataSharedHelper<C, false>::push(L, p, ec);
 
             return 1;
         }
@@ -256,7 +255,8 @@ class Namespace : public detail::Registrar
         template <class Args, class T>
         static int ctorPlacementProxy(lua_State* L)
         {
-            detail::UserdataValue<T>* value = detail::UserdataValue<T>::place(L);
+            std::error_code ec;
+            detail::UserdataValue<T>* value = detail::UserdataValue<T>::place(L, ec);
 
             detail::constructor<T, Args>::call(value->getObject(), detail::make_arguments_list<Args, 2>(L));
 
@@ -291,8 +291,6 @@ class Namespace : public detail::Registrar
     template<class T>
     class Class : public ClassBase
     {
-        typedef detail::CFunc CFunc;
-
     public:
         //==========================================================================
         /**
@@ -313,12 +311,12 @@ class Namespace : public detail::Registrar
                 lua_pop(L, 1); // Stack: ns
 
                 createConstTable(name); // Stack: ns, const table (co)
-                lua_pushcfunction(L, &CFunc::gcMetaMethod<T>); // Stack: ns, co, function
+                lua_pushcfunction(L, &detail::gc_metamethod<T>); // Stack: ns, co, function
                 rawsetfield(L, -2, "__gc"); // co ["__gc"] = function. Stack: ns, co
                 ++m_stackSize;
 
                 createClassTable(name); // Stack: ns, co, class table (cl)
-                lua_pushcfunction(L, &CFunc::gcMetaMethod<T>); // Stack: ns, co, cl, function
+                lua_pushcfunction(L, &detail::gc_metamethod<T>); // Stack: ns, co, cl, function
                 rawsetfield(L, -2, "__gc"); // cl ["__gc"] = function. Stack: ns, co, cl
                 ++m_stackSize;
 
@@ -364,12 +362,12 @@ class Namespace : public detail::Registrar
             assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 
             createConstTable(name); // Stack: ns, const table (co)
-            lua_pushcfunction(L, &CFunc::gcMetaMethod<T>); // Stack: ns, co, function
+            lua_pushcfunction(L, &detail::gc_metamethod<T>); // Stack: ns, co, function
             rawsetfield(L, -2, "__gc"); // co ["__gc"] = function. Stack: ns, co
             ++m_stackSize;
 
             createClassTable(name); // Stack: ns, co, class table (cl)
-            lua_pushcfunction(L, &CFunc::gcMetaMethod<T>); // Stack: ns, co, cl, function
+            lua_pushcfunction(L, &detail::gc_metamethod<T>); // Stack: ns, co, cl, function
             rawsetfield(L, -2, "__gc"); // cl ["__gc"] = function. Stack: ns, co, cl
             ++m_stackSize;
 
@@ -463,7 +461,7 @@ class Namespace : public detail::Registrar
             else
             {
                 lua_pushstring(L, name); // Stack: co, cl, st, name
-                lua_pushcclosure(L, &CFunc::readOnlyError, 1); // Stack: co, cl, st, error_fn
+                lua_pushcclosure(L, &detail::read_only_error, 1); // Stack: co, cl, st, function
             }
 
             detail::add_property_setter(L, name, -2); // Stack: co, cl, st
@@ -499,7 +497,7 @@ class Namespace : public detail::Registrar
             else
             {
                 lua_pushstring(L, name); // Stack: co, cl, st, ps, name
-                lua_pushcclosure(L, &CFunc::readOnlyError, 1); // Stack: co, cl, st, error_fn
+                lua_pushcclosure(L, &detail::read_only_error, 1); // Stack: co, cl, st, function
             }
 
             detail::add_property_setter(L, name, -2); // Stack: co, cl, st
@@ -1042,12 +1040,12 @@ private:
             // na.__metatable = ns
             lua_setmetatable(L, -2); // Stack: pns, ns
 
-            // ns.__index = indexMetaMethod
-            lua_pushcfunction(L, &CFunc::indexMetaMethod);
+            // ns.__index = index_metamethod
+            lua_pushcfunction(L, &detail::index_metamethod);
             rawsetfield(L, -2, "__index"); // Stack: pns, ns
 
-            // ns.__newindex = newindexMetaMethod
-            lua_pushcfunction(L, &CFunc::newindexStaticMetaMethod);
+            // ns.__newindex = newindex_static_metamethod
+            lua_pushcfunction(L, &detail::newindex_static_metamethod);
             rawsetfield(L, -2, "__newindex"); // Stack: pns, ns
 
             lua_newtable(L); // Stack: pns, ns, propget table (pg)
@@ -1163,7 +1161,7 @@ public:
         else
         {
             lua_pushstring(L, name); // Stack: ns, ps, name
-            lua_pushcclosure(L, &CFunc::readOnlyError, 1); // Stack: ns, error_fn
+            lua_pushcclosure(L, &detail::read_only_error, 1); // Stack: ns, function
         }
 
         detail::add_property_setter(L, name, -2); // Stack: ns
@@ -1206,7 +1204,7 @@ public:
         else
         {
             lua_pushstring(L, name);
-            lua_pushcclosure(L, &CFunc::readOnlyError, 1);
+            lua_pushcclosure(L, &detail::read_only_error, 1);
         }
 
         detail::add_property_setter(L, name, -2);
@@ -1247,7 +1245,7 @@ public:
         else
         {
             lua_pushstring(L, name); // Stack: ns, name
-            lua_pushcclosure(L, &CFunc::readOnlyError, 1); // Stack: ns, name, readOnlyError
+            lua_pushcclosure(L, &detail::read_only_error, 1); // Stack: ns, name, function
             detail::add_property_setter(L, name, -2); // Stack: ns
         }
 

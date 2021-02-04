@@ -20,7 +20,7 @@ struct Stack<std::list<T>>
 {
     using Type = std::list<T>;
     
-    static bool push(lua_State* L, const Type& list)
+    static bool push(lua_State* L, const Type& list, std::error_code& ec)
     {
         lua_createtable(L, static_cast<int>(list.size()), 0);
 
@@ -29,9 +29,12 @@ struct Stack<std::list<T>>
         {
             lua_pushinteger(L, tableIndex);
 
-            bool result = Stack<T>::push(L, *it);
-            if (!result)
+            std::error_code errorCode;
+            if (! Stack<T>::push(L, *it, errorCode))
+            {
+                ec = errorCode;
                 return false; // TODO - must pop ?
+            }
 
             lua_settable(L, -3);
         }

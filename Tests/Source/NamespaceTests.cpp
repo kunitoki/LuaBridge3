@@ -177,7 +177,8 @@ T Storage<T>::value;
 template<class T>
 int getDataC(lua_State* L)
 {
-    luabridge::Stack<T>::push(L, Storage<T>::value);
+    std::error_code ec;
+    luabridge::Stack<T>::push(L, Storage<T>::value, ec);
     return 1;
 }
 

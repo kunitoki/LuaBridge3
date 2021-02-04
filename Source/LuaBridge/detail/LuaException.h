@@ -1,4 +1,5 @@
 // https://github.com/kunitoki/LuaBridge3
+// Copyright 2021, Lucio Asnaghi
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // Copyright 2008, Nigel Atkinson <suprapilot+LuaCode@gmail.com>
 // SPDX-License-Identifier: MIT
@@ -9,6 +10,7 @@
 #include "LuaHelpers.h"
 
 #include <string>
+#include <sstream>
 
 #if LUABRIDGE_HAS_EXCEPTIONS
 #include <exception>
@@ -19,45 +21,56 @@ namespace luabridge {
 class LuaException : public std::exception
 {
 private:
-    lua_State* m_L;
+    lua_State* m_L = nullptr;
+    int m_code = LUA_ERRERR;
     std::string m_what;
 
 public:
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
-        Construct a LuaException after a lua_pcall().
-    */
-    LuaException(lua_State* L, int /*code*/) : m_L(L) { whatFromStack(); }
+     * @brief Construct a LuaException after a lua_pcall().
+     *
+     * Assumes the error string is on top of the stack, but provides a generic error message otherwise.
+     */
+    LuaException(lua_State* L, int code)
+        : m_L(L)
+        , m_code(code)
+    {
+        whatFromStack();
+    }
 
-    //----------------------------------------------------------------------------
+    ~LuaException() noexcept override
+    {
+    }
 
-    LuaException(lua_State* L, char const*, char const*, long) : m_L(L) { whatFromStack(); }
+    //=============================================================================================
+    /**
+     * @brief Return the error message.
+     */
+    const char* what() const noexcept override
+    {
+        return m_what.c_str();
+    }
 
-    //----------------------------------------------------------------------------
-
-    ~LuaException() throw() {}
-
-    //----------------------------------------------------------------------------
-
-    char const* what() const throw() { return m_what.c_str(); }
-
-    //============================================================================
+    //=============================================================================================
     /**
      * @brief Throw an exception or raises a luaerror when exceptions are disabled.
      *
      * This centralizes all the exceptions thrown, so that we can set breakpoints before the stack is unwound, or otherwise customize the behavior.
      */
     template <class Exception>
-    static void Throw(lua_State* L, const Exception& e)
+    static void raise(lua_State* L, const Exception& e)
     {
 #if LUABRIDGE_HAS_EXCEPTIONS
+        (void) L;
+
         throw e;
 #else
         luaL_error(L, "%s", e);
 #endif
     }
     
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
      * @brief Wrapper for lua_pcall that throws if exceptions are enabled.
      */
@@ -67,62 +80,57 @@ public:
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         if (code != LUABRIDGE_LUA_OK)
-            Throw(L, LuaException(L, code));
+            raise(L, LuaException(L, code));
 #endif
         
         return code;
     }
 
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
      * @brief Initializes error handling.
      *
-     * Subsequent Lua errors are translated to C++ exceptions, or logging only if exceptions are disabled.
+     * Subsequent Lua errors are translated to C++ exceptions, or logging and abort if exceptions are disabled.
      */
-    static void enableExceptions(lua_State* L)
+    static void enableExceptions(lua_State* L) noexcept
     {
-#if LUABRIDGE_HAS_EXCEPTIONS
-        lua_atpanic(L, throwAtPanic);
-#else
-        lua_atpanic(L, logAtPanic);
-#endif
+        lua_atpanic(L, panicHandlerCallback);
     }
 
 protected:
     void whatFromStack()
     {
+        std::stringstream ss;
+
+        const char* errorText = nullptr;
+        
         if (lua_gettop(m_L) > 0)
-        {
-            char const* s = lua_tostring(m_L, -1);
-            m_what = s ? s : "";
-        }
-        else
-        {
-            // stack is empty
-            m_what = "missing error";
-        }
+            errorText = lua_tostring(m_L, -1);
+
+        ss << (errorText ? errorText : "Unknown error") << " (code=" << m_code << ")";
+
+        m_what = std::move(ss).str();
     }
 
 private:
+    static int panicHandlerCallback(lua_State* L)
+    {
 #if LUABRIDGE_HAS_EXCEPTIONS
-    static int throwAtPanic(lua_State* L)
-    {
         throw LuaException(L, -1);
-    }
-#endif
-    
-    static int logAtPanic(lua_State* L)
-    {
+#else
         writestringerror("Unprotected error in call (%s)", lua_tostring(L, -1));
         return 0;
+#endif
     }
 };
 
-//----------------------------------------------------------------------------
+//=================================================================================================
 /**
-    Initializes error handling. Subsequent Lua errors are translated to C++ exceptions.
-*/
-static void enableExceptions(lua_State* L)
+ * @brief Initializes error handling.
+ *
+ * Subsequent Lua errors are translated to C++ exceptions, or logging and abort if exceptions are disabled.
+ */
+inline void enableExceptions(lua_State* L) noexcept
 {
     LuaException::enableExceptions(L);
 }

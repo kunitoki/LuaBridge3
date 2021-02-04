@@ -19,7 +19,7 @@ struct Stack<std::set<K, V>>
 {
     using Type = std::set<K, V>;
     
-    static bool push(lua_State* L, const Type& set)
+    static bool push(lua_State* L, const Type& set, std::error_code& ec)
     {
         lua_createtable(L, 0, static_cast<int>(set.size()));
 

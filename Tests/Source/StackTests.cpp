@@ -10,12 +10,18 @@ struct StackTests : TestBase
 
 TEST_F(StackTests, IntegralTypes)
 {
-    luabridge::push(L, true);
-    ASSERT_TRUE(luabridge::isInstance<bool>(L, -1));
-    ASSERT_FALSE(luabridge::isInstance<int>(L, -1));
+    {
+        std::error_code ec;
+        luabridge::push(L, true, ec);
+        ASSERT_TRUE(luabridge::isInstance<bool>(L, -1));
+        ASSERT_FALSE(luabridge::isInstance<int>(L, -1));
+    }
 
-    luabridge::push(L, 5);
-    ASSERT_TRUE(luabridge::isInstance<int>(L, -1));
-    ASSERT_FALSE(luabridge::isInstance<bool>(L, -1));
-    ASSERT_TRUE(luabridge::isInstance<bool>(L, -2));
+    {
+        std::error_code ec;
+        luabridge::push(L, 5, ec);
+        ASSERT_TRUE(luabridge::isInstance<int>(L, -1));
+        ASSERT_FALSE(luabridge::isInstance<bool>(L, -1));
+        ASSERT_TRUE(luabridge::isInstance<bool>(L, -2));
+    }
 }

@@ -19,10 +19,10 @@ struct Stack<std::optional<T>>
 {
     using Type = std::optional<T>;
     
-    static bool push(lua_State* L, const Type& value)
+    static bool push(lua_State* L, const Type& value, std::error_code& ec)
     {
         if (value)
-            return Stack<T>::push(L, *value);
+            return Stack<T>::push(L, *value, ec);
 
         lua_pushnil(L);
         return true;

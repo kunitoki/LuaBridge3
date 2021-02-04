@@ -8,6 +8,7 @@
 #pragma once
 
 #include "Config.h"
+#include "Errors.h"
 #include "Stack.h"
 #include "TypeTraits.h"
 
@@ -271,21 +272,28 @@ auto make_arguments_list(lua_State* L)
  * @brief Helpers for iterating through tuple arguments, pushing each argument to the lua stack.
  */
 template <std::size_t Index = 0, typename... Types>
-auto push_arguments(lua_State*, const std::tuple<Types...>&)
+auto push_arguments(lua_State*, const std::tuple<Types...>&, std::error_code&)
     -> std::enable_if_t<Index == sizeof...(Types), bool>
 {
     return true;
 }
 
 template <std::size_t Index = 0, typename... Types>
-auto push_arguments(lua_State* L, const std::tuple<Types...>& t)
+auto push_arguments(lua_State* L, const std::tuple<Types...>& t, std::error_code& ec)
     -> std::enable_if_t<Index < sizeof...(Types), bool>
 {
     using T = std::tuple_element_t<Index, std::tuple<Types...>>;
 
-    bool result = Stack<T>::push(L, std::get<Index>(t));
+    std::error_code push_ec;
+    bool result = Stack<T>::push(L, std::get<Index>(t), ec);
+    if (! result)
+    {
+        lua_pushnil(L);
+        ec = push_ec;
+        return false;
+    }
 
-    return result && push_arguments<Index + 1, Types...>(L, t);
+    return push_arguments<Index + 1, Types...>(L, t, ec);
 }
 
 //=================================================================================================
@@ -324,13 +332,10 @@ struct function
         try
         {
 #endif
-            bool result = Stack<ReturnType>::push(L, std::apply(func, make_arguments_list<ArgsPack, Start>(L)));
-            
+            std::error_code ec;
+            bool result = Stack<ReturnType>::push(L, std::apply(func, make_arguments_list<ArgsPack, Start>(L)), ec);
             if (! result)
-            {
-                luaL_error(L, "Error while handling function return value");
-                lua_pushnil(L);
-            }
+                luaL_error(L, ec.message().c_str());
             
             return 1;
 
@@ -356,13 +361,10 @@ struct function
 #endif
             auto f = [ptr, func](auto&&... args) -> ReturnType { return (ptr->*func)(std::forward<decltype(args)>(args)...); };
 
-            bool result = Stack<ReturnType>::push(L, std::apply(f, make_arguments_list<ArgsPack, Start>(L)));
-
+            std::error_code ec;
+            bool result = Stack<ReturnType>::push(L, std::apply(f, make_arguments_list<ArgsPack, Start>(L)), ec);
             if (! result)
-            {
-                luaL_error(L, "Error while handling function return value");
-                lua_pushnil(L);
-            }
+                luaL_error(L, ec.message().c_str());
 
             return 1;
 

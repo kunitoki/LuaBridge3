@@ -92,28 +92,15 @@ inline int get_length(lua_State* L, int idx)
 #endif
 
 /**
- * @brief Helper to throw or do nothing.
+ * @brief Helper to throw or return an error code.
  */
-template <class T, class... Args>
-void throw_or_nothing(Args&&... args)
+template <class T, class ErrorType>
+std::error_code throw_or_error_code(ErrorType error)
 {
 #if LUABRIDGE_HAS_EXCEPTIONS
-    throw T(std::forward<Args>(args)...);
-#endif
-}
-
-/**
- * @brief Helper to throw or lua error.
- */
-template <class T, class... Args>
-void throw_or_luaerror(lua_State* L, Args&&... args)
-{
-#if LUABRIDGE_HAS_EXCEPTIONS
-    (void)L;
-
-    throw T(std::forward<Args>(args)...);
+    throw T(make_error_code(error).message().c_str());
 #else
-    luaL_error(L, std::forward<Args>(args)...);
+    return make_error_code(error);
 #endif
 }
 
@@ -127,19 +114,6 @@ void throw_or_assert(Args&&... args)
     throw T(std::forward<Args>(args)...);
 #else
     assert(false);
-#endif
-}
-
-/**
- * @brief Helper to throw or abort.
- */
-template <class T, class... Args>
-void throw_or_abort(Args&&... args)
-{
-#if LUABRIDGE_HAS_EXCEPTIONS
-    throw T(std::forward<Args>(args)...);
-#else
-    std::abort();
 #endif
 }
 

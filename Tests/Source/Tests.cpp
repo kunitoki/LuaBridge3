@@ -1,4 +1,5 @@
 // https://github.com/kunitoki/LuaBridge3
+// Copyright 2021, Lucio Asnaghi
 // Copyright 2019, Dmitry Tarakanov
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // Copyright 2007, Nathan Reed
@@ -322,7 +323,7 @@ TEST_F(LuaBridgeTest, ClassFunction)
 #if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("outer:getConstPtr ().data = 20"), std::runtime_error);
 #else
-    ASSERT_FALSE(runLua("outer:getConstPtr ().data = 20"));
+    EXPECT_FALSE(runLua("outer:getConstPtr ().data = 20"));
 #endif
 
     outer.data.data = 3;
@@ -333,7 +334,7 @@ TEST_F(LuaBridgeTest, ClassFunction)
 #if LUABRIDGE_HAS_EXCEPTIONS
     EXPECT_THROW(runLua("outer:getConstPtr ().data = 40"), std::runtime_error);
 #else
-    ASSERT_FALSE(runLua("outer:getConstPtr ().data = 40"));
+    EXPECT_FALSE(runLua("outer:getConstPtr ().data = 40"));
 #endif
 
     outer.data.data = 5;
@@ -348,7 +349,7 @@ TEST_F(LuaBridgeTest, ClassFunction)
 #if LUABRIDGE_HAS_EXCEPTIONS
     EXPECT_THROW(runLua("outer:getConstPtr ().data = 70"), std::runtime_error);
 #else
-    ASSERT_FALSE(runLua("outer:getConstPtr ().data = 70"));
+    EXPECT_FALSE(runLua("outer:getConstPtr ().data = 70"));
 #endif
 
     outer.data.data = 8;
@@ -359,6 +360,23 @@ TEST_F(LuaBridgeTest, ClassFunction)
 #if LUABRIDGE_HAS_EXCEPTIONS
     EXPECT_THROW(runLua("outer:getConstPtr ().data = 90"), std::runtime_error);
 #else
-    ASSERT_FALSE(runLua("outer:getConstPtr ().data = 90"));
+    EXPECT_FALSE(runLua("outer:getConstPtr ().data = 90"));
 #endif
 }
+
+TEST_F(LuaBridgeTest, PropertyGetterFailOnUnregistredClass)
+{
+    struct Clazz {} clazz;
+    
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("ns")
+            .addProperty("clazz", &clazz)
+        .endNamespace();
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_THROW(runLua("result = ns.clazz"), std::runtime_error);
+#else
+    EXPECT_FALSE(runLua("result = ns.clazz"));
+#endif
+}
+

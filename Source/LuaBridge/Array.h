@@ -20,7 +20,7 @@ struct Stack<std::array<T, Size>>
 {
     using Type = std::array<T, Size>;
 
-    static bool push(lua_State* L, const Type& array)
+    static bool push(lua_State* L, const Type& array, std::error_code& ec)
     {
         lua_createtable(L, static_cast<int>(Size), 0);
 
@@ -28,9 +28,13 @@ struct Stack<std::array<T, Size>>
         {
             lua_pushinteger(L, static_cast<lua_Integer>(i + 1));
 
-            bool result = Stack<T>::push(L, array[i]);
+            std::error_code errorCode;
+            bool result = Stack<T>::push(L, array[i], errorCode);
             if (!result)
+            {
+                ec = errorCode;
                 return false; // TODO - must pop ?
+            }
 
             lua_settable(L, -3);
         }

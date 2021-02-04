@@ -14,6 +14,7 @@
 #include <functional>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <tuple>
 
 #include <iostream>
@@ -36,7 +37,7 @@ struct Stack;
 template <>
 struct Stack<void>
 {
-    static bool push(lua_State*)
+    static bool push(lua_State*, std::error_code&)
     {
         return true;
     }
@@ -62,7 +63,7 @@ struct Stack<lua_State*>
 template <>
 struct Stack<lua_CFunction>
 {
-    static bool push(lua_State* L, lua_CFunction f)
+    static bool push(lua_State* L, lua_CFunction f, std::error_code&)
     {
         lua_pushcfunction(L, f);
         return true;
@@ -86,7 +87,7 @@ struct Stack<lua_CFunction>
 template <>
 struct Stack<bool>
 {
-    static bool push(lua_State* L, bool value)
+    static bool push(lua_State* L, bool value, std::error_code&)
     {
         lua_pushboolean(L, value ? 1 : 0);
         return true;
@@ -110,7 +111,7 @@ struct Stack<bool>
 template <>
 struct Stack<std::byte>
 {
-    static bool push(lua_State* L, std::byte value)
+    static bool push(lua_State* L, std::byte value, std::error_code&)
     {
         pushunsigned(L, std::to_integer<lua_Unsigned>(value));
         return true;
@@ -134,7 +135,7 @@ struct Stack<std::byte>
 template <>
 struct Stack<char>
 {
-    static bool push(lua_State* L, char value)
+    static bool push(lua_State* L, char value, std::error_code&)
     {
         lua_pushlstring(L, &value, 1);
         return true;
@@ -158,7 +159,7 @@ struct Stack<char>
 template <>
 struct Stack<unsigned char>
 {
-    static bool push(lua_State* L, unsigned char value)
+    static bool push(lua_State* L, unsigned char value, std::error_code&)
     {
         pushunsigned(L, value);
         return true;
@@ -182,7 +183,7 @@ struct Stack<unsigned char>
 template <>
 struct Stack<short>
 {
-    static bool push(lua_State* L, short value)
+    static bool push(lua_State* L, short value, std::error_code&)
     {
         lua_pushinteger(L, static_cast<lua_Integer>(value));
         return true;
@@ -206,7 +207,7 @@ struct Stack<short>
 template <>
 struct Stack<unsigned short>
 {
-    static bool push(lua_State* L, unsigned short value)
+    static bool push(lua_State* L, unsigned short value, std::error_code&)
     {
         pushunsigned(L, value);
         return true;
@@ -230,7 +231,7 @@ struct Stack<unsigned short>
 template <>
 struct Stack<int>
 {
-    static bool push(lua_State* L, int value)
+    static bool push(lua_State* L, int value, std::error_code&)
     {
         lua_pushinteger(L, static_cast<lua_Integer>(value));
         return true;
@@ -254,7 +255,7 @@ struct Stack<int>
 template <>
 struct Stack<unsigned int>
 {
-    static bool push(lua_State* L, unsigned int value)
+    static bool push(lua_State* L, unsigned int value, std::error_code&)
     {
         pushunsigned(L, value);
         return true;
@@ -278,7 +279,7 @@ struct Stack<unsigned int>
 template <>
 struct Stack<long>
 {
-    static bool push(lua_State* L, long value)
+    static bool push(lua_State* L, long value, std::error_code&)
     {
         lua_pushinteger(L, static_cast<lua_Integer>(value));
         return true;
@@ -302,7 +303,7 @@ struct Stack<long>
 template <>
 struct Stack<unsigned long>
 {
-    static bool push(lua_State* L, unsigned long value)
+    static bool push(lua_State* L, unsigned long value, std::error_code&)
     {
         pushunsigned(L, value);
         return true;
@@ -326,7 +327,7 @@ struct Stack<unsigned long>
 template <>
 struct Stack<long long>
 {
-    static bool push(lua_State* L, long long value)
+    static bool push(lua_State* L, long long value, std::error_code&)
     {
         lua_pushinteger(L, static_cast<lua_Integer>(value));
         return true;
@@ -350,7 +351,7 @@ struct Stack<long long>
 template <>
 struct Stack<unsigned long long>
 {
-    static bool push(lua_State* L, unsigned long long value)
+    static bool push(lua_State* L, unsigned long long value, std::error_code&)
     {
         pushunsigned(L, value);
         return true;
@@ -374,7 +375,7 @@ struct Stack<unsigned long long>
 template <>
 struct Stack<float>
 {
-    static bool push(lua_State* L, float value)
+    static bool push(lua_State* L, float value, std::error_code&)
     {
         lua_pushnumber(L, static_cast<lua_Number>(value));
         return true;
@@ -398,7 +399,7 @@ struct Stack<float>
 template <>
 struct Stack<double>
 {
-    static bool push(lua_State* L, double value)
+    static bool push(lua_State* L, double value, std::error_code&)
     {
         lua_pushnumber(L, static_cast<lua_Number>(value));
         return true;
@@ -422,7 +423,7 @@ struct Stack<double>
 template <>
 struct Stack<const char*>
 {
-    static bool push(lua_State* L, const char* str)
+    static bool push(lua_State* L, const char* str, std::error_code&)
     {
         if (str != nullptr)
             lua_pushstring(L, str);
@@ -450,7 +451,7 @@ struct Stack<const char*>
 template <>
 struct Stack<std::string_view>
 {
-    static bool push(lua_State* L, std::string_view str)
+    static bool push(lua_State* L, std::string_view str, std::error_code&)
     {
         lua_pushlstring(L, str.data(), str.size());
         return true;
@@ -474,7 +475,7 @@ struct Stack<std::string_view>
 template <>
 struct Stack<std::string>
 {
-    static bool push(lua_State* L, const std::string& str)
+    static bool push(lua_State* L, const std::string& str, std::error_code&)
     {
         lua_pushlstring(L, str.data(), str.size());
         return true;
@@ -513,11 +514,11 @@ struct Stack<std::string>
 template <class... Types>
 struct Stack<std::tuple<Types...>>
 {
-    static bool push(lua_State* L, const std::tuple<Types...>& t)
+    static bool push(lua_State* L, const std::tuple<Types...>& t, std::error_code& ec)
     {
         lua_createtable(L, static_cast<int>(Size), 0);
 
-        return push_element(L, t);
+        return push_element(L, t, ec);
     }
 
     static std::tuple<Types...> get(lua_State* L, int index)
@@ -547,23 +548,33 @@ private:
     static constexpr std::size_t Size = std::tuple_size_v<std::tuple<Types...>>;
 
     template <std::size_t Index = 0>
-    static auto push_element(lua_State*, const std::tuple<Types...>&)
+    static auto push_element(lua_State*, const std::tuple<Types...>&, std::error_code&)
         -> std::enable_if_t<Index == sizeof...(Types), bool>
     {
         return true;
     }
 
     template <std::size_t Index = 0>
-    static auto push_element(lua_State* L, const std::tuple<Types...>& t)
+    static auto push_element(lua_State* L, const std::tuple<Types...>& t, std::error_code& ec)
         -> std::enable_if_t<Index < sizeof...(Types), bool>
     {
         using T = std::tuple_element_t<Index, std::tuple<Types...>>;
         
         lua_pushinteger(L, static_cast<lua_Integer>(Index + 1));
-        bool result = Stack<T>::push(L, std::get<Index>(t));
+        
+        std::error_code push_ec;
+        bool result = Stack<T>::push(L, std::get<Index>(t), push_ec);
+        if (! result)
+        {
+            lua_pushnil(L);
+            lua_settable(L, -3);
+            ec = push_ec;
+            return false;
+        }
+        
         lua_settable(L, -3);
         
-        return result && push_element<Index + 1>(L, t);
+        return push_element<Index + 1>(L, t, ec);
     }
 
     template <std::size_t Index = 0>
@@ -595,7 +606,7 @@ struct StackOpSelector<T&, false>
 {
     using ReturnType = T;
 
-    static bool push(lua_State* L, T& value) { return Stack<T>::push(L, value); }
+    static bool push(lua_State* L, T& value, std::error_code& ec) { return Stack<T>::push(L, value, ec); }
 
     static ReturnType get(lua_State* L, int index) { return Stack<T>::get(L, index); }
 
@@ -607,7 +618,7 @@ struct StackOpSelector<const T&, false>
 {
     using ReturnType = T;
 
-    static bool push(lua_State* L, const T& value) { return Stack<T>::push(L, value); }
+    static bool push(lua_State* L, const T& value, std::error_code& ec) { return Stack<T>::push(L, value, ec); }
 
     static ReturnType get(lua_State* L, int index) { return Stack<T>::get(L, index); }
 
@@ -619,7 +630,7 @@ struct StackOpSelector<T*, false>
 {
     using ReturnType = T;
 
-    static bool push(lua_State* L, T* value) { return Stack<T>::push(L, *value); }
+    static bool push(lua_State* L, T* value, std::error_code& ec) { return Stack<T>::push(L, *value, ec); }
 
     static ReturnType get(lua_State* L, int index) { return Stack<T>::get(L, index); }
 
@@ -631,7 +642,7 @@ struct StackOpSelector<const T*, false>
 {
     using ReturnType = T;
 
-    static bool push(lua_State* L, const T* value) { return Stack<T>::push(L, *value); }
+    static bool push(lua_State* L, const T* value, std::error_code& ec) { return Stack<T>::push(L, *value, ec); }
 
     static ReturnType get(lua_State* L, int index) { return Stack<T>::get(L, index); }
 
@@ -646,7 +657,7 @@ struct Stack<T&>
     using Helper = detail::StackOpSelector<T&, detail::IsUserdata<T>::value>;
     using ReturnType = typename Helper::ReturnType;
 
-    static bool push(lua_State* L, T& value) { return Helper::push(L, value); }
+    static bool push(lua_State* L, T& value, std::error_code& ec) { return Helper::push(L, value, ec); }
 
     static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
 };
@@ -657,7 +668,7 @@ struct Stack<const T&>
     using Helper = detail::StackOpSelector<const T&, detail::IsUserdata<T>::value>;
     using ReturnType = typename Helper::ReturnType;
 
-    static bool push(lua_State* L, const T& value) { return Helper::push(L, value); }
+    static bool push(lua_State* L, const T& value, std::error_code& ec) { return Helper::push(L, value, ec); }
 
     static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
 };
@@ -668,7 +679,7 @@ struct Stack<T*>
     using Helper = detail::StackOpSelector<T*, detail::IsUserdata<T>::value>;
     using ReturnType = typename Helper::ReturnType;
 
-    static bool push(lua_State* L, T* value) { return Helper::push(L, value); }
+    static bool push(lua_State* L, T* value, std::error_code& ec) { return Helper::push(L, value, ec); }
 
     static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
 };
@@ -679,7 +690,7 @@ struct Stack<const T*>
     using Helper = detail::StackOpSelector<const T*, detail::IsUserdata<T>::value>;
     using ReturnType = typename Helper::ReturnType;
 
-    static bool push(lua_State* L, const T* value) { return Helper::push(L, value); }
+    static bool push(lua_State* L, const T* value, std::error_code& ec) { return Helper::push(L, value, ec); }
 
     static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
 };
@@ -689,9 +700,9 @@ struct Stack<const T*>
  * @brief Push an object onto the Lua stack.
  */
 template <class T>
-bool push(lua_State* L, T t)
+bool push(lua_State* L, T t, std::error_code& ec)
 {
-    return Stack<T>::push(L, t);
+    return Stack<T>::push(L, t, ec);
 }
 
 //------------------------------------------------------------------------------
