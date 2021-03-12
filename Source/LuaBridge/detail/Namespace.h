@@ -17,6 +17,7 @@
 #include <string_view>
 #include <string>
 #include <type_traits>
+#include <utility>
 
 namespace luabridge {
 namespace detail {
@@ -36,22 +37,26 @@ protected:
     lua_State* const L;
     int mutable m_stackSize;
 
-    Registrar(lua_State* L) : L(L), m_stackSize(0) {}
-
-    Registrar(const Registrar& rhs) : L(rhs.L), m_stackSize(rhs.m_stackSize)
+    Registrar(lua_State* L)
+        : L(L)
+        , m_stackSize(0)
     {
-        rhs.m_stackSize = 0;
     }
 
-#ifndef _MSC_VER
-    // MS compiler thinks it's the 2nd copy ctor
-    Registrar(Registrar& rhs) : L(rhs.L), m_stackSize(rhs.m_stackSize) { rhs.m_stackSize = 0; }
-#endif // ifndef _MSC_VER
+    Registrar(const Registrar& rhs)
+        : L(rhs.L)
+        , m_stackSize(std::exchange(rhs.m_stackSize, 0))
+    {
+    }
 
     Registrar& operator=(const Registrar& rhs)
     {
+        using std::swap;
+        
         Registrar tmp(rhs);
-        std::swap(m_stackSize, tmp.m_stackSize);
+        
+        swap(m_stackSize, tmp.m_stackSize);
+        
         return *this;
     }
 
@@ -240,10 +245,11 @@ class Namespace : public detail::Registrar
         {
             using T = typename ContainerTraits<C>::Type;
             
-            T* const p = detail::constructor<T, Args>::call(detail::make_arguments_list<Args, 2>(L));
+            T* object = detail::constructor<T, Args>::call(detail::make_arguments_list<Args, 2>(L));
 
             std::error_code ec;
-            detail::UserdataSharedHelper<C, false>::push(L, p, ec);
+            if (! detail::UserdataSharedHelper<C, false>::push(L, object, ec))
+                luaL_error(L, ec.message().c_str());
 
             return 1;
         }
@@ -257,6 +263,8 @@ class Namespace : public detail::Registrar
         {
             std::error_code ec;
             detail::UserdataValue<T>* value = detail::UserdataValue<T>::place(L, ec);
+            if (! value)
+                luaL_error(L, ec.message().c_str());
 
             detail::constructor<T, Args>::call(value->getObject(), detail::make_arguments_list<Args, 2>(L));
 
@@ -380,6 +388,7 @@ class Namespace : public detail::Registrar
                 ++m_stackSize;
 
                 throw_or_assert<std::logic_error>("Base class is not registered");
+                return;
             }
 
             assert(lua_istable(L, -1)); // Stack: ns, co, cl, st, pst
@@ -429,22 +438,6 @@ class Namespace : public detail::Registrar
         */
         template <class U>
         Class<T>& addStaticProperty(char const* name, U* value, bool isWritable = true)
-        {
-            return addStaticData(name, value, isWritable);
-        }
-
-        //--------------------------------------------------------------------------
-        /**
-          Add or replace a static property.
-
-          @tparam U          The type of the property.
-          @param  name       The property name.
-          @param  value      A property value pointer.
-          @param  isWritable True for a read-write, false for read-only property.
-          @returns This class registration object.
-        */
-        template <class U>
-        Class<T>& addStaticData(char const* name, U* value, bool isWritable = true)
         {
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
@@ -622,7 +615,7 @@ class Namespace : public detail::Registrar
             detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
             detail::add_property_getter(L, name, -3); // Stack: co, cl, st
 
-            if (set != 0)
+            if (set != nullptr)
             {
                 new (lua_newuserdata(L, sizeof(set_t))) set_t(set); // Stack: co, cl, st, function ptr
                 lua_pushcclosure(L, &detail::invoke_member_function<set_t, T>, 1); // Stack: co, cl, st, setter
@@ -1088,7 +1081,6 @@ public:
     */
     static Namespace getGlobalNamespace(lua_State* L)
     {
-        enableExceptions(L);
         return Namespace(L);
     }
 
@@ -1180,7 +1172,7 @@ public:
         @returns This namespace registration object.
     */
     template <class TG, class TS = TG>
-    Namespace& addProperty(char const* name, TG (*get)(), void (*set)(TS) = 0)
+    Namespace& addProperty(char const* name, TG (*get)(), void (*set)(TS) = nullptr)
     {
         if (m_stackSize == 1)
         {
@@ -1196,7 +1188,7 @@ public:
         lua_pushcclosure(L, &detail::invoke_proxy_function<TG (*)()>, 1); // Stack: ns, getter
         detail::add_property_getter(L, name, -2);
 
-        if (set != 0)
+        if (set != nullptr)
         {
             lua_pushlightuserdata(L, reinterpret_cast<void*>(set)); // Stack: ns, function ptr
             lua_pushcclosure(L, &detail::invoke_proxy_function<void (*)(TS)>, 1);
@@ -1222,7 +1214,7 @@ public:
         @param set  A pointer to a property setter function, optional.
         @returns This namespace registration object.
     */
-    Namespace& addProperty(char const* name, int (*get)(lua_State*), int (*set)(lua_State*) = 0)
+    Namespace& addProperty(char const* name, int (*get)(lua_State*), int (*set)(lua_State*) = nullptr)
     {
         if (m_stackSize == 1)
         {
@@ -1237,7 +1229,7 @@ public:
         lua_pushcfunction(L, get); // Stack: ns, getter
         detail::add_property_getter(L, name, -2); // Stack: ns
 
-        if (set != 0)
+        if (set != nullptr)
         {
             lua_pushcfunction(L, set); // Stack: ns, setter
             detail::add_property_setter(L, name, -2); // Stack: ns

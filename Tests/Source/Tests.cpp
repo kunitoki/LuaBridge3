@@ -380,3 +380,63 @@ TEST_F(LuaBridgeTest, PropertyGetterFailOnUnregistredClass)
 #endif
 }
 
+TEST_F(LuaBridgeTest, CallReturnLuaResult)
+{
+    runLua("function f1 (arg0, arg1) end");
+    runLua("function f2 (arg0, arg1) return arg0; end");
+    runLua("function f3 (arg0, arg1) return arg0, arg1; end");
+
+    {
+        auto f1 = luabridge::getGlobal(L, "f1");
+        auto result = luabridge::call(f1, 1, 2);
+        EXPECT_FALSE(result.hasFailed());
+        EXPECT_TRUE(result.wasOk());
+        EXPECT_EQ(std::error_code(), result.errorCode());
+    }
+
+    {
+        auto f2 = luabridge::getGlobal(L, "f2");
+        auto result = luabridge::call(f2, 1, 2);
+        EXPECT_FALSE(result.hasFailed());
+        EXPECT_TRUE(result.wasOk());
+        EXPECT_EQ(std::error_code(), result.errorCode());
+        EXPECT_EQ(1u, result.getNumValues());
+        EXPECT_EQ(result.getValue(0), 1);
+    }
+
+    {
+        auto f3 = luabridge::getGlobal(L, "f3");
+        auto result = luabridge::call(f3, 1, 2);
+        EXPECT_FALSE(result.hasFailed());
+        EXPECT_TRUE(result.wasOk());
+        EXPECT_EQ(std::error_code(), result.errorCode());
+        EXPECT_EQ(2u, result.getNumValues());
+        EXPECT_EQ(result.getValue(0), 1);
+        EXPECT_EQ(result.getValue(1), 2);
+    }
+}
+
+TEST_F(LuaBridgeTest, InvokePassingUnregisteredClassShouldThrowAndRestoreStack)
+{
+    class Unregistered {} unregistered;
+
+    {
+        runLua("function f1 (unregistered) end");
+
+        auto f1 = luabridge::getGlobal(L, "f1");
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        luabridge::enableExceptions(L);
+        EXPECT_THROW(luabridge::call(f1, unregistered), luabridge::LuaException);
+#else
+        int stackTop = lua_gettop(L);
+        
+        auto result = luabridge::call(f1, unregistered);
+        EXPECT_TRUE(result.hasFailed());
+        EXPECT_FALSE(result.wasOk());
+        EXPECT_EQ(luabridge::makeErrorCode(luabridge::ErrorCode::ClassNotRegistered), result.errorCode());
+
+        EXPECT_EQ(stackTop, lua_gettop(L));
+#endif
+    }
+}

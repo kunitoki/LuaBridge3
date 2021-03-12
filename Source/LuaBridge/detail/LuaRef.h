@@ -21,6 +21,8 @@
 
 namespace luabridge {
 
+class LuaResult;
+
 //------------------------------------------------------------------------------
 /**
  * @brief Type tag for representing LUA_TNIL.
@@ -60,7 +62,7 @@ struct Stack<LuaNil>
 /**
  * @brief Base class for Lua variables and table item reference classes.
  */
-template<class Impl, class LuaRef>
+template <class Impl, class LuaRef>
 class LuaRefBase
 {
 protected:
@@ -94,6 +96,8 @@ protected:
 
         ~StackPop() { lua_pop(m_L, m_count); }
 
+        void popCount(int newCount) { m_count = newCount; }
+        
     private:
         lua_State* m_L;
         int m_count;
@@ -259,8 +263,10 @@ public:
     /** @{ */
     int type() const
     {
-        impl().push();
         StackPop p(m_L, 1);
+
+        impl().push();
+
         return lua_type(m_L, -1);
     }
 
@@ -418,7 +424,10 @@ public:
 
         std::error_code ec;
         if (! Stack<T>::push(m_L, rhs, ec))
+        {
+            p.popCount(1);
             return false;
+        }
 
         return lua_compare(m_L, -2, -1, LUA_OPEQ) == 1;
     }
@@ -439,7 +448,10 @@ public:
 
         std::error_code ec;
         if (! Stack<T>::push(m_L, rhs, ec))
+        {
+            p.popCount(1);
             return false;
+        }
 
         int lhsType = lua_type(m_L, -2);
         int rhsType = lua_type(m_L, -1);
@@ -465,7 +477,10 @@ public:
 
         std::error_code ec;
         if (! Stack<T>::push(m_L, rhs, ec))
+        {
+            p.popCount(1);
             return false;
+        }
 
         int lhsType = lua_type(m_L, -2);
         int rhsType = lua_type(m_L, -1);
@@ -491,7 +506,10 @@ public:
 
         std::error_code ec;
         if (! Stack<T>::push(m_L, rhs, ec))
+        {
+            p.popCount(1);
             return false;
+        }
 
         int lhsType = lua_type(m_L, -2);
         int rhsType = lua_type(m_L, -1);
@@ -517,7 +535,10 @@ public:
 
         std::error_code ec;
         if (! Stack<T>::push(m_L, rhs, ec))
+        {
+            p.popCount(1);
             return false;
+        }
 
         int lhsType = lua_type(m_L, -2);
         int rhsType = lua_type(m_L, -1);
@@ -543,7 +564,10 @@ public:
 
         std::error_code ec;
         if (! Stack<T>::push(m_L, v, ec))
+        {
+            p.popCount(1);
             return false;
+        }
 
         return lua_rawequal(m_L, -1, -2) == 1;
     }
@@ -559,6 +583,8 @@ public:
     template <class T>
     void append(T v) const
     {
+        StackPop p(m_L, 1);
+
         impl().push();
 
         std::error_code ec;
@@ -566,7 +592,6 @@ public:
             return;
 
         luaL_ref(m_L, -2);
-        lua_pop(m_L, 1);
     }
 
     //----------------------------------------------------------------------------
@@ -588,29 +613,14 @@ public:
     //----------------------------------------------------------------------------
     /**
         Call Lua code.
-        These overloads allow Lua code to be called with up to 8 parameters.
+
         The return value is provided as a LuaRef (which may be LUA_REFNIL).
         If an error occurs, a LuaException is thrown.
 
         @returns A result of the call.
     */
     template <class... Args>
-    std::optional<LuaRef> operator()(Args&&... args) const
-    {
-        impl().push();
-
-        std::error_code ec; // TODO - do something with it
-        bool argumentsResult = detail::push_arguments(m_L, std::forward_as_tuple(args...), ec);
-        if (! argumentsResult)
-            return std::nullopt;
-
-        int code = LuaException::pcall(m_L, sizeof...(Args), 1);
-        
-        if (code != LUABRIDGE_LUA_OK)
-            return std::nullopt;
-
-        return LuaRef::fromStack(m_L);
-    }
+    LuaResult operator()(Args&&... args) const;
 
     //============================================================================
 

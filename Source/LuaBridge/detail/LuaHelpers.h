@@ -98,9 +98,19 @@ template <class T, class ErrorType>
 std::error_code throw_or_error_code(ErrorType error)
 {
 #if LUABRIDGE_HAS_EXCEPTIONS
-    throw T(make_error_code(error).message().c_str());
+    throw T(makeErrorCode(error).message().c_str());
 #else
-    return make_error_code(error);
+    return makeErrorCode(error);
+#endif
+}
+
+template <class T, class ErrorType>
+std::error_code throw_or_error_code(lua_State* L, ErrorType error)
+{
+#if LUABRIDGE_HAS_EXCEPTIONS
+    throw T(L, makeErrorCode(error));
+#else
+    return (void)L, makeErrorCode(error);
 #endif
 }
 

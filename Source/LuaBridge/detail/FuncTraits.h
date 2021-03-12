@@ -273,24 +273,23 @@ auto make_arguments_list(lua_State* L)
  */
 template <std::size_t Index = 0, typename... Types>
 auto push_arguments(lua_State*, const std::tuple<Types...>&, std::error_code&)
-    -> std::enable_if_t<Index == sizeof...(Types), bool>
+    -> std::enable_if_t<Index == sizeof...(Types), std::size_t>
 {
-    return true;
+    return Index + 1;
 }
 
 template <std::size_t Index = 0, typename... Types>
 auto push_arguments(lua_State* L, const std::tuple<Types...>& t, std::error_code& ec)
-    -> std::enable_if_t<Index < sizeof...(Types), bool>
+    -> std::enable_if_t<Index < sizeof...(Types), std::size_t>
 {
     using T = std::tuple_element_t<Index, std::tuple<Types...>>;
 
-    std::error_code push_ec;
-    bool result = Stack<T>::push(L, std::get<Index>(t), ec);
+    std::error_code pec;
+    bool result = Stack<T>::push(L, std::get<Index>(t), pec);
     if (! result)
     {
-        lua_pushnil(L);
-        ec = push_ec;
-        return false;
+        ec = pec;
+        return Index + 1;
     }
 
     return push_arguments<Index + 1, Types...>(L, t, ec);

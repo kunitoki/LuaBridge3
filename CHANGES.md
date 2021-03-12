@@ -1,8 +1,9 @@
 ## Master
 
 * Reworked the whole library to be able to use it without c++ exceptions enabled.
-* Breaking change: The method `Stack<T>::push` now needs to return a boolean if the push could be performed.
+* Breaking Change: The method `Stack<T>::push` now takes a `std::error_code&` as last parameter and returns a `bool`.
 * Added unit tests when not using exceptions.
+* Removed `Class<T>::addStaticData`, it was just an alias for `Class<T>::addStaticProperty`.
 
 ## Version 3.0
 
@@ -21,7 +22,7 @@
 * Renamed `luabridge::Nil` to `luabridge::LuaNil` to allow including LuaBridge in Obj-C sources.
 * Removed the limitation of maximum 8 parameters in functions.
 * Removed the limitation of maximum 8 parameters in constructors.
-* Removed `Class<T>::addData`, it was just an alias for `Class<T>::addproperty`.
+* Removed `Class<T>::addData`, it was just an alias for `Class<T>::addProperty`.
 * Removed `TypeList` from loki, using parameter packs and `std::tuple` with `std::apply`.
 * Removed juce traces from unit tests, simplified unit tests runs.
 * Bumped lua 5.2.x in unit tests from lua 5.2.0 to 5.2.4.

@@ -23,6 +23,7 @@
 #include "detail/ClassInfo.h"
 #include "detail/FuncTraits.h"
 #include "detail/Errors.h"
+#include "detail/Invoke.h"
 #include "detail/Iterator.h"
 #include "detail/LuaException.h"
 #include "detail/LuaHelpers.h"

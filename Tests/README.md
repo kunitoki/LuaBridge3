@@ -22,9 +22,13 @@ Run tests from the `build` directory:
 
 ```sh
 ./Tests/LuaBridgeTests51
+./Tests/LuaBridgeTests51Noexcept
 ./Tests/LuaBridgeTests52
+./Tests/LuaBridgeTests52Noexcept
 ./Tests/LuaBridgeTests53
+./Tests/LuaBridgeTests53Noexcept
 ./Tests/LuaBridgeTests54
+./Tests/LuaBridgeTests54Noexcept
 ```
 
 ## macOS
@@ -49,9 +53,13 @@ Run tests from the `build` directory:
 
 ```sh
 ./Tests/LuaBridgeTests51
+./Tests/LuaBridgeTests51Noexcept
 ./Tests/LuaBridgeTests52
+./Tests/LuaBridgeTests52Noexcept
 ./Tests/LuaBridgeTests53
+./Tests/LuaBridgeTests53Noexcept
 ./Tests/LuaBridgeTests54
+./Tests/LuaBridgeTests54Noexcept
 ```
 
 # Windows
@@ -68,4 +76,5 @@ cmake -G "Visual Studio 16" ../
 
 Open the solution `LuaBridge.sln` in MSVC.
 
-Set `LuaBridgeTests51` or `LuaBridgeTests52` or `LuaBridgeTests53` or `LuaBridgeTests54` as a startup project and run it.
+Set `LuaBridgeTests51` or `LuaBridgeTests52` or `LuaBridgeTests53` or `LuaBridgeTests54` or their corresponding Noexcept version
+as a startup project and run.

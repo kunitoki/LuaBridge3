@@ -7,6 +7,7 @@
 #pragma once
 
 #include "Config.h"
+#include "LuaException.h"
 #include "ClassInfo.h"
 #include "TypeTraits.h"
 
@@ -316,12 +317,12 @@ public:
         if (!lua_istable(L, -1))
         {
             ud->~UserdataValue<T>();
-                        
-            ec = throw_or_error_code<std::logic_error>(ErrorCode::ClassNotRegistered);
-            
+
+            ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
+
             return nullptr;
         }
-        
+
         lua_setmetatable(L, -2);
 
         return ud;
@@ -391,7 +392,7 @@ private:
 
             ptr->~UserdataPtr();
             
-            ec = throw_or_error_code<std::logic_error>(ErrorCode::ClassNotRegistered);
+            ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
 
             return false;
         }

@@ -12,11 +12,13 @@ namespace luabridge {
 
 //=================================================================================================
 /**
- * @brief
+ * @brief LuaBridge error codes.
  */
 enum class ErrorCode
 {
     ClassNotRegistered = 1,
+
+    LuaFunctionCallFailed,
 };
 
 //=================================================================================================
@@ -35,6 +37,9 @@ struct ErrorCategory : std::error_category
         case ErrorCode::ClassNotRegistered:
             return "The class is not registered in LuaBridge";
 
+        case ErrorCode::LuaFunctionCallFailed:
+            return "The lua function invocation raised an error";
+
         default:
             return "Unknown error";
         }
@@ -50,9 +55,9 @@ struct ErrorCategory : std::error_category
 
 //=================================================================================================
 /**
- * @brief
+ * @brief Construct an error code from the error enum.
  */
-inline std::error_code make_error_code(ErrorCode e)
+inline std::error_code makeErrorCode(ErrorCode e)
 {
   return { static_cast<int>(e), detail::ErrorCategory::getInstance() };
 }

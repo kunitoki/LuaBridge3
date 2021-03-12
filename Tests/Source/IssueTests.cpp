@@ -77,7 +77,7 @@ std::vector<luabridge::LuaRef> callFunction(const luabridge::LuaRef& function, A
     function.push(L);
     pushArgs(L, args...);
 
-    luabridge::LuaException::pcall(L, sizeof...(args), LUA_MULTRET);
+    luabridge::pcall(L, sizeof...(args), LUA_MULTRET);
 
     std::vector<luabridge::LuaRef> results;
     int top = lua_gettop(L);
