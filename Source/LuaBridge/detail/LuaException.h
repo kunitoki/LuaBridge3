@@ -50,7 +50,8 @@ public:
     /**
      * @brief Throw an exception or raises a luaerror when exceptions are disabled.
      *
-     * This centralizes all the exceptions thrown, so that we can set breakpoints before the stack is unwound, or otherwise customize the behavior.
+     * This centralizes all the exceptions thrown, so that we can set breakpoints before the stack is
+     * unwound, or otherwise customize the behavior.
      */
     template <class Exception>
     static void raise(const Exception& e)
@@ -66,9 +67,7 @@ public:
 
     //=============================================================================================
     /**
-     * @brief Initializes error handling.
-     *
-     * Subsequent Lua errors are translated to C++ exceptions, or logging and abort if exceptions are disabled.
+     * @brief Check if exceptions are enabled.
      */
     static bool areExceptionsEnabled() noexcept
     {
@@ -83,13 +82,13 @@ public:
     static void enableExceptions(lua_State* L) noexcept
     {
         exceptionsEnabled() = true;
-        
+
         lua_atpanic(L, panicHandlerCallback);
     }
 
 private:
     struct FromLua {};
-    
+
     LuaException(lua_State* L, std::error_code code, FromLua)
         : m_L(L)
         , m_code(code)
@@ -102,7 +101,7 @@ private:
         std::stringstream ss;
 
         const char* errorText = nullptr;
-        
+
         if (lua_gettop(m_L) > 0)
         {
             errorText = lua_tostring(m_L, -1);

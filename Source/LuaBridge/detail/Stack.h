@@ -535,7 +535,7 @@ struct Stack<std::tuple<Types...>>
         lua_pushnil(L);
 
         pop_element(L, absIndex, value);
-        
+
         return value;
     }
 
@@ -559,9 +559,9 @@ private:
         -> std::enable_if_t<Index < sizeof...(Types), bool>
     {
         using T = std::tuple_element_t<Index, std::tuple<Types...>>;
-        
+
         lua_pushinteger(L, static_cast<lua_Integer>(Index + 1));
-        
+
         std::error_code push_ec;
         bool result = Stack<T>::push(L, std::get<Index>(t), push_ec);
         if (! result)
@@ -571,9 +571,9 @@ private:
             ec = push_ec;
             return false;
         }
-        
+
         lua_settable(L, -3);
-        
+
         return push_element<Index + 1>(L, t, ec);
     }
 
@@ -588,13 +588,13 @@ private:
         -> std::enable_if_t<Index < sizeof...(Types)>
     {
         using T = std::tuple_element_t<Index, std::tuple<Types...>>;
-        
+
         if (lua_next(L, absIndex) == 0)
             return;
 
         std::get<Index>(t) = Stack<T>::get(L, -1);
         lua_pop(L, 1);
-        
+
         pop_element<Index + 1>(L, absIndex, t);
     }
 };

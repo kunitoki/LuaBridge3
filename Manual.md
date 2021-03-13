@@ -1,6 +1,6 @@
 * * *
 
-LuaBridge 3.0 Reference Manual
+LuaBridge 3.1 Reference Manual
 ==============================
 
 * * *
@@ -55,7 +55,8 @@ Contents
         *   [4.1.2 - Visual Studio 2010, 2012](#412---visual-studio-2010-2012)
     *   [4.2 - Table Proxies](#42---table-proxies)
     *   [4.3 - Calling Lua](#43---calling-lua)
-        *   [4.3.1 - Class LuaException](#431---class-luaexception)
+        *   [4.3.1 - Exceptions](#431---exceptions)
+        *   [4.3.2 - Class LuaException](#432---class-luaexception)
 
 *   [5 - Security](#5---security)
 
@@ -580,7 +581,7 @@ namespace luabridge {
 template <class T>
 struct Stack
 {
-  static bool push (lua_State* L, T t);
+  static bool push (lua_State* L, T value, std::error_code& ec);
 
   static T get (lua_State* L, int index);
 
@@ -607,7 +608,7 @@ namespace luabridge {
 template <>
 struct Stack<juce::String>
 {
-  static bool push (lua_State* L, const juce::String& s)
+  static bool push (lua_State* L, const juce::String& s, std::error_code& ec)
   {
     lua_pushstring (L, s.toUTF8 ());
     return true;
@@ -622,6 +623,44 @@ struct Stack<juce::String>
   {
     return lua_type (L, index) == LUA_TSTRING;
   }
+};
+
+} // namespace luabridge
+```
+
+To make sure the library can work without exceptions enabled, if for some reason the push of the value on the lua stack cannot be performed, it is mandatory to return `false` but also fill the error code `ec` value with a proper error code, eventually restoring the stack as it was before entering the call:
+
+```cpp
+namespace luabridge {
+
+template <class T>
+struct Stack<Array<T>>
+{
+  static bool push (lua_State* L, const Array<T>& array, std::error_code& ec)
+  {
+    const int initialStackSize = lua_gettop(L);
+
+    lua_createtable(L, static_cast<int>(array.size()), 0);
+
+    for (std::size_t i = 0; i < array.size(); ++i)
+    {
+      lua_pushinteger(L, static_cast<lua_Integer>(i + 1));
+
+      std::error_code errorCode;
+      if (! Stack<T>::push(L, array[i], errorCode))         // The push can fail
+      {
+        ec = errorCode;                                     // Forward the error code
+        lua_pop(L, lua_gettop(L) - initialStackSize);       // Restore the stack
+        return false;                                       // Return false
+      }
+
+      lua_settable(L, -3);
+    }
+
+    return true;
+  }
+
+  // ...
 };
 
 } // namespace luabridge
@@ -1070,9 +1109,49 @@ t[3] = "foo"
 luabridge::LuaRef v = luabridge::getGlobal (L, "t");
 ```
 
-### 4.3.1 - Class LuaException
+### 4.3.1 - Exceptions
 
-When `LuaRef` is used to call into Lua using the `()` operator it issues a protected call using `lua_pcall`. LuaBridge uses the C++ exception handling mechanism, throwing a `LuaException` object:
+By default `LuaBridge3` is able to work without exceptions, and it's perfectly compatible with the `-fno-exceptions` or `/EHsc-` flags, which is typically used in games. Even if compiling with exceptions enabled, they are not used internally when calling into lua to convert lua errors, but exceptions are only used in registration code to signal potential issues when registering namespaces, classes and methods. You can use the free function `luabridge::enableExceptions` to enable exceptions once before starting to use any luabridge call, and of course that will work only if the application is compiled with exceptions enabled.
+
+When using the `luabridge::call` or `LuaRef::operator()` no exception should be raised, only if exceptions are disabled in the application or enabled in the application but disabled in luabridge. To control if the lua function invoked has raised a lua error, it is possible to do so by checking the `LuaResult` object that is returned from those functions.
+
+```cpp
+luabridge::LuaRef f (L) = luabridge::getGlobal (L, "fail");
+
+luabridge::LuaResult result = f ();
+if (! result)
+  std::cerr << result.errorMessage ();
+
+function fail ()
+  error ("A problem occurred")
+end
+```
+
+It is also possible that pushing an unregistered class instance into those function will generate an error, that can be trapped using the same mechanism in a `LuaResult`:
+
+```cpp
+struct UnregisteredClass {};
+
+luabridge::LuaRef f (L) = luabridge::getGlobal (L, "fail");
+
+auto argument = UnregisteredClass();
+
+luabridge::LuaResult result = f (argument);
+if (! result)
+  std::cerr << result.errorMessage ();
+
+function fail (unregistred)
+  error ("Should never reach here")
+end
+```
+
+Calling `luabridge::pcall` will not return a `LuaResult` but only the status code. It will anyway throw an exception if the return code of `lua_pcall`is not equal `LUA_OK`, and return the error code in case exceptions are disabled.
+
+When compiling `LuaBridge3` with exceptions disabled, all references to try catch blocks and throws will be removed.
+
+### 4.3.2 - Class LuaException
+
+When the application is compiled with exceptions and `luabridge::enableExceptions` function has been called, using `luabridge::call` or `LuaRef::operator()` will uses the C++ exception handling mechanism, throwing a `LuaException` object in case an argument has a type that has not been registered (and cannot be pushed onto the lua stack) or the lua function generated an error:
 
 ```cpp
 luabridge::LuaRef f (L) = luabridge::getGlobal (L, "fail");
@@ -1081,7 +1160,7 @@ try
 {
   f ();
 }
-catch (luabridge::LuaException const& e)
+catch (const luabridge::LuaException& e)
 {
   std::cerr << e.what ();
 }
@@ -1090,8 +1169,6 @@ function fail ()
   error ("A problem occurred")
 end
 ```
-
-When compiling `LuaBridge3` with exceptions disabled, all references to try catch blocks and throws will be removed.
 
 5 - Security
 ============
@@ -1116,6 +1193,9 @@ Free Functions
 --------------
 
 ```cpp
+/// Enable exceptions globally. Will translate lua_errors into C++ LuaExceptions. Usable only if compiled with C++ exceptions enabled.
+void enableExceptions(lua_State* L);
+
 /// Gets a global Lua variable reference.
 LuaRef getGlobal (lua_State* L, const char* name);
 
@@ -1125,6 +1205,16 @@ bool setGlobal (lua_State* L, V* varPtr, const char* name);
 
 /// Gets the global namespace registration object.
 Namespace getGlobalNamespace (lua_State* L);
+
+/// Invokes a LuaRef if it references a lua callable.
+template <class... Args>
+LuaResult call(const LuaRef& object, Args&&... args)
+
+/// Wrapper for lua_pcall, converting lua errors into C++ exceptions if they are enabled.
+int pcall(lua_State* L, int nargs = 0, int nresults = 0, int msgh = 0)
+
+/// Return a range iterable view over a lua table.
+Range pairs(const LuaRef& table);
 ```
 
 Namespace Registration - Namespace
@@ -1317,6 +1407,36 @@ void push (lua_State* L);
 /// Return the lua_type.
 int type () const;
 
+/// Indicate whether it is a nil reference.
+bool isNil () const;
+
+/// Indicate whether it is a reference to a boolean.
+bool isBool () const;
+
+/// Indicate whether it is a reference to a number.
+bool isNumber () const;
+
+/// Indicate whether it is a reference to a string.
+bool isString () const;
+
+/// Indicate whether it is a reference to a table.
+bool isTable () const;
+
+/// Indicate whether it is a reference to a function.
+bool isFunction () const;
+
+/// Indicate whether it is a reference to a full userdata.
+bool isUserdata () const;
+
+/// Indicate whether it is a reference to a light userdata.
+bool isLightUserdata () const;
+
+/// Indicate whether it is a reference to a Lua thread.
+bool isThread () const;
+
+/// Indicate whether it is a callable, can be either a lua function or an object with the __call metamethod.
+bool isCallable () const;
+
 /// Perform implicit type conversion.
 template <class T>
 operator T () const;
@@ -1328,6 +1448,81 @@ T cast () const;
 /// Check if the Lua value is convertible to the type T.
 template <class T>
 bool isInstance () const;
+
+/// Get the metatable for the LuaRef.
+LuaRef getMetatable () const;
+
+/// Compare this reference with a specified value using lua_compare(). This invokes metamethods.
+template <class T>
+bool operator== (T rhs) const;
+
+/// Compare this reference with a specified value using lua_compare(). This invokes metamethods.
+template <class T>
+bool operator!= (T rhs) const;
+
+/// Compare this reference with a specified value using lua_compare(). This invokes metamethods.
+template <class T>
+bool operator< (T rhs) const;
+
+/// Compare this reference with a specified value using lua_compare(). This invokes metamethods.
+template <class T>
+bool operator<= (T rhs) const;
+
+/// Compare this reference with a specified value using lua_compare(). This invokes metamethods.
+template <class T>
+bool operator> (T rhs) const;
+
+/// Compare this reference with a specified value using lua_compare(). This invokes metamethods.
+template <class T>
+bool operator>= (T rhs) const;
+
+/// Compare this reference with a specified value using lua_compare(). This does not invoke metamethods.
+template <class T>
+bool rawequal (T v) const;
+
+/// Append a value to a referred table. If the table is a sequence this will add another element to it.
+template <class T>
+void append (T v) const;
+
+/// Return the length of a referred array. This is identical to applying the Lua # operator.
+int length () const;
+
+/// Invoke the lua ref if it references a lua function.
+template <class... Args>
+LuaResult call (Args&&... args) const;
+```
+
+Lua Nil Special Value - LuaNil
+------------------------------
+
+```cpp
+/// LuaNil can be used to construct LuaRef.
+```
+
+Lua Result Of Function Invocation - LuaResult
+---------------------------------------------
+
+```cpp
+explicit operator bool() const;
+
+/// Return if the invocation was ok and didn't raise a lua error.
+bool wasOk() const;
+
+/// Return if the invocation did raise a lua error.
+bool hasFailed() const;
+
+/// Return the error code, if any.
+std::error_code errorCode() const;
+
+/// Return the error message, if any.
+std::string errorMessage() const;
+
+/// Return the number of return values.
+std::size_t size() const;
+
+/// Get a return value at a specific index.
+LuaRef operator[](std::size_t index) const;
+
 ```
 
 Stack Traits - Stack<T>
@@ -1335,7 +1530,8 @@ Stack Traits - Stack<T>
 
 ```cpp
 /// Converts the C++ value into the Lua value at the top of the Lua stack. Returns true if the push could be performed.
-bool push (lua_State* L, T value);
+/// When false is returned, `ec` contains the error code corresponding to the failure.
+bool push (lua_State* L, T value, std::error_code& ec);
 
 /// Converts the Lua value at the index into the C++ value of the type T.
 T get (lua_State* L, int index);

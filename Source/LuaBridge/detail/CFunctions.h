@@ -213,7 +213,7 @@ struct property_getter<T, void>
         std::error_code ec;
         if (! Stack<T&>::push(L, *ptr, ec))
             luaL_error(L, ec.message().c_str());
-        
+
         return 1;
     }
 };
@@ -249,7 +249,7 @@ struct property_getter
     static int call(lua_State* L)
     {
         C* c = Userdata::get<C>(L, 1, true);
-        
+
         T C::** mp = static_cast<T C::**>(lua_touserdata(L, lua_upvalueindex(1)));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
@@ -271,7 +271,7 @@ struct property_getter
             luaL_error(L, "Error while getting property");
         }
 #endif
-        
+
         return 1;
     }
 };
@@ -334,7 +334,7 @@ struct property_setter<std::reference_wrapper<T>, void>
     }
 };
 #endif
- 
+
 /**
  * @brief lua_CFunction to set a class data member.
  *
@@ -366,7 +366,7 @@ struct property_setter
             luaL_error(L, "Error while setting property");
         }
 #endif
-        
+
         return 0;
     }
 };
@@ -436,7 +436,7 @@ int invoke_member_cfunction(lua_State* L)
     assert(isfulluserdata(L, lua_upvalueindex(1)));
 
     T* t = Userdata::get<T>(L, 1, false);
-    
+
     const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
     assert(func != nullptr);
 
@@ -451,10 +451,10 @@ int invoke_const_member_cfunction(lua_State* L)
     assert(isfulluserdata(L, lua_upvalueindex(1)));
 
     const T* t = Userdata::get<T>(L, 1, true);
-    
+
     const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
     assert(func != nullptr);
-    
+
     return (t->*func)(L);
 }
 
@@ -468,7 +468,7 @@ template <class F>
 int invoke_proxy_function(lua_State* L)
 {
     using FnTraits = detail::function_traits<F>;
-    
+
     assert(lua_islightuserdata(L, lua_upvalueindex(1)));
 
     auto func = reinterpret_cast<F>(lua_touserdata(L, lua_upvalueindex(1)));
@@ -487,7 +487,7 @@ template <class F>
 int invoke_proxy_functor(lua_State* L)
 {
     using FnTraits = detail::function_traits<F>;
-    
+
     assert(isfulluserdata(L, lua_upvalueindex(1)));
 
     auto& func = *align<F>(lua_touserdata(L, lua_upvalueindex(1)));

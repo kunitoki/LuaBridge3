@@ -334,8 +334,8 @@ struct function
             std::error_code ec;
             bool result = Stack<ReturnType>::push(L, std::apply(func, make_arguments_list<ArgsPack, Start>(L)), ec);
             if (! result)
-                luaL_error(L, ec.message().c_str());
-            
+                return luaL_error(L, ec.message().c_str());
+
             return 1;
 
 #if LUABRIDGE_HAS_EXCEPTIONS
@@ -363,7 +363,7 @@ struct function
             std::error_code ec;
             bool result = Stack<ReturnType>::push(L, std::apply(f, make_arguments_list<ArgsPack, Start>(L)), ec);
             if (! result)
-                luaL_error(L, ec.message().c_str());
+                return luaL_error(L, ec.message().c_str());
 
             return 1;
 
@@ -467,10 +467,10 @@ struct constructor
     static T* call(const Args& args)
     {
         auto alloc = [](auto&&... args) { return new T{ std::forward<decltype(args)>(args)... }; };
-        
+
         return std::apply(alloc, args);
     }
-    
+
     static T* call(void* ptr, const Args& args)
     {
         auto alloc = [ptr](auto&&... args) { return new (ptr) T{ std::forward<decltype(args)>(args)... }; };

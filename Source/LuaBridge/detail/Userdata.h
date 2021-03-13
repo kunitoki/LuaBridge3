@@ -344,11 +344,11 @@ public:
 
         if (!ud)
             return false;
-        
+
         new (ud->getObject()) U(u);
 
         ud->commit();
-        
+
         return true;
     }
 
@@ -393,14 +393,14 @@ private:
             lua_pop(L, 1); // possibly: a nil
 
             ptr->~UserdataPtr();
-            
+
             ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
 
             return false;
         }
 
         lua_setmetatable(L, -2);
-        
+
         return true;
     }
 
@@ -535,7 +535,7 @@ struct UserdataSharedHelper
         {
             lua_pushnil(L);
         }
-        
+
         return true;
     }
 };
@@ -560,7 +560,7 @@ struct UserdataSharedHelper<C, true>
         {
             lua_pushnil(L);
         }
-        
+
         return true;
     }
 
@@ -578,7 +578,7 @@ struct UserdataSharedHelper<C, true>
         {
             lua_pushnil(L);
         }
-        
+
         return true;
     }
 };
@@ -692,7 +692,7 @@ struct UserdataGetter<T, std::void_t<T (*)()>>
 
     static ReturnType get(lua_State* L, int index)
     {
-        return StackHelper<T, TypeTraits::isContainer<T>::value>::get(L, index);
+        return StackHelper<T, IsContainer<T>::value>::get(L, index);
     }
 };
 
@@ -713,7 +713,7 @@ struct Stack
 
     static bool push(lua_State* L, const T& value, std::error_code& ec)
     {
-        return detail::StackHelper<T, detail::TypeTraits::isContainer<T>::value>::push(L, value, ec);
+        return detail::StackHelper<T, detail::IsContainer<T>::value>::push(L, value, ec);
     }
 
     static ReturnType get(lua_State* L, int index)
@@ -747,7 +747,7 @@ struct IsUserdata<T, std::void_t<typename Stack<T>::IsUserdata>> : std::bool_con
 /**
  * @brief Trait class that selects a specific push/get implemenation.
  */
-template <class T, bool isUserdata>
+template <class T, bool IsUserdata>
 struct StackOpSelector;
 
 // pointer
@@ -780,7 +780,7 @@ struct StackOpSelector<const T*, true>
 template <class T>
 struct StackOpSelector<T&, true>
 {
-    using Helper = RefStackHelper<T, TypeTraits::isContainer<T>::value>;
+    using Helper = RefStackHelper<T, IsContainer<T>::value>;
     using ReturnType = typename Helper::ReturnType;
 
     static bool push(lua_State* L, T& value, std::error_code& ec) { return UserdataPtr::push(L, &value, ec); }
@@ -794,7 +794,7 @@ struct StackOpSelector<T&, true>
 template <class T>
 struct StackOpSelector<const T&, true>
 {
-    using Helper = RefStackHelper<T, TypeTraits::isContainer<T>::value>;
+    using Helper = RefStackHelper<T, IsContainer<T>::value>;
     using ReturnType = typename Helper::ReturnType;
 
     static bool push(lua_State* L, const T& value, std::error_code& ec) { return Helper::push(L, value, ec); }

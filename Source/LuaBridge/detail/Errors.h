@@ -51,7 +51,7 @@ struct ErrorCategory : std::error_category
         return category;
     }
 };
-} // namespace
+} // namespace detail
 
 //=================================================================================================
 /**

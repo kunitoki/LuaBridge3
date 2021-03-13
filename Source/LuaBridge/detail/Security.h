@@ -59,7 +59,7 @@ bool setGlobal(lua_State* L, T&& t, const char* name)
         lua_setglobal(L, name);
         return true;
     }
-    
+
     return false;
 }
 

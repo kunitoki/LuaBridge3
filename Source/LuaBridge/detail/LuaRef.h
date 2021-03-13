@@ -97,7 +97,7 @@ protected:
         ~StackPop() { lua_pop(m_L, m_count); }
 
         void popCount(int newCount) { m_count = newCount; }
-        
+
     private:
         lua_State* m_L;
         int m_count;
@@ -400,7 +400,7 @@ public:
         StackPop p(m_L, 1);
 
         impl().push();
-                
+
         lua_getmetatable(m_L, -1);
 
         return LuaRef::fromStack(m_L);
@@ -430,6 +430,19 @@ public:
         }
 
         return lua_compare(m_L, -2, -1, LUA_OPEQ) == 1;
+    }
+
+    /**
+        Compare this reference with a specified value using lua_compare().
+        This invokes metamethods.
+
+        @param rhs A value to compare with.
+        @returns True if the referred value is not equal to the specified one.
+    */
+    template <class T>
+    bool operator!=(T rhs) const
+    {
+        return !(*this == rhs);
     }
 
     /**
@@ -711,7 +724,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             StackPop p(m_L, 1);
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_tableRef);
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_keyRef);
-            
+
             std::error_code ec;
             if (! Stack<T>::push(m_L, v, ec))
                 return *this;

@@ -52,11 +52,11 @@ protected:
     Registrar& operator=(const Registrar& rhs)
     {
         using std::swap;
-        
+
         Registrar tmp(rhs);
-        
+
         swap(m_stackSize, tmp.m_stackSize);
-        
+
         return *this;
     }
 
@@ -140,7 +140,7 @@ class Namespace : public detail::Registrar
         void createConstTable(const char* name, bool trueConst = true)
         {
             assert(name != nullptr);
-            
+
             std::string type_name = std::string(trueConst ? "const " : "") + name;
 
             // Stack: namespace table (ns)
@@ -244,7 +244,7 @@ class Namespace : public detail::Registrar
         static int ctorContainerProxy(lua_State* L)
         {
             using T = typename ContainerTraits<C>::Type;
-            
+
             T* object = detail::constructor<T, Args>::call(detail::make_arguments_list<Args, 2>(L));
 
             std::error_code ec;
@@ -759,11 +759,11 @@ class Namespace : public detail::Registrar
         Class<T> addFunction(char const* name, Function function)
         {
             using FnTraits = detail::function_traits<Function>;
-            
+
             using FnType = detail::to_std_function_type_t<
                 typename FnTraits::result_type,
                 typename FnTraits::argument_types>;
-            
+
             using FirstArg = detail::function_argument_t<0, Function>;
             static_assert(std::is_same_v<std::decay_t<std::remove_pointer_t<FirstArg>>, T>);
 
@@ -788,7 +788,7 @@ class Namespace : public detail::Registrar
                 rawsetfield(L, -4, name); // Stack: co, cl, st, function
                 rawsetfield(L, -4, name); // Stack: co, cl, st
             }
-            
+
             return *this;
         }
 
@@ -811,7 +811,7 @@ class Namespace : public detail::Registrar
                 throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
                 return *this;
             }
-            
+
             new (lua_newuserdata(L, sizeof(MemFn))) MemFn(mf);
             lua_pushcclosure(L, &detail::invoke_member_function<MemFn, T>, 1);
             rawsetfield(L, -3, name); // class table
@@ -834,7 +834,7 @@ class Namespace : public detail::Registrar
                 throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
                 return *this;
             }
-            
+
             new (lua_newuserdata(L, sizeof(MemFn))) MemFn(mf);
             lua_pushcclosure(L, &detail::invoke_const_member_function<MemFn, T>, 1);
             lua_pushvalue(L, -1);
@@ -861,7 +861,7 @@ class Namespace : public detail::Registrar
                 throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
                 return *this;
             }
-            
+
             lua_pushlightuserdata(L, reinterpret_cast<void*>(proxyFn)); // Stack: co, cl, st, function ptr
             lua_pushcclosure(L, &detail::invoke_proxy_function<FnType>, 1); // Stack: co, cl, st, function
             rawsetfield(L, -3, name); // Stack: co, cl, st
@@ -882,7 +882,7 @@ class Namespace : public detail::Registrar
                 throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
                 return *this;
             }
-            
+
             lua_pushlightuserdata(L, reinterpret_cast<void*>(proxyFn)); // Stack: co, cl, st, function ptr
             lua_pushcclosure(L, &detail::invoke_proxy_function<FnType>, 1); // Stack: co, cl, st, function
             lua_pushvalue(L, -1); // Stack: co, cl, st, function, function
@@ -945,7 +945,7 @@ class Namespace : public detail::Registrar
         Class<T>& addCFunction(char const* name, int (U::*mfp)(lua_State*) const)
         {
             static_assert(std::is_base_of_v<U, T>);
-            
+
             using F = decltype(mfp);
 
             assert(name != nullptr);
@@ -1112,7 +1112,7 @@ public:
 
             return Namespace(*this);
         }
-        
+
         assert(m_stackSize > 1);
         --m_stackSize;
         lua_pop(L, 1);
@@ -1137,7 +1137,7 @@ public:
 
             return *this;
         }
-        
+
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 
@@ -1180,7 +1180,7 @@ public:
 
             return *this;
         }
-        
+
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 
@@ -1252,11 +1252,11 @@ public:
     Namespace& addFunction(char const* name, Function function)
     {
         using FnTraits = detail::function_traits<Function>;
-        
+
         using FnType = detail::to_std_function_type_t<
             typename FnTraits::result_type,
             typename FnTraits::argument_types>;
-        
+
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 

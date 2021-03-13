@@ -6,7 +6,7 @@
 </a>
 <br>
 
-# LuaBridge 3.0
+# LuaBridge 3.1
 
 [LuaBridge][1] is a lightweight and dependency-free library for mapping data,
 functions, and classes back and forth between C++ and [Lua][2] (a powerful,
@@ -27,7 +27,7 @@ LuaBridge is usable from a compliant C++17 compiler and offers the following fea
 - Automatic function parameter type binding.
 - Easy access to Lua objects like tables and functions.
 - Interoperable with most common c++ standard library container types.
-- Can work with both c++ exceptions and without (`-fno-exceptions`).
+- Can work with both c++ exceptions and without (Work with `-fno-exceptions` too).
 - Written in a clear and easy to debug style.
 
 ## Status

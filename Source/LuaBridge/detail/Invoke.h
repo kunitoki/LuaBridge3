@@ -25,7 +25,7 @@ class LuaResult
 {
 public:
     /**
-     * @brief
+     * @brief Get if the result was ok and didn't raise a lua error.
      */
     explicit operator bool() const noexcept
     {
@@ -33,7 +33,7 @@ public:
     }
 
     /**
-     * @brief
+     * @brief Return if the invocation was ok and didn't raise a lua error.
      */
     bool wasOk() const noexcept
     {
@@ -41,7 +41,7 @@ public:
     }
 
     /**
-     * @brief
+     * @brief Return if the invocation did raise a lua error.
      */
     bool hasFailed() const noexcept
     {
@@ -49,7 +49,10 @@ public:
     }
 
     /**
-     * @brief
+     * @brief Return the error code, if any.
+     *
+     * In case the invcation didn't raise any lua error, the value returned equals to a
+     * default constructed std::error_code.
      */
     std::error_code errorCode() const noexcept
     {
@@ -57,28 +60,34 @@ public:
     }
 
     /**
-     * @brief
+     * @brief Return the error message, if any.
      */
     std::string errorMessage() const noexcept
     {
-        return std::holds_alternative<std::string>(m_data) ? std::get<std::string>(m_data) : std::string();
+        if (std::holds_alternative<std::string>(m_data))
+        {
+            const auto& message = std::get<std::string>(m_data);
+            return message.empty() ? m_ec.message() : message;
+        }
+
+        return {};
     }
 
     /**
-     * @brief
+     * @brief Return the number of return values.
      */
-    std::size_t getNumValues() const noexcept
+    std::size_t size() const noexcept
     {
         if (std::holds_alternative<std::vector<LuaRef>>(m_data))
             return std::get<std::vector<LuaRef>>(m_data).size();
-        
+
         return 0;
     }
-    
+
     /**
-     * @brief
+     * @brief Get a return value at a specific index.
      */
-    LuaRef getValue(std::size_t index) const
+    LuaRef operator[](std::size_t index) const
     {
         assert(m_ec == std::error_code());
 
@@ -92,7 +101,7 @@ public:
 
         return LuaRef(m_L);
     }
-    
+
 private:
     template <class... Args>
     friend LuaResult call(const LuaRef&, Args&&...);
@@ -100,16 +109,15 @@ private:
     static LuaResult errorFromStack(lua_State* L, std::error_code ec)
     {
         auto errorString = lua_tostring(L, -1);
-
         lua_pop(L, 1);
-        
-        return LuaResult(L, ec, errorString ? errorString : "");
+
+        return LuaResult(L, ec, errorString ? errorString : ec.message());
     }
 
     static LuaResult valuesFromStack(lua_State* L)
     {
         std::vector<LuaRef> values;
-        
+
         const int numReturnedValues = lua_gettop(L) - 1;
         if (numReturnedValues > 0)
         {
@@ -121,7 +129,7 @@ private:
                 lua_pop(L, 1);
             }
         }
-        
+
         return LuaResult(L, std::move(values));
     }
 
@@ -137,7 +145,7 @@ private:
         , m_data(std::move(values))
     {
     }
-    
+
     lua_State* m_L = nullptr;
     std::error_code m_ec;
     std::variant<std::vector<LuaRef>, std::string> m_data;
@@ -147,18 +155,24 @@ private:
 /**
  * @brief Safely call Lua code.
  *
- * These overloads allow Lua code to be called throught lua_pcall.  The return value is provided as a LuaResult which will hold the return
- * values or an error if the call failed.
+ * These overloads allow Lua code to be called throught lua_pcall.  The return value is provided as
+ * a LuaResult which will hold the return values or an error if the call failed.
  *
- * If an error occurs, a LuaException is thrown or if exceptions are disabled the FunctionResult will contain a error code and evaluate false.
+ * If an error occurs, a LuaException is thrown or if exceptions are disabled the FunctionResult will
+ * contain a error code and evaluate false.
  *
- * @returns A result of the call.
+ * @note The function might throw a LuaException if the application is compiled with exceptions on
+ * and they are enabled globally by calling `enableExceptions` in two cases:
+ * - one of the arguments passed cannot be pushed in the stack, for example a unregistered C++ class
+ * - the lua invaction calls the panic handler, which is converted to a C++ exception
+ *
+ * @return A result object.
 */
 template <class... Args>
 LuaResult call(const LuaRef& object, Args&&... args)
 {
     lua_State* L = object.state();
-    
+
     object.push();
 
     {
@@ -180,7 +194,7 @@ LuaResult call(const LuaRef& object, Args&&... args)
         if (LuaException::areExceptionsEnabled())
             LuaException::raise(LuaException(L, ec));
 #else
-        return LuaResult(L, ec, ec.message());
+        return LuaResult::errorFromStack(L, ec);
 #endif
     }
 
@@ -199,7 +213,7 @@ static int pcall(lua_State* L, int nargs = 0, int nresults = 0, int msgh = 0)
     if (code != LUABRIDGE_LUA_OK && LuaException::areExceptionsEnabled())
         LuaException::raise(LuaException(L, makeErrorCode(ErrorCode::LuaFunctionCallFailed)));
 #endif
-    
+
     return code;
 }
 

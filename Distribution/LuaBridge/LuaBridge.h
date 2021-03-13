@@ -1,5 +1,5 @@
 // https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
+// Copyright 2021, Lucio Asnaghi
 // SPDX-License-Identifier: MIT
 
 #pragma once
@@ -7,6 +7,8 @@
 #include <array>
 #include <cassert>
 #include <cstddef>
+#include <cstdio>
+#include <cstdlib>
 #include <exception>
 #include <functional>
 #include <iostream>
@@ -14,13 +16,16 @@
 #include <map>
 #include <optional>
 #include <set>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <tuple>
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
+#include <variant>
 #include <vector>
 
 // Begin File: Source/LuaBridge/detail/Config.h
@@ -31,9 +36,28 @@
 // Copyright 2019, George Tokmaji
 // SPDX-License-Identifier: MIT
 
-
 #if !(__cplusplus >= 201703L || (defined(_MSC_VER) && _HAS_CXX17))
 #error LuaBridge 3 requires a compliant C++17 compiler, or C++17 has not been enabled !
+#endif
+
+#if defined(_MSC_VER)
+#if _CPPUNWIND || _HAS_EXCEPTIONS
+#define LUABRIDGE_HAS_EXCEPTIONS 1
+#else
+#define LUABRIDGE_HAS_EXCEPTIONS 0
+#endif
+#elif defined(__clang__)
+#if __EXCEPTIONS && __has_feature(cxx_exceptions)
+#define LUABRIDGE_HAS_EXCEPTIONS 1
+#else
+#define LUABRIDGE_HAS_EXCEPTIONS 0
+#endif
+#elif defined(__GNUC__)
+#if defined(__cpp_exceptions) || defined(__EXCEPTIONS)
+#define LUABRIDGE_HAS_EXCEPTIONS 1
+#else
+#define LUABRIDGE_HAS_EXCEPTIONS 0
+#endif
 #endif
 
 // End File: Source/LuaBridge/detail/Config.h
@@ -45,9 +69,6 @@
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // Copyright 2007, Nathan Reed
 // SPDX-License-Identifier: MIT
-
-
-
 
 namespace luabridge {
 
@@ -128,6 +149,42 @@ inline int get_length(lua_State* L, int idx)
 #endif
 
 /**
+ * @brief Helper to throw or return an error code.
+ */
+template <class T, class ErrorType>
+std::error_code throw_or_error_code(ErrorType error)
+{
+#if LUABRIDGE_HAS_EXCEPTIONS
+    throw T(makeErrorCode(error).message().c_str());
+#else
+    return makeErrorCode(error);
+#endif
+}
+
+template <class T, class ErrorType>
+std::error_code throw_or_error_code(lua_State* L, ErrorType error)
+{
+#if LUABRIDGE_HAS_EXCEPTIONS
+    throw T(L, makeErrorCode(error));
+#else
+    return (void)L, makeErrorCode(error);
+#endif
+}
+
+/**
+ * @brief Helper to throw or assert.
+ */
+template <class T, class... Args>
+void throw_or_assert(Args&&... args)
+{
+#if LUABRIDGE_HAS_EXCEPTIONS
+    throw T(std::forward<Args>(args)...);
+#else
+    assert(false);
+#endif
+}
+
+/**
  * @brief Helper to set unsigned.
  */
 template <class T>
@@ -166,7 +223,7 @@ inline void rawsetfield(lua_State* L, int index, char const* key)
 /**
  * @brief Returns true if the value is a full userdata (not light).
  */
-inline bool isfulluserdata(lua_State* L, int index)
+[[nodiscard]] inline bool isfulluserdata(lua_State* L, int index)
 {
     return lua_isuserdata(L, index) && !lua_islightuserdata(L, index);
 }
@@ -176,10 +233,10 @@ inline bool isfulluserdata(lua_State* L, int index)
  *
  * This can determine if two different lua_State objects really point
  * to the same global state, such as when using coroutines.
- * 
+ *
  * @note This is used for assertions.
  */
-inline bool equalstates(lua_State* L1, lua_State* L2)
+[[nodiscard]] inline bool equalstates(lua_State* L1, lua_State* L2)
 {
     return lua_topointer(L1, LUA_REGISTRYINDEX) == lua_topointer(L2, LUA_REGISTRYINDEX);
 }
@@ -188,7 +245,7 @@ inline bool equalstates(lua_State* L1, lua_State* L2)
  * @brief Return an aligned pointer of type T.
  */
 template <class T>
-T* align(void* ptr) noexcept
+[[nodiscard]] T* align(void* ptr) noexcept
 {
     auto address = reinterpret_cast<size_t>(ptr);
 
@@ -202,7 +259,7 @@ T* align(void* ptr) noexcept
  * @brief Return the space needed to align the type T on an unaligned address.
  */
 template <class T>
-size_t maximum_space_needed_to_align() noexcept
+[[nodiscard]] size_t maximum_space_needed_to_align() noexcept
 {
     return sizeof(T) + alignof(T) - 1;
 }
@@ -232,15 +289,169 @@ int lua_deleteuserdata_aligned(lua_State* L)
 {
     assert(isfulluserdata(L, 1));
 
-    T* t = align<T>(lua_touserdata(L, 1));
-    t->~T();
+    T* aligned = align<T>(lua_touserdata(L, 1));
+    aligned->~T();
 
     return 0;
+}
+
+/**
+ * @brief Helper to write a lua string error.
+ */
+inline void writestringerror(const char* fmt, const char* text)
+{
+    fprintf(stderr, fmt, text);
+    fflush(stderr);
 }
 
 } // namespace luabridge
 
 // End File: Source/LuaBridge/detail/LuaHelpers.h
+
+// Begin File: Source/LuaBridge/detail/LuaException.h
+
+// https://github.com/kunitoki/LuaBridge3
+// Copyright 2021, Lucio Asnaghi
+// Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
+// Copyright 2008, Nigel Atkinson <suprapilot+LuaCode@gmail.com>
+// SPDX-License-Identifier: MIT
+
+namespace luabridge {
+
+//================================================================================================
+class LuaException : public std::exception
+{
+public:
+    //=============================================================================================
+    /**
+     * @brief Construct a LuaException after a lua_pcall().
+     *
+     * Assumes the error string is on top of the stack, but provides a generic error message otherwise.
+     */
+    LuaException(lua_State* L, std::error_code code)
+        : m_L(L)
+        , m_code(code)
+    {
+    }
+
+    ~LuaException() noexcept override
+    {
+    }
+
+    //=============================================================================================
+    /**
+     * @brief Return the error message.
+     */
+    const char* what() const noexcept override
+    {
+        return m_what.c_str();
+    }
+
+    //=============================================================================================
+    /**
+     * @brief Throw an exception or raises a luaerror when exceptions are disabled.
+     *
+     * This centralizes all the exceptions thrown, so that we can set breakpoints before the stack is
+     * unwound, or otherwise customize the behavior.
+     */
+    template <class Exception>
+    static void raise(const Exception& e)
+    {
+        assert(areExceptionsEnabled());
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        throw e;
+#else
+        std::abort();
+#endif
+    }
+
+    //=============================================================================================
+    /**
+     * @brief Check if exceptions are enabled.
+     */
+    static bool areExceptionsEnabled() noexcept
+    {
+        return exceptionsEnabled();
+    }
+
+    /**
+     * @brief Initializes error handling.
+     *
+     * Subsequent Lua errors are translated to C++ exceptions, or logging and abort if exceptions are disabled.
+     */
+    static void enableExceptions(lua_State* L) noexcept
+    {
+        exceptionsEnabled() = true;
+
+        lua_atpanic(L, panicHandlerCallback);
+    }
+
+private:
+    struct FromLua {};
+
+    LuaException(lua_State* L, std::error_code code, FromLua)
+        : m_L(L)
+        , m_code(code)
+    {
+        whatFromStack();
+    }
+
+    void whatFromStack()
+    {
+        std::stringstream ss;
+
+        const char* errorText = nullptr;
+
+        if (lua_gettop(m_L) > 0)
+        {
+            errorText = lua_tostring(m_L, -1);
+            lua_pop(m_L, 1);
+        }
+
+        ss << (errorText ? errorText : "Unknown error") << " (code=" << m_code.message() << ")";
+
+        m_what = std::move(ss).str();
+    }
+
+    static int panicHandlerCallback(lua_State* L)
+    {
+#if LUABRIDGE_HAS_EXCEPTIONS
+        throw LuaException(L, makeErrorCode(ErrorCode::LuaFunctionCallFailed), FromLua{});
+#else
+        std::abort();
+#endif
+    }
+
+    static bool& exceptionsEnabled()
+    {
+        static bool areExceptionsEnabled = false;
+        return areExceptionsEnabled;
+    }
+
+    lua_State* m_L = nullptr;
+    std::error_code m_code;
+    std::string m_what;
+};
+
+//=================================================================================================
+/**
+ * @brief Initializes error handling using C++ exceptions.
+ *
+ * Subsequent Lua errors are translated to C++ exceptions. It aborts the application if called when no exceptions.
+ */
+inline void enableExceptions(lua_State* L) noexcept
+{
+#if LUABRIDGE_HAS_EXCEPTIONS
+    LuaException::enableExceptions(L);
+#else
+    assert(false); // Never call this function when exceptions are not enabled.
+#endif
+}
+
+} // namespace luabridge
+
+// End File: Source/LuaBridge/detail/LuaException.h
 
 // Begin File: Source/LuaBridge/detail/ClassInfo.h
 
@@ -249,8 +460,6 @@ int lua_deleteuserdata_aligned(lua_State* L)
 // Copyright 2020, Dmitry Tarakanov
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // SPDX-License-Identifier: MIT
-
-
 
 namespace luabridge {
 namespace detail {
@@ -406,74 +615,66 @@ void const* getConstRegistryKey()
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // SPDX-License-Identifier: MIT
 
-
-
-
 namespace luabridge {
 
-//------------------------------------------------------------------------------
+//=================================================================================================
 /**
-    Container traits.
-
-    Unspecialized ContainerTraits has the isNotContainer typedef for SFINAE.
-    All user defined containers must supply an appropriate specialization for
-    ContinerTraits (without the typedef isNotContainer). The containers that
-    come with LuaBridge also come with the appropriate ContainerTraits
-    specialization. See the corresponding declaration for details.
-
-    A specialization of ContainerTraits for some generic type ContainerType
-    looks like this:
-
-        template <class T>
-        struct ContainerTraits <ContainerType <T>>
-        {
-          typedef typename T Type;
-
-          static T* get (ContainerType <T> const& c)
-          {
-            return c.get (); // Implementation-dependent on ContainerType
-          }
-        };
-*/
-template<class T>
+ * @brief Container traits.
+ *
+ * Unspecialized ContainerTraits has the isNotContainer typedef for SFINAE. All user defined containers
+ * must supply an appropriate specialization for ContinerTraits (without the alias isNotContainer).
+ * The containers that come with LuaBridge also come with the appropriate ContainerTraits specialization.
+ *
+ * @note See the corresponding declaration for details.
+ *
+ * A specialization of ContainerTraits for some generic type ContainerType looks like this:
+ *
+ * @code
+ *
+ *  template <class T>
+ *  struct ContainerTraits<ContainerType<T>>
+ *  {
+ *    using Type = T;
+ *
+ *    static T* get(const ContainerType<T>& c)
+ *    {
+ *      return c.get (); // Implementation-dependent on ContainerType
+ *    }
+ *  };
+ *
+ * @endcode
+ */
+template <class T>
 struct ContainerTraits
 {
-    typedef bool isNotContainer;
+    using IsNotContainer = bool;
 
-    typedef T Type;
+    using Type = T;
 };
 
 namespace detail {
 
-//------------------------------------------------------------------------------
+//=================================================================================================
 /**
-    Type traits.
-
-    Specializations return information about a type.
-*/
-struct TypeTraits
+ * @brief Determine if type T is a container.
+ *
+ * To be considered a container, there must be a specialization of ContainerTraits with the required fields.
+ */
+template <class T>
+class IsContainer
 {
-    /** Determine if type T is a container.
+private:
+    typedef char yes[1]; // sizeof (yes) == 1
+    typedef char no[2]; // sizeof (no)  == 2
 
-        To be considered a container, there must be a specialization of
-        ContainerTraits with the required fields.
-    */
-    template<typename T>
-    class isContainer
-    {
-    private:
-        typedef char yes[1]; // sizeof (yes) == 1
-        typedef char no[2]; // sizeof (no)  == 2
+    template <class C>
+    static constexpr no& test(typename C::IsNotContainer*);
 
-        template <typename C>
-        static constexpr no& test(typename C::isNotContainer*);
+    template <class>
+    static constexpr yes& test(...);
 
-        template <typename>
-        static constexpr yes& test(...);
-
-    public:
-        static constexpr bool value = sizeof(test<ContainerTraits<T>>(0)) == sizeof(yes);
-    };
+public:
+    static constexpr bool value = sizeof(test<ContainerTraits<T>>(0)) == sizeof(yes);
 };
 
 } // namespace detail
@@ -490,29 +691,28 @@ struct TypeTraits
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // SPDX-License-Identifier: MIT
 
-
-
-
 namespace luabridge {
 namespace detail {
 
 //==============================================================================
 /**
-  Return the identity pointer for our lightuserdata tokens.
-
-  Because of Lua's dynamic typing and our improvised system of imposing C++
-  class structure, there is the possibility that executing scripts may
-  knowingly or unknowingly cause invalid data to get passed to the C functions
-  created by LuaBridge. In particular, our security model addresses the
-  following:
-    1. Scripts cannot create a userdata (ignoring the debug lib).
-    2. Scripts cannot create a lightuserdata (ignoring the debug lib).
-    3. Scripts cannot set the metatable on a userdata.
-*/
+ * @brief Return the identity pointer for our lightuserdata tokens.
+ *
+ * Because of Lua's dynamic typing and our improvised system of imposing C++ class structure, there is the possibility that executing scripts may
+ * knowingly or unknowingly cause invalid data to get passed to the C functions created by LuaBridge.
+ *
+ * In particular, our security model addresses the following:
+ *
+ *   1. Scripts cannot create a userdata (ignoring the debug lib).
+ *
+ *   2. Scripts cannot create a lightuserdata (ignoring the debug lib).
+ *
+ *   3. Scripts cannot set the metatable on a userdata.
+ */
 
 /**
-  Interface to a class pointer retrievable from a userdata.
-*/
+ * @brief Interface to a class pointer retrievable from a userdata.
+ */
 class Userdata
 {
 protected:
@@ -723,7 +923,7 @@ public:
         if (lua_isnil(L, index))
         {
             luaL_error(L, "argument %d is nil", index - 1);
-            return 0;
+            return nullptr;
         }
 
         return static_cast<T*>(getClass(L,
@@ -761,11 +961,14 @@ private:
     /**
       Used for placement construction.
     */
-    UserdataValue() { m_p = 0; }
+    UserdataValue()
+    {
+        m_p = nullptr;
+    }
 
     ~UserdataValue()
     {
-        if (getPointer() != 0)
+        if (getPointer() != nullptr)
         {
             getObject()->~T();
         }
@@ -781,14 +984,22 @@ public:
       @param L A Lua state.
       @returns An object referring to the newly created userdata value.
     */
-    static UserdataValue<T>* place(lua_State* const L)
+    static UserdataValue<T>* place(lua_State* L, std::error_code& ec)
     {
         UserdataValue<T>* const ud = new (lua_newuserdata(L, sizeof(UserdataValue<T>))) UserdataValue<T>();
 
         lua_rawgetp(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>());
 
         if (!lua_istable(L, -1))
-            throw std::logic_error("The class is not registered in LuaBridge");
+        {
+            lua_pop(L, 1); // possibly: a nil
+
+            ud->~UserdataValue<T>();
+
+            ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
+
+            return nullptr;
+        }
 
         lua_setmetatable(L, -2);
 
@@ -802,12 +1013,19 @@ public:
       @param  L A Lua state.
       @param  u A container object reference.
     */
-    template<class U>
-    static inline void push(lua_State* const L, U const& u)
+    template <class U>
+    static bool push(lua_State* L, const U& u, std::error_code& ec)
     {
-        UserdataValue<T>* ud = place(L);
+        UserdataValue<T>* ud = place(L, ec);
+
+        if (!ud)
+            return false;
+
         new (ud->getObject()) U(u);
+
         ud->commit();
+
+        return true;
     }
 
     /**
@@ -841,21 +1059,28 @@ private:
 private:
     /** Push a pointer to object using metatable key.
      */
-    static void push(lua_State* L, const void* p, void const* const key)
+    static bool push(lua_State* L, const void* p, const void* key, std::error_code& ec)
     {
-        new (lua_newuserdata(L, sizeof(UserdataPtr))) UserdataPtr(const_cast<void*>(p));
+        UserdataPtr* ptr = new (lua_newuserdata(L, sizeof(UserdataPtr))) UserdataPtr(const_cast<void*>(p));
         lua_rawgetp(L, LUA_REGISTRYINDEX, key);
 
         if (!lua_istable(L, -1))
         {
             lua_pop(L, 1); // possibly: a nil
-            throw std::logic_error("The class is not registered in LuaBridge");
+
+            ptr->~UserdataPtr();
+
+            ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
+
+            return false;
         }
 
         lua_setmetatable(L, -2);
+
+        return true;
     }
 
-    explicit UserdataPtr(void* const p)
+    explicit UserdataPtr(void* p)
     {
         // Can't construct with a null pointer!
         assert(p != nullptr);
@@ -870,13 +1095,14 @@ public:
       @param  L A Lua state.
       @param  p A pointer to the user class instance.
     */
-    template<class T>
-    static void push(lua_State* const L, T* const p)
+    template <class T>
+    static bool push(lua_State* L, T* p, std::error_code& ec)
     {
         if (p)
-            push(L, p, getClassRegistryKey<T>());
-        else
-            lua_pushnil(L);
+            return push(L, p, getClassRegistryKey<T>(), ec);
+
+        lua_pushnil(L);
+        return true;
     }
 
     /** Push const pointer to object.
@@ -885,24 +1111,24 @@ public:
       @param  L A Lua state.
       @param  p A pointer to the user class instance.
     */
-    template<class T>
-    static void push(lua_State* const L, T const* const p)
+    template <class T>
+    static bool push(lua_State* L, const T* p, std::error_code& ec)
     {
         if (p)
-            push(L, p, getConstRegistryKey<T>());
-        else
-            lua_pushnil(L);
+            return push(L, p, getConstRegistryKey<T>(), ec);
+
+        lua_pushnil(L);
+        return true;
     }
 };
 
 //============================================================================
 /**
-  Wraps a container that references a class object.
-
-  The template argument C is the container type, ContainerTraits must be
-  specialized on C or else a compile error will result.
-*/
-template<class C>
+ * @brief Wraps a container that references a class object.
+ *
+ * The template argument C is the container type, ContainerTraits must be specialized on C or else a compile error will result.
+ */
+template <class C>
 class UserdataShared : public Userdata
 {
 private:
@@ -923,10 +1149,10 @@ public:
       @tparam U A container type.
       @param  u A container object reference.
     */
-    template<class U>
-    explicit UserdataShared(U const& u) : m_c(u)
+    template <class U>
+    explicit UserdataShared(const U& u) : m_c(u)
     {
-        m_p = const_cast<void*>(reinterpret_cast<void const*>((ContainerTraits<C>::get(m_c))));
+        m_p = const_cast<void*>(reinterpret_cast<const void*>((ContainerTraits<C>::get(m_c))));
     }
 
     /**
@@ -935,54 +1161,58 @@ public:
       @tparam U A container type.
       @param  u A container object pointer.
     */
-    template<class U>
+    template <class U>
     explicit UserdataShared(U* u) : m_c(u)
     {
-        m_p = const_cast<void*>(reinterpret_cast<void const*>((ContainerTraits<C>::get(m_c))));
+        m_p = const_cast<void*>(reinterpret_cast<const void*>((ContainerTraits<C>::get(m_c))));
     }
 };
 
 //----------------------------------------------------------------------------
-//
-// SFINAE helpers.
-//
+/**
+ * @brief SFINAE helpers.
+ */
 
 // non-const objects
-template<class C, bool makeObjectConst>
+template <class C, bool MakeObjectConst>
 struct UserdataSharedHelper
 {
     using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
 
-    static void push(lua_State* L, C const& c)
+    static bool push(lua_State* L, const C& c, std::error_code&)
     {
         if (ContainerTraits<C>::get(c) != 0)
         {
             new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(c);
             lua_rawgetp(L, LUA_REGISTRYINDEX, getClassRegistryKey<T>());
             // If this goes off it means the class T is unregistered!
-            assert(lua_istable(L, -1));
+            assert(lua_istable(L, -1)); // TODO - raise luaerror
             lua_setmetatable(L, -2);
         }
         else
         {
             lua_pushnil(L);
         }
+
+        return true;
     }
 
-    static void push(lua_State* L, T* const t)
+    static bool push(lua_State* L, T* t, std::error_code&)
     {
         if (t)
         {
             new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(t);
             lua_rawgetp(L, LUA_REGISTRYINDEX, getClassRegistryKey<T>());
             // If this goes off it means the class T is unregistered!
-            assert(lua_istable(L, -1));
+            assert(lua_istable(L, -1)); // TODO - raise luaerror
             lua_setmetatable(L, -2);
         }
         else
         {
             lua_pushnil(L);
         }
+
+        return true;
     }
 };
 
@@ -992,56 +1222,58 @@ struct UserdataSharedHelper<C, true>
 {
     using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
 
-    static void push(lua_State* L, C const& c)
+    static bool push(lua_State* L, const C& c, std::error_code&)
     {
         if (ContainerTraits<C>::get(c) != 0)
         {
             new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(c);
             lua_rawgetp(L, LUA_REGISTRYINDEX, getConstRegistryKey<T>());
             // If this goes off it means the class T is unregistered!
-            assert(lua_istable(L, -1));
+            assert(lua_istable(L, -1)); // TODO - raise luaerror
             lua_setmetatable(L, -2);
         }
         else
         {
             lua_pushnil(L);
         }
+
+        return true;
     }
 
-    static void push(lua_State* L, T* const t)
+    static bool push(lua_State* L, T* t, std::error_code&)
     {
         if (t)
         {
             new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(t);
             lua_rawgetp(L, LUA_REGISTRYINDEX, getConstRegistryKey<T>());
             // If this goes off it means the class T is unregistered!
-            assert(lua_istable(L, -1));
+            assert(lua_istable(L, -1)); // TODO - raise luaerror
             lua_setmetatable(L, -2);
         }
         else
         {
             lua_pushnil(L);
         }
+
+        return true;
     }
 };
 
 /**
-  Pass by container.
-
-  The container controls the object lifetime. Typically this will be a
-  lifetime shared by C++ and Lua using a reference count. Because of type
-  erasure, containers like std::shared_ptr will not work. Containers must
-  either be of the intrusive variety, or in the style of the RefCountedPtr
-  type provided by LuaBridge (that uses a global hash table).
+ * @brief Pass by container.
+ *
+ * The container controls the object lifetime. Typically this will be a lifetime shared by C++ and Lua using a reference count. Because of type
+ * erasure, containers like std::shared_ptr will not work. Containers must either be of the intrusive variety, or in the style of the RefCountedPtr
+ * type provided by LuaBridge (that uses a global hash table).
 */
-template <class T, bool byContainer>
+template <class T, bool ByContainer>
 struct StackHelper
 {
     using ReturnType = std::remove_const_t<typename ContainerTraits<T>::Type>;
 
-    static void push(lua_State* L, T const& t)
+    static bool push(lua_State* L, const T& t, std::error_code& ec)
     {
-        UserdataSharedHelper<T, std::is_const_v<typename ContainerTraits<T>::Type>>::push(L, t);
+        return UserdataSharedHelper<T, std::is_const_v<typename ContainerTraits<T>::Type>>::push(L, t, ec);
     }
 
     static T get(lua_State* L, int index)
@@ -1051,18 +1283,17 @@ struct StackHelper
 };
 
 /**
-  Pass by value.
-
-  Lifetime is managed by Lua. A C++ function which accesses a pointer or
-  reference to an object outside the activation record in which it was
-  retrieved may result in undefined behavior if Lua garbage collected it.
-*/
+ * @brief Pass by value.
+ *
+ * Lifetime is managed by Lua. A C++ function which accesses a pointer or reference to an object outside the activation record in which it was
+ * retrieved may result in undefined behavior if Lua garbage collected it.
+ */
 template <class T>
 struct StackHelper<T, false>
 {
-    static void push(lua_State* L, T const& t)
+    static bool push(lua_State* L, const T& t, std::error_code& ec)
     {
-        UserdataValue<T>::push(L, t);
+        return UserdataValue<T>::push(L, t, ec);
     }
 
     static T const& get(lua_State* L, int index)
@@ -1073,22 +1304,20 @@ struct StackHelper<T, false>
 
 //------------------------------------------------------------------------------
 /**
-  Lua stack conversions for pointers and references to class objects.
-
-  Lifetime is managed by C++. Lua code which remembers a reference to the
-  value may result in undefined behavior if C++ destroys the object. The
-  handling of the const and volatile qualifiers happens in UserdataPtr.
-*/
-
-template <class C, bool byContainer>
+ * @brief Lua stack conversions for pointers and references to class objects.
+ *
+ * Lifetime is managed by C++. Lua code which remembers a reference to the value may result in undefined behavior if C++ destroys the object.
+ * The handling of the const and volatile qualifiers happens in UserdataPtr.
+ */
+template <class C, bool ByContainer>
 struct RefStackHelper
 {
     using ReturnType = C;
     using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
 
-    static inline void push(lua_State* L, C const& t)
+    static inline bool push(lua_State* L, const C& t, std::error_code& ec)
     {
-        UserdataSharedHelper<C, std::is_const_v<typename ContainerTraits<C>::Type>>::push(L, t);
+        return UserdataSharedHelper<C, std::is_const_v<typename ContainerTraits<C>::Type>>::push(L, t, ec);
     }
 
     static ReturnType get(lua_State* L, int index)
@@ -1102,9 +1331,9 @@ struct RefStackHelper<T, false>
 {
     using ReturnType = T&;
 
-    static void push(lua_State* L, T const& t)
+    static bool push(lua_State* L, const T& t, std::error_code& ec)
     {
-        UserdataPtr::push(L, &t);
+        return UserdataPtr::push(L, &t, ec);
     }
 
     static ReturnType get(lua_State* L, int index)
@@ -1119,26 +1348,27 @@ struct RefStackHelper<T, false>
 };
 
 /**
- * Trait class that selects whether to return a user registered
- * class object by value or by reference.
+ * @brief Trait class that selects whether to return a user registered class object by value or by reference.
  */
-
-template<class T, class Enabler = void>
+template <class T, class Enable = void>
 struct UserdataGetter
 {
-    typedef T* ReturnType;
-
-    static ReturnType get(lua_State* L, int index) { return Userdata::get<T>(L, index, false); }
-};
-
-template<class T>
-struct UserdataGetter<T, std::void_t<T (*)()>>
-{
-    typedef T ReturnType;
+    using ReturnType = T*;
 
     static ReturnType get(lua_State* L, int index)
     {
-        return StackHelper<T, TypeTraits::isContainer<T>::value>::get(L, index);
+        return Userdata::get<T>(L, index, false);
+    }
+};
+
+template <class T>
+struct UserdataGetter<T, std::void_t<T (*)()>>
+{
+    using ReturnType = T;
+
+    static ReturnType get(lua_State* L, int index)
+    {
+        return StackHelper<T, IsContainer<T>::value>::get(L, index);
     }
 };
 
@@ -1147,8 +1377,8 @@ struct UserdataGetter<T, std::void_t<T (*)()>>
 //==============================================================================
 
 /**
-  Lua stack conversions for class objects passed by value.
-*/
+ * @brief Lua stack conversions for class objects passed by value.
+ */
 template <class T>
 struct Stack
 {
@@ -1157,9 +1387,9 @@ struct Stack
     using Getter = detail::UserdataGetter<T>;
     using ReturnType = typename Getter::ReturnType;
 
-    static void push(lua_State* L, T const& value)
+    static bool push(lua_State* L, const T& value, std::error_code& ec)
     {
-        detail::StackHelper<T, detail::TypeTraits::isContainer<T>::value>::push(L, value);
+        return detail::StackHelper<T, detail::IsContainer<T>::value>::push(L, value, ec);
     }
 
     static ReturnType get(lua_State* L, int index)
@@ -1176,35 +1406,33 @@ struct Stack
 namespace detail {
 
 /**
- * Trait class indicating whether the parameter type must be
- * a user registered class. The trait checks the existence of
- * member type Stack::IsUserdata specialization for detection.
+ * @brief Trait class indicating whether the parameter type must be a user registered class.
+ *
+ * The trait checks the existence of member type Stack::IsUserdata specialization for detection.
  */
-template<class T, class Enable = void>
-struct IsUserdata
+template <class T, class Enable = void>
+struct IsUserdata : std::bool_constant<false>
 {
-    static const bool value = false;
 };
 
-template<class T>
-struct IsUserdata<T, std::void_t<typename Stack<T>::IsUserdata>>
+template <class T>
+struct IsUserdata<T, std::void_t<typename Stack<T>::IsUserdata>> : std::bool_constant<true>
 {
-    static const bool value = true;
 };
 
 /**
- * Trait class that selects a specific push/get implemenation.
+ * @brief Trait class that selects a specific push/get implemenation.
  */
-template<class T, bool isUserdata>
+template <class T, bool IsUserdata>
 struct StackOpSelector;
 
 // pointer
-template<class T>
+template <class T>
 struct StackOpSelector<T*, true>
 {
-    typedef T* ReturnType;
+    using ReturnType = T*;
 
-    static void push(lua_State* L, T* value) { UserdataPtr::push(L, value); }
+    static bool push(lua_State* L, T* value, std::error_code& ec) { return UserdataPtr::push(L, value, ec); }
 
     static T* get(lua_State* L, int index) { return Userdata::get<T>(L, index, false); }
 
@@ -1212,12 +1440,12 @@ struct StackOpSelector<T*, true>
 };
 
 // pointer to const
-template<class T>
+template <class T>
 struct StackOpSelector<const T*, true>
 {
-    typedef const T* ReturnType;
+    using ReturnType = const T*;
 
-    static void push(lua_State* L, const T* value) { UserdataPtr::push(L, value); }
+    static bool push(lua_State* L, const T* value, std::error_code& ec) { return UserdataPtr::push(L, value, ec); }
 
     static const T* get(lua_State* L, int index) { return Userdata::get<T>(L, index, true); }
 
@@ -1225,13 +1453,13 @@ struct StackOpSelector<const T*, true>
 };
 
 // reference
-template<class T>
+template <class T>
 struct StackOpSelector<T&, true>
 {
-    typedef RefStackHelper<T, TypeTraits::isContainer<T>::value> Helper;
-    typedef typename Helper::ReturnType ReturnType;
+    using Helper = RefStackHelper<T, IsContainer<T>::value>;
+    using ReturnType = typename Helper::ReturnType;
 
-    static void push(lua_State* L, T& value) { UserdataPtr::push(L, &value); }
+    static bool push(lua_State* L, T& value, std::error_code& ec) { return UserdataPtr::push(L, &value, ec); }
 
     static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
 
@@ -1239,13 +1467,13 @@ struct StackOpSelector<T&, true>
 };
 
 // reference to const
-template<class T>
+template <class T>
 struct StackOpSelector<const T&, true>
 {
-    typedef RefStackHelper<T, TypeTraits::isContainer<T>::value> Helper;
-    typedef typename Helper::ReturnType ReturnType;
+    using Helper = RefStackHelper<T, IsContainer<T>::value>;
+    using ReturnType = typename Helper::ReturnType;
 
-    static void push(lua_State* L, const T& value) { Helper::push(L, value); }
+    static bool push(lua_State* L, const T& value, std::error_code& ec) { return Helper::push(L, value, ec); }
 
     static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
 
@@ -1266,10 +1494,6 @@ struct StackOpSelector<const T&, true>
 // Copyright 2007, Nathan Reed
 // SPDX-License-Identifier: MIT
 
-
-
-
-
 namespace luabridge {
 
 //=================================================================================================
@@ -1288,8 +1512,9 @@ struct Stack;
 template <>
 struct Stack<void>
 {
-    static void push(lua_State*)
+    static bool push(lua_State*, std::error_code&)
     {
+        return true;
     }
 };
 
@@ -1313,9 +1538,10 @@ struct Stack<lua_State*>
 template <>
 struct Stack<lua_CFunction>
 {
-    static void push(lua_State* L, lua_CFunction f)
+    static bool push(lua_State* L, lua_CFunction f, std::error_code&)
     {
         lua_pushcfunction(L, f);
+        return true;
     }
 
     static lua_CFunction get(lua_State* L, int index)
@@ -1336,9 +1562,10 @@ struct Stack<lua_CFunction>
 template <>
 struct Stack<bool>
 {
-    static void push(lua_State* L, bool value)
+    static bool push(lua_State* L, bool value, std::error_code&)
     {
         lua_pushboolean(L, value ? 1 : 0);
+        return true;
     }
 
     static bool get(lua_State* L, int index)
@@ -1359,9 +1586,10 @@ struct Stack<bool>
 template <>
 struct Stack<std::byte>
 {
-    static void push(lua_State* L, std::byte value)
+    static bool push(lua_State* L, std::byte value, std::error_code&)
     {
         pushunsigned(L, std::to_integer<lua_Unsigned>(value));
+        return true;
     }
 
     static std::byte get(lua_State* L, int index)
@@ -1382,9 +1610,10 @@ struct Stack<std::byte>
 template <>
 struct Stack<char>
 {
-    static void push(lua_State* L, char value)
+    static bool push(lua_State* L, char value, std::error_code&)
     {
         lua_pushlstring(L, &value, 1);
+        return true;
     }
 
     static char get(lua_State* L, int index)
@@ -1405,9 +1634,10 @@ struct Stack<char>
 template <>
 struct Stack<unsigned char>
 {
-    static void push(lua_State* L, unsigned char value)
+    static bool push(lua_State* L, unsigned char value, std::error_code&)
     {
         pushunsigned(L, value);
+        return true;
     }
 
     static unsigned char get(lua_State* L, int index)
@@ -1428,9 +1658,10 @@ struct Stack<unsigned char>
 template <>
 struct Stack<short>
 {
-    static void push(lua_State* L, short value)
+    static bool push(lua_State* L, short value, std::error_code&)
     {
         lua_pushinteger(L, static_cast<lua_Integer>(value));
+        return true;
     }
 
     static short get(lua_State* L, int index)
@@ -1451,9 +1682,10 @@ struct Stack<short>
 template <>
 struct Stack<unsigned short>
 {
-    static void push(lua_State* L, unsigned short value)
+    static bool push(lua_State* L, unsigned short value, std::error_code&)
     {
         pushunsigned(L, value);
+        return true;
     }
 
     static unsigned short get(lua_State* L, int index)
@@ -1474,9 +1706,10 @@ struct Stack<unsigned short>
 template <>
 struct Stack<int>
 {
-    static void push(lua_State* L, int value)
+    static bool push(lua_State* L, int value, std::error_code&)
     {
         lua_pushinteger(L, static_cast<lua_Integer>(value));
+        return true;
     }
 
     static int get(lua_State* L, int index)
@@ -1497,9 +1730,10 @@ struct Stack<int>
 template <>
 struct Stack<unsigned int>
 {
-    static void push(lua_State* L, unsigned int value)
+    static bool push(lua_State* L, unsigned int value, std::error_code&)
     {
         pushunsigned(L, value);
+        return true;
     }
 
     static unsigned int get(lua_State* L, int index)
@@ -1520,9 +1754,10 @@ struct Stack<unsigned int>
 template <>
 struct Stack<long>
 {
-    static void push(lua_State* L, long value)
+    static bool push(lua_State* L, long value, std::error_code&)
     {
         lua_pushinteger(L, static_cast<lua_Integer>(value));
+        return true;
     }
 
     static long get(lua_State* L, int index)
@@ -1543,9 +1778,10 @@ struct Stack<long>
 template <>
 struct Stack<unsigned long>
 {
-    static void push(lua_State* L, unsigned long value)
+    static bool push(lua_State* L, unsigned long value, std::error_code&)
     {
         pushunsigned(L, value);
+        return true;
     }
 
     static unsigned long get(lua_State* L, int index)
@@ -1566,9 +1802,10 @@ struct Stack<unsigned long>
 template <>
 struct Stack<long long>
 {
-    static void push(lua_State* L, long long value)
+    static bool push(lua_State* L, long long value, std::error_code&)
     {
         lua_pushinteger(L, static_cast<lua_Integer>(value));
+        return true;
     }
 
     static long long get(lua_State* L, int index)
@@ -1589,9 +1826,10 @@ struct Stack<long long>
 template <>
 struct Stack<unsigned long long>
 {
-    static void push(lua_State* L, unsigned long long value)
+    static bool push(lua_State* L, unsigned long long value, std::error_code&)
     {
         pushunsigned(L, value);
+        return true;
     }
 
     static unsigned long long get(lua_State* L, int index)
@@ -1612,9 +1850,10 @@ struct Stack<unsigned long long>
 template <>
 struct Stack<float>
 {
-    static void push(lua_State* L, float value)
+    static bool push(lua_State* L, float value, std::error_code&)
     {
         lua_pushnumber(L, static_cast<lua_Number>(value));
+        return true;
     }
 
     static float get(lua_State* L, int index)
@@ -1635,9 +1874,10 @@ struct Stack<float>
 template <>
 struct Stack<double>
 {
-    static void push(lua_State* L, double value)
+    static bool push(lua_State* L, double value, std::error_code&)
     {
         lua_pushnumber(L, static_cast<lua_Number>(value));
+        return true;
     }
 
     static double get(lua_State* L, int index)
@@ -1656,14 +1896,16 @@ struct Stack<double>
  * @brief Stack specialization for `const char*`.
  */
 template <>
-struct Stack<char const*>
+struct Stack<const char*>
 {
-    static void push(lua_State* L, const char* str)
+    static bool push(lua_State* L, const char* str, std::error_code&)
     {
         if (str != nullptr)
             lua_pushstring(L, str);
         else
             lua_pushnil(L);
+
+        return true;
     }
 
     static const char* get(lua_State* L, int index)
@@ -1684,9 +1926,10 @@ struct Stack<char const*>
 template <>
 struct Stack<std::string_view>
 {
-    static void push(lua_State* L, std::string_view str)
+    static bool push(lua_State* L, std::string_view str, std::error_code&)
     {
         lua_pushlstring(L, str.data(), str.size());
+        return true;
     }
 
     static std::string_view get(lua_State* L, int index)
@@ -1707,9 +1950,10 @@ struct Stack<std::string_view>
 template <>
 struct Stack<std::string>
 {
-    static void push(lua_State* L, const std::string& str)
+    static bool push(lua_State* L, const std::string& str, std::error_code&)
     {
         lua_pushlstring(L, str.data(), str.size());
+        return true;
     }
 
     static std::string get(lua_State* L, int index)
@@ -1745,11 +1989,11 @@ struct Stack<std::string>
 template <class... Types>
 struct Stack<std::tuple<Types...>>
 {
-    static void push(lua_State* L, const std::tuple<Types...>& t)
+    static bool push(lua_State* L, const std::tuple<Types...>& t, std::error_code& ec)
     {
         lua_createtable(L, static_cast<int>(Size), 0);
 
-        push_element(L, t);
+        return push_element(L, t, ec);
     }
 
     static std::tuple<Types...> get(lua_State* L, int index)
@@ -1766,7 +2010,7 @@ struct Stack<std::tuple<Types...>>
         lua_pushnil(L);
 
         pop_element(L, absIndex, value);
-        
+
         return value;
     }
 
@@ -1779,22 +2023,33 @@ private:
     static constexpr std::size_t Size = std::tuple_size_v<std::tuple<Types...>>;
 
     template <std::size_t Index = 0>
-    static auto push_element(lua_State*, const std::tuple<Types...>&)
-        -> std::enable_if_t<Index == sizeof...(Types)>
+    static auto push_element(lua_State*, const std::tuple<Types...>&, std::error_code&)
+        -> std::enable_if_t<Index == sizeof...(Types), bool>
     {
+        return true;
     }
 
     template <std::size_t Index = 0>
-    static auto push_element(lua_State* L, const std::tuple<Types...>& t)
-        -> std::enable_if_t<Index < sizeof...(Types)>
+    static auto push_element(lua_State* L, const std::tuple<Types...>& t, std::error_code& ec)
+        -> std::enable_if_t<Index < sizeof...(Types), bool>
     {
         using T = std::tuple_element_t<Index, std::tuple<Types...>>;
-        
+
         lua_pushinteger(L, static_cast<lua_Integer>(Index + 1));
-        Stack<T>::push(L, std::get<Index>(t));
+
+        std::error_code push_ec;
+        bool result = Stack<T>::push(L, std::get<Index>(t), push_ec);
+        if (! result)
+        {
+            lua_pushnil(L);
+            lua_settable(L, -3);
+            ec = push_ec;
+            return false;
+        }
+
         lua_settable(L, -3);
-        
-        push_element<Index + 1>(L, t);
+
+        return push_element<Index + 1>(L, t, ec);
     }
 
     template <std::size_t Index = 0>
@@ -1808,61 +2063,61 @@ private:
         -> std::enable_if_t<Index < sizeof...(Types)>
     {
         using T = std::tuple_element_t<Index, std::tuple<Types...>>;
-        
+
         if (lua_next(L, absIndex) == 0)
             return;
 
         std::get<Index>(t) = Stack<T>::get(L, -1);
         lua_pop(L, 1);
-        
+
         pop_element<Index + 1>(L, absIndex, t);
     }
 };
 
 namespace detail {
 
-template<class T>
+template <class T>
 struct StackOpSelector<T&, false>
 {
     using ReturnType = T;
 
-    static void push(lua_State* L, T& value) { Stack<T>::push(L, value); }
+    static bool push(lua_State* L, T& value, std::error_code& ec) { return Stack<T>::push(L, value, ec); }
 
     static ReturnType get(lua_State* L, int index) { return Stack<T>::get(L, index); }
 
     static bool isInstance(lua_State* L, int index) { return Stack<T>::isInstance(L, index); }
 };
 
-template<class T>
+template <class T>
 struct StackOpSelector<const T&, false>
 {
     using ReturnType = T;
 
-    static void push(lua_State* L, const T& value) { Stack<T>::push(L, value); }
+    static bool push(lua_State* L, const T& value, std::error_code& ec) { return Stack<T>::push(L, value, ec); }
 
     static ReturnType get(lua_State* L, int index) { return Stack<T>::get(L, index); }
 
     static bool isInstance(lua_State* L, int index) { return Stack<T>::isInstance(L, index); }
 };
 
-template<class T>
+template <class T>
 struct StackOpSelector<T*, false>
 {
     using ReturnType = T;
 
-    static void push(lua_State* L, T* value) { Stack<T>::push(L, *value); }
+    static bool push(lua_State* L, T* value, std::error_code& ec) { return Stack<T>::push(L, *value, ec); }
 
     static ReturnType get(lua_State* L, int index) { return Stack<T>::get(L, index); }
 
     static bool isInstance(lua_State* L, int index) { return Stack<T>::isInstance(L, index); }
 };
 
-template<class T>
+template <class T>
 struct StackOpSelector<const T*, false>
 {
     using ReturnType = T;
 
-    static void push(lua_State* L, const T* value) { Stack<T>::push(L, *value); }
+    static bool push(lua_State* L, const T* value, std::error_code& ec) { return Stack<T>::push(L, *value, ec); }
 
     static ReturnType get(lua_State* L, int index) { return Stack<T>::get(L, index); }
 
@@ -1871,35 +2126,35 @@ struct StackOpSelector<const T*, false>
 
 } // namespace detail
 
-template<class T>
+template <class T>
 struct Stack<T&>
 {
     using Helper = detail::StackOpSelector<T&, detail::IsUserdata<T>::value>;
     using ReturnType = typename Helper::ReturnType;
 
-    static void push(lua_State* L, T& value) { Helper::push(L, value); }
+    static bool push(lua_State* L, T& value, std::error_code& ec) { return Helper::push(L, value, ec); }
 
     static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
 };
 
-template<class T>
+template <class T>
 struct Stack<const T&>
 {
     using Helper = detail::StackOpSelector<const T&, detail::IsUserdata<T>::value>;
     using ReturnType = typename Helper::ReturnType;
 
-    static void push(lua_State* L, const T& value) { Helper::push(L, value); }
+    static bool push(lua_State* L, const T& value, std::error_code& ec) { return Helper::push(L, value, ec); }
 
     static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
 };
 
-template<class T>
+template <class T>
 struct Stack<T*>
 {
     using Helper = detail::StackOpSelector<T*, detail::IsUserdata<T>::value>;
     using ReturnType = typename Helper::ReturnType;
 
-    static void push(lua_State* L, T* value) { Helper::push(L, value); }
+    static bool push(lua_State* L, T* value, std::error_code& ec) { return Helper::push(L, value, ec); }
 
     static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
 };
@@ -1910,27 +2165,27 @@ struct Stack<const T*>
     using Helper = detail::StackOpSelector<const T*, detail::IsUserdata<T>::value>;
     using ReturnType = typename Helper::ReturnType;
 
-    static void push(lua_State* L, const T* value) { Helper::push(L, value); }
+    static bool push(lua_State* L, const T* value, std::error_code& ec) { return Helper::push(L, value, ec); }
 
     static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
 };
 
 //------------------------------------------------------------------------------
 /**
- * Push an object onto the Lua stack.
+ * @brief Push an object onto the Lua stack.
  */
-template<class T>
-inline void push(lua_State* L, T t)
+template <class T>
+bool push(lua_State* L, T t, std::error_code& ec)
 {
-    Stack<T>::push(L, t);
+    return Stack<T>::push(L, t, ec);
 }
 
 //------------------------------------------------------------------------------
 /**
- * Check whether an object on the Lua stack is of type T.
+ * @brief Check whether an object on the Lua stack is of type T.
  */
-template<class T>
-inline bool isInstance(lua_State* L, int index)
+template <class T>
+bool isInstance(lua_State* L, int index)
 {
     return Stack<T>::isInstance(L, index);
 }
@@ -1946,9 +2201,6 @@ inline bool isInstance(lua_State* L, int index)
 // Copyright 2018, Dmitry Tarakanov
 // SPDX-License-Identifier: MIT
 
-
-
-
 namespace luabridge {
 
 //=================================================================================================
@@ -1958,24 +2210,45 @@ namespace luabridge {
 template <class K, class V>
 struct Stack<std::map<K, V>>
 {
-    static void push(lua_State* L, const std::map<K, V>& map)
+    using Type = std::map<K, V>;
+
+    static bool push(lua_State* L, const Type& map, std::error_code& ec)
     {
+        const int initialStackSize = lua_gettop(L);
+
         lua_createtable(L, 0, static_cast<int>(map.size()));
 
+        bool result;
         for (auto it = map.begin(); it != map.end(); ++it)
         {
-            Stack<K>::push(L, it->first);
-            Stack<V>::push(L, it->second);
+            std::error_code errorCodeKey;
+            if (! Stack<K>::push(L, it->first, errorCodeKey))
+            {
+                ec = errorCodeKey;
+                lua_pop(L, lua_gettop(L) - initialStackSize);
+                return false;
+            }
+
+            std::error_code errorCodeValue;
+            if (! Stack<V>::push(L, it->second, errorCodeValue))
+            {
+                ec = errorCodeValue;
+                lua_pop(L, lua_gettop(L) - initialStackSize);
+                return false;
+            }
+
             lua_settable(L, -3);
         }
+        
+        return true;
     }
 
-    static std::map<K, V> get(lua_State* L, int index)
+    static Type get(lua_State* L, int index)
     {
         if (!lua_istable(L, index))
             luaL_error(L, "#%d argument must be a table", index);
 
-        std::map<K, V> map;
+        Type map;
 
         int absIndex = lua_absindex(L, index);
         lua_pushnil(L);
@@ -2006,9 +2279,6 @@ struct Stack<std::map<K, V>>
 // Copyright 2019, Dmitry Tarakanov
 // SPDX-License-Identifier: MIT
 
-
-
-
 namespace luabridge {
 
 //=================================================================================================
@@ -2018,26 +2288,45 @@ namespace luabridge {
 template <class K, class V>
 struct Stack<std::unordered_map<K, V>>
 {
-    typedef std::unordered_map<K, V> Map;
+    using Type = std::unordered_map<K, V>;
 
-    static void push(lua_State* L, const std::unordered_map<K, V>& map)
+    static bool push(lua_State* L, const Type& map, std::error_code& ec)
     {
+        const int initialStackSize = lua_gettop(L);
+        
         lua_createtable(L, 0, static_cast<int>(map.size()));
 
+        bool result;
         for (auto it = map.begin(); it != map.end(); ++it)
         {
-            Stack<K>::push(L, it->first);
-            Stack<V>::push(L, it->second);
+            std::error_code errorCodeKey;
+            if (! Stack<K>::push(L, it->first, errorCodeKey))
+            {
+                ec = errorCodeKey;
+                lua_pop(L, lua_gettop(L) - initialStackSize);
+                return false;
+            }
+            
+            std::error_code errorCodeValue;
+            if (! Stack<V>::push(L, it->second, errorCodeValue))
+            {
+                ec = errorCodeValue;
+                lua_pop(L, lua_gettop(L) - initialStackSize);
+                return false;
+            }
+
             lua_settable(L, -3);
         }
+        
+        return true;
     }
 
-    static std::unordered_map<K, V> get(lua_State* L, int index)
+    static Type get(lua_State* L, int index)
     {
         if (!lua_istable(L, index))
             luaL_error(L, "#%d argument must be a table", index);
 
-        std::unordered_map<K, V> map;
+        Type map;
 
         int absIndex = lua_absindex(L, index);
         lua_pushnil(L);
@@ -2067,9 +2356,6 @@ struct Stack<std::unordered_map<K, V>>
 // Copyright 2020, Lucio Asnaghi
 // SPDX-License-Identifier: MIT
 
-
-
-
 namespace luabridge {
 
 //=================================================================================================
@@ -2079,15 +2365,18 @@ namespace luabridge {
 template <class T>
 struct Stack<std::optional<T>>
 {
-    static void push(lua_State* L, const std::optional<T>& value)
+    using Type = std::optional<T>;
+    
+    static bool push(lua_State* L, const Type& value, std::error_code& ec)
     {
         if (value)
-            Stack<T>::push(L, *value);
-        else
-            lua_pushnil(L);
+            return Stack<T>::push(L, *value, ec);
+
+        lua_pushnil(L);
+        return true;
     }
 
-    static std::optional<T> get(lua_State* L, int index)
+    static Type get(lua_State* L, int index)
     {
         if (lua_type(L, index) == LUA_TNIL)
             return std::nullopt;
@@ -2145,9 +2434,6 @@ struct Stack<std::optional<T>>
     Copyright 2004-11 by Raw Material Software Ltd.
 */
 //==============================================================================
-
-
-
 
 namespace luabridge {
 
@@ -2481,9 +2767,6 @@ struct ContainerTraits<RefCountedObjectPtr<T>>
 // Copyright 2007, Nathan Reed
 // SPDX-License-Identifier: MIT
 
-
-
-
 namespace luabridge {
 
 namespace detail {
@@ -2676,6 +2959,74 @@ struct ContainerTraits<RefCountedPtr<T>>
 
 // End File: Source/LuaBridge/RefCountedPtr.h
 
+// Begin File: Source/LuaBridge/detail/Errors.h
+
+// https://github.com/vinniefalco/LuaBridge
+// Copyright 2021, Lucio Asnaghi
+// SPDX-License-Identifier: MIT
+
+namespace luabridge {
+
+//=================================================================================================
+/**
+ * @brief LuaBridge error codes.
+ */
+enum class ErrorCode
+{
+    ClassNotRegistered = 1,
+
+    LuaFunctionCallFailed,
+};
+
+//=================================================================================================
+namespace detail {
+struct ErrorCategory : std::error_category
+{
+    const char* name() const noexcept override
+    {
+        return "luabridge";
+    }
+
+    std::string message(int ev) const override
+    {
+        switch (static_cast<ErrorCode>(ev))
+        {
+        case ErrorCode::ClassNotRegistered:
+            return "The class is not registered in LuaBridge";
+
+        case ErrorCode::LuaFunctionCallFailed:
+            return "The lua function invocation raised an error";
+
+        default:
+            return "Unknown error";
+        }
+    }
+
+    static const ErrorCategory& getInstance() noexcept
+    {
+        static ErrorCategory category;
+        return category;
+    }
+};
+} // namespace detail
+
+//=================================================================================================
+/**
+ * @brief Construct an error code from the error enum.
+ */
+inline std::error_code makeErrorCode(ErrorCode e)
+{
+  return { static_cast<int>(e), detail::ErrorCategory::getInstance() };
+}
+
+} // namespace luabridge
+
+namespace std {
+template <> struct is_error_code_enum<luabridge::ErrorCode> : true_type {};
+} // namespace std
+
+// End File: Source/LuaBridge/detail/Errors.h
+
 // Begin File: Source/LuaBridge/detail/FuncTraits.h
 
 // https://github.com/kunitoki/LuaBridge3
@@ -2684,9 +3035,6 @@ struct ContainerTraits<RefCountedPtr<T>>
 // Copyright 2019, George Tokmaji
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // SPDX-License-Identifier: MIT
-
-
-
 
 namespace luabridge {
 namespace detail {
@@ -2916,7 +3264,7 @@ using to_std_function_type_t = typename to_std_function_type<ReturnType, Args...
  * @tparam Types Argument types that will compose the tuple.
  */
 template <class... Types>
-auto tupleize(Types&&... types)
+constexpr auto tupleize(Types&&... types)
 {
     return std::tuple<Types...>(std::forward<Types>(types)...);
 }
@@ -2945,21 +3293,27 @@ auto make_arguments_list(lua_State* L)
  * @brief Helpers for iterating through tuple arguments, pushing each argument to the lua stack.
  */
 template <std::size_t Index = 0, typename... Types>
-auto push_arguments(lua_State*, const std::tuple<Types...>&)
+auto push_arguments(lua_State*, const std::tuple<Types...>&, std::error_code&)
     -> std::enable_if_t<Index == sizeof...(Types), std::size_t>
 {
-    return sizeof...(Types);
+    return Index + 1;
 }
 
 template <std::size_t Index = 0, typename... Types>
-auto push_arguments(lua_State* L, const std::tuple<Types...>& t)
+auto push_arguments(lua_State* L, const std::tuple<Types...>& t, std::error_code& ec)
     -> std::enable_if_t<Index < sizeof...(Types), std::size_t>
 {
     using T = std::tuple_element_t<Index, std::tuple<Types...>>;
 
-    Stack<T>::push(L, std::get<Index>(t));
+    std::error_code pec;
+    bool result = Stack<T>::push(L, std::get<Index>(t), pec);
+    if (! result)
+    {
+        ec = pec;
+        return Index + 1;
+    }
 
-    return push_arguments<Index + 1, Types...>(L, t);
+    return push_arguments<Index + 1, Types...>(L, t, ec);
 }
 
 //=================================================================================================
@@ -2994,33 +3348,57 @@ struct function
     template <class F>
     static int call(lua_State* L, F func)
     {
+#if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
-            Stack<ReturnType>::push(L, std::apply(func, make_arguments_list<ArgsPack, Start>(L)));
-            
+#endif
+            std::error_code ec;
+            bool result = Stack<ReturnType>::push(L, std::apply(func, make_arguments_list<ArgsPack, Start>(L)), ec);
+            if (! result)
+                return luaL_error(L, ec.message().c_str());
+
             return 1;
+
+#if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
         {
             return luaL_error(L, e.what());
         }
+        catch (...)
+        {
+            return luaL_error(L, "Error while calling function");
+        }
+#endif
     }
 
     template <class T, class F>
     static int call(lua_State* L, T* ptr, F func)
     {
+#if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
+#endif
             auto f = [ptr, func](auto&&... args) -> ReturnType { return (ptr->*func)(std::forward<decltype(args)>(args)...); };
 
-            Stack<ReturnType>::push(L, std::apply(f, make_arguments_list<ArgsPack, Start>(L)));
+            std::error_code ec;
+            bool result = Stack<ReturnType>::push(L, std::apply(f, make_arguments_list<ArgsPack, Start>(L)), ec);
+            if (! result)
+                return luaL_error(L, ec.message().c_str());
 
             return 1;
+
+#if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
         {
             return luaL_error(L, e.what());
         }
+        catch (...)
+        {
+            return luaL_error(L, "Error while calling method");
+        }
+#endif
     }
 };
 
@@ -3030,33 +3408,51 @@ struct function<void, ArgsPack, Start>
     template <class F>
     static int call(lua_State* L, F func)
     {
+#if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
+#endif
             std::apply(func, make_arguments_list<ArgsPack, Start>(L));
 
             return 0;
+
+#if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
         {
             return luaL_error(L, e.what());
         }
+        catch (...)
+        {
+            return luaL_error(L, "Error while calling function");
+        }
+#endif
     }
 
     template <class T, class F>
     static int call(lua_State* L, T* ptr, F func)
     {
+#if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
+#endif
             auto f = [ptr, func](auto&&... args) { (ptr->*func)(std::forward<decltype(args)>(args)...); };
 
             std::apply(f, make_arguments_list<ArgsPack, Start>(L));
 
             return 0;
+
+#if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
         {
             return luaL_error(L, e.what());
         }
+        catch (...)
+        {
+            return luaL_error(L, "Error while calling method");
+        }
+#endif
     }
 };
 
@@ -3091,14 +3487,14 @@ struct constructor
 {
     static T* call(const Args& args)
     {
-        auto alloc = [](auto&&... args) { return new T(std::forward<decltype(args)>(args)...); };
-        
+        auto alloc = [](auto&&... args) { return new T{ std::forward<decltype(args)>(args)... }; };
+
         return std::apply(alloc, args);
     }
-    
+
     static T* call(void* ptr, const Args& args)
     {
-        auto alloc = [ptr](auto&&... args) { return new (ptr) T(std::forward<decltype(args)>(args)...); };
+        auto alloc = [ptr](auto&&... args) { return new (ptr) T{ std::forward<decltype(args)>(args)... }; };
 
         return std::apply(alloc, args);
     }
@@ -3117,179 +3513,182 @@ struct constructor
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // SPDX-License-Identifier: MIT
 
-
-
-
 namespace luabridge {
 namespace detail {
 
-struct CFunc
+//=================================================================================================
+/**
+ * @brief __index metamethod for a namespace or class static and non-static members.
+ *
+ * Retrieves functions from metatables and properties from propget tables. Looks through the class hierarchy if inheritance is present.
+ */
+inline int index_metamethod(lua_State* L)
 {
-    //----------------------------------------------------------------------------
-    /**
-        __index metamethod for a namespace or class static and non-static members.
-        Retrieves functions from metatables and properties from propget tables.
-        Looks through the class hierarchy if inheritance is present.
-    */
-    static int indexMetaMethod(lua_State* L)
+    assert(lua_istable(L, 1) || lua_isuserdata(L, 1)); // Stack (further not shown): table | userdata, name
+
+    lua_getmetatable(L, 1); // Stack: class/const table (mt)
+    assert(lua_istable(L, -1));
+
+    for (;;)
     {
-        assert(lua_istable(L, 1) || lua_isuserdata(L, 1)); // Stack (further not shown): table | userdata, name
+        lua_pushvalue(L, 2); // Stack: mt, field name
+        lua_rawget(L, -2); // Stack: mt, field | nil
 
-        lua_getmetatable(L, 1); // Stack: class/const table (mt)
-        assert(lua_istable(L, -1));
-
-        for (;;)
+        if (lua_iscfunction(L, -1)) // Stack: mt, field
         {
-            lua_pushvalue(L, 2); // Stack: mt, field name
-            lua_rawget(L, -2); // Stack: mt, field | nil
-
-            if (lua_iscfunction(L, -1)) // Stack: mt, field
-            {
-                lua_remove(L, -2); // Stack: field
-                return 1;
-            }
-
-            assert(lua_isnil(L, -1)); // Stack: mt, nil
-            lua_pop(L, 1); // Stack: mt
-
-            lua_rawgetp(L, -1, getPropgetKey()); // Stack: mt, propget table (pg)
-            assert(lua_istable(L, -1));
-
-            lua_pushvalue(L, 2); // Stack: mt, pg, field name
-            lua_rawget(L, -2); // Stack: mt, pg, getter | nil
-            lua_remove(L, -2); // Stack: mt, getter | nil
-
-            if (lua_iscfunction(L, -1)) // Stack: mt, getter
-            {
-                lua_remove(L, -2); // Stack: getter
-                lua_pushvalue(L, 1); // Stack: getter, table | userdata
-                lua_call(L, 1, 1); // Stack: value
-                return 1;
-            }
-
-            assert(lua_isnil(L, -1)); // Stack: mt, nil
-            lua_pop(L, 1); // Stack: mt
-
-            // It may mean that the field may be in const table and it's constness violation.
-            // Don't check that, just return nil
-
-            // Repeat the lookup in the parent metafield,
-            // or return nil if the field doesn't exist.
-            lua_rawgetp(L, -1, getParentKey()); // Stack: mt, parent mt | nil
-
-            if (lua_isnil(L, -1)) // Stack: mt, nil
-            {
-                lua_remove(L, -2); // Stack: nil
-                return 1;
-            }
-
-            // Removethe  metatable and repeat the search in the parent one.
-            assert(lua_istable(L, -1)); // Stack: mt, parent mt
-            lua_remove(L, -2); // Stack: parent mt
+            lua_remove(L, -2); // Stack: field
+            return 1;
         }
 
-        // no return
-    }
+        assert(lua_isnil(L, -1)); // Stack: mt, nil
+        lua_pop(L, 1); // Stack: mt
 
-    //----------------------------------------------------------------------------
-    /**
-        __newindex metamethod for namespace or class static members.
-        Retrieves properties from propset tables.
-    */
-    static int newindexStaticMetaMethod(lua_State* L)
-    {
-        return newindexMetaMethod(L, false);
-    }
-
-    //----------------------------------------------------------------------------
-    /**
-        __newindex metamethod for non-static members.
-        Retrieves properties from propset tables.
-    */
-    static int newindexObjectMetaMethod(lua_State* L)
-    {
-        return newindexMetaMethod(L, true);
-    }
-
-    static int newindexMetaMethod(lua_State* L, bool pushSelf)
-    {
-        assert(lua_istable(L, 1) || lua_isuserdata(L, 1)); // Stack (further not shown): table | userdata, name, new value
-
-        lua_getmetatable(L, 1); // Stack: metatable (mt)
+        lua_rawgetp(L, -1, getPropgetKey()); // Stack: mt, propget table (pg)
         assert(lua_istable(L, -1));
 
-        for (;;)
+        lua_pushvalue(L, 2); // Stack: mt, pg, field name
+        lua_rawget(L, -2); // Stack: mt, pg, getter | nil
+        lua_remove(L, -2); // Stack: mt, getter | nil
+
+        if (lua_iscfunction(L, -1)) // Stack: mt, getter
         {
-            lua_rawgetp(L, -1, getPropsetKey()); // Stack: mt, propset table (ps) | nil
-
-            if (lua_isnil(L, -1)) // Stack: mt, nil
-            {
-                lua_pop(L, 2); // Stack: -
-                return luaL_error(L, "No member named '%s'", lua_tostring(L, 2));
-            }
-
-            assert(lua_istable(L, -1));
-
-            lua_pushvalue(L, 2); // Stack: mt, ps, field name
-            lua_rawget(L, -2); // Stack: mt, ps, setter | nil
-            lua_remove(L, -2); // Stack: mt, setter | nil
-
-            if (lua_iscfunction(L, -1)) // Stack: mt, setter
-            {
-                lua_remove(L, -2); // Stack: setter
-                if (pushSelf)
-                    lua_pushvalue(L, 1); // Stack: setter, table | userdata
-                lua_pushvalue(L, 3); // Stack: setter, table | userdata, new value
-                lua_call(L, pushSelf ? 2 : 1, 0); // Stack: -
-                return 0;
-            }
-
-            assert(lua_isnil(L, -1)); // Stack: mt, nil
-            lua_pop(L, 1); // Stack: mt
-
-            lua_rawgetp(L, -1, getParentKey()); // Stack: mt, parent mt | nil
-
-            if (lua_isnil(L, -1)) // Stack: mt, nil
-            {
-                lua_pop(L, 1); // Stack: -
-                return luaL_error(L, "No writable member '%s'", lua_tostring(L, 2));
-            }
-
-            assert(lua_istable(L, -1)); // Stack: mt, parent mt
-            lua_remove(L, -2); // Stack: parent mt
-            // Repeat the search in the parent
+            lua_remove(L, -2); // Stack: getter
+            lua_pushvalue(L, 1); // Stack: getter, table | userdata
+            lua_call(L, 1, 1); // Stack: value
+            return 1;
         }
 
-        // no return
+        assert(lua_isnil(L, -1)); // Stack: mt, nil
+        lua_pop(L, 1); // Stack: mt
+
+        // It may mean that the field may be in const table and it's constness violation.
+        // Don't check that, just return nil
+
+        // Repeat the lookup in the parent metafield,
+        // or return nil if the field doesn't exist.
+        lua_rawgetp(L, -1, getParentKey()); // Stack: mt, parent mt | nil
+
+        if (lua_isnil(L, -1)) // Stack: mt, nil
+        {
+            lua_remove(L, -2); // Stack: nil
+            return 1;
+        }
+
+        // Removethe  metatable and repeat the search in the parent one.
+        assert(lua_istable(L, -1)); // Stack: mt, parent mt
+        lua_remove(L, -2); // Stack: parent mt
     }
 
-    //----------------------------------------------------------------------------
-    /**
-        lua_CFunction to report an error writing to a read-only value.
+    // no return
+}
 
-        The name of the variable is in the first upvalue.
-    */
-    static int readOnlyError(lua_State* L)
+//=================================================================================================
+/**
+ * @brief __newindex metamethod for non-static members.
+ *
+ * Retrieves properties from propset tables.
+ */
+inline int newindex_metamethod(lua_State* L, bool pushSelf)
+{
+    assert(lua_istable(L, 1) || lua_isuserdata(L, 1)); // Stack (further not shown): table | userdata, name, new value
+
+    lua_getmetatable(L, 1); // Stack: metatable (mt)
+    assert(lua_istable(L, -1));
+
+    for (;;)
     {
-        std::string s;
+        lua_rawgetp(L, -1, getPropsetKey()); // Stack: mt, propset table (ps) | nil
 
-        s = s + "'" + lua_tostring(L, lua_upvalueindex(1)) + "' is read-only";
+        if (lua_isnil(L, -1)) // Stack: mt, nil
+        {
+            lua_pop(L, 2); // Stack: -
+            return luaL_error(L, "No member named '%s'", lua_tostring(L, 2));
+        }
 
-        return luaL_error(L, s.c_str());
+        assert(lua_istable(L, -1));
+
+        lua_pushvalue(L, 2); // Stack: mt, ps, field name
+        lua_rawget(L, -2); // Stack: mt, ps, setter | nil
+        lua_remove(L, -2); // Stack: mt, setter | nil
+
+        if (lua_iscfunction(L, -1)) // Stack: mt, setter
+        {
+            lua_remove(L, -2); // Stack: setter
+            if (pushSelf)
+                lua_pushvalue(L, 1); // Stack: setter, table | userdata
+            lua_pushvalue(L, 3); // Stack: setter, table | userdata, new value
+            lua_call(L, pushSelf ? 2 : 1, 0); // Stack: -
+            return 0;
+        }
+
+        assert(lua_isnil(L, -1)); // Stack: mt, nil
+        lua_pop(L, 1); // Stack: mt
+
+        lua_rawgetp(L, -1, getParentKey()); // Stack: mt, parent mt | nil
+
+        if (lua_isnil(L, -1)) // Stack: mt, nil
+        {
+            lua_pop(L, 1); // Stack: -
+            return luaL_error(L, "No writable member '%s'", lua_tostring(L, 2));
+        }
+
+        assert(lua_istable(L, -1)); // Stack: mt, parent mt
+        lua_remove(L, -2); // Stack: parent mt
+        // Repeat the search in the parent
     }
 
-    //--------------------------------------------------------------------------
-    /**
-        __gc metamethod for a class.
-    */
-    template <class C>
-    static int gcMetaMethod(lua_State* L)
-    {
-        Userdata* const ud = Userdata::getExact<C>(L, 1);
-        ud->~Userdata();
-        return 0;
-    }
-};
+    // no return
+}
+
+//=================================================================================================
+/**
+ * @brief __newindex metamethod for objects.
+ */
+inline int newindex_object_metamethod(lua_State* L)
+{
+    return newindex_metamethod(L, true);
+}
+
+//=================================================================================================
+/**
+ * @brief __newindex metamethod for namespace or class static members.
+ *
+ * Retrieves properties from propset tables.
+ */
+inline int newindex_static_metamethod(lua_State* L)
+{
+    return newindex_metamethod(L, false);
+}
+
+//=================================================================================================
+/**
+ * @brief lua_CFunction to report an error writing to a read-only value.
+ *
+ * The name of the variable is in the first upvalue.
+ */
+inline int read_only_error(lua_State* L)
+{
+    std::string s;
+
+    s = s + "'" + lua_tostring(L, lua_upvalueindex(1)) + "' is read-only";
+
+    return luaL_error(L, s.c_str());
+}
+
+//=================================================================================================
+/**
+ * @brief __gc metamethod for a class.
+ */
+template <class C>
+static int gc_metamethod(lua_State* L)
+{
+    Userdata* ud = Userdata::getExact<C>(L, 1);
+    assert(ud);
+
+    ud->~Userdata();
+
+    return 0;
+}
 
 //=================================================================================================
 
@@ -3311,13 +3710,15 @@ struct property_getter<T, void>
         T* ptr = static_cast<T*>(lua_touserdata(L, lua_upvalueindex(1)));
         assert(ptr != nullptr);
 
-        Stack<T&>::push(L, *ptr);
+        std::error_code ec;
+        if (! Stack<T&>::push(L, *ptr, ec))
+            luaL_error(L, ec.message().c_str());
 
         return 1;
     }
 };
 
-/*
+#if 0
 template <class T>
 struct property_getter<std::reference_wrapper<T>, void>
 {
@@ -3328,12 +3729,14 @@ struct property_getter<std::reference_wrapper<T>, void>
         std::reference_wrapper<T>* ptr = static_cast<std::reference_wrapper<T>*>(lua_touserdata(L, lua_upvalueindex(1)));
         assert(ptr != nullptr);
 
-        Stack<T&>::push(L, ptr->get());
+        std::error_code ec;
+        if (! Stack<T&>::push(L, ptr->get(), ec))
+            luaL_error(L, ec.message().c_str());
 
         return 1;
     }
 };
-*/
+#endif
 
 /**
  * @brief lua_CFunction to get a class data member.
@@ -3346,17 +3749,28 @@ struct property_getter
     static int call(lua_State* L)
     {
         C* c = Userdata::get<C>(L, 1, true);
-        
+
         T C::** mp = static_cast<T C::**>(lua_touserdata(L, lua_upvalueindex(1)));
-        
+
+#if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
-            Stack<T&>::push(L, c->**mp);
+#endif
+            std::error_code ec;
+            if (! Stack<T&>::push(L, c->**mp, ec))
+                luaL_error(L, ec.message().c_str());
+
+#if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
         {
             luaL_error(L, e.what());
         }
+        catch (...)
+        {
+            luaL_error(L, "Error while getting property");
+        }
+#endif
 
         return 1;
     }
@@ -3403,7 +3817,7 @@ struct property_setter<T, void>
     }
 };
 
-/*
+#if 0
 template <class T>
 struct property_setter<std::reference_wrapper<T>, void>
 {
@@ -3419,8 +3833,8 @@ struct property_setter<std::reference_wrapper<T>, void>
         return 0;
     }
 };
-*/
- 
+#endif
+
 /**
  * @brief lua_CFunction to set a class data member.
  *
@@ -3435,14 +3849,23 @@ struct property_setter
 
         T C::** mp = static_cast<T C::**>(lua_touserdata(L, lua_upvalueindex(1)));
 
+#if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
+#endif
             c->** mp = Stack<T>::get(L, 2);
+
+#if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
         {
             luaL_error(L, e.what());
         }
+        catch (...)
+        {
+            luaL_error(L, "Error while setting property");
+        }
+#endif
 
         return 0;
     }
@@ -3513,7 +3936,7 @@ int invoke_member_cfunction(lua_State* L)
     assert(isfulluserdata(L, lua_upvalueindex(1)));
 
     T* t = Userdata::get<T>(L, 1, false);
-    
+
     const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
     assert(func != nullptr);
 
@@ -3528,10 +3951,10 @@ int invoke_const_member_cfunction(lua_State* L)
     assert(isfulluserdata(L, lua_upvalueindex(1)));
 
     const T* t = Userdata::get<T>(L, 1, true);
-    
+
     const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
     assert(func != nullptr);
-    
+
     return (t->*func)(L);
 }
 
@@ -3545,7 +3968,7 @@ template <class F>
 int invoke_proxy_function(lua_State* L)
 {
     using FnTraits = detail::function_traits<F>;
-    
+
     assert(lua_islightuserdata(L, lua_upvalueindex(1)));
 
     auto func = reinterpret_cast<F>(lua_touserdata(L, lua_upvalueindex(1)));
@@ -3564,7 +3987,7 @@ template <class F>
 int invoke_proxy_functor(lua_State* L)
 {
     using FnTraits = detail::function_traits<F>;
-    
+
     assert(isfulluserdata(L, lua_upvalueindex(1)));
 
     auto& func = *align<F>(lua_touserdata(L, lua_upvalueindex(1)));
@@ -3577,107 +4000,6 @@ int invoke_proxy_functor(lua_State* L)
 
 // End File: Source/LuaBridge/detail/CFunctions.h
 
-// Begin File: Source/LuaBridge/detail/LuaException.h
-
-// https://github.com/kunitoki/LuaBridge3
-// Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
-// Copyright 2008, Nigel Atkinson <suprapilot+LuaCode@gmail.com>
-// SPDX-License-Identifier: MIT
-
-
-
-
-namespace luabridge {
-
-class LuaException : public std::exception
-{
-private:
-    lua_State* m_L;
-    std::string m_what;
-
-public:
-    //----------------------------------------------------------------------------
-    /**
-        Construct a LuaException after a lua_pcall().
-    */
-    LuaException(lua_State* L, int /*code*/) : m_L(L) { whatFromStack(); }
-
-    //----------------------------------------------------------------------------
-
-    LuaException(lua_State* L, char const*, char const*, long) : m_L(L) { whatFromStack(); }
-
-    //----------------------------------------------------------------------------
-
-    ~LuaException() throw() {}
-
-    //----------------------------------------------------------------------------
-
-    char const* what() const throw() { return m_what.c_str(); }
-
-    //============================================================================
-    /**
-        Throw an exception.
-
-        This centralizes all the exceptions thrown, so that we can set
-        breakpoints before the stack is unwound, or otherwise customize the
-        behavior.
-    */
-    template<class Exception>
-    static void Throw(Exception e)
-    {
-        throw e;
-    }
-
-    //----------------------------------------------------------------------------
-    /**
-        Wrapper for lua_pcall that throws.
-    */
-    static void pcall(lua_State* L, int nargs = 0, int nresults = 0, int msgh = 0)
-    {
-        int code = lua_pcall(L, nargs, nresults, msgh);
-
-        if (code != LUABRIDGE_LUA_OK)
-            Throw(LuaException(L, code));
-    }
-
-    //----------------------------------------------------------------------------
-    /**
-        Initializes error handling. Subsequent Lua errors are translated to C++ exceptions.
-    */
-    static void enableExceptions(lua_State* L) { lua_atpanic(L, throwAtPanic); }
-
-protected:
-    void whatFromStack()
-    {
-        if (lua_gettop(m_L) > 0)
-        {
-            char const* s = lua_tostring(m_L, -1);
-            m_what = s ? s : "";
-        }
-        else
-        {
-            // stack is empty
-            m_what = "missing error";
-        }
-    }
-
-private:
-    static int throwAtPanic(lua_State* L) { throw LuaException(L, -1); }
-};
-
-//----------------------------------------------------------------------------
-/**
-    Initializes error handling. Subsequent Lua errors are translated to C++ exceptions.
-*/
-static void enableExceptions(lua_State* L)
-{
-    LuaException::enableExceptions(L);
-}
-
-} // namespace luabridge
-
-// End File: Source/LuaBridge/detail/LuaException.h
-
 // Begin File: Source/LuaBridge/detail/LuaRef.h
 
 // https://github.com/kunitoki/LuaBridge3
@@ -3688,10 +4010,9 @@ static void enableExceptions(lua_State* L)
 // Copyright 2008, Nigel Atkinson <suprapilot+LuaCode@gmail.com>
 // SPDX-License-Identifier: MIT
 
-
-
-
 namespace luabridge {
+
+class LuaResult;
 
 //------------------------------------------------------------------------------
 /**
@@ -3717,21 +4038,22 @@ struct LuaNil
 template <>
 struct Stack<LuaNil>
 {
-    static void push(lua_State* L, LuaNil)
+    static bool push(lua_State* L, LuaNil, std::error_code&)
     {
         lua_pushnil(L);
+        return true;
     }
 
     static bool isInstance(lua_State* L, int index)
     {
-        return lua_type(L, index) == LUA_TTABLE;
+        return lua_type(L, index) == LUA_TNIL;
     }
 };
 
 /**
  * @brief Base class for Lua variables and table item reference classes.
  */
-template<class Impl, class LuaRef>
+template <class Impl, class LuaRef>
 class LuaRefBase
 {
 protected:
@@ -3764,6 +4086,8 @@ protected:
         StackPop(lua_State* L, int count) : m_L(L), m_count(count) {}
 
         ~StackPop() { lua_pop(m_L, m_count); }
+
+        void popCount(int newCount) { m_count = newCount; }
 
     private:
         lua_State* m_L;
@@ -3804,10 +4128,13 @@ public:
     std::string tostring() const
     {
         lua_getglobal(m_L, "tostring");
+
         impl().push();
+
         lua_call(m_L, 1, 1);
         const char* str = lua_tostring(m_L, -1);
         lua_pop(m_L, 1);
+
         return str;
     }
 
@@ -3899,6 +4226,7 @@ public:
     {
         assert(equalstates(L, m_L));
         (void) L;
+
         impl().push();
     }
 
@@ -3912,6 +4240,7 @@ public:
     {
         assert(equalstates(L, m_L));
         (void) L;
+
         impl().pop();
     }
 
@@ -3925,8 +4254,10 @@ public:
     /** @{ */
     int type() const
     {
-        impl().push();
         StackPop p(m_L, 1);
+
+        impl().push();
+
         return lua_type(m_L, -1);
     }
 
@@ -4060,7 +4391,7 @@ public:
         StackPop p(m_L, 1);
 
         impl().push();
-                
+
         lua_getmetatable(m_L, -1);
 
         return LuaRef::fromStack(m_L);
@@ -4075,14 +4406,19 @@ public:
         @param rhs A value to compare with.
         @returns True if the referred value is equal to the specified one.
     */
-    template<class T>
+    template <class T>
     bool operator==(T rhs) const
     {
         StackPop p(m_L, 2);
 
         impl().push();
 
-        Stack<T>::push(m_L, rhs);
+        std::error_code ec;
+        if (! Stack<T>::push(m_L, rhs, ec))
+        {
+            p.popCount(1);
+            return false;
+        }
 
         return lua_compare(m_L, -2, -1, LUA_OPEQ) == 1;
     }
@@ -4092,16 +4428,34 @@ public:
         This invokes metamethods.
 
         @param rhs A value to compare with.
+        @returns True if the referred value is not equal to the specified one.
+    */
+    template <class T>
+    bool operator!=(T rhs) const
+    {
+        return !(*this == rhs);
+    }
+
+    /**
+        Compare this reference with a specified value using lua_compare().
+        This invokes metamethods.
+
+        @param rhs A value to compare with.
         @returns True if the referred value is less than the specified one.
     */
-    template<class T>
+    template <class T>
     bool operator<(T rhs) const
     {
         StackPop p(m_L, 2);
 
         impl().push();
 
-        Stack<T>::push(m_L, rhs);
+        std::error_code ec;
+        if (! Stack<T>::push(m_L, rhs, ec))
+        {
+            p.popCount(1);
+            return false;
+        }
 
         int lhsType = lua_type(m_L, -2);
         int rhsType = lua_type(m_L, -1);
@@ -4118,14 +4472,19 @@ public:
         @param rhs A value to compare with.
         @returns True if the referred value is less than or equal to the specified one.
     */
-    template<class T>
+    template <class T>
     bool operator<=(T rhs) const
     {
         StackPop p(m_L, 2);
 
         impl().push();
 
-        Stack<T>::push(m_L, rhs);
+        std::error_code ec;
+        if (! Stack<T>::push(m_L, rhs, ec))
+        {
+            p.popCount(1);
+            return false;
+        }
 
         int lhsType = lua_type(m_L, -2);
         int rhsType = lua_type(m_L, -1);
@@ -4142,14 +4501,19 @@ public:
         @param rhs A value to compare with.
         @returns True if the referred value is greater than the specified one.
     */
-    template<class T>
+    template <class T>
     bool operator>(T rhs) const
     {
         StackPop p(m_L, 2);
 
         impl().push();
 
-        Stack<T>::push(m_L, rhs);
+        std::error_code ec;
+        if (! Stack<T>::push(m_L, rhs, ec))
+        {
+            p.popCount(1);
+            return false;
+        }
 
         int lhsType = lua_type(m_L, -2);
         int rhsType = lua_type(m_L, -1);
@@ -4166,14 +4530,19 @@ public:
         @param rhs A value to compare with.
         @returns True if the referred value is greater than or equal to the specified one.
     */
-    template<class T>
+    template <class T>
     bool operator>=(T rhs) const
     {
         StackPop p(m_L, 2);
 
         impl().push();
 
-        Stack<T>::push(m_L, rhs);
+        std::error_code ec;
+        if (! Stack<T>::push(m_L, rhs, ec))
+        {
+            p.popCount(1);
+            return false;
+        }
 
         int lhsType = lua_type(m_L, -2);
         int rhsType = lua_type(m_L, -1);
@@ -4190,14 +4559,20 @@ public:
         @param rhs A value to compare with.
         @returns True if the referred value is equal to the specified one.
     */
-    template<class T>
-    bool rawequal(T rhs) const
+    template <class T>
+    bool rawequal(T v) const
     {
         StackPop p(m_L, 2);
 
         impl().push();
 
-        Stack<T>::push(m_L, rhs);
+        std::error_code ec;
+        if (! Stack<T>::push(m_L, v, ec))
+        {
+            p.popCount(1);
+            return false;
+        }
+
         return lua_rawequal(m_L, -1, -2) == 1;
     }
     /** @} */
@@ -4209,14 +4584,18 @@ public:
 
         @param v A value to append to the table.
     */
-    template<class T>
+    template <class T>
     void append(T v) const
     {
+        StackPop p(m_L, 1);
+
         impl().push();
 
-        Stack<T>::push(m_L, v);
+        std::error_code ec;
+        if (! Stack<T>::push(m_L, v, ec))
+            return;
+
         luaL_ref(m_L, -2);
-        lua_pop(m_L, 1);
     }
 
     //----------------------------------------------------------------------------
@@ -4238,23 +4617,14 @@ public:
     //----------------------------------------------------------------------------
     /**
         Call Lua code.
-        These overloads allow Lua code to be called with up to 8 parameters.
+
         The return value is provided as a LuaRef (which may be LUA_REFNIL).
         If an error occurs, a LuaException is thrown.
 
         @returns A result of the call.
     */
-    template <typename... Args>
-    LuaRef operator()(Args&&... args) const
-    {
-        impl().push();
-
-        detail::push_arguments(m_L, std::forward_as_tuple(args...));
-
-        LuaException::pcall(m_L, sizeof...(Args), 1);
-
-        return LuaRef::fromStack(m_L);
-    }
+    template <class... Args>
+    LuaResult operator()(Args&&... args) const;
 
     //============================================================================
 
@@ -4345,7 +4715,11 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             StackPop p(m_L, 1);
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_tableRef);
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_keyRef);
-            Stack<T>::push(m_L, v);
+
+            std::error_code ec;
+            if (! Stack<T>::push(m_L, v, ec))
+                return *this;
+
             lua_settable(m_L, -3);
             return *this;
         }
@@ -4365,7 +4739,11 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             StackPop p(m_L, 1);
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_tableRef);
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_keyRef);
-            Stack<T>::push(m_L, v);
+
+            std::error_code ec;
+            if (! Stack<T>::push(m_L, v, ec))
+                return *this;
+
             lua_rawset(m_L, -3);
             return *this;
         }
@@ -4432,7 +4810,11 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         @param L A Lua state.
         @note The object is popped.
     */
-    LuaRef(lua_State* L, FromStack) : LuaRefBase(L), m_ref(luaL_ref(m_L, LUA_REGISTRYINDEX)) {}
+    LuaRef(lua_State* L, FromStack)
+        : LuaRefBase(L)
+        , m_ref(luaL_ref(m_L, LUA_REGISTRYINDEX))
+    {
+    }
 
     //----------------------------------------------------------------------------
     /**
@@ -4444,7 +4826,9 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         @param index The index of the value on the Lua stack.
         @note The object is not popped.
     */
-    LuaRef(lua_State* L, int index, FromStack) : LuaRefBase(L), m_ref(LUA_NOREF)
+    LuaRef(lua_State* L, int index, FromStack)
+        : LuaRefBase(L)
+        , m_ref(LUA_NOREF)
     {
         lua_pushvalue(m_L, index);
         m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX);
@@ -4458,7 +4842,11 @@ public:
 
         @param L A Lua state.
     */
-    LuaRef(lua_State* L) : LuaRefBase(L), m_ref(LUA_NOREF) {}
+    LuaRef(lua_State* L)
+        : LuaRefBase(L)
+        , m_ref(LUA_NOREF)
+    {
+    }
 
     //----------------------------------------------------------------------------
     /**
@@ -4468,9 +4856,14 @@ public:
         @param v A value to push.
     */
     template<class T>
-    LuaRef(lua_State* L, T v) : LuaRefBase(L), m_ref(LUA_NOREF)
+    LuaRef(lua_State* L, T v)
+        : LuaRefBase(L)
+        , m_ref(LUA_NOREF)
     {
-        Stack<T>::push(m_L, v);
+        std::error_code ec;
+        if (! Stack<T>::push(m_L, v, ec))
+            return;
+
         m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX);
     }
 
@@ -4480,7 +4873,11 @@ public:
 
         @param v A table item reference.
     */
-    LuaRef(TableItem const& v) : LuaRefBase(v.state()), m_ref(v.createRef()) {}
+    LuaRef(TableItem const& v)
+        : LuaRefBase(v.state())
+        , m_ref(v.createRef())
+    {
+    }
 
     //----------------------------------------------------------------------------
     /**
@@ -4488,7 +4885,11 @@ public:
 
         @param other An existing reference.
     */
-    LuaRef(LuaRef const& other) : LuaRefBase(other.m_L), m_ref(other.createRef()) {}
+    LuaRef(LuaRef const& other)
+        : LuaRefBase(other.m_L)
+        , m_ref(other.createRef())
+    {
+    }
 
     //----------------------------------------------------------------------------
     /**
@@ -4500,7 +4901,11 @@ public:
               caller to ensure that the thread still exists when the LuaRef
               is destroyed.
     */
-    ~LuaRef() { luaL_unref(m_L, LUA_REGISTRYINDEX, m_ref); }
+    ~LuaRef()
+    {
+        if (m_ref != LUA_NOREF)
+            luaL_unref(m_L, LUA_REGISTRYINDEX, m_ref);
+    }
 
     //----------------------------------------------------------------------------
     /**
@@ -4510,7 +4915,10 @@ public:
         @param L A Lua state.
         @returns A reference to a value on the top of a Lua stack.
     */
-    static LuaRef fromStack(lua_State* L) { return LuaRef(L, FromStack()); }
+    static LuaRef fromStack(lua_State* L)
+    {
+        return LuaRef(L, FromStack());
+    }
 
     //----------------------------------------------------------------------------
     /**
@@ -4619,7 +5027,10 @@ public:
     */
     using LuaRefBase::push;
 
-    void push() const { lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_ref); }
+    void push() const
+    {
+        lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_ref);
+    }
 
     //----------------------------------------------------------------------------
     /**
@@ -4639,10 +5050,13 @@ public:
         @param key A key in the table.
         @returns A reference to the table item.
     */
-    template<class T>
+    template <class T>
     TableItem operator[](T key) const
     {
-        Stack<T>::push(m_L, key);
+        std::error_code ec;
+        if (! Stack<T>::push(m_L, key, ec))
+            return TableItem(m_L, m_ref); // TODO - return optional ?
+
         return TableItem(m_L, m_ref);
     }
 
@@ -4655,12 +5069,17 @@ public:
         @param key A key in the table.
         @returns A reference to the table item.
     */
-    template<class T>
+    template <class T>
     LuaRef rawget(T key) const
     {
         StackPop(m_L, 1);
+
         push(m_L);
-        Stack<T>::push(m_L, key);
+
+        std::error_code ec;
+        if (! Stack<T>::push(m_L, key, ec))
+            return LuaRef(m_L); // TODO - return optional ?
+
         lua_rawget(m_L, -2);
         return LuaRef(m_L, FromStack());
     }
@@ -4682,9 +5101,9 @@ private:
 template <>
 struct Stack<LuaRef>
 {
-    static void push(lua_State* L, const LuaRef& v)
+    static bool push(lua_State* L, const LuaRef& v, std::error_code&)
     {
-        v.push(L);
+        return v.push(L), true;
     }
 
     static LuaRef get(lua_State* L, int index)
@@ -4700,9 +5119,9 @@ struct Stack<LuaRef>
 template <>
 struct Stack <LuaRef::TableItem>
 {
-    static void push(lua_State* L, const LuaRef::TableItem& v)
+    static bool push(lua_State* L, const LuaRef::TableItem& v, std::error_code&)
     {
-        v.push(L);
+        return v.push(L), true;
     }
 };
 
@@ -4742,6 +5161,226 @@ T LuaRef_cast(LuaRef const& lr)
 
 // End File: Source/LuaBridge/detail/LuaRef.h
 
+// Begin File: Source/LuaBridge/detail/Invoke.h
+
+// https://github.com/kunitoki/LuaBridge3
+// Copyright 2021, Lucio Asnaghi
+// SPDX-License-Identifier: MIT
+
+namespace luabridge {
+
+//=================================================================================================
+/**
+ * @brief Result of a lua invocation.
+ */
+class LuaResult
+{
+public:
+    /**
+     * @brief Get if the result was ok and didn't raise a lua error.
+     */
+    explicit operator bool() const noexcept
+    {
+        return !m_ec;
+    }
+
+    /**
+     * @brief Return if the invocation was ok and didn't raise a lua error.
+     */
+    bool wasOk() const noexcept
+    {
+        return !m_ec;
+    }
+
+    /**
+     * @brief Return if the invocation did raise a lua error.
+     */
+    bool hasFailed() const noexcept
+    {
+        return !!m_ec;
+    }
+
+    /**
+     * @brief Return the error code, if any.
+     *
+     * In case the invcation didn't raise any lua error, the value returned equals to a
+     * default constructed std::error_code.
+     */
+    std::error_code errorCode() const noexcept
+    {
+        return m_ec;
+    }
+
+    /**
+     * @brief Return the error message, if any.
+     */
+    std::string errorMessage() const noexcept
+    {
+        if (std::holds_alternative<std::string>(m_data))
+        {
+            const auto& message = std::get<std::string>(m_data);
+            return message.empty() ? m_ec.message() : message;
+        }
+
+        return {};
+    }
+
+    /**
+     * @brief Return the number of return values.
+     */
+    std::size_t size() const noexcept
+    {
+        if (std::holds_alternative<std::vector<LuaRef>>(m_data))
+            return std::get<std::vector<LuaRef>>(m_data).size();
+
+        return 0;
+    }
+
+    /**
+     * @brief Get a return value at a specific index.
+     */
+    LuaRef operator[](std::size_t index) const
+    {
+        assert(m_ec == std::error_code());
+
+        if (std::holds_alternative<std::vector<LuaRef>>(m_data))
+        {
+            const auto& values = std::get<std::vector<LuaRef>>(m_data);
+
+            assert(index < values.size());
+            return values[index];
+        }
+
+        return LuaRef(m_L);
+    }
+
+private:
+    template <class... Args>
+    friend LuaResult call(const LuaRef&, Args&&...);
+
+    static LuaResult errorFromStack(lua_State* L, std::error_code ec)
+    {
+        auto errorString = lua_tostring(L, -1);
+        lua_pop(L, 1);
+
+        return LuaResult(L, ec, errorString ? errorString : ec.message());
+    }
+
+    static LuaResult valuesFromStack(lua_State* L)
+    {
+        std::vector<LuaRef> values;
+
+        const int numReturnedValues = lua_gettop(L) - 1;
+        if (numReturnedValues > 0)
+        {
+            values.reserve(numReturnedValues);
+
+            for (int index = 0; index < numReturnedValues; ++index)
+            {
+                values.insert(std::begin(values), LuaRef::fromStack(L, -1));
+                lua_pop(L, 1);
+            }
+        }
+
+        return LuaResult(L, std::move(values));
+    }
+
+    LuaResult(lua_State* L, std::error_code ec, std::string_view errorString)
+        : m_L(L)
+        , m_ec(ec)
+        , m_data(std::string(errorString))
+    {
+    }
+
+    explicit LuaResult(lua_State* L, std::vector<LuaRef> values) noexcept
+        : m_L(L)
+        , m_data(std::move(values))
+    {
+    }
+
+    lua_State* m_L = nullptr;
+    std::error_code m_ec;
+    std::variant<std::vector<LuaRef>, std::string> m_data;
+};
+
+//=================================================================================================
+/**
+ * @brief Safely call Lua code.
+ *
+ * These overloads allow Lua code to be called throught lua_pcall.  The return value is provided as
+ * a LuaResult which will hold the return values or an error if the call failed.
+ *
+ * If an error occurs, a LuaException is thrown or if exceptions are disabled the FunctionResult will
+ * contain a error code and evaluate false.
+ *
+ * @note The function might throw a LuaException if the application is compiled with exceptions on
+ * and they are enabled globally by calling `enableExceptions` in two cases:
+ * - one of the arguments passed cannot be pushed in the stack, for example a unregistered C++ class
+ * - the lua invaction calls the panic handler, which is converted to a C++ exception
+ *
+ * @return A result object.
+*/
+template <class... Args>
+LuaResult call(const LuaRef& object, Args&&... args)
+{
+    lua_State* L = object.state();
+
+    object.push();
+
+    {
+        std::error_code ec;
+        auto pushedArgs = detail::push_arguments(L, std::forward_as_tuple(args...), ec);
+        if (ec)
+        {
+            lua_pop(L, pushedArgs + 1);
+            return LuaResult(L, ec, ec.message());
+        }
+    }
+
+    int code = lua_pcall(L, sizeof...(Args), LUA_MULTRET, 0);
+    if (code != LUABRIDGE_LUA_OK)
+    {
+        auto ec = makeErrorCode(ErrorCode::LuaFunctionCallFailed);
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        if (LuaException::areExceptionsEnabled())
+            LuaException::raise(LuaException(L, ec));
+#else
+        return LuaResult::errorFromStack(L, ec);
+#endif
+    }
+
+    return LuaResult::valuesFromStack(L);
+}
+
+//=============================================================================================
+/**
+ * @brief Wrapper for lua_pcall that throws if exceptions are enabled.
+ */
+static int pcall(lua_State* L, int nargs = 0, int nresults = 0, int msgh = 0)
+{
+    const int code = lua_pcall(L, nargs, nresults, msgh);
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    if (code != LUABRIDGE_LUA_OK && LuaException::areExceptionsEnabled())
+        LuaException::raise(LuaException(L, makeErrorCode(ErrorCode::LuaFunctionCallFailed)));
+#endif
+
+    return code;
+}
+
+//=============================================================================================
+template <class Impl, class LuaRef>
+template <class... Args>
+LuaResult LuaRefBase<Impl, LuaRef>::operator()(Args&&... args) const
+{
+    return call(*this, std::forward<Args>(args)...);
+}
+
+} // namespace luabridge
+
+// End File: Source/LuaBridge/detail/Invoke.h
+
 // Begin File: Source/LuaBridge/detail/Iterator.h
 
 // https://github.com/kunitoki/LuaBridge3
@@ -4750,37 +5389,16 @@ T LuaRef_cast(LuaRef const& lr)
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // SPDX-License-Identifier: MIT
 
-
-
-
 namespace luabridge {
 
-/** Allows table iteration.
+//=================================================================================================
+/**
+ * @brief Iterator class to allow table iteration.
+ *
+ * @see Range class.
  */
 class Iterator
 {
-    lua_State* m_L;
-    LuaRef m_table;
-    LuaRef m_key;
-    LuaRef m_value;
-
-    void next()
-    {
-        m_table.push();
-        m_key.push();
-        if (lua_next(m_L, -2))
-        {
-            m_value.pop();
-            m_key.pop();
-        }
-        else
-        {
-            m_key = LuaNil();
-            m_value = LuaNil();
-        }
-        lua_pop(m_L, 1);
-    }
-
 public:
     explicit Iterator(const LuaRef& table, bool isEnd = false)
         : m_L(table.state())
@@ -4788,46 +5406,61 @@ public:
         , m_key(table.state()) // m_key is nil
         , m_value(table.state()) // m_value is nil
     {
-        if (!isEnd)
+        if (! isEnd)
         {
             next(); // get the first (key, value) pair from table
         }
     }
 
-    /// Return an associated Lua state.
-    ///
-    /// @returns A Lua state.
-    ///
-    lua_State* state() const { return m_L; }
+    /**
+     * @brief Return an associated Lua state.
+     *
+     * @return A Lua state.
+     */
+    lua_State* state() const noexcept
+    {
+        return m_L;
+    }
 
-    /// Dereference the iterator.
-    ///
-    /// @returns A key-value pair for a current table entry.
-    ///
-    std::pair<LuaRef, LuaRef> operator*() const { return std::make_pair(m_key, m_value); }
+    /**
+     * @brief Dereference the iterator.
+     *
+     * @return A key-value pair for a current table entry.
+     */
+    std::pair<LuaRef, LuaRef> operator*() const
+    {
+        return std::make_pair(m_key, m_value);
+    }
 
-    /// Return the value referred by the iterator.
-    ///
-    /// @returns A value for the current table entry.
-    ///
-    LuaRef operator->() const { return m_value; }
+    /**
+     * @brief Return the value referred by the iterator.
+     *
+     * @return A value for the current table entry.
+     */
+    LuaRef operator->() const
+    {
+        return m_value;
+    }
 
-    /// Compare two iterators.
-    ///
-    /// @param rhs Another iterator.
-    /// @returns True if iterators point to the same entry of the same table,
-    ///         false otherwise.
-    ///
+    /**
+     * @brief Compare two iterators.
+     *
+     * @param rhs Another iterator.
+     *
+     * @return True if iterators point to the same entry of the same table, false otherwise.
+     */
     bool operator!=(const Iterator& rhs) const
     {
         assert(m_L == rhs.m_L);
-        return !m_table.rawequal(rhs.m_table) || !m_key.rawequal(rhs.m_key);
+
+        return ! m_table.rawequal(rhs.m_table) || ! m_key.rawequal(rhs.m_key);
     }
 
-    /// Move the iterator to the next table entry.
-    ///
-    /// @returns This iterator.
-    ///
+    /**
+     * @brief Move the iterator to the next table entry.
+     *
+     * @return This iterator.
+     */
     Iterator& operator++()
     {
         if (isNil())
@@ -4842,53 +5475,102 @@ public:
         }
     }
 
-    /// Check if the iterator points after the last table entry.
-    ///
-    /// @returns True if there are no more table entries to iterate,
-    ///         false otherwise.
-    ///
-    bool isNil() const { return m_key.isNil(); }
+    /**
+     * @brief Check if the iterator points after the last table entry.
+     *
+     * @return True if there are no more table entries to iterate, false otherwise.
+     */
+    bool isNil() const noexcept
+    {
+        return m_key.isNil();
+    }
 
-    /// Return the key for the current table entry.
-    ///
-    /// @returns A reference to the entry key.
-    ///
-    LuaRef key() const { return m_key; }
+    /**
+     * @brief Return the key for the current table entry.
+     *
+     * @return A reference to the entry key.
+     */
+    LuaRef key() const
+    {
+        return m_key;
+    }
 
-    /// Return the key for the current table entry.
-    ///
-    /// @returns A reference to the entry value.
-    ///
-    LuaRef value() const { return m_value; }
+    /**
+     * @brief Return the key for the current table entry.
+     *
+     * @return A reference to the entry value.
+     */
+    LuaRef value() const
+    {
+        return m_value;
+    }
 
 private:
     // Don't use postfix increment, it is less efficient
     Iterator operator++(int);
+
+    void next()
+    {
+        m_table.push();
+        m_key.push();
+
+        if (lua_next(m_L, -2))
+        {
+            m_value.pop();
+            m_key.pop();
+        }
+        else
+        {
+            m_key = LuaNil();
+            m_value = LuaNil();
+        }
+
+        lua_pop(m_L, 1);
+    }
+
+    lua_State* m_L = nullptr;
+    LuaRef m_table;
+    LuaRef m_key;
+    LuaRef m_value;
 };
 
-namespace detail {
-
+//=================================================================================================
+/**
+ * @brief Range class taking two table iterators.
+ */
 class Range
 {
+public:
+    Range(const Iterator& begin, const Iterator& end)
+        : m_begin(begin)
+        , m_end(end)
+    {
+    }
+
+    const Iterator& begin() const noexcept
+    {
+        return m_begin;
+    }
+
+    const Iterator& end() const noexcept
+    {
+        return m_end;
+    }
+
+private:
     Iterator m_begin;
     Iterator m_end;
-
-public:
-    Range(const Iterator& begin, const Iterator& end) : m_begin(begin), m_end(end) {}
-
-    const Iterator& begin() const { return m_begin; }
-    const Iterator& end() const { return m_end; }
 };
 
-} // namespace detail
-
-/// Return a range for the Lua table reference.
-///
-/// @returns A range suitable for range-based for statement.
-///
-inline detail::Range pairs(const LuaRef& table)
+//=================================================================================================
+/**
+ * @brief Return a range for the Lua table reference.
+ *
+ * @return A range suitable for range-based for statement.
+ */
+inline Range pairs(const LuaRef& table)
 {
-    return detail::Range(Iterator(table, false), Iterator(table, true));
+    return Range{ Iterator(table, false), Iterator(table, true) };
 }
 
 } // namespace luabridge
@@ -4898,58 +5580,71 @@ inline detail::Range pairs(const LuaRef& table)
 // Begin File: Source/LuaBridge/detail/Security.h
 
 // https://github.com/vinniefalco/LuaBridge
+// Copyright 2021, Lucio Asnaghi
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // SPDX-License-Identifier: MIT
 
-
-
 namespace luabridge {
 
-//------------------------------------------------------------------------------
+//=================================================================================================
 /**
-security options.
-*/
+ * @brief Security options.
+ */
 class Security
 {
 public:
-    static bool hideMetatables() { return getSettings().hideMetatables; }
+    static bool hideMetatables() noexcept
+    {
+        return getSettings().hideMetatables;
+    }
 
-    static void setHideMetatables(bool shouldHide) { getSettings().hideMetatables = shouldHide; }
+    static void setHideMetatables(bool shouldHide) noexcept
+    {
+        getSettings().hideMetatables = shouldHide;
+    }
 
 private:
     struct Settings
     {
-        Settings() : hideMetatables(true) {}
+        Settings() noexcept
+            : hideMetatables(true)
+        {
+        }
 
         bool hideMetatables;
     };
 
-    static Settings& getSettings()
+    static Settings& getSettings() noexcept
     {
         static Settings settings;
         return settings;
     }
 };
 
-//------------------------------------------------------------------------------
+//=================================================================================================
 /**
-Set a global value in the lua_State.
-
-@note This works on any type specialized by `Stack`, including `LuaRef` and
-its table proxies.
+ * @brief Set a global value in the lua_State.
+ *
+ * @note This works on any type specialized by `Stack`, including `LuaRef` and its table proxies.
 */
-template<class T>
-inline void setGlobal(lua_State* L, T t, char const* name)
+template <class T>
+bool setGlobal(lua_State* L, T&& t, const char* name)
 {
-    push(L, t);
-    lua_setglobal(L, name);
+    std::error_code ec;
+    if (push(L, std::forward<T>(t), ec))
+    {
+        lua_setglobal(L, name);
+        return true;
+    }
+
+    return false;
 }
 
-//------------------------------------------------------------------------------
+//=================================================================================================
 /**
-Change whether or not metatables are hidden (on by default).
-*/
-inline void setHideMetatables(bool shouldHide)
+ * @brief Change whether or not metatables are hidden (on by default).
+ */
+inline void setHideMetatables(bool shouldHide) noexcept
 {
     Security::setHideMetatables(shouldHide);
 }
@@ -4966,9 +5661,6 @@ inline void setHideMetatables(bool shouldHide)
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // Copyright 2007, Nathan Reed
 // SPDX-License-Identifier: MIT
-
-
-
 
 namespace luabridge {
 namespace detail {
@@ -4988,22 +5680,26 @@ protected:
     lua_State* const L;
     int mutable m_stackSize;
 
-    Registrar(lua_State* L) : L(L), m_stackSize(0) {}
-
-    Registrar(const Registrar& rhs) : L(rhs.L), m_stackSize(rhs.m_stackSize)
+    Registrar(lua_State* L)
+        : L(L)
+        , m_stackSize(0)
     {
-        rhs.m_stackSize = 0;
     }
 
-#ifndef _MSC_VER
-    // MS compiler thinks it's the 2nd copy ctor
-    Registrar(Registrar& rhs) : L(rhs.L), m_stackSize(rhs.m_stackSize) { rhs.m_stackSize = 0; }
-#endif // ifndef _MSC_VER
+    Registrar(const Registrar& rhs)
+        : L(rhs.L)
+        , m_stackSize(std::exchange(rhs.m_stackSize, 0))
+    {
+    }
 
     Registrar& operator=(const Registrar& rhs)
     {
+        using std::swap;
+
         Registrar tmp(rhs);
-        std::swap(m_stackSize, tmp.m_stackSize);
+
+        swap(m_stackSize, tmp.m_stackSize);
+
         return *this;
     }
 
@@ -5020,7 +5716,7 @@ protected:
     {
         if (m_stackSize == 0)
         {
-            throw std::logic_error("Unable to continue registration");
+            throw_or_assert<std::logic_error>("Unable to continue registration");
         }
     }
 };
@@ -5034,8 +5730,6 @@ protected:
 */
 class Namespace : public detail::Registrar
 {
-    typedef detail::CFunc CFunc;
-
     //============================================================================
 #if 0
   /**
@@ -5089,7 +5783,7 @@ class Namespace : public detail::Registrar
         void createConstTable(const char* name, bool trueConst = true)
         {
             assert(name != nullptr);
-            
+
             std::string type_name = std::string(trueConst ? "const " : "") + name;
 
             // Stack: namespace table (ns)
@@ -5100,10 +5794,10 @@ class Namespace : public detail::Registrar
             lua_pushstring(L, type_name.c_str());
             lua_rawsetp(L, -2, detail::getTypeKey()); // co [typeKey] = name. Stack: ns, co
 
-            lua_pushcfunction(L, &CFunc::indexMetaMethod);
+            lua_pushcfunction(L, &detail::index_metamethod);
             rawsetfield(L, -2, "__index");
 
-            lua_pushcfunction(L, &CFunc::newindexObjectMetaMethod);
+            lua_pushcfunction(L, &detail::newindex_object_metamethod);
             rawsetfield(L, -2, "__newindex");
 
             lua_newtable(L);
@@ -5163,10 +5857,10 @@ class Namespace : public detail::Registrar
             rawsetfield (L, -2, "__tostring");
 #endif
 
-            lua_pushcfunction(L, &CFunc::indexMetaMethod);
+            lua_pushcfunction(L, &detail::index_metamethod);
             rawsetfield(L, -2, "__index");
 
-            lua_pushcfunction(L, &CFunc::newindexStaticMetaMethod);
+            lua_pushcfunction(L, &detail::newindex_static_metamethod);
             rawsetfield(L, -2, "__newindex");
 
             lua_newtable(L); // Stack: ns, co, cl, st, proget table (pg)
@@ -5193,10 +5887,12 @@ class Namespace : public detail::Registrar
         static int ctorContainerProxy(lua_State* L)
         {
             using T = typename ContainerTraits<C>::Type;
-            
-            T* const p = detail::constructor<T, Args>::call(detail::make_arguments_list<Args, 2>(L));
 
-            detail::UserdataSharedHelper<C, false>::push(L, p);
+            T* object = detail::constructor<T, Args>::call(detail::make_arguments_list<Args, 2>(L));
+
+            std::error_code ec;
+            if (! detail::UserdataSharedHelper<C, false>::push(L, object, ec))
+                luaL_error(L, ec.message().c_str());
 
             return 1;
         }
@@ -5208,7 +5904,10 @@ class Namespace : public detail::Registrar
         template <class Args, class T>
         static int ctorPlacementProxy(lua_State* L)
         {
-            detail::UserdataValue<T>* value = detail::UserdataValue<T>::place(L);
+            std::error_code ec;
+            detail::UserdataValue<T>* value = detail::UserdataValue<T>::place(L, ec);
+            if (! value)
+                luaL_error(L, ec.message().c_str());
 
             detail::constructor<T, Args>::call(value->getObject(), detail::make_arguments_list<Args, 2>(L));
 
@@ -5243,8 +5942,6 @@ class Namespace : public detail::Registrar
     template<class T>
     class Class : public ClassBase
     {
-        typedef detail::CFunc CFunc;
-
     public:
         //==========================================================================
         /**
@@ -5265,12 +5962,12 @@ class Namespace : public detail::Registrar
                 lua_pop(L, 1); // Stack: ns
 
                 createConstTable(name); // Stack: ns, const table (co)
-                lua_pushcfunction(L, &CFunc::gcMetaMethod<T>); // Stack: ns, co, function
+                lua_pushcfunction(L, &detail::gc_metamethod<T>); // Stack: ns, co, function
                 rawsetfield(L, -2, "__gc"); // co ["__gc"] = function. Stack: ns, co
                 ++m_stackSize;
 
                 createClassTable(name); // Stack: ns, co, class table (cl)
-                lua_pushcfunction(L, &CFunc::gcMetaMethod<T>); // Stack: ns, co, cl, function
+                lua_pushcfunction(L, &detail::gc_metamethod<T>); // Stack: ns, co, cl, function
                 rawsetfield(L, -2, "__gc"); // cl ["__gc"] = function. Stack: ns, co, cl
                 ++m_stackSize;
 
@@ -5316,12 +6013,12 @@ class Namespace : public detail::Registrar
             assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 
             createConstTable(name); // Stack: ns, const table (co)
-            lua_pushcfunction(L, &CFunc::gcMetaMethod<T>); // Stack: ns, co, function
+            lua_pushcfunction(L, &detail::gc_metamethod<T>); // Stack: ns, co, function
             rawsetfield(L, -2, "__gc"); // co ["__gc"] = function. Stack: ns, co
             ++m_stackSize;
 
             createClassTable(name); // Stack: ns, co, class table (cl)
-            lua_pushcfunction(L, &CFunc::gcMetaMethod<T>); // Stack: ns, co, cl, function
+            lua_pushcfunction(L, &detail::gc_metamethod<T>); // Stack: ns, co, cl, function
             rawsetfield(L, -2, "__gc"); // cl ["__gc"] = function. Stack: ns, co, cl
             ++m_stackSize;
 
@@ -5332,7 +6029,9 @@ class Namespace : public detail::Registrar
             if (lua_isnil(L, -1)) // Stack: ns, co, cl, st, nil
             {
                 ++m_stackSize;
-                throw std::runtime_error("Base class is not registered");
+
+                throw_or_assert<std::logic_error>("Base class is not registered");
+                return;
             }
 
             assert(lua_istable(L, -1)); // Stack: ns, co, cl, st, pst
@@ -5383,22 +6082,6 @@ class Namespace : public detail::Registrar
         template <class U>
         Class<T>& addStaticProperty(char const* name, U* value, bool isWritable = true)
         {
-            return addStaticData(name, value, isWritable);
-        }
-
-        //--------------------------------------------------------------------------
-        /**
-          Add or replace a static property.
-
-          @tparam U          The type of the property.
-          @param  name       The property name.
-          @param  value      A property value pointer.
-          @param  isWritable True for a read-write, false for read-only property.
-          @returns This class registration object.
-        */
-        template <class U>
-        Class<T>& addStaticData(char const* name, U* value, bool isWritable = true)
-        {
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
@@ -5414,7 +6097,7 @@ class Namespace : public detail::Registrar
             else
             {
                 lua_pushstring(L, name); // Stack: co, cl, st, name
-                lua_pushcclosure(L, &CFunc::readOnlyError, 1); // Stack: co, cl, st, error_fn
+                lua_pushcclosure(L, &detail::read_only_error, 1); // Stack: co, cl, st, function
             }
 
             detail::add_property_setter(L, name, -2); // Stack: co, cl, st
@@ -5450,7 +6133,7 @@ class Namespace : public detail::Registrar
             else
             {
                 lua_pushstring(L, name); // Stack: co, cl, st, ps, name
-                lua_pushcclosure(L, &CFunc::readOnlyError, 1); // Stack: co, cl, st, error_fn
+                lua_pushcclosure(L, &detail::read_only_error, 1); // Stack: co, cl, st, function
             }
 
             detail::add_property_setter(L, name, -2); // Stack: co, cl, st
@@ -5575,7 +6258,7 @@ class Namespace : public detail::Registrar
             detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
             detail::add_property_getter(L, name, -3); // Stack: co, cl, st
 
-            if (set != 0)
+            if (set != nullptr)
             {
                 new (lua_newuserdata(L, sizeof(set_t))) set_t(set); // Stack: co, cl, st, function ptr
                 lua_pushcclosure(L, &detail::invoke_member_function<set_t, T>, 1); // Stack: co, cl, st, setter
@@ -5719,13 +6402,13 @@ class Namespace : public detail::Registrar
         Class<T> addFunction(char const* name, Function function)
         {
             using FnTraits = detail::function_traits<Function>;
-            
+
             using FnType = detail::to_std_function_type_t<
                 typename FnTraits::result_type,
                 typename FnTraits::argument_types>;
-            
+
             using FirstArg = detail::function_argument_t<0, Function>;
-            static_assert(std::is_same_v<std::remove_cv_t<std::remove_pointer_t<FirstArg>>, T>);
+            static_assert(std::is_same_v<std::decay_t<std::remove_pointer_t<FirstArg>>, T>);
 
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
@@ -5738,17 +6421,17 @@ class Namespace : public detail::Registrar
 
             lua_pushcclosure(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: co, cl, st, function
 
-            if constexpr (std::is_same_v<FirstArg, T*>)
+            if constexpr (! std::is_const_v<std::remove_reference_t<std::remove_pointer_t<FirstArg>>>)
             {
                 rawsetfield(L, -3, name); // Stack: co, cl, st
             }
-            else if constexpr (std::is_same_v<FirstArg, const T*>)
+            else
             {
                 lua_pushvalue(L, -1); // Stack: co, cl, st, function, function
                 rawsetfield(L, -4, name); // Stack: co, cl, st, function
                 rawsetfield(L, -4, name); // Stack: co, cl, st
             }
-            
+
             return *this;
         }
 
@@ -5766,9 +6449,11 @@ class Namespace : public detail::Registrar
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            static const std::string GC = "__gc";
-            if (name == GC)
-                throw std::logic_error(GC + " metamethod registration is forbidden");
+            if (name == std::string_view("__gc"))
+            {
+                throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
+                return *this;
+            }
 
             new (lua_newuserdata(L, sizeof(MemFn))) MemFn(mf);
             lua_pushcclosure(L, &detail::invoke_member_function<MemFn, T>, 1);
@@ -5787,9 +6472,11 @@ class Namespace : public detail::Registrar
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            static const std::string GC = "__gc";
-            if (name == GC)
-                throw std::logic_error(GC + " metamethod registration is forbidden");
+            if (name == std::string_view("__gc"))
+            {
+                throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
+                return *this;
+            }
 
             new (lua_newuserdata(L, sizeof(MemFn))) MemFn(mf);
             lua_pushcclosure(L, &detail::invoke_const_member_function<MemFn, T>, 1);
@@ -5812,9 +6499,11 @@ class Namespace : public detail::Registrar
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            static const std::string GC = "__gc";
-            if (name == GC)
-                throw std::logic_error(GC + " metamethod registration is forbidden");
+            if (name == std::string_view("__gc"))
+            {
+                throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
+                return *this;
+            }
 
             lua_pushlightuserdata(L, reinterpret_cast<void*>(proxyFn)); // Stack: co, cl, st, function ptr
             lua_pushcclosure(L, &detail::invoke_proxy_function<FnType>, 1); // Stack: co, cl, st, function
@@ -5831,9 +6520,11 @@ class Namespace : public detail::Registrar
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            static const std::string GC = "__gc";
-            if (name == GC)
-                throw std::logic_error(GC + " metamethod registration is forbidden");
+            if (name == std::string_view("__gc"))
+            {
+                throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
+                return *this;
+            }
 
             lua_pushlightuserdata(L, reinterpret_cast<void*>(proxyFn)); // Stack: co, cl, st, function ptr
             lua_pushcclosure(L, &detail::invoke_proxy_function<FnType>, 1); // Stack: co, cl, st, function
@@ -5897,7 +6588,7 @@ class Namespace : public detail::Registrar
         Class<T>& addCFunction(char const* name, int (U::*mfp)(lua_State*) const)
         {
             static_assert(std::is_base_of_v<U, T>);
-            
+
             using F = decltype(mfp);
 
             assert(name != nullptr);
@@ -5985,12 +6676,12 @@ private:
             // na.__metatable = ns
             lua_setmetatable(L, -2); // Stack: pns, ns
 
-            // ns.__index = indexMetaMethod
-            lua_pushcfunction(L, &CFunc::indexMetaMethod);
+            // ns.__index = index_metamethod
+            lua_pushcfunction(L, &detail::index_metamethod);
             rawsetfield(L, -2, "__index"); // Stack: pns, ns
 
-            // ns.__newindex = newindexMetaMethod
-            lua_pushcfunction(L, &CFunc::newindexStaticMetaMethod);
+            // ns.__newindex = newindex_static_metamethod
+            lua_pushcfunction(L, &detail::newindex_static_metamethod);
             rawsetfield(L, -2, "__newindex"); // Stack: pns, ns
 
             lua_newtable(L); // Stack: pns, ns, propget table (pg)
@@ -6033,7 +6724,6 @@ public:
     */
     static Namespace getGlobalNamespace(lua_State* L)
     {
-        enableExceptions(L);
         return Namespace(L);
     }
 
@@ -6060,7 +6750,11 @@ public:
     Namespace endNamespace()
     {
         if (m_stackSize == 1)
-            throw std::logic_error("endNamespace () called on global namespace");
+        {
+            throw_or_assert<std::logic_error>("endNamespace() called on global namespace");
+
+            return Namespace(*this);
+        }
 
         assert(m_stackSize > 1);
         --m_stackSize;
@@ -6081,7 +6775,11 @@ public:
     Namespace& addProperty(char const* name, T* value, bool isWritable = true)
     {
         if (m_stackSize == 1)
-            throw std::logic_error("addProperty () called on global namespace");
+        {
+            throw_or_assert<std::logic_error>("addProperty() called on global namespace");
+
+            return *this;
+        }
 
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
@@ -6098,7 +6796,7 @@ public:
         else
         {
             lua_pushstring(L, name); // Stack: ns, ps, name
-            lua_pushcclosure(L, &CFunc::readOnlyError, 1); // Stack: ns, error_fn
+            lua_pushcclosure(L, &detail::read_only_error, 1); // Stack: ns, function
         }
 
         detail::add_property_setter(L, name, -2); // Stack: ns
@@ -6117,10 +6815,14 @@ public:
         @returns This namespace registration object.
     */
     template <class TG, class TS = TG>
-    Namespace& addProperty(char const* name, TG (*get)(), void (*set)(TS) = 0)
+    Namespace& addProperty(char const* name, TG (*get)(), void (*set)(TS) = nullptr)
     {
         if (m_stackSize == 1)
-            throw std::logic_error("addProperty () called on global namespace");
+        {
+            throw_or_assert<std::logic_error>("addProperty() called on global namespace");
+
+            return *this;
+        }
 
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
@@ -6129,7 +6831,7 @@ public:
         lua_pushcclosure(L, &detail::invoke_proxy_function<TG (*)()>, 1); // Stack: ns, getter
         detail::add_property_getter(L, name, -2);
 
-        if (set != 0)
+        if (set != nullptr)
         {
             lua_pushlightuserdata(L, reinterpret_cast<void*>(set)); // Stack: ns, function ptr
             lua_pushcclosure(L, &detail::invoke_proxy_function<void (*)(TS)>, 1);
@@ -6137,7 +6839,7 @@ public:
         else
         {
             lua_pushstring(L, name);
-            lua_pushcclosure(L, &CFunc::readOnlyError, 1);
+            lua_pushcclosure(L, &detail::read_only_error, 1);
         }
 
         detail::add_property_setter(L, name, -2);
@@ -6155,10 +6857,14 @@ public:
         @param set  A pointer to a property setter function, optional.
         @returns This namespace registration object.
     */
-    Namespace& addProperty(char const* name, int (*get)(lua_State*), int (*set)(lua_State*) = 0)
+    Namespace& addProperty(char const* name, int (*get)(lua_State*), int (*set)(lua_State*) = nullptr)
     {
         if (m_stackSize == 1)
-            throw std::logic_error("addProperty () called on global namespace");
+        {
+            throw_or_assert<std::logic_error>("addProperty() called on global namespace");
+
+            return *this;
+        }
 
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
@@ -6166,7 +6872,7 @@ public:
         lua_pushcfunction(L, get); // Stack: ns, getter
         detail::add_property_getter(L, name, -2); // Stack: ns
 
-        if (set != 0)
+        if (set != nullptr)
         {
             lua_pushcfunction(L, set); // Stack: ns, setter
             detail::add_property_setter(L, name, -2); // Stack: ns
@@ -6174,7 +6880,7 @@ public:
         else
         {
             lua_pushstring(L, name); // Stack: ns, name
-            lua_pushcclosure(L, &CFunc::readOnlyError, 1); // Stack: ns, name, readOnlyError
+            lua_pushcclosure(L, &detail::read_only_error, 1); // Stack: ns, name, function
             detail::add_property_setter(L, name, -2); // Stack: ns
         }
 
@@ -6189,11 +6895,11 @@ public:
     Namespace& addFunction(char const* name, Function function)
     {
         using FnTraits = detail::function_traits<Function>;
-        
+
         using FnType = detail::to_std_function_type_t<
             typename FnTraits::result_type,
             typename FnTraits::argument_types>;
-        
+
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 
@@ -6318,13 +7024,12 @@ inline Namespace getGlobalNamespace(lua_State* L)
 // Copyright 2007, Nathan Reed
 // SPDX-License-Identifier: MIT
 
-
 // All #include dependencies are listed here
 // instead of in the individual header files.
 
 #define LUABRIDGE_MAJOR_VERSION 3
-#define LUABRIDGE_MINOR_VERSION 0
-#define LUABRIDGE_VERSION 300
+#define LUABRIDGE_MINOR_VERSION 1
+#define LUABRIDGE_VERSION 301
 
 #ifndef LUA_VERSION_NUM
 #error "Lua headers must be included prior to LuaBridge ones"
@@ -6340,9 +7045,6 @@ inline Namespace getGlobalNamespace(lua_State* L)
 // Copyright 2020, Dmitry Tarakanov
 // SPDX-License-Identifier: MIT
 
-
-
-
 namespace luabridge {
 
 //=================================================================================================
@@ -6352,25 +7054,39 @@ namespace luabridge {
 template <class T>
 struct Stack<std::list<T>>
 {
-    static void push(lua_State* L, const std::list<T>& list)
+    using Type = std::list<T>;
+    
+    static bool push(lua_State* L, const Type& list, std::error_code& ec)
     {
+        const int initialStackSize = lua_gettop(L);
+
         lua_createtable(L, static_cast<int>(list.size()), 0);
 
         auto it = list.cbegin();
         for (lua_Integer tableIndex = 1; it != list.cend(); ++tableIndex, ++it)
         {
             lua_pushinteger(L, tableIndex);
-            Stack<T>::push(L, *it);
+
+            std::error_code errorCode;
+            if (! Stack<T>::push(L, *it, errorCode))
+            {
+                ec = errorCode;
+                lua_pop(L, lua_gettop(L) - initialStackSize);
+                return false;
+            }
+
             lua_settable(L, -3);
         }
+        
+        return true;
     }
 
-    static std::list<T> get(lua_State* L, int index)
+    static Type get(lua_State* L, int index)
     {
         if (!lua_istable(L, index))
             luaL_error(L, "#%d argument must be a table", index);
 
-        std::list<T> list;
+        Type list;
 
         int absIndex = lua_absindex(L, index);
         lua_pushnil(L);
@@ -6401,9 +7117,6 @@ struct Stack<std::list<T>>
 // Copyright 2020, Dmitry Tarakanov
 // SPDX-License-Identifier: MIT
 
-
-
-
 namespace luabridge {
 
 //=================================================================================================
@@ -6413,19 +7126,34 @@ namespace luabridge {
 template <class T, std::size_t Size>
 struct Stack<std::array<T, Size>>
 {
-    static void push(lua_State* L, const std::array<T, Size>& array)
+    using Type = std::array<T, Size>;
+
+    static bool push(lua_State* L, const Type& array, std::error_code& ec)
     {
+        const int initialStackSize = lua_gettop(L);
+        
         lua_createtable(L, static_cast<int>(Size), 0);
 
         for (std::size_t i = 0; i < s; ++i)
         {
             lua_pushinteger(L, static_cast<lua_Integer>(i + 1));
-            Stack<T>::push(L, array[i]);
+
+            std::error_code errorCode;
+            bool result = Stack<T>::push(L, array[i], errorCode);
+            if (!result)
+            {
+                ec = errorCode;
+                lua_pop(L, lua_gettop(L) - initialStackSize);
+                return false;
+            }
+
             lua_settable(L, -3);
         }
+        
+        return true;
     }
 
-    static std::array<T, Size> get(lua_State* L, int index)
+    static Type get(lua_State* L, int index)
     {
         if (!lua_istable(L, index))
             luaL_error(L, "#%d argment must be a table", index);
@@ -6433,7 +7161,7 @@ struct Stack<std::array<T, Size>>
         if (get_length(L, index) != Size)
             luaL_error(L, "table size should be %d but is %d", Size, get_length(L, index));
 
-        std::array<T, Size> array;
+        Type array;
 
         int absIndex = lua_absindex(L, index);
         lua_pushnil(L);
@@ -6460,9 +7188,6 @@ struct Stack<std::array<T, Size>>
 // Copyright 2018, Dmitry Tarakanov
 // SPDX-License-Identifier: MIT
 
-
-
-
 namespace luabridge {
 
 //=================================================================================================
@@ -6472,24 +7197,38 @@ namespace luabridge {
 template <class T>
 struct Stack<std::vector<T>>
 {
-    static void push(lua_State* L, const std::vector<T>& vector)
+    using Type = std::vector<T>;
+
+    static bool push(lua_State* L, const Type& vector, std::error_code& ec)
     {
+        const int initialStackSize = lua_gettop(L);
+        
         lua_createtable(L, static_cast<int>(vector.size()), 0);
 
         for (std::size_t i = 0; i < vector.size(); ++i)
         {
             lua_pushinteger(L, static_cast<lua_Integer>(i + 1));
-            Stack<T>::push(L, vector[i]);
+            
+            std::error_code errorCode;
+            if (! Stack<T>::push(L, vector[i], errorCode))
+            {
+                ec = errorCode;
+                lua_pop(L, lua_gettop(L) - initialStackSize);
+                return false;
+            }
+            
             lua_settable(L, -3);
         }
+        
+        return true;
     }
 
-    static std::vector<T> get(lua_State* L, int index)
+    static Type get(lua_State* L, int index)
     {
         if (!lua_istable(L, index))
             luaL_error(L, "#%d argument must be a table", index);
 
-        std::vector<T> vector;
+        Type vector;
         vector.reserve(static_cast<std::size_t>(get_length(L, index)));
 
         int absIndex = lua_absindex(L, index);
@@ -6520,9 +7259,6 @@ struct Stack<std::vector<T>>
 // Copyright 2020, Lucio Asnaghi
 // SPDX-License-Identifier: MIT
 
-
-
-
 namespace luabridge {
 
 //=================================================================================================
@@ -6532,24 +7268,45 @@ namespace luabridge {
 template <class K, class V>
 struct Stack<std::set<K, V>>
 {
-    static void push(lua_State* L, const std::set<K, V>& set)
+    using Type = std::set<K, V>;
+    
+    static bool push(lua_State* L, const Type& set, std::error_code& ec)
     {
+        const int initialStackSize = lua_gettop(L);
+        
         lua_createtable(L, 0, static_cast<int>(set.size()));
 
+        bool result;
         for (auto it = set.begin(); it != set.end(); ++it)
         {
-            Stack<K>::push(L, it->first);
-            Stack<V>::push(L, it->second);
+            std::error_code errorCodeKey;
+            if (! Stack<K>::push(L, it->first, errorCodeKey))
+            {
+                ec = errorCodeKey;
+                lua_pop(L, lua_gettop(L) - initialStackSize);
+                return false;
+            }
+
+            std::error_code errorCodeValue;
+            if (! Stack<V>::push(L, it->second, errorCodeValue))
+            {
+                ec = errorCodeValue;
+                lua_pop(L, lua_gettop(L) - initialStackSize);
+                return false;
+            }
+
             lua_settable(L, -3);
         }
+        
+        return true;
     }
 
-    static std::set<K, V> get(lua_State* L, int index)
+    static Type get(lua_State* L, int index)
     {
         if (!lua_istable(L, index))
             luaL_error(L, "#%d argument must be a table", index);
 
-        std::set<K, V> set;
+        Type set;
 
         int absIndex = lua_absindex(L, index);
         lua_pushnil(L);
@@ -6581,9 +7338,6 @@ struct Stack<std::set<K, V>>
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // Copyright 2007, Nathan Reed
 // SPDX-License-Identifier: MIT
-
-
-
 
 namespace luabridge {
 namespace debug {
