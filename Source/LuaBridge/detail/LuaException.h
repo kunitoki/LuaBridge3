@@ -31,7 +31,6 @@ public:
         : m_L(L)
         , m_code(code)
     {
-        whatFromStack();
     }
 
     ~LuaException() noexcept override
@@ -89,6 +88,15 @@ public:
     }
 
 private:
+    struct FromLua {};
+    
+    LuaException(lua_State* L, std::error_code code, FromLua)
+        : m_L(L)
+        , m_code(code)
+    {
+        whatFromStack();
+    }
+
     void whatFromStack()
     {
         std::stringstream ss;
@@ -109,7 +117,7 @@ private:
     static int panicHandlerCallback(lua_State* L)
     {
 #if LUABRIDGE_HAS_EXCEPTIONS
-        throw LuaException(L, makeErrorCode(ErrorCode::LuaFunctionCallFailed));
+        throw LuaException(L, makeErrorCode(ErrorCode::LuaFunctionCallFailed), FromLua{});
 #else
         std::abort();
 #endif

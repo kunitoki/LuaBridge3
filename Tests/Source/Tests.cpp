@@ -9,6 +9,9 @@
 
 #include "TestBase.h"
 
+#include "LuaBridge/Set.h"
+#include "LuaBridge/List.h"
+
 #include <gtest/gtest.h>
 
 #include <cstring>

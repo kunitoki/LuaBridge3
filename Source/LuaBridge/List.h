@@ -22,6 +22,8 @@ struct Stack<std::list<T>>
     
     static bool push(lua_State* L, const Type& list, std::error_code& ec)
     {
+        const int initialStackSize = lua_gettop(L);
+
         lua_createtable(L, static_cast<int>(list.size()), 0);
 
         auto it = list.cbegin();
@@ -33,7 +35,8 @@ struct Stack<std::list<T>>
             if (! Stack<T>::push(L, *it, errorCode))
             {
                 ec = errorCode;
-                return false; // TODO - must pop ?
+                lua_pop(L, lua_gettop(L) - initialStackSize);
+                return false;
             }
 
             lua_settable(L, -3);

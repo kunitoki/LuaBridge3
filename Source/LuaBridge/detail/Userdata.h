@@ -316,6 +316,8 @@ public:
 
         if (!lua_istable(L, -1))
         {
+            lua_pop(L, 1); // possibly: a nil
+
             ud->~UserdataValue<T>();
 
             ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);

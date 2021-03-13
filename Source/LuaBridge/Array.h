@@ -22,6 +22,8 @@ struct Stack<std::array<T, Size>>
 
     static bool push(lua_State* L, const Type& array, std::error_code& ec)
     {
+        const int initialStackSize = lua_gettop(L);
+        
         lua_createtable(L, static_cast<int>(Size), 0);
 
         for (std::size_t i = 0; i < s; ++i)
@@ -33,7 +35,8 @@ struct Stack<std::array<T, Size>>
             if (!result)
             {
                 ec = errorCode;
-                return false; // TODO - must pop ?
+                lua_pop(L, lua_gettop(L) - initialStackSize);
+                return false;
             }
 
             lua_settable(L, -3);

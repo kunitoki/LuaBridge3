@@ -22,6 +22,8 @@ struct Stack<std::unordered_map<K, V>>
 
     static bool push(lua_State* L, const Type& map, std::error_code& ec)
     {
+        const int initialStackSize = lua_gettop(L);
+        
         lua_createtable(L, 0, static_cast<int>(map.size()));
 
         bool result;
@@ -31,14 +33,16 @@ struct Stack<std::unordered_map<K, V>>
             if (! Stack<K>::push(L, it->first, errorCodeKey))
             {
                 ec = errorCodeKey;
-                return false; // TODO - must pop ?
+                lua_pop(L, lua_gettop(L) - initialStackSize);
+                return false;
             }
             
             std::error_code errorCodeValue;
             if (! Stack<V>::push(L, it->second, errorCodeValue))
             {
                 ec = errorCodeValue;
-                return false; // TODO - must pop ?
+                lua_pop(L, lua_gettop(L) - initialStackSize);
+                return false;
             }
 
             lua_settable(L, -3);
