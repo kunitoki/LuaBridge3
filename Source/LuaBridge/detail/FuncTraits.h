@@ -346,7 +346,7 @@ struct function
         }
         catch (...)
         {
-            luaL_error(L, "Error while calling function");
+            return luaL_error(L, "Error while calling function");
         }
 #endif
     }
@@ -375,7 +375,7 @@ struct function
         }
         catch (...)
         {
-            luaL_error(L, "Error while calling method");
+            return luaL_error(L, "Error while calling method");
         }
 #endif
     }
@@ -403,7 +403,7 @@ struct function<void, ArgsPack, Start>
         }
         catch (...)
         {
-            luaL_error(L, "Error while calling function");
+            return luaL_error(L, "Error while calling function");
         }
 #endif
     }
@@ -429,7 +429,7 @@ struct function<void, ArgsPack, Start>
         }
         catch (...)
         {
-            luaL_error(L, "Error while calling method");
+            return luaL_error(L, "Error while calling method");
         }
 #endif
     }
