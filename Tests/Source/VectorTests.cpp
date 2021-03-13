@@ -91,3 +91,28 @@ TEST_F(VectorTests, PassFromLua)
 
     ASSERT_EQ(std::vector<Data>({-3, 4}), result<std::vector<Data>>());
 }
+
+#if !LUABRIDGE_HAS_EXCEPTIONS
+TEST_F(VectorTests, PushUnregisteredWithNoExceptionsShouldFailButRestoreStack)
+{
+    class Unregistered {};
+    
+    const int initialStackSize = lua_gettop(L);
+
+    lua_pushnumber(L, 1);
+    EXPECT_EQ(1, lua_gettop(L) - initialStackSize);
+
+    std::vector<Unregistered> v;
+    v.emplace_back();
+    v.emplace_back();
+    
+    std::error_code ec;
+    auto result = luabridge::Stack<decltype(v)>::push(L, v, ec);
+    EXPECT_FALSE(result);
+
+    EXPECT_EQ(1, lua_gettop(L) - initialStackSize);
+
+    lua_pop(L, 1);
+    EXPECT_EQ(0, lua_gettop(L) - initialStackSize);
+}
+#endif

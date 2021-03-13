@@ -11,8 +11,8 @@
 // instead of in the individual header files.
 
 #define LUABRIDGE_MAJOR_VERSION 3
-#define LUABRIDGE_MINOR_VERSION 0
-#define LUABRIDGE_VERSION 300
+#define LUABRIDGE_MINOR_VERSION 1
+#define LUABRIDGE_VERSION 301
 
 #ifndef LUA_VERSION_NUM
 #error "Lua headers must be included prior to LuaBridge ones"
@@ -22,6 +22,8 @@
 #include "detail/CFunctions.h"
 #include "detail/ClassInfo.h"
 #include "detail/FuncTraits.h"
+#include "detail/Errors.h"
+#include "detail/Invoke.h"
 #include "detail/Iterator.h"
 #include "detail/LuaException.h"
 #include "detail/LuaHelpers.h"

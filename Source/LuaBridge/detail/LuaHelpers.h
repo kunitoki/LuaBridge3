@@ -9,6 +9,8 @@
 #include "Config.h"
 
 #include <cassert>
+#include <cstdio>
+#include <cstdlib>
 #include <utility>
 
 namespace luabridge {
@@ -90,6 +92,42 @@ inline int get_length(lua_State* L, int idx)
 #endif
 
 /**
+ * @brief Helper to throw or return an error code.
+ */
+template <class T, class ErrorType>
+std::error_code throw_or_error_code(ErrorType error)
+{
+#if LUABRIDGE_HAS_EXCEPTIONS
+    throw T(makeErrorCode(error).message().c_str());
+#else
+    return makeErrorCode(error);
+#endif
+}
+
+template <class T, class ErrorType>
+std::error_code throw_or_error_code(lua_State* L, ErrorType error)
+{
+#if LUABRIDGE_HAS_EXCEPTIONS
+    throw T(L, makeErrorCode(error));
+#else
+    return (void)L, makeErrorCode(error);
+#endif
+}
+
+/**
+ * @brief Helper to throw or assert.
+ */
+template <class T, class... Args>
+void throw_or_assert(Args&&... args)
+{
+#if LUABRIDGE_HAS_EXCEPTIONS
+    throw T(std::forward<Args>(args)...);
+#else
+    assert(false);
+#endif
+}
+
+/**
  * @brief Helper to set unsigned.
  */
 template <class T>
@@ -128,7 +166,7 @@ inline void rawsetfield(lua_State* L, int index, char const* key)
 /**
  * @brief Returns true if the value is a full userdata (not light).
  */
-inline bool isfulluserdata(lua_State* L, int index)
+[[nodiscard]] inline bool isfulluserdata(lua_State* L, int index)
 {
     return lua_isuserdata(L, index) && !lua_islightuserdata(L, index);
 }
@@ -138,10 +176,10 @@ inline bool isfulluserdata(lua_State* L, int index)
  *
  * This can determine if two different lua_State objects really point
  * to the same global state, such as when using coroutines.
- * 
+ *
  * @note This is used for assertions.
  */
-inline bool equalstates(lua_State* L1, lua_State* L2)
+[[nodiscard]] inline bool equalstates(lua_State* L1, lua_State* L2)
 {
     return lua_topointer(L1, LUA_REGISTRYINDEX) == lua_topointer(L2, LUA_REGISTRYINDEX);
 }
@@ -150,7 +188,7 @@ inline bool equalstates(lua_State* L1, lua_State* L2)
  * @brief Return an aligned pointer of type T.
  */
 template <class T>
-T* align(void* ptr) noexcept
+[[nodiscard]] T* align(void* ptr) noexcept
 {
     auto address = reinterpret_cast<size_t>(ptr);
 
@@ -164,7 +202,7 @@ T* align(void* ptr) noexcept
  * @brief Return the space needed to align the type T on an unaligned address.
  */
 template <class T>
-size_t maximum_space_needed_to_align() noexcept
+[[nodiscard]] size_t maximum_space_needed_to_align() noexcept
 {
     return sizeof(T) + alignof(T) - 1;
 }
@@ -194,10 +232,19 @@ int lua_deleteuserdata_aligned(lua_State* L)
 {
     assert(isfulluserdata(L, 1));
 
-    T* t = align<T>(lua_touserdata(L, 1));
-    t->~T();
+    T* aligned = align<T>(lua_touserdata(L, 1));
+    aligned->~T();
 
     return 0;
+}
+
+/**
+ * @brief Helper to write a lua string error.
+ */
+inline void writestringerror(const char* fmt, const char* text)
+{
+    fprintf(stderr, fmt, text);
+    fflush(stderr);
 }
 
 } // namespace luabridge

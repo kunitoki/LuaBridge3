@@ -1,0 +1,60 @@
+name: Build Linux
+
+on: [push]
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+
+    - name: Create Build Environment
+      run: cmake -E make_directory ${{runner.workspace}}/build
+
+    - name: Configure
+      working-directory: ${{runner.workspace}}/build
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+
+    - name: Build
+      working-directory: ${{runner.workspace}}/build
+      run: cmake --build . --config $BUILD_TYPE -- -j4
+
+    - name: Test Lua 5.1
+      working-directory: ${{runner.workspace}}/build/Tests
+      run: ./LuaBridgeTests51
+
+    - name: Test Lua 5.1 - No Exceptions
+      working-directory: ${{runner.workspace}}/build/Tests
+      run: ./LuaBridgeTests51NoExcept
+
+    - name: Test Lua 5.2
+      working-directory: ${{runner.workspace}}/build/Tests
+      run: ./LuaBridgeTests52
+
+    - name: Test Lua 5.2 - No Exceptions
+      working-directory: ${{runner.workspace}}/build/Tests
+      run: ./LuaBridgeTests52Noexcept
+
+    - name: Test Lua 5.3
+      working-directory: ${{runner.workspace}}/build/Tests
+      run: ./LuaBridgeTests53
+
+    - name: Test Lua 5.3 - No Exceptions
+      working-directory: ${{runner.workspace}}/build/Tests
+      run: ./LuaBridgeTests53Noexcept
+
+    - name: Test Lua 5.4
+      working-directory: ${{runner.workspace}}/build/Tests
+      shell: bash
+      run: ./LuaBridgeTests54
+
+    - name: Test Lua 5.4 - No Exceptions
+      working-directory: ${{runner.workspace}}/build/Tests
+      shell: bash
+      run: ./LuaBridgeTests54Noexcept

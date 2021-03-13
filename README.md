@@ -6,7 +6,7 @@
 </a>
 <br>
 
-# LuaBridge 3.0
+# LuaBridge 3.1
 
 [LuaBridge][1] is a lightweight and dependency-free library for mapping data,
 functions, and classes back and forth between C++ and [Lua][2] (a powerful,
@@ -19,19 +19,22 @@ provided with lua 5.2.4, 5.3.6 and 5.4.1 as well as [LuaJit][3].
 LuaBridge is usable from a compliant C++17 compiler and offers the following features:
 
 - [MIT Licensed][4]
-- Headers-only: No Makefile, no .cpp files, just one #include and one header file (optional) !
-- Simple, light, and nothing else needed (like Boost).
+- Headers-only: No Makefile, no .cpp files, just one `#include` and one header file (optional) !
+- Simple, light, and nothing else needed.
 - No macros, settings, or configuration scripts needed.
 - Supports different object lifetime management models.
 - Convenient, type-safe access to the Lua stack.
 - Automatic function parameter type binding.
 - Easy access to Lua objects like tables and functions.
 - Interoperable with most common c++ standard library container types.
+- Can work with both c++ exceptions and without (Work with `-fno-exceptions` too).
 - Written in a clear and easy to debug style.
 
 ## Status
 
-![CMake](https://github.com/kunitoki/LuaBridge3/workflows/CMake/badge.svg?branch=master)
+![Build MacOS](https://github.com/kunitoki/LuaBridge3/workflows/Build%20MacOS/badge.svg?branch=master)
+![Build Windows](https://github.com/kunitoki/LuaBridge3/workflows/Build%20Windows/badge.svg?branch=master)
+![Build Linux](https://github.com/kunitoki/LuaBridge3/workflows/Build%20Linux/badge.svg?branch=master)
 
 ## Documentation
 

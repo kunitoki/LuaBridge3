@@ -17,6 +17,7 @@
 #include <string_view>
 #include <string>
 #include <type_traits>
+#include <utility>
 
 namespace luabridge {
 namespace detail {
@@ -36,22 +37,26 @@ protected:
     lua_State* const L;
     int mutable m_stackSize;
 
-    Registrar(lua_State* L) : L(L), m_stackSize(0) {}
-
-    Registrar(const Registrar& rhs) : L(rhs.L), m_stackSize(rhs.m_stackSize)
+    Registrar(lua_State* L)
+        : L(L)
+        , m_stackSize(0)
     {
-        rhs.m_stackSize = 0;
     }
 
-#ifndef _MSC_VER
-    // MS compiler thinks it's the 2nd copy ctor
-    Registrar(Registrar& rhs) : L(rhs.L), m_stackSize(rhs.m_stackSize) { rhs.m_stackSize = 0; }
-#endif // ifndef _MSC_VER
+    Registrar(const Registrar& rhs)
+        : L(rhs.L)
+        , m_stackSize(std::exchange(rhs.m_stackSize, 0))
+    {
+    }
 
     Registrar& operator=(const Registrar& rhs)
     {
+        using std::swap;
+
         Registrar tmp(rhs);
-        std::swap(m_stackSize, tmp.m_stackSize);
+
+        swap(m_stackSize, tmp.m_stackSize);
+
         return *this;
     }
 
@@ -68,7 +73,7 @@ protected:
     {
         if (m_stackSize == 0)
         {
-            throw std::logic_error("Unable to continue registration");
+            throw_or_assert<std::logic_error>("Unable to continue registration");
         }
     }
 };
@@ -82,8 +87,6 @@ protected:
 */
 class Namespace : public detail::Registrar
 {
-    typedef detail::CFunc CFunc;
-
     //============================================================================
 #if 0
   /**
@@ -137,7 +140,7 @@ class Namespace : public detail::Registrar
         void createConstTable(const char* name, bool trueConst = true)
         {
             assert(name != nullptr);
-            
+
             std::string type_name = std::string(trueConst ? "const " : "") + name;
 
             // Stack: namespace table (ns)
@@ -148,10 +151,10 @@ class Namespace : public detail::Registrar
             lua_pushstring(L, type_name.c_str());
             lua_rawsetp(L, -2, detail::getTypeKey()); // co [typeKey] = name. Stack: ns, co
 
-            lua_pushcfunction(L, &CFunc::indexMetaMethod);
+            lua_pushcfunction(L, &detail::index_metamethod);
             rawsetfield(L, -2, "__index");
 
-            lua_pushcfunction(L, &CFunc::newindexObjectMetaMethod);
+            lua_pushcfunction(L, &detail::newindex_object_metamethod);
             rawsetfield(L, -2, "__newindex");
 
             lua_newtable(L);
@@ -211,10 +214,10 @@ class Namespace : public detail::Registrar
             rawsetfield (L, -2, "__tostring");
 #endif
 
-            lua_pushcfunction(L, &CFunc::indexMetaMethod);
+            lua_pushcfunction(L, &detail::index_metamethod);
             rawsetfield(L, -2, "__index");
 
-            lua_pushcfunction(L, &CFunc::newindexStaticMetaMethod);
+            lua_pushcfunction(L, &detail::newindex_static_metamethod);
             rawsetfield(L, -2, "__newindex");
 
             lua_newtable(L); // Stack: ns, co, cl, st, proget table (pg)
@@ -241,10 +244,12 @@ class Namespace : public detail::Registrar
         static int ctorContainerProxy(lua_State* L)
         {
             using T = typename ContainerTraits<C>::Type;
-            
-            T* const p = detail::constructor<T, Args>::call(detail::make_arguments_list<Args, 2>(L));
 
-            detail::UserdataSharedHelper<C, false>::push(L, p);
+            T* object = detail::constructor<T, Args>::call(detail::make_arguments_list<Args, 2>(L));
+
+            std::error_code ec;
+            if (! detail::UserdataSharedHelper<C, false>::push(L, object, ec))
+                luaL_error(L, ec.message().c_str());
 
             return 1;
         }
@@ -256,7 +261,10 @@ class Namespace : public detail::Registrar
         template <class Args, class T>
         static int ctorPlacementProxy(lua_State* L)
         {
-            detail::UserdataValue<T>* value = detail::UserdataValue<T>::place(L);
+            std::error_code ec;
+            detail::UserdataValue<T>* value = detail::UserdataValue<T>::place(L, ec);
+            if (! value)
+                luaL_error(L, ec.message().c_str());
 
             detail::constructor<T, Args>::call(value->getObject(), detail::make_arguments_list<Args, 2>(L));
 
@@ -291,8 +299,6 @@ class Namespace : public detail::Registrar
     template<class T>
     class Class : public ClassBase
     {
-        typedef detail::CFunc CFunc;
-
     public:
         //==========================================================================
         /**
@@ -313,12 +319,12 @@ class Namespace : public detail::Registrar
                 lua_pop(L, 1); // Stack: ns
 
                 createConstTable(name); // Stack: ns, const table (co)
-                lua_pushcfunction(L, &CFunc::gcMetaMethod<T>); // Stack: ns, co, function
+                lua_pushcfunction(L, &detail::gc_metamethod<T>); // Stack: ns, co, function
                 rawsetfield(L, -2, "__gc"); // co ["__gc"] = function. Stack: ns, co
                 ++m_stackSize;
 
                 createClassTable(name); // Stack: ns, co, class table (cl)
-                lua_pushcfunction(L, &CFunc::gcMetaMethod<T>); // Stack: ns, co, cl, function
+                lua_pushcfunction(L, &detail::gc_metamethod<T>); // Stack: ns, co, cl, function
                 rawsetfield(L, -2, "__gc"); // cl ["__gc"] = function. Stack: ns, co, cl
                 ++m_stackSize;
 
@@ -364,12 +370,12 @@ class Namespace : public detail::Registrar
             assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 
             createConstTable(name); // Stack: ns, const table (co)
-            lua_pushcfunction(L, &CFunc::gcMetaMethod<T>); // Stack: ns, co, function
+            lua_pushcfunction(L, &detail::gc_metamethod<T>); // Stack: ns, co, function
             rawsetfield(L, -2, "__gc"); // co ["__gc"] = function. Stack: ns, co
             ++m_stackSize;
 
             createClassTable(name); // Stack: ns, co, class table (cl)
-            lua_pushcfunction(L, &CFunc::gcMetaMethod<T>); // Stack: ns, co, cl, function
+            lua_pushcfunction(L, &detail::gc_metamethod<T>); // Stack: ns, co, cl, function
             rawsetfield(L, -2, "__gc"); // cl ["__gc"] = function. Stack: ns, co, cl
             ++m_stackSize;
 
@@ -380,7 +386,9 @@ class Namespace : public detail::Registrar
             if (lua_isnil(L, -1)) // Stack: ns, co, cl, st, nil
             {
                 ++m_stackSize;
-                throw std::runtime_error("Base class is not registered");
+
+                throw_or_assert<std::logic_error>("Base class is not registered");
+                return;
             }
 
             assert(lua_istable(L, -1)); // Stack: ns, co, cl, st, pst
@@ -431,22 +439,6 @@ class Namespace : public detail::Registrar
         template <class U>
         Class<T>& addStaticProperty(char const* name, U* value, bool isWritable = true)
         {
-            return addStaticData(name, value, isWritable);
-        }
-
-        //--------------------------------------------------------------------------
-        /**
-          Add or replace a static property.
-
-          @tparam U          The type of the property.
-          @param  name       The property name.
-          @param  value      A property value pointer.
-          @param  isWritable True for a read-write, false for read-only property.
-          @returns This class registration object.
-        */
-        template <class U>
-        Class<T>& addStaticData(char const* name, U* value, bool isWritable = true)
-        {
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
@@ -462,7 +454,7 @@ class Namespace : public detail::Registrar
             else
             {
                 lua_pushstring(L, name); // Stack: co, cl, st, name
-                lua_pushcclosure(L, &CFunc::readOnlyError, 1); // Stack: co, cl, st, error_fn
+                lua_pushcclosure(L, &detail::read_only_error, 1); // Stack: co, cl, st, function
             }
 
             detail::add_property_setter(L, name, -2); // Stack: co, cl, st
@@ -498,7 +490,7 @@ class Namespace : public detail::Registrar
             else
             {
                 lua_pushstring(L, name); // Stack: co, cl, st, ps, name
-                lua_pushcclosure(L, &CFunc::readOnlyError, 1); // Stack: co, cl, st, error_fn
+                lua_pushcclosure(L, &detail::read_only_error, 1); // Stack: co, cl, st, function
             }
 
             detail::add_property_setter(L, name, -2); // Stack: co, cl, st
@@ -623,7 +615,7 @@ class Namespace : public detail::Registrar
             detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
             detail::add_property_getter(L, name, -3); // Stack: co, cl, st
 
-            if (set != 0)
+            if (set != nullptr)
             {
                 new (lua_newuserdata(L, sizeof(set_t))) set_t(set); // Stack: co, cl, st, function ptr
                 lua_pushcclosure(L, &detail::invoke_member_function<set_t, T>, 1); // Stack: co, cl, st, setter
@@ -767,13 +759,13 @@ class Namespace : public detail::Registrar
         Class<T> addFunction(char const* name, Function function)
         {
             using FnTraits = detail::function_traits<Function>;
-            
+
             using FnType = detail::to_std_function_type_t<
                 typename FnTraits::result_type,
                 typename FnTraits::argument_types>;
-            
+
             using FirstArg = detail::function_argument_t<0, Function>;
-            static_assert(std::is_same_v<std::remove_cv_t<std::remove_pointer_t<FirstArg>>, T>);
+            static_assert(std::is_same_v<std::decay_t<std::remove_pointer_t<FirstArg>>, T>);
 
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
@@ -786,17 +778,17 @@ class Namespace : public detail::Registrar
 
             lua_pushcclosure(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: co, cl, st, function
 
-            if constexpr (std::is_same_v<FirstArg, T*>)
+            if constexpr (! std::is_const_v<std::remove_reference_t<std::remove_pointer_t<FirstArg>>>)
             {
                 rawsetfield(L, -3, name); // Stack: co, cl, st
             }
-            else if constexpr (std::is_same_v<FirstArg, const T*>)
+            else
             {
                 lua_pushvalue(L, -1); // Stack: co, cl, st, function, function
                 rawsetfield(L, -4, name); // Stack: co, cl, st, function
                 rawsetfield(L, -4, name); // Stack: co, cl, st
             }
-            
+
             return *this;
         }
 
@@ -814,9 +806,11 @@ class Namespace : public detail::Registrar
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            static const std::string GC = "__gc";
-            if (name == GC)
-                throw std::logic_error(GC + " metamethod registration is forbidden");
+            if (name == std::string_view("__gc"))
+            {
+                throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
+                return *this;
+            }
 
             new (lua_newuserdata(L, sizeof(MemFn))) MemFn(mf);
             lua_pushcclosure(L, &detail::invoke_member_function<MemFn, T>, 1);
@@ -835,9 +829,11 @@ class Namespace : public detail::Registrar
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            static const std::string GC = "__gc";
-            if (name == GC)
-                throw std::logic_error(GC + " metamethod registration is forbidden");
+            if (name == std::string_view("__gc"))
+            {
+                throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
+                return *this;
+            }
 
             new (lua_newuserdata(L, sizeof(MemFn))) MemFn(mf);
             lua_pushcclosure(L, &detail::invoke_const_member_function<MemFn, T>, 1);
@@ -860,9 +856,11 @@ class Namespace : public detail::Registrar
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            static const std::string GC = "__gc";
-            if (name == GC)
-                throw std::logic_error(GC + " metamethod registration is forbidden");
+            if (name == std::string_view("__gc"))
+            {
+                throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
+                return *this;
+            }
 
             lua_pushlightuserdata(L, reinterpret_cast<void*>(proxyFn)); // Stack: co, cl, st, function ptr
             lua_pushcclosure(L, &detail::invoke_proxy_function<FnType>, 1); // Stack: co, cl, st, function
@@ -879,9 +877,11 @@ class Namespace : public detail::Registrar
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            static const std::string GC = "__gc";
-            if (name == GC)
-                throw std::logic_error(GC + " metamethod registration is forbidden");
+            if (name == std::string_view("__gc"))
+            {
+                throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
+                return *this;
+            }
 
             lua_pushlightuserdata(L, reinterpret_cast<void*>(proxyFn)); // Stack: co, cl, st, function ptr
             lua_pushcclosure(L, &detail::invoke_proxy_function<FnType>, 1); // Stack: co, cl, st, function
@@ -945,7 +945,7 @@ class Namespace : public detail::Registrar
         Class<T>& addCFunction(char const* name, int (U::*mfp)(lua_State*) const)
         {
             static_assert(std::is_base_of_v<U, T>);
-            
+
             using F = decltype(mfp);
 
             assert(name != nullptr);
@@ -1033,12 +1033,12 @@ private:
             // na.__metatable = ns
             lua_setmetatable(L, -2); // Stack: pns, ns
 
-            // ns.__index = indexMetaMethod
-            lua_pushcfunction(L, &CFunc::indexMetaMethod);
+            // ns.__index = index_metamethod
+            lua_pushcfunction(L, &detail::index_metamethod);
             rawsetfield(L, -2, "__index"); // Stack: pns, ns
 
-            // ns.__newindex = newindexMetaMethod
-            lua_pushcfunction(L, &CFunc::newindexStaticMetaMethod);
+            // ns.__newindex = newindex_static_metamethod
+            lua_pushcfunction(L, &detail::newindex_static_metamethod);
             rawsetfield(L, -2, "__newindex"); // Stack: pns, ns
 
             lua_newtable(L); // Stack: pns, ns, propget table (pg)
@@ -1081,7 +1081,6 @@ public:
     */
     static Namespace getGlobalNamespace(lua_State* L)
     {
-        enableExceptions(L);
         return Namespace(L);
     }
 
@@ -1108,7 +1107,11 @@ public:
     Namespace endNamespace()
     {
         if (m_stackSize == 1)
-            throw std::logic_error("endNamespace () called on global namespace");
+        {
+            throw_or_assert<std::logic_error>("endNamespace() called on global namespace");
+
+            return Namespace(*this);
+        }
 
         assert(m_stackSize > 1);
         --m_stackSize;
@@ -1129,7 +1132,11 @@ public:
     Namespace& addProperty(char const* name, T* value, bool isWritable = true)
     {
         if (m_stackSize == 1)
-            throw std::logic_error("addProperty () called on global namespace");
+        {
+            throw_or_assert<std::logic_error>("addProperty() called on global namespace");
+
+            return *this;
+        }
 
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
@@ -1146,7 +1153,7 @@ public:
         else
         {
             lua_pushstring(L, name); // Stack: ns, ps, name
-            lua_pushcclosure(L, &CFunc::readOnlyError, 1); // Stack: ns, error_fn
+            lua_pushcclosure(L, &detail::read_only_error, 1); // Stack: ns, function
         }
 
         detail::add_property_setter(L, name, -2); // Stack: ns
@@ -1165,10 +1172,14 @@ public:
         @returns This namespace registration object.
     */
     template <class TG, class TS = TG>
-    Namespace& addProperty(char const* name, TG (*get)(), void (*set)(TS) = 0)
+    Namespace& addProperty(char const* name, TG (*get)(), void (*set)(TS) = nullptr)
     {
         if (m_stackSize == 1)
-            throw std::logic_error("addProperty () called on global namespace");
+        {
+            throw_or_assert<std::logic_error>("addProperty() called on global namespace");
+
+            return *this;
+        }
 
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
@@ -1177,7 +1188,7 @@ public:
         lua_pushcclosure(L, &detail::invoke_proxy_function<TG (*)()>, 1); // Stack: ns, getter
         detail::add_property_getter(L, name, -2);
 
-        if (set != 0)
+        if (set != nullptr)
         {
             lua_pushlightuserdata(L, reinterpret_cast<void*>(set)); // Stack: ns, function ptr
             lua_pushcclosure(L, &detail::invoke_proxy_function<void (*)(TS)>, 1);
@@ -1185,7 +1196,7 @@ public:
         else
         {
             lua_pushstring(L, name);
-            lua_pushcclosure(L, &CFunc::readOnlyError, 1);
+            lua_pushcclosure(L, &detail::read_only_error, 1);
         }
 
         detail::add_property_setter(L, name, -2);
@@ -1203,10 +1214,14 @@ public:
         @param set  A pointer to a property setter function, optional.
         @returns This namespace registration object.
     */
-    Namespace& addProperty(char const* name, int (*get)(lua_State*), int (*set)(lua_State*) = 0)
+    Namespace& addProperty(char const* name, int (*get)(lua_State*), int (*set)(lua_State*) = nullptr)
     {
         if (m_stackSize == 1)
-            throw std::logic_error("addProperty () called on global namespace");
+        {
+            throw_or_assert<std::logic_error>("addProperty() called on global namespace");
+
+            return *this;
+        }
 
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
@@ -1214,7 +1229,7 @@ public:
         lua_pushcfunction(L, get); // Stack: ns, getter
         detail::add_property_getter(L, name, -2); // Stack: ns
 
-        if (set != 0)
+        if (set != nullptr)
         {
             lua_pushcfunction(L, set); // Stack: ns, setter
             detail::add_property_setter(L, name, -2); // Stack: ns
@@ -1222,7 +1237,7 @@ public:
         else
         {
             lua_pushstring(L, name); // Stack: ns, name
-            lua_pushcclosure(L, &CFunc::readOnlyError, 1); // Stack: ns, name, readOnlyError
+            lua_pushcclosure(L, &detail::read_only_error, 1); // Stack: ns, name, function
             detail::add_property_setter(L, name, -2); // Stack: ns
         }
 
@@ -1237,11 +1252,11 @@ public:
     Namespace& addFunction(char const* name, Function function)
     {
         using FnTraits = detail::function_traits<Function>;
-        
+
         using FnType = detail::to_std_function_type_t<
             typename FnTraits::result_type,
             typename FnTraits::argument_types>;
-        
+
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 

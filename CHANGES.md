@@ -1,3 +1,15 @@
+## Master
+
+## Version 3.1
+
+* Reworked the whole library to be able to use it without c++ exceptions enabled.
+* Breaking Change: The method `Stack<T>::push` now takes a `std::error_code&` as last parameter and returns a `bool`.
+* Breaking Change: The class `LuaException` has been reworked and it now take a `std::error_code` instead of a int.
+* Breaking Change: The class `LuaException` is now thrown if a unregistered class is pushed via the Stack class, also when calling `LuaRef::operator()`, but only if exceptions are enabled.
+* Breaking Change: `LuaRef::operator()` now returns the class `LuaResult`, where it is possible to obtain the call results or error message.
+* Breaking Change: LuaBridge does not silently enable exceptions when calling `getGlobalNamespace`. Call `enableExceptions(lua_State*)` if you want to enable them explicitly.
+* Removed `Class<T>::addStaticData`, it was just an alias for `Class<T>::addStaticProperty`.
+
 ## Version 3.0
 
 * Moved to C++17 as minimum supported standard C++ version.
@@ -15,7 +27,7 @@
 * Renamed `luabridge::Nil` to `luabridge::LuaNil` to allow including LuaBridge in Obj-C sources.
 * Removed the limitation of maximum 8 parameters in functions.
 * Removed the limitation of maximum 8 parameters in constructors.
-* Removed `Class<T>::addData`, it was just an alias for `Class<T>::addproperty`.
+* Removed `Class<T>::addData`, it was just an alias for `Class<T>::addProperty`.
 * Removed `TypeList` from loki, using parameter packs and `std::tuple` with `std::apply`.
 * Removed juce traces from unit tests, simplified unit tests runs.
 * Bumped lua 5.2.x in unit tests from lua 5.2.0 to 5.2.4.

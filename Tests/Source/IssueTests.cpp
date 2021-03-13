@@ -60,7 +60,10 @@ void pushArgs(lua_State*)
 template<class Arg, class... Args>
 void pushArgs(lua_State* L, Arg arg, Args... args)
 {
-    luabridge::Stack<Arg>::push(L, arg);
+    std::error_code ec;
+
+    luabridge::Stack<Arg>::push(L, arg, ec);
+
     pushArgs(L, args...);
 }
 
@@ -74,7 +77,7 @@ std::vector<luabridge::LuaRef> callFunction(const luabridge::LuaRef& function, A
     function.push(L);
     pushArgs(L, args...);
 
-    luabridge::LuaException::pcall(L, sizeof...(args), LUA_MULTRET);
+    luabridge::pcall(L, sizeof...(args), LUA_MULTRET);
 
     std::vector<luabridge::LuaRef> results;
     int top = lua_gettop(L);
@@ -135,15 +138,16 @@ enum class MyEnum
     VALUE1,
 };
 
-template<typename T>
+template <class T>
 struct EnumWrapper
 {
-    static typename std::enable_if<std::is_enum<T>::value, void>::type push(lua_State* L, T value)
+    static auto push(lua_State* L, T value) -> std::enable_if_t<std::is_enum_v<T>, bool>
     {
         lua_pushnumber(L, static_cast<std::size_t>(value));
+        return true;
     }
 
-    static typename std::enable_if<std::is_enum<T>::value, T>::type get(lua_State* L, int index)
+    static auto get(lua_State* L, int index) -> std::enable_if_t<std::is_enum_v<T>, T>
     {
         return static_cast<T>(lua_tointeger(L, index));
     }

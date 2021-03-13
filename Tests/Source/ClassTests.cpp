@@ -116,13 +116,16 @@ TEST_F(ClassTests, IsInstance)
         .endClass();
 
     BaseClass base;
-    luabridge::push(L, base);
+    std::error_code ec1;
+    luabridge::push(L, base, ec1);
 
     DerivedClass derived;
-    luabridge::push(L, derived);
+    std::error_code ec2;
+    luabridge::push(L, derived, ec2);
 
     OtherClass other;
-    luabridge::push(L, other);
+    std::error_code ec3;
+    luabridge::push(L, other, ec3);
 
     ASSERT_TRUE(luabridge::isInstance<BaseClass>(L, -3));
     ASSERT_FALSE(luabridge::isInstance<DerivedClass>(L, -3)); // BaseClass is not DerivedClass
@@ -148,10 +151,18 @@ TEST_F(ClassTests, PassingUnregisteredClassToLuaThrows)
 
     Unregistered value(1);
     const Unregistered constValue(2);
+    
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(process_fn(value), std::exception);
     ASSERT_THROW(process_fn(constValue), std::exception);
     ASSERT_THROW(process_fn(&value), std::exception);
     ASSERT_THROW(process_fn(&constValue), std::exception);
+#else
+    EXPECT_FALSE(process_fn(value));
+    EXPECT_FALSE(process_fn(constValue));
+    EXPECT_FALSE(process_fn(&value));
+    EXPECT_FALSE(process_fn(&constValue));
+#endif
 }
 
 TEST_F(ClassTests, PassWrongClassFromLuaThrows)
@@ -171,7 +182,12 @@ TEST_F(ClassTests, PassWrongClassFromLuaThrows)
         .addFunction("processRight", &Right::staticFunction);
 
     // bad argument #1 to 'processRight' (Right expected, got Wrong)
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("result = processRight (Wrong (5))"), std::exception);
+#else
+    ASSERT_FALSE(runLua("result = processRight (Wrong (5))"));
+#endif
+
     ASSERT_TRUE(result().isNil());
 }
 
@@ -218,7 +234,12 @@ TEST_F(ClassTests, PassConstClassInsteadOfNonConstThrows)
     luabridge::setGlobal(L, &constObject, "constObject");
 
     // bad argument #1 to 'processNonConst' (Derived expected, got const Derived)
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("result = processNonConst (constObject)"), std::exception);
+#else
+    ASSERT_FALSE(runLua("result = processNonConst (constObject)"));
+#endif
+
     ASSERT_TRUE(result().isNil());
 }
 
@@ -233,7 +254,12 @@ TEST_F(ClassTests, PassOtherTypeInsteadOfNonConstThrows)
         .addFunction("processNonConst", &processNonConst<int, EmptyBase>);
 
     // bad argument #1 to 'processNonConst' (Int expected, got number)
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("result = processNonConst (1)"), std::exception);
+#else
+    ASSERT_FALSE(runLua("result = processNonConst (1)"));
+#endif
+
     ASSERT_TRUE(result().isNil());
 }
 
@@ -249,7 +275,12 @@ TEST_F(ClassTests, PassRegisteredClassInsteadOfUnregisteredThrows)
         .addFunction("processUnregisteredInt", &Int::staticFunction);
 
     // bad argument #1 to 'processUnregisteredInt' (unregistered class expected, got Float)
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("result = processUnregisteredInt (Float (1.2))"), std::exception);
+#else
+    ASSERT_FALSE(runLua("result = processUnregisteredInt (Float (1.2))"));
+#endif
+
     ASSERT_TRUE(result().isNil());
 }
 
@@ -299,22 +330,30 @@ TEST_F(ClassTests, PassingUnregisteredClassFromLuaThrows)
 
     addHelperFunctions(L);
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("result = returnRef ()"), std::exception);
     ASSERT_THROW(runLua("result = returnConstRef ()"), std::exception);
     ASSERT_THROW(runLua("result = returnPtr ()"), std::exception);
     ASSERT_THROW(runLua("result = returnConstPtr ()"), std::exception);
     ASSERT_THROW(runLua("result = returnValue ()"), std::exception);
+#else
+    ASSERT_FALSE(runLua("result = returnRef ()"));
+    ASSERT_FALSE(runLua("result = returnConstRef ()"));
+    ASSERT_FALSE(runLua("result = returnPtr ()"));
+    ASSERT_FALSE(runLua("result = returnConstPtr ()"));
+    ASSERT_FALSE(runLua("result = returnValue ()"));
+#endif
 }
 
 TEST_F(ClassTests, DeriveFromUnregisteredClassThrows)
 {
+#if LUABRIDGE_HAS_EXCEPTIONS
     using Base = Class<int, EmptyBase>;
     using Derived = Class<float, Base>;
 
-    ASSERT_THROW((luabridge::getGlobalNamespace(L).deriveClass<Derived, Base>("Derived")),
-                 std::exception);
-
+    ASSERT_THROW((luabridge::getGlobalNamespace(L).deriveClass<Derived, Base>("Derived")), std::exception);
     ASSERT_EQ(1, lua_gettop(L));
+#endif
 }
 
 struct ClassFunctions : ClassTests
@@ -684,7 +723,11 @@ TEST_F(ClassProperties, FieldPointers_ReadOnly)
     ASSERT_TRUE(result()["data"].isNumber());
     ASSERT_EQ(501, result()["data"].cast<int>());
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("result.data = 2"), std::exception);
+#else
+    ASSERT_FALSE(runLua("result.data = 2"));
+#endif
 
     runLua("result = Int (42).data");
     ASSERT_TRUE(result().isNumber());
@@ -743,7 +786,12 @@ TEST_F(ClassProperties, MemberFunctions_ReadOnly)
     ASSERT_TRUE(result()["data"].isNumber());
     ASSERT_EQ(501, result()["data"].cast<int>());
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("result.data = -2"), std::exception);
+#else
+    ASSERT_FALSE(runLua("result.data = -2"));
+#endif
+
     ASSERT_EQ(501, result()["data"].cast<int>());
 }
 
@@ -860,7 +908,12 @@ TEST_F(ClassProperties, ProxyFunctions_ReadOnly)
     ASSERT_TRUE(result()["data"].isNumber());
     ASSERT_EQ(501, result()["data"].cast<int>());
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("result.data = -2"), std::exception);
+#else
+    ASSERT_FALSE(runLua("result.data = -2"));
+#endif
+
     ASSERT_EQ(501, result()["data"].cast<int>());
 }
 
@@ -935,7 +988,8 @@ int getDataC(lua_State* L)
 {
     auto objectRef = luabridge::LuaRef::fromStack(L, 1);
     auto* object = objectRef.cast<const Class<T, BaseClass>*>();
-    luabridge::Stack<T>::push(L, object->data);
+    std::error_code ec;
+    luabridge::Stack<T>::push(L, object->data, ec);
     return 1;
 }
 
@@ -985,7 +1039,12 @@ TEST_F(ClassProperties, ProxyCFunctions_ReadOnly)
     ASSERT_TRUE(result()["data"].isNumber());
     ASSERT_EQ(501, result()["data"].cast<int>());
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("result.data = -2"), std::exception);
+#else
+    ASSERT_FALSE(runLua("result.data = -2"));
+#endif
+
     ASSERT_EQ(501, result()["data"].cast<int>());
 }
 
@@ -1125,7 +1184,12 @@ TEST_F(ClassProperties, StdFunctions_ReadOnly)
     ASSERT_TRUE(result()["data"].isNumber());
     ASSERT_EQ(501, result()["data"].cast<int>());
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("result.data = -2"), std::exception);
+#else
+    ASSERT_FALSE(runLua("result.data = -2"));
+#endif
+
     ASSERT_EQ(501, result()["data"].cast<int>());
 
     runLua("result = nil");
@@ -1244,7 +1308,12 @@ TEST_F(ClassStaticProperties, FieldPointers_ReadOnly)
     ASSERT_TRUE(result().isNumber());
     ASSERT_EQ(10, result<int>());
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("Int.staticData = 20"), std::exception);
+#else
+    ASSERT_FALSE(runLua("Int.staticData = 20"));
+#endif
+
     ASSERT_EQ(10, Int::staticData);
 }
 
@@ -1531,7 +1600,11 @@ TEST_F(ClassMetaMethods, __concat)
         .addFunction("__concat", &String::operator+)
         .endClass();
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("result = String ('a') + String ('b')"), std::exception);
+#else
+    ASSERT_FALSE(runLua("result = String ('a') + String ('b')"));
+#endif
 
     runLua("result = String ('ab') .. String ('cd')");
     ASSERT_TRUE(result().isUserdata());
@@ -1561,9 +1634,20 @@ namespace {
 
 struct Table
 {
-    int index(const std::string& key) { return map.at(key); }
+    int index(const std::string& key)
+    {
+#if LUABRIDGE_HAS_EXCEPTIONS
+        return map.at(key);
+#else
+        auto it = map.find(key);
+        return it != map.end() ? it->second : -1;
+#endif
+    }
 
-    void newIndex(const std::string& key, int value) { map.emplace(key, value); }
+    void newIndex(const std::string& key, int value)
+    {
+        map.emplace(key, value);
+    }
 
     std::map<std::string, int> map;
 };
@@ -1589,7 +1673,13 @@ TEST_F(ClassMetaMethods, __index)
     ASSERT_TRUE(result().isNumber());
     ASSERT_EQ(2, result<int>());
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("result = t.c"), std::exception); // at ("c") throws
+#else
+    ASSERT_TRUE(runLua("result = t.c"));
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(-1, result<int>());
+#endif
 }
 
 TEST_F(ClassMetaMethods, __newindex)
@@ -1615,11 +1705,13 @@ TEST_F(ClassMetaMethods, __gcForbidden)
 {
     typedef Class<int, EmptyBase> Int;
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(luabridge::getGlobalNamespace(L)
                      .beginClass<Int>("Int")
                      .addFunction("__gc", &Int::method)
                      .endClass(),
                  std::exception);
+#endif
 }
 
 TEST_F(ClassTests, EnclosedClassProperties)
@@ -1659,7 +1751,12 @@ unsigned InnerClass::destructorCallCount;
 
 struct OuterClass
 {
-    OuterClass() { throw std::runtime_error("Exception"); }
+    OuterClass()
+    {
+#if LUABRIDGE_HAS_EXCEPTIONS
+        throw std::runtime_error("Exception");
+#endif
+    }
 
     ~OuterClass() { ++destructorCallCount; }
 
@@ -1702,6 +1799,7 @@ TEST_F(ClassTests, ConstructorWithReferences)
 
 TEST_F(ClassTests, DestructorIsNotCalledIfConstructorThrows)
 {
+#if LUABRIDGE_HAS_EXCEPTIONS
     luabridge::getGlobalNamespace(L)
         .beginClass<OuterClass>("OuterClass")
         .addConstructor<void (*)()>()
@@ -1716,6 +1814,7 @@ TEST_F(ClassTests, DestructorIsNotCalledIfConstructorThrows)
     L = nullptr;
     ASSERT_EQ(1, InnerClass::destructorCallCount);
     ASSERT_EQ(0, OuterClass::destructorCallCount);
+#endif
 }
 
 TEST_F(ClassTests, DestructorIsCalledOnce)

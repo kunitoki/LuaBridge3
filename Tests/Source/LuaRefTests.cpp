@@ -53,8 +53,10 @@ TEST_F(LuaRefTests, ValueAccess)
            "end");
     EXPECT_TRUE(result().isFunction());
     auto fnResult = result()(41); // Replaces result variable
-    EXPECT_TRUE(fnResult.isNumber());
-    ASSERT_EQ(41, fnResult.cast<int>());
+    EXPECT_TRUE(fnResult);
+    EXPECT_TRUE(fnResult.size());
+    EXPECT_TRUE(fnResult[0].isNumber());
+    ASSERT_EQ(41, fnResult[0].cast<int>());
     EXPECT_TRUE(result().isNumber());
     ASSERT_EQ(42, result<int>());
 }
@@ -102,8 +104,10 @@ TEST_F(LuaRefTests, DictionaryRead)
 
     EXPECT_TRUE(result()["fn"].isFunction());
     auto fnResult = result()["fn"](41); // Replaces result variable
-    EXPECT_TRUE(fnResult.isNumber());
-    ASSERT_EQ(41, fnResult.cast<int>());
+    EXPECT_TRUE(fnResult);
+    EXPECT_TRUE(fnResult.size());
+    EXPECT_TRUE(fnResult[0].isNumber());
+    ASSERT_EQ(41, fnResult[0].cast<int>());
     EXPECT_TRUE(result().isNumber());
     ASSERT_EQ(42, result<int>());
 }

@@ -1,3 +1,5 @@
+cmake_minimum_required (VERSION 3.5)
+
 set (LUABRIDGE_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/Array.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/List.h
@@ -18,6 +20,8 @@ set (LUABRIDGE_DETAIL_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Config.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Dump.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/FuncTraits.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Errors.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Invoke.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Iterator.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/LuaException.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/LuaHelpers.h

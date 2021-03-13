@@ -8,6 +8,7 @@
 #pragma once
 
 #include "Config.h"
+#include "Errors.h"
 #include "Stack.h"
 #include "TypeTraits.h"
 
@@ -271,21 +272,27 @@ auto make_arguments_list(lua_State* L)
  * @brief Helpers for iterating through tuple arguments, pushing each argument to the lua stack.
  */
 template <std::size_t Index = 0, typename... Types>
-auto push_arguments(lua_State*, const std::tuple<Types...>&)
+auto push_arguments(lua_State*, const std::tuple<Types...>&, std::error_code&)
     -> std::enable_if_t<Index == sizeof...(Types), std::size_t>
 {
-    return sizeof...(Types);
+    return Index + 1;
 }
 
 template <std::size_t Index = 0, typename... Types>
-auto push_arguments(lua_State* L, const std::tuple<Types...>& t)
+auto push_arguments(lua_State* L, const std::tuple<Types...>& t, std::error_code& ec)
     -> std::enable_if_t<Index < sizeof...(Types), std::size_t>
 {
     using T = std::tuple_element_t<Index, std::tuple<Types...>>;
 
-    Stack<T>::push(L, std::get<Index>(t));
+    std::error_code pec;
+    bool result = Stack<T>::push(L, std::get<Index>(t), pec);
+    if (! result)
+    {
+        ec = pec;
+        return Index + 1;
+    }
 
-    return push_arguments<Index + 1, Types...>(L, t);
+    return push_arguments<Index + 1, Types...>(L, t, ec);
 }
 
 //=================================================================================================
@@ -320,33 +327,57 @@ struct function
     template <class F>
     static int call(lua_State* L, F func)
     {
+#if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
-            Stack<ReturnType>::push(L, std::apply(func, make_arguments_list<ArgsPack, Start>(L)));
-            
+#endif
+            std::error_code ec;
+            bool result = Stack<ReturnType>::push(L, std::apply(func, make_arguments_list<ArgsPack, Start>(L)), ec);
+            if (! result)
+                return luaL_error(L, ec.message().c_str());
+
             return 1;
+
+#if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
         {
             return luaL_error(L, e.what());
         }
+        catch (...)
+        {
+            return luaL_error(L, "Error while calling function");
+        }
+#endif
     }
 
     template <class T, class F>
     static int call(lua_State* L, T* ptr, F func)
     {
+#if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
+#endif
             auto f = [ptr, func](auto&&... args) -> ReturnType { return (ptr->*func)(std::forward<decltype(args)>(args)...); };
 
-            Stack<ReturnType>::push(L, std::apply(f, make_arguments_list<ArgsPack, Start>(L)));
+            std::error_code ec;
+            bool result = Stack<ReturnType>::push(L, std::apply(f, make_arguments_list<ArgsPack, Start>(L)), ec);
+            if (! result)
+                return luaL_error(L, ec.message().c_str());
 
             return 1;
+
+#if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
         {
             return luaL_error(L, e.what());
         }
+        catch (...)
+        {
+            return luaL_error(L, "Error while calling method");
+        }
+#endif
     }
 };
 
@@ -356,33 +387,51 @@ struct function<void, ArgsPack, Start>
     template <class F>
     static int call(lua_State* L, F func)
     {
+#if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
+#endif
             std::apply(func, make_arguments_list<ArgsPack, Start>(L));
 
             return 0;
+
+#if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
         {
             return luaL_error(L, e.what());
         }
+        catch (...)
+        {
+            return luaL_error(L, "Error while calling function");
+        }
+#endif
     }
 
     template <class T, class F>
     static int call(lua_State* L, T* ptr, F func)
     {
+#if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
+#endif
             auto f = [ptr, func](auto&&... args) { (ptr->*func)(std::forward<decltype(args)>(args)...); };
 
             std::apply(f, make_arguments_list<ArgsPack, Start>(L));
 
             return 0;
+
+#if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
         {
             return luaL_error(L, e.what());
         }
+        catch (...)
+        {
+            return luaL_error(L, "Error while calling method");
+        }
+#endif
     }
 };
 
@@ -417,14 +466,14 @@ struct constructor
 {
     static T* call(const Args& args)
     {
-        auto alloc = [](auto&&... args) { return new T(std::forward<decltype(args)>(args)...); };
-        
+        auto alloc = [](auto&&... args) { return new T{ std::forward<decltype(args)>(args)... }; };
+
         return std::apply(alloc, args);
     }
-    
+
     static T* call(void* ptr, const Args& args)
     {
-        auto alloc = [ptr](auto&&... args) { return new (ptr) T(std::forward<decltype(args)>(args)...); };
+        auto alloc = [ptr](auto&&... args) { return new (ptr) T{ std::forward<decltype(args)>(args)... }; };
 
         return std::apply(alloc, args);
     }

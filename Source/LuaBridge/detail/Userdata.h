@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include "Config.h"
+#include "LuaException.h"
 #include "ClassInfo.h"
 #include "TypeTraits.h"
 
@@ -18,21 +20,23 @@ namespace detail {
 
 //==============================================================================
 /**
-  Return the identity pointer for our lightuserdata tokens.
-
-  Because of Lua's dynamic typing and our improvised system of imposing C++
-  class structure, there is the possibility that executing scripts may
-  knowingly or unknowingly cause invalid data to get passed to the C functions
-  created by LuaBridge. In particular, our security model addresses the
-  following:
-    1. Scripts cannot create a userdata (ignoring the debug lib).
-    2. Scripts cannot create a lightuserdata (ignoring the debug lib).
-    3. Scripts cannot set the metatable on a userdata.
-*/
+ * @brief Return the identity pointer for our lightuserdata tokens.
+ *
+ * Because of Lua's dynamic typing and our improvised system of imposing C++ class structure, there is the possibility that executing scripts may
+ * knowingly or unknowingly cause invalid data to get passed to the C functions created by LuaBridge.
+ *
+ * In particular, our security model addresses the following:
+ *
+ *   1. Scripts cannot create a userdata (ignoring the debug lib).
+ *
+ *   2. Scripts cannot create a lightuserdata (ignoring the debug lib).
+ *
+ *   3. Scripts cannot set the metatable on a userdata.
+ */
 
 /**
-  Interface to a class pointer retrievable from a userdata.
-*/
+ * @brief Interface to a class pointer retrievable from a userdata.
+ */
 class Userdata
 {
 protected:
@@ -243,7 +247,7 @@ public:
         if (lua_isnil(L, index))
         {
             luaL_error(L, "argument %d is nil", index - 1);
-            return 0;
+            return nullptr;
         }
 
         return static_cast<T*>(getClass(L,
@@ -281,11 +285,14 @@ private:
     /**
       Used for placement construction.
     */
-    UserdataValue() { m_p = 0; }
+    UserdataValue()
+    {
+        m_p = nullptr;
+    }
 
     ~UserdataValue()
     {
-        if (getPointer() != 0)
+        if (getPointer() != nullptr)
         {
             getObject()->~T();
         }
@@ -301,14 +308,22 @@ public:
       @param L A Lua state.
       @returns An object referring to the newly created userdata value.
     */
-    static UserdataValue<T>* place(lua_State* const L)
+    static UserdataValue<T>* place(lua_State* L, std::error_code& ec)
     {
         UserdataValue<T>* const ud = new (lua_newuserdata(L, sizeof(UserdataValue<T>))) UserdataValue<T>();
 
         lua_rawgetp(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>());
 
         if (!lua_istable(L, -1))
-            throw std::logic_error("The class is not registered in LuaBridge");
+        {
+            lua_pop(L, 1); // possibly: a nil
+
+            ud->~UserdataValue<T>();
+
+            ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
+
+            return nullptr;
+        }
 
         lua_setmetatable(L, -2);
 
@@ -322,12 +337,19 @@ public:
       @param  L A Lua state.
       @param  u A container object reference.
     */
-    template<class U>
-    static inline void push(lua_State* const L, U const& u)
+    template <class U>
+    static bool push(lua_State* L, const U& u, std::error_code& ec)
     {
-        UserdataValue<T>* ud = place(L);
+        UserdataValue<T>* ud = place(L, ec);
+
+        if (!ud)
+            return false;
+
         new (ud->getObject()) U(u);
+
         ud->commit();
+
+        return true;
     }
 
     /**
@@ -361,21 +383,28 @@ private:
 private:
     /** Push a pointer to object using metatable key.
      */
-    static void push(lua_State* L, const void* p, void const* const key)
+    static bool push(lua_State* L, const void* p, const void* key, std::error_code& ec)
     {
-        new (lua_newuserdata(L, sizeof(UserdataPtr))) UserdataPtr(const_cast<void*>(p));
+        UserdataPtr* ptr = new (lua_newuserdata(L, sizeof(UserdataPtr))) UserdataPtr(const_cast<void*>(p));
         lua_rawgetp(L, LUA_REGISTRYINDEX, key);
 
         if (!lua_istable(L, -1))
         {
             lua_pop(L, 1); // possibly: a nil
-            throw std::logic_error("The class is not registered in LuaBridge");
+
+            ptr->~UserdataPtr();
+
+            ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
+
+            return false;
         }
 
         lua_setmetatable(L, -2);
+
+        return true;
     }
 
-    explicit UserdataPtr(void* const p)
+    explicit UserdataPtr(void* p)
     {
         // Can't construct with a null pointer!
         assert(p != nullptr);
@@ -390,13 +419,14 @@ public:
       @param  L A Lua state.
       @param  p A pointer to the user class instance.
     */
-    template<class T>
-    static void push(lua_State* const L, T* const p)
+    template <class T>
+    static bool push(lua_State* L, T* p, std::error_code& ec)
     {
         if (p)
-            push(L, p, getClassRegistryKey<T>());
-        else
-            lua_pushnil(L);
+            return push(L, p, getClassRegistryKey<T>(), ec);
+
+        lua_pushnil(L);
+        return true;
     }
 
     /** Push const pointer to object.
@@ -405,24 +435,24 @@ public:
       @param  L A Lua state.
       @param  p A pointer to the user class instance.
     */
-    template<class T>
-    static void push(lua_State* const L, T const* const p)
+    template <class T>
+    static bool push(lua_State* L, const T* p, std::error_code& ec)
     {
         if (p)
-            push(L, p, getConstRegistryKey<T>());
-        else
-            lua_pushnil(L);
+            return push(L, p, getConstRegistryKey<T>(), ec);
+
+        lua_pushnil(L);
+        return true;
     }
 };
 
 //============================================================================
 /**
-  Wraps a container that references a class object.
-
-  The template argument C is the container type, ContainerTraits must be
-  specialized on C or else a compile error will result.
-*/
-template<class C>
+ * @brief Wraps a container that references a class object.
+ *
+ * The template argument C is the container type, ContainerTraits must be specialized on C or else a compile error will result.
+ */
+template <class C>
 class UserdataShared : public Userdata
 {
 private:
@@ -443,10 +473,10 @@ public:
       @tparam U A container type.
       @param  u A container object reference.
     */
-    template<class U>
-    explicit UserdataShared(U const& u) : m_c(u)
+    template <class U>
+    explicit UserdataShared(const U& u) : m_c(u)
     {
-        m_p = const_cast<void*>(reinterpret_cast<void const*>((ContainerTraits<C>::get(m_c))));
+        m_p = const_cast<void*>(reinterpret_cast<const void*>((ContainerTraits<C>::get(m_c))));
     }
 
     /**
@@ -455,54 +485,58 @@ public:
       @tparam U A container type.
       @param  u A container object pointer.
     */
-    template<class U>
+    template <class U>
     explicit UserdataShared(U* u) : m_c(u)
     {
-        m_p = const_cast<void*>(reinterpret_cast<void const*>((ContainerTraits<C>::get(m_c))));
+        m_p = const_cast<void*>(reinterpret_cast<const void*>((ContainerTraits<C>::get(m_c))));
     }
 };
 
 //----------------------------------------------------------------------------
-//
-// SFINAE helpers.
-//
+/**
+ * @brief SFINAE helpers.
+ */
 
 // non-const objects
-template<class C, bool makeObjectConst>
+template <class C, bool MakeObjectConst>
 struct UserdataSharedHelper
 {
     using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
 
-    static void push(lua_State* L, C const& c)
+    static bool push(lua_State* L, const C& c, std::error_code&)
     {
         if (ContainerTraits<C>::get(c) != 0)
         {
             new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(c);
             lua_rawgetp(L, LUA_REGISTRYINDEX, getClassRegistryKey<T>());
             // If this goes off it means the class T is unregistered!
-            assert(lua_istable(L, -1));
+            assert(lua_istable(L, -1)); // TODO - raise luaerror
             lua_setmetatable(L, -2);
         }
         else
         {
             lua_pushnil(L);
         }
+
+        return true;
     }
 
-    static void push(lua_State* L, T* const t)
+    static bool push(lua_State* L, T* t, std::error_code&)
     {
         if (t)
         {
             new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(t);
             lua_rawgetp(L, LUA_REGISTRYINDEX, getClassRegistryKey<T>());
             // If this goes off it means the class T is unregistered!
-            assert(lua_istable(L, -1));
+            assert(lua_istable(L, -1)); // TODO - raise luaerror
             lua_setmetatable(L, -2);
         }
         else
         {
             lua_pushnil(L);
         }
+
+        return true;
     }
 };
 
@@ -512,56 +546,58 @@ struct UserdataSharedHelper<C, true>
 {
     using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
 
-    static void push(lua_State* L, C const& c)
+    static bool push(lua_State* L, const C& c, std::error_code&)
     {
         if (ContainerTraits<C>::get(c) != 0)
         {
             new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(c);
             lua_rawgetp(L, LUA_REGISTRYINDEX, getConstRegistryKey<T>());
             // If this goes off it means the class T is unregistered!
-            assert(lua_istable(L, -1));
+            assert(lua_istable(L, -1)); // TODO - raise luaerror
             lua_setmetatable(L, -2);
         }
         else
         {
             lua_pushnil(L);
         }
+
+        return true;
     }
 
-    static void push(lua_State* L, T* const t)
+    static bool push(lua_State* L, T* t, std::error_code&)
     {
         if (t)
         {
             new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(t);
             lua_rawgetp(L, LUA_REGISTRYINDEX, getConstRegistryKey<T>());
             // If this goes off it means the class T is unregistered!
-            assert(lua_istable(L, -1));
+            assert(lua_istable(L, -1)); // TODO - raise luaerror
             lua_setmetatable(L, -2);
         }
         else
         {
             lua_pushnil(L);
         }
+
+        return true;
     }
 };
 
 /**
-  Pass by container.
-
-  The container controls the object lifetime. Typically this will be a
-  lifetime shared by C++ and Lua using a reference count. Because of type
-  erasure, containers like std::shared_ptr will not work. Containers must
-  either be of the intrusive variety, or in the style of the RefCountedPtr
-  type provided by LuaBridge (that uses a global hash table).
+ * @brief Pass by container.
+ *
+ * The container controls the object lifetime. Typically this will be a lifetime shared by C++ and Lua using a reference count. Because of type
+ * erasure, containers like std::shared_ptr will not work. Containers must either be of the intrusive variety, or in the style of the RefCountedPtr
+ * type provided by LuaBridge (that uses a global hash table).
 */
-template <class T, bool byContainer>
+template <class T, bool ByContainer>
 struct StackHelper
 {
     using ReturnType = std::remove_const_t<typename ContainerTraits<T>::Type>;
 
-    static void push(lua_State* L, T const& t)
+    static bool push(lua_State* L, const T& t, std::error_code& ec)
     {
-        UserdataSharedHelper<T, std::is_const_v<typename ContainerTraits<T>::Type>>::push(L, t);
+        return UserdataSharedHelper<T, std::is_const_v<typename ContainerTraits<T>::Type>>::push(L, t, ec);
     }
 
     static T get(lua_State* L, int index)
@@ -571,18 +607,17 @@ struct StackHelper
 };
 
 /**
-  Pass by value.
-
-  Lifetime is managed by Lua. A C++ function which accesses a pointer or
-  reference to an object outside the activation record in which it was
-  retrieved may result in undefined behavior if Lua garbage collected it.
-*/
+ * @brief Pass by value.
+ *
+ * Lifetime is managed by Lua. A C++ function which accesses a pointer or reference to an object outside the activation record in which it was
+ * retrieved may result in undefined behavior if Lua garbage collected it.
+ */
 template <class T>
 struct StackHelper<T, false>
 {
-    static void push(lua_State* L, T const& t)
+    static bool push(lua_State* L, const T& t, std::error_code& ec)
     {
-        UserdataValue<T>::push(L, t);
+        return UserdataValue<T>::push(L, t, ec);
     }
 
     static T const& get(lua_State* L, int index)
@@ -593,22 +628,20 @@ struct StackHelper<T, false>
 
 //------------------------------------------------------------------------------
 /**
-  Lua stack conversions for pointers and references to class objects.
-
-  Lifetime is managed by C++. Lua code which remembers a reference to the
-  value may result in undefined behavior if C++ destroys the object. The
-  handling of the const and volatile qualifiers happens in UserdataPtr.
-*/
-
-template <class C, bool byContainer>
+ * @brief Lua stack conversions for pointers and references to class objects.
+ *
+ * Lifetime is managed by C++. Lua code which remembers a reference to the value may result in undefined behavior if C++ destroys the object.
+ * The handling of the const and volatile qualifiers happens in UserdataPtr.
+ */
+template <class C, bool ByContainer>
 struct RefStackHelper
 {
     using ReturnType = C;
     using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
 
-    static inline void push(lua_State* L, C const& t)
+    static inline bool push(lua_State* L, const C& t, std::error_code& ec)
     {
-        UserdataSharedHelper<C, std::is_const_v<typename ContainerTraits<C>::Type>>::push(L, t);
+        return UserdataSharedHelper<C, std::is_const_v<typename ContainerTraits<C>::Type>>::push(L, t, ec);
     }
 
     static ReturnType get(lua_State* L, int index)
@@ -622,9 +655,9 @@ struct RefStackHelper<T, false>
 {
     using ReturnType = T&;
 
-    static void push(lua_State* L, T const& t)
+    static bool push(lua_State* L, const T& t, std::error_code& ec)
     {
-        UserdataPtr::push(L, &t);
+        return UserdataPtr::push(L, &t, ec);
     }
 
     static ReturnType get(lua_State* L, int index)
@@ -639,26 +672,27 @@ struct RefStackHelper<T, false>
 };
 
 /**
- * Trait class that selects whether to return a user registered
- * class object by value or by reference.
+ * @brief Trait class that selects whether to return a user registered class object by value or by reference.
  */
-
-template<class T, class Enabler = void>
+template <class T, class Enable = void>
 struct UserdataGetter
 {
-    typedef T* ReturnType;
-
-    static ReturnType get(lua_State* L, int index) { return Userdata::get<T>(L, index, false); }
-};
-
-template<class T>
-struct UserdataGetter<T, std::void_t<T (*)()>>
-{
-    typedef T ReturnType;
+    using ReturnType = T*;
 
     static ReturnType get(lua_State* L, int index)
     {
-        return StackHelper<T, TypeTraits::isContainer<T>::value>::get(L, index);
+        return Userdata::get<T>(L, index, false);
+    }
+};
+
+template <class T>
+struct UserdataGetter<T, std::void_t<T (*)()>>
+{
+    using ReturnType = T;
+
+    static ReturnType get(lua_State* L, int index)
+    {
+        return StackHelper<T, IsContainer<T>::value>::get(L, index);
     }
 };
 
@@ -667,8 +701,8 @@ struct UserdataGetter<T, std::void_t<T (*)()>>
 //==============================================================================
 
 /**
-  Lua stack conversions for class objects passed by value.
-*/
+ * @brief Lua stack conversions for class objects passed by value.
+ */
 template <class T>
 struct Stack
 {
@@ -677,9 +711,9 @@ struct Stack
     using Getter = detail::UserdataGetter<T>;
     using ReturnType = typename Getter::ReturnType;
 
-    static void push(lua_State* L, T const& value)
+    static bool push(lua_State* L, const T& value, std::error_code& ec)
     {
-        detail::StackHelper<T, detail::TypeTraits::isContainer<T>::value>::push(L, value);
+        return detail::StackHelper<T, detail::IsContainer<T>::value>::push(L, value, ec);
     }
 
     static ReturnType get(lua_State* L, int index)
@@ -696,35 +730,33 @@ struct Stack
 namespace detail {
 
 /**
- * Trait class indicating whether the parameter type must be
- * a user registered class. The trait checks the existence of
- * member type Stack::IsUserdata specialization for detection.
+ * @brief Trait class indicating whether the parameter type must be a user registered class.
+ *
+ * The trait checks the existence of member type Stack::IsUserdata specialization for detection.
  */
-template<class T, class Enable = void>
-struct IsUserdata
+template <class T, class Enable = void>
+struct IsUserdata : std::bool_constant<false>
 {
-    static const bool value = false;
 };
 
-template<class T>
-struct IsUserdata<T, std::void_t<typename Stack<T>::IsUserdata>>
+template <class T>
+struct IsUserdata<T, std::void_t<typename Stack<T>::IsUserdata>> : std::bool_constant<true>
 {
-    static const bool value = true;
 };
 
 /**
- * Trait class that selects a specific push/get implemenation.
+ * @brief Trait class that selects a specific push/get implemenation.
  */
-template<class T, bool isUserdata>
+template <class T, bool IsUserdata>
 struct StackOpSelector;
 
 // pointer
-template<class T>
+template <class T>
 struct StackOpSelector<T*, true>
 {
-    typedef T* ReturnType;
+    using ReturnType = T*;
 
-    static void push(lua_State* L, T* value) { UserdataPtr::push(L, value); }
+    static bool push(lua_State* L, T* value, std::error_code& ec) { return UserdataPtr::push(L, value, ec); }
 
     static T* get(lua_State* L, int index) { return Userdata::get<T>(L, index, false); }
 
@@ -732,12 +764,12 @@ struct StackOpSelector<T*, true>
 };
 
 // pointer to const
-template<class T>
+template <class T>
 struct StackOpSelector<const T*, true>
 {
-    typedef const T* ReturnType;
+    using ReturnType = const T*;
 
-    static void push(lua_State* L, const T* value) { UserdataPtr::push(L, value); }
+    static bool push(lua_State* L, const T* value, std::error_code& ec) { return UserdataPtr::push(L, value, ec); }
 
     static const T* get(lua_State* L, int index) { return Userdata::get<T>(L, index, true); }
 
@@ -745,13 +777,13 @@ struct StackOpSelector<const T*, true>
 };
 
 // reference
-template<class T>
+template <class T>
 struct StackOpSelector<T&, true>
 {
-    typedef RefStackHelper<T, TypeTraits::isContainer<T>::value> Helper;
-    typedef typename Helper::ReturnType ReturnType;
+    using Helper = RefStackHelper<T, IsContainer<T>::value>;
+    using ReturnType = typename Helper::ReturnType;
 
-    static void push(lua_State* L, T& value) { UserdataPtr::push(L, &value); }
+    static bool push(lua_State* L, T& value, std::error_code& ec) { return UserdataPtr::push(L, &value, ec); }
 
     static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
 
@@ -759,13 +791,13 @@ struct StackOpSelector<T&, true>
 };
 
 // reference to const
-template<class T>
+template <class T>
 struct StackOpSelector<const T&, true>
 {
-    typedef RefStackHelper<T, TypeTraits::isContainer<T>::value> Helper;
-    typedef typename Helper::ReturnType ReturnType;
+    using Helper = RefStackHelper<T, IsContainer<T>::value>;
+    using ReturnType = typename Helper::ReturnType;
 
-    static void push(lua_State* L, const T& value) { Helper::push(L, value); }
+    static bool push(lua_State* L, const T& value, std::error_code& ec) { return Helper::push(L, value, ec); }
 
     static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
 

@@ -1,3 +1,5 @@
+cmake_minimum_required (VERSION 3.5)
+
 # ====================================================== Unit Tests Files
 
 set (LUABRIDGE_TEST_SOURCE_FILES
@@ -58,7 +60,7 @@ file (GLOB_RECURSE LUABRIDGE_TEST_LUA54_FILES
 
 # ====================================================== Macro
 
-macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_FILES)
+macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_FILES LUABRIDGE_EXCEPTIONS)
 
   add_executable (${LUABRIDGE_TEST_NAME}
     ${LUABRIDGE_TEST_SOURCE_FILES}
@@ -72,6 +74,19 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++17")
   endif (MSVC)
 
+  if (NOT ${LUABRIDGE_EXCEPTIONS})
+    target_compile_definitions(${LUABRIDGE_TEST_NAME} PUBLIC LUA_USE_LONGJMP=1)
+    if (APPLE)
+      target_compile_options (${LUABRIDGE_TEST_NAME} PUBLIC -fno-exceptions)
+      set_target_properties (${LUABRIDGE_TEST_NAME} PROPERTIES XCODE_ATTRIBUTE_GCC_ENABLE_CPP_EXCEPTIONS "NO")
+    elseif (WIN32)
+      target_compile_options (${LUABRIDGE_TEST_NAME} PUBLIC /EHs-c-)
+      target_compile_definitions(${LUABRIDGE_TEST_NAME} PUBLIC _HAS_EXCEPTIONS=0)
+    else ()
+      target_compile_options (${LUABRIDGE_TEST_NAME} PUBLIC -fno-exceptions)
+    endif ()
+  endif ()
+
   target_link_libraries (${LUABRIDGE_TEST_NAME}
     LuaBridge
     gtest
@@ -81,7 +96,14 @@ endmacro (add_test_app)
 
 # ====================================================== Real Unit Tests
 
-add_test_app (LuaBridgeTests51 501 "${LUABRIDGE_TEST_LUA51_FILES}")
-add_test_app (LuaBridgeTests52 502 "${LUABRIDGE_TEST_LUA52_FILES}")
-add_test_app (LuaBridgeTests53 503 "${LUABRIDGE_TEST_LUA53_FILES}")
-add_test_app (LuaBridgeTests54 504 "${LUABRIDGE_TEST_LUA54_FILES}")
+add_test_app (LuaBridgeTests51 501 "${LUABRIDGE_TEST_LUA51_FILES}" 1)
+add_test_app (LuaBridgeTests51NoExcept 501 "${LUABRIDGE_TEST_LUA51_FILES}" 0)
+
+add_test_app (LuaBridgeTests52 502 "${LUABRIDGE_TEST_LUA52_FILES}" 1)
+add_test_app (LuaBridgeTests52Noexcept 502 "${LUABRIDGE_TEST_LUA52_FILES}" 0)
+
+add_test_app (LuaBridgeTests53 503 "${LUABRIDGE_TEST_LUA53_FILES}" 1)
+add_test_app (LuaBridgeTests53Noexcept 503 "${LUABRIDGE_TEST_LUA53_FILES}" 0)
+
+add_test_app (LuaBridgeTests54 504 "${LUABRIDGE_TEST_LUA54_FILES}" 1)
+add_test_app (LuaBridgeTests54Noexcept 504 "${LUABRIDGE_TEST_LUA54_FILES}" 0)
