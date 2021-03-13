@@ -27,7 +27,7 @@ LuaBridge is usable from a compliant C++17 compiler and offers the following fea
 - Automatic function parameter type binding.
 - Easy access to Lua objects like tables and functions.
 - Interoperable with most common c++ standard library container types.
-- Can work with both c++ exceptions and without (Work with `-fno-exceptions` too).
+- Can work with both c++ exceptions and without (Works with `-fno-exceptions` and `/EHsc-`).
 - Written in a clear and easy to debug style.
 
 ## Status
