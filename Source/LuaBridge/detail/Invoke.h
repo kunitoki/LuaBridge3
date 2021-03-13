@@ -180,7 +180,7 @@ LuaResult call(const LuaRef& object, Args&&... args)
         auto pushedArgs = detail::push_arguments(L, std::forward_as_tuple(args...), ec);
         if (ec)
         {
-            lua_pop(L, pushedArgs + 1);
+            lua_pop(L, static_cast<int>(pushedArgs) + 1);
             return LuaResult(L, ec, ec.message());
         }
     }
