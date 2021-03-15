@@ -16,9 +16,9 @@ namespace luabridge {
 /**
  * @brief Container traits.
  *
- * Unspecialized ContainerTraits has the isNotContainer typedef for SFINAE. All user defined containers
- * must supply an appropriate specialization for ContinerTraits (without the alias isNotContainer).
- * The containers that come with LuaBridge also come with the appropriate ContainerTraits specialization.
+ * Unspecialized ContainerTraits has the isNotContainer typedef for SFINAE. All user defined containers must supply an appropriate
+ * specialization for ContinerTraits (without the alias isNotContainer). The containers that come with LuaBridge also come with the
+ * appropriate ContainerTraits specialization.
  *
  * @note See the corresponding declaration for details.
  *
@@ -33,7 +33,7 @@ namespace luabridge {
  *
  *    static T* get(const ContainerType<T>& c)
  *    {
- *      return c.get (); // Implementation-dependent on ContainerType
+ *      return c.get(); // Implementation-dependent on ContainerType
  *    }
  *  };
  *
@@ -73,5 +73,4 @@ public:
 };
 
 } // namespace detail
-
 } // namespace luabridge

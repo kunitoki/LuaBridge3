@@ -18,12 +18,12 @@
 namespace luabridge {
 namespace detail {
 
-//==============================================================================
+//=================================================================================================
 /**
  * @brief Return the identity pointer for our lightuserdata tokens.
  *
- * Because of Lua's dynamic typing and our improvised system of imposing C++ class structure, there is the possibility that executing scripts may
- * knowingly or unknowingly cause invalid data to get passed to the C functions created by LuaBridge.
+ * Because of Lua's dynamic typing and our improvised system of imposing C++ class structure, there is the possibility that executing
+ * scripts may knowingly or unknowingly cause invalid data to get passed to the C functions created by LuaBridge.
  *
  * In particular, our security model addresses the following:
  *
@@ -39,44 +39,30 @@ namespace detail {
  */
 class Userdata
 {
-protected:
-    void* m_p = nullptr; // subclasses must set this
-
-    Userdata() {}
-
-    //--------------------------------------------------------------------------
-    /**
-      Get an untyped pointer to the contained class.
-    */
-    void* getPointer() { return m_p; }
-
 private:
-    //--------------------------------------------------------------------------
+    //=============================================================================================
     /**
-      Validate and retrieve a Userdata on the stack.
-
-      The Userdata must exactly match the corresponding class table or
-      const table, or else a Lua error is raised. This is used for the
-      __gc metamethod.
-    */
-    static Userdata* getExactClass(lua_State* L, int index, void const* /*classKey*/)
+     * @brief Validate and retrieve a Userdata on the stack.
+     *
+     * The Userdata must exactly match the corresponding class table or const table, or else a Lua error is raised. This is used for the
+     * __gc metamethod.
+     */
+    static Userdata* getExactClass(lua_State* L, int index, const void* classKey)
     {
-        return static_cast<Userdata*>(lua_touserdata(L, lua_absindex(L, index)));
+        return (void)classKey, static_cast<Userdata*>(lua_touserdata(L, lua_absindex(L, index)));
     }
 
-    //--------------------------------------------------------------------------
+    //=============================================================================================
     /**
-      Validate and retrieve a Userdata on the stack.
-
-      The Userdata must be derived from or the same as the given base class,
-      identified by the key. If canBeConst is false, generates an error if
-      the resulting Userdata represents to a const object. We do the type check
-      first so that the error message is informative.
-    */
+     * @brief Validate and retrieve a Userdata on the stack.
+     *
+     * The Userdata must be derived from or the same as the given base class, identified by the key. If canBeConst is false, generates
+     * an error if the resulting Userdata represents to a const object. We do the type check first so that the error message is informative.
+     */
     static Userdata* getClass(lua_State* L,
                               int index,
-                              void const* registryConstKey,
-                              void const* registryClassKey,
+                              const void* registryConstKey,
+                              const void* registryClassKey,
                               bool canBeConst)
     {
         index = lua_absindex(L, index);
@@ -134,7 +120,7 @@ private:
         // no return
     }
 
-    static bool isInstance(lua_State* L, int index, void const* registryClassKey)
+    static bool isInstance(lua_State* L, int index, const void* registryClassKey)
     {
         index = lua_absindex(L, index);
 
@@ -213,35 +199,40 @@ private:
 public:
     virtual ~Userdata() {}
 
-    //--------------------------------------------------------------------------
+    //=============================================================================================
     /**
-      Returns the Userdata* if the class on the Lua stack matches.
-      If the class does not match, a Lua error is raised.
-
-      @tparam T     A registered user class.
-      @param  L     A Lua state.
-      @param  index The index of an item on the Lua stack.
-      @returns A userdata pointer if the class matches.
-    */
-    template<class T>
+     * @brief Returns the Userdata* if the class on the Lua stack matches.
+     *
+     * If the class does not match, a Lua error is raised.
+     *
+     * @tparam T  A registered user class.
+     *
+     * @param L A Lua state.
+     * @param index The index of an item on the Lua stack.
+     *
+     * @return A userdata pointer if the class matches.
+     */
+    template <class T>
     static Userdata* getExact(lua_State* L, int index)
     {
         return getExactClass(L, index, detail::getClassRegistryKey<T>());
     }
 
-    //--------------------------------------------------------------------------
+    //=============================================================================================
     /**
-      Get a pointer to the class from the Lua stack.
-      If the object is not the class or a subclass, or it violates the
-      const-ness, a Lua error is raised.
-
-      @tparam T          A registered user class.
-      @param  L          A Lua state.
-      @param  index      The index of an item on the Lua stack.
-      @param  canBeConst TBD
-      @returns A pointer if the class and constness match.
-    */
-    template<class T>
+     * @brief Get a pointer to the class from the Lua stack.
+     *
+     * If the object is not the class or a subclass, or it violates the const-ness, a Lua error is raised.
+     *
+     * @tparam T A registered user class.
+     *
+     * @param L A Lua state.
+     * @param index The index of an item on the Lua stack.
+     * @param canBeConst TBD
+     *
+     * @return A pointer if the class and constness match.
+     */
+    template <class T>
     static T* get(lua_State* L, int index, bool canBeConst)
     {
         if (lua_isnil(L, index))
@@ -258,56 +249,42 @@ public:
                                    ->getPointer());
     }
 
-    template<class T>
+    template <class T>
     static bool isInstance(lua_State* L, int index)
     {
         return isInstance(L, index, detail::getClassRegistryKey<T>());
     }
+
+protected:
+    Userdata() = default;
+
+    /**
+     * @brief Get an untyped pointer to the contained class.
+     */
+    void* getPointer() const noexcept { return m_p; }
+
+    void* m_p = nullptr; // subclasses must set this
 };
 
-//----------------------------------------------------------------------------
+//=================================================================================================
 /**
-  Wraps a class object stored in a Lua userdata.
-
-  The lifetime of the object is managed by Lua. The object is constructed
-  inside the userdata using placement new.
-*/
-template<class T>
+ * @brief Wraps a class object stored in a Lua userdata.
+ *
+ * The lifetime of the object is managed by Lua. The object is constructed inside the userdata using placement new.
+ */
+template <class T>
 class UserdataValue : public Userdata
 {
-private:
-    UserdataValue<T>(UserdataValue<T> const&);
-    UserdataValue<T> operator=(UserdataValue<T> const&);
-
-    char m_storage[sizeof(T)];
-
-private:
-    /**
-      Used for placement construction.
-    */
-    UserdataValue()
-    {
-        m_p = nullptr;
-    }
-
-    ~UserdataValue()
-    {
-        if (getPointer() != nullptr)
-        {
-            getObject()->~T();
-        }
-    }
-
 public:
     /**
-      Push a T via placement new.
-
-      The caller is responsible for calling placement new using the
-      returned uninitialized storage.
-
-      @param L A Lua state.
-      @returns An object referring to the newly created userdata value.
-    */
+     * @brief Push a T via placement new.
+     *
+     * The caller is responsible for calling placement new using the returned uninitialized storage.
+     *
+     * @param L A Lua state.
+     *
+     * @return An object referring to the newly created userdata value.
+     */
     static UserdataValue<T>* place(lua_State* L, std::error_code& ec)
     {
         UserdataValue<T>* const ud = new (lua_newuserdata(L, sizeof(UserdataValue<T>))) UserdataValue<T>();
@@ -331,12 +308,14 @@ public:
     }
 
     /**
-      Push T via copy construction from U.
-
-      @tparam U A container type.
-      @param  L A Lua state.
-      @param  u A container object reference.
-    */
+     * @brief Push T via copy construction from U.
+     *
+     * @tparam U A container type.
+     *
+     * @param L A Lua state.
+     * @param u A container object reference.
+     * @param ec Error code that will be set in case of failure to push on the lua stack.
+     */
     template <class U>
     static bool push(lua_State* L, const U& u, std::error_code& ec)
     {
@@ -353,35 +332,93 @@ public:
     }
 
     /**
-      Confirm object construction.
-    */
-    void commit()
+     * @brief Confirm object construction.
+     */
+    void commit() noexcept
     {
         m_p = getObject();
     }
 
-    T* getObject()
+    T* getObject() noexcept
     {
         // If this fails to compile it means you forgot to provide
         // a Container specialization for your container!
         return reinterpret_cast<T*>(&m_storage[0]);
     }
+
+private:
+    /**
+     * @brief Used for placement construction.
+     */
+    UserdataValue() noexcept
+    {
+        m_p = nullptr;
+    }
+
+    ~UserdataValue()
+    {
+        if (getPointer() != nullptr)
+        {
+            getObject()->~T();
+        }
+    }
+
+    UserdataValue<T>(const UserdataValue<T>&);
+    UserdataValue<T> operator=(const UserdataValue<T>&);
+
+    char m_storage[sizeof(T)];
 };
 
-//----------------------------------------------------------------------------
+//=================================================================================================
 /**
-  Wraps a pointer to a class object inside a Lua userdata.
-
-  The lifetime of the object is managed by C++.
-*/
+ * @brief Wraps a pointer to a class object inside a Lua userdata.
+ *
+ * The lifetime of the object is managed by C++.
+ */
 class UserdataPtr : public Userdata
 {
-private:
-    UserdataPtr(UserdataPtr const&);
-    UserdataPtr operator=(UserdataPtr const&);
+public:
+    /**
+     * @brief Push non-const pointer to object.
+     *
+     * @tparam T A user registered class.
+     *
+     * @param L A Lua state.
+     * @param p A pointer to the user class instance.
+     * @param ec Error code that will be set in case of failure to push on the lua stack.
+     */
+    template <class T>
+    static bool push(lua_State* L, T* p, std::error_code& ec)
+    {
+        if (p)
+            return push(L, p, getClassRegistryKey<T>(), ec);
+
+        lua_pushnil(L);
+        return true;
+    }
+
+    /**
+     * @brief Push const pointer to object.
+     *
+     * @tparam T A user registered class.
+     *
+     * @param L A Lua state.
+     * @param p A pointer to the user class instance.
+     * @param ec Error code that will be set in case of failure to push on the lua stack.
+     */
+    template <class T>
+    static bool push(lua_State* L, const T* p, std::error_code& ec)
+    {
+        if (p)
+            return push(L, p, getConstRegistryKey<T>(), ec);
+
+        lua_pushnil(L);
+        return true;
+    }
 
 private:
-    /** Push a pointer to object using metatable key.
+    /**
+     * @brief Push a pointer to object using metatable key.
      */
     static bool push(lua_State* L, const void* p, const void* key, std::error_code& ec)
     {
@@ -412,38 +449,8 @@ private:
         m_p = p;
     }
 
-public:
-    /** Push non-const pointer to object.
-
-      @tparam T A user registered class.
-      @param  L A Lua state.
-      @param  p A pointer to the user class instance.
-    */
-    template <class T>
-    static bool push(lua_State* L, T* p, std::error_code& ec)
-    {
-        if (p)
-            return push(L, p, getClassRegistryKey<T>(), ec);
-
-        lua_pushnil(L);
-        return true;
-    }
-
-    /** Push const pointer to object.
-
-      @tparam T A user registered class.
-      @param  L A Lua state.
-      @param  p A pointer to the user class instance.
-    */
-    template <class T>
-    static bool push(lua_State* L, const T* p, std::error_code& ec)
-    {
-        if (p)
-            return push(L, p, getConstRegistryKey<T>(), ec);
-
-        lua_pushnil(L);
-        return true;
-    }
+    UserdataPtr(const UserdataPtr&);
+    UserdataPtr operator=(const UserdataPtr&);
 };
 
 //============================================================================
@@ -455,24 +462,14 @@ public:
 template <class C>
 class UserdataShared : public Userdata
 {
-private:
-    UserdataShared(UserdataShared<C> const&);
-    UserdataShared<C>& operator=(UserdataShared<C> const&);
-
-    using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
-
-    C m_c;
-
-private:
-    ~UserdataShared() {}
-
 public:
     /**
-      Construct from a container to the class or a derived class.
-
-      @tparam U A container type.
-      @param  u A container object reference.
-    */
+     * @brief Construct from a container to the class or a derived class.
+     *
+     * @tparam U A container type.
+     *
+     * @param  u A container object reference.
+     */
     template <class U>
     explicit UserdataShared(const U& u) : m_c(u)
     {
@@ -480,24 +477,31 @@ public:
     }
 
     /**
-      Construct from a pointer to the class or a derived class.
-
-      @tparam U A container type.
-      @param  u A container object pointer.
-    */
+     * @brief Construct from a pointer to the class or a derived class.
+     *
+     * @tparam U A container type.
+     *
+     * @param u A container object pointer.
+     */
     template <class U>
     explicit UserdataShared(U* u) : m_c(u)
     {
         m_p = const_cast<void*>(reinterpret_cast<const void*>((ContainerTraits<C>::get(m_c))));
     }
+
+private:
+    ~UserdataShared() {}
+
+    UserdataShared(const UserdataShared<C>&);
+    UserdataShared<C>& operator=(const UserdataShared<C>&);
+
+    C m_c;
 };
 
-//----------------------------------------------------------------------------
+//=================================================================================================
 /**
- * @brief SFINAE helpers.
+ * @brief SFINAE helper for non-const objects.
  */
-
-// non-const objects
 template <class C, bool MakeObjectConst>
 struct UserdataSharedHelper
 {
@@ -540,8 +544,10 @@ struct UserdataSharedHelper
     }
 };
 
-// const objects
-template<class C>
+/**
+ * @brief SFINAE helper for const objects.
+ */
+template <class C>
 struct UserdataSharedHelper<C, true>
 {
     using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
@@ -583,6 +589,7 @@ struct UserdataSharedHelper<C, true>
     }
 };
 
+//=================================================================================================
 /**
  * @brief Pass by container.
  *
@@ -626,7 +633,7 @@ struct StackHelper<T, false>
     }
 };
 
-//------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Lua stack conversions for pointers and references to class objects.
  *
@@ -671,6 +678,7 @@ struct RefStackHelper<T, false>
     }
 };
 
+//=================================================================================================
 /**
  * @brief Trait class that selects whether to return a user registered class object by value or by reference.
  */
@@ -698,8 +706,7 @@ struct UserdataGetter<T, std::void_t<T (*)()>>
 
 } // namespace detail
 
-//==============================================================================
-
+//=================================================================================================
 /**
  * @brief Lua stack conversions for class objects passed by value.
  */
@@ -729,6 +736,7 @@ struct Stack
 
 namespace detail {
 
+//=================================================================================================
 /**
  * @brief Trait class indicating whether the parameter type must be a user registered class.
  *
@@ -744,6 +752,7 @@ struct IsUserdata<T, std::void_t<typename Stack<T>::IsUserdata>> : std::bool_con
 {
 };
 
+//=================================================================================================
 /**
  * @brief Trait class that selects a specific push/get implemenation.
  */

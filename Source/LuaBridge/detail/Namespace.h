@@ -34,9 +34,6 @@ namespace detail {
 class Registrar
 {
 protected:
-    lua_State* const L;
-    int mutable m_stackSize;
-
     Registrar(lua_State* L)
         : L(L)
         , m_stackSize(0)
@@ -76,6 +73,9 @@ protected:
             throw_or_assert<std::logic_error>("Unable to continue registration");
         }
     }
+
+    lua_State* const L = nullptr;
+    int mutable m_stackSize = 0;
 };
 
 } // namespace detail
