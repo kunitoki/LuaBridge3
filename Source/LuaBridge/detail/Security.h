@@ -54,7 +54,12 @@ template <class T>
 T getGlobal(lua_State* L, const char* name)
 {
     lua_getglobal(L, name);
-    return luabridge::Stack<T>::get(L, 1);
+
+    auto result = luabridge::Stack<T>::get(L, -1);
+    
+    lua_pop(L, 1);
+    
+    return result;
 }
 
 //=================================================================================================
