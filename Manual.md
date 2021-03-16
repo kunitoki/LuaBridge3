@@ -8,10 +8,10 @@ LuaBridge 3.1 Reference Manual
 LuaBridge3 repository is located at [https://github.com/kunitoki/LuaBridge3](https://github.com/kunitoki/LuaBridge3).
 Official LuaBridge (up to version 2) repository is located at [https://github.com/vinniefalco/LuaBridge](https://github.com/vinniefalco/LuaBridge).
 
-Copyright © 2020 Asnaghi Lucio.
-Copyright © 2019 Dmitry Tarakanov.
-Copyright © 2012 Vinnie Falco.
-Copyright © 2007 Nathan Reed.
+*   Copyright © 2020 Asnaghi Lucio.
+*   Copyright © 2019 Dmitry Tarakanov.
+*   Copyright © 2012 Vinnie Falco.
+*   Copyright © 2007 Nathan Reed.
 
 Freely available under the terms of the [MIT License](http://www.opensource.org/licenses/mit-license.html).
 
@@ -99,11 +99,10 @@ LuaBridge does not support:
 
 *   Enumerated constants
 *   Overloaded functions, methods, or constructors.
-*   Global variables (variables must be wrapped in a named scope).
+*   Global types (types must be registered in a named scope).
 *   Automatic conversion between STL container types and Lua tables (but conversion can be enabled for `std::array`, `std::vector`, `std::map`, `std::unordered_map`, `std::set` `std::list`, `std::optional`, by including `LuaBridge/Array.h`, `LuaBridge/Vector.h`, `LuaBridge/Map`, `LuaBridge/UnorderedMap.h`, `LuaBridge/Set.h`, `LuaBridge/List.h`, `LuaBridge/Optional.h` respectively)
 *   Inheriting Lua classes from C++ classes.
 *   Passing nil to a C++ function that expects a pointer or reference.
-*   Standard containers like `std::shared_ptr`.
 
 1.2 - Repository
 ----------------
