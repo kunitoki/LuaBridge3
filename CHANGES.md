@@ -8,6 +8,7 @@
 * Breaking Change: The class `LuaException` is now thrown if a unregistered class is pushed via the Stack class, also when calling `LuaRef::operator()`, but only if exceptions are enabled.
 * Breaking Change: `LuaRef::operator()` now returns the class `LuaResult`, where it is possible to obtain the call results or error message.
 * Breaking Change: LuaBridge does not silently enable exceptions when calling `getGlobalNamespace`. Call `enableExceptions(lua_State*)` if you want to enable them explicitly.
+* Removed `RefCounterPtr`, maintaining the reference counts in a unsynchronized global table is not production quality.
 * Removed `Class<T>::addStaticData`, it was just an alias for `Class<T>::addStaticProperty`.
 
 ## Version 3.0

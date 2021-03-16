@@ -356,7 +356,7 @@ bool operator!=(ReferenceCountedObjectClass* object1,
 template<class T>
 struct ContainerTraits<RefCountedObjectPtr<T>>
 {
-    typedef T Type;
+    using Type = T;
 
     static T* get(RefCountedObjectPtr<T> const& c) { return c.getObject(); }
 };

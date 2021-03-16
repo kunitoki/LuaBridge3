@@ -509,7 +509,7 @@ struct UserdataSharedHelper
 
     static bool push(lua_State* L, const C& c, std::error_code&)
     {
-        if (ContainerTraits<C>::get(c) != 0)
+        if (ContainerTraits<C>::get(c) != nullptr)
         {
             new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(c);
             lua_rawgetp(L, LUA_REGISTRYINDEX, getClassRegistryKey<T>());
@@ -554,7 +554,7 @@ struct UserdataSharedHelper<C, true>
 
     static bool push(lua_State* L, const C& c, std::error_code&)
     {
-        if (ContainerTraits<C>::get(c) != 0)
+        if (ContainerTraits<C>::get(c) != nullptr)
         {
             new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(c);
             lua_rawgetp(L, LUA_REGISTRYINDEX, getConstRegistryKey<T>());
@@ -594,9 +594,11 @@ struct UserdataSharedHelper<C, true>
  * @brief Pass by container.
  *
  * The container controls the object lifetime. Typically this will be a lifetime shared by C++ and Lua using a reference count. Because of type
- * erasure, containers like std::shared_ptr will not work. Containers must either be of the intrusive variety, or in the style of the RefCountedPtr
- * type provided by LuaBridge (that uses a global hash table).
-*/
+ * erasure, containers like std::shared_ptr will not work, unless the type hold by them is derived from std::enable_shared_from_this.
+ *
+ * Containers must either be of the intrusive variety, or in the style of the RefCountedPtr type provided by LuaBridge (that uses a global
+ * hash table).
+ */
 template <class T, bool ByContainer>
 struct StackHelper
 {

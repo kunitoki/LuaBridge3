@@ -42,9 +42,8 @@ Contents
     *   [3.3 - Pointers, References, and Pass by Value](#33---pointers-references-and-pass-by-value)
     *   [3.4 - Shared Lifetime](#34---shared-lifetime)
         *   [3.4.1 - Class RefCountedObjectPtr](#341---class-refcountedobjectptr)
-        *   [3.4.2 - Class RefCountedPtr](#342---class-refcountedptr)
-        *   [3.4.3 - User-defined Containers](#343---user-defined-containers)
-        *   [3.4.4 - Container Constructors](#344---container-constructors)
+        *   [3.4.2 - User-defined Containers](#343---user-defined-containers)
+        *   [3.4.3 - Container Constructors](#344---container-constructors)
     *   [3.5 - Mixing Lifetimes](#35---mixing-lifetimes)
     *   [3.6 - Convenience Functions](#36---convenience-functions)
 
@@ -852,41 +851,7 @@ void bar (luabridge::RefCountedObjectPtr <A> a)
 }
 ```
 
-### 3.4.2 - Class RefCountedPtr
-
-This is a non intrusive reference counted pointer. The reference counts are kept in a global hash table, which does incur a small performance penalty. However, it does not require changing any already existing class declarations. This is especially useful when the classes to be registered come from a third party library and cannot be modified. To use it, simply wrap all pointers to class objects with the container instead:
-
-```cpp
-struct A
-{
-  void foo () { }
-};
-
-struct B
-{
-  luabridge::RefCountedPtr <A> a;
-};
-
-luabridge::RefCountedPtr <A> createA ()
-{
-  return new A;
-}
-
-void bar (luabridge::RefCountedPtr <A> a)
-{
-  a->foo ();
-}
-
-void callFoo ()
-{
-  bar (createA ());
-
-  // The created A will be destroyed
-  // when we leave this scope
-}
-```
-
-### 3.4.3 - User-defined Containers
+### 3.4.2 - User-defined Containers
 
 If you have your own container, you must provide a specialization of `ContainerTraits` in the `luabridge` namespace for your type before it will be recognized by LuaBridge (or else the code will not compile):
 
@@ -898,6 +863,11 @@ struct ContainerTraits <CustomContainer<T>>
 {
   using Type = T;
 
+  static CustomContainer <T> construct (T* c)
+  {
+    return c;
+  }
+
   static T* get (const CustomContainer <T>& c)
   {
     return c.getPointerToObject ();
@@ -907,9 +877,9 @@ struct ContainerTraits <CustomContainer<T>>
 } // namespace luabridge
 ```
 
-Standard containers like `std::shared_ptr` or `boost::shared_ptr` **will not work**. This is because of type erasure; when the object goes from C++ to Lua and back to C++, there is no way to associate the object with the original container. The new container is constructed from a pointer to the object instead of an existing container. The result is undefined behavior since there are now two sets of reference counts.
+Standard containers like `std::shared_ptr` or `boost::shared_ptr` will work, if the types they hold are deriving from `std::enable_shared_from_this` or `boost::enable_shared_from_this` respectively. This is because of type erasure; when the object goes from C++ to Lua and back to C++, there is no way to associate the object with the original container, unless it intrusively could reconstruct the container from a raw pointer.
 
-### 3.4.4 - Container Constructors
+### 3.4.3 - Container Constructors
 
 When a constructor is registered for a class, there is an additional optional second template parameter describing the type of container to use. If this parameter is specified, calls to the constructor will create the object dynamically, via operator new, and place it a container of that type. The container must have been previously specialized in `ContainerTraits`, or else a compile error will result. This code will register two objects, each using a constructor that creates an object with Lua lifetime using the specified container:
 

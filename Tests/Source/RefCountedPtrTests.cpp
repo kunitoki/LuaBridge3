@@ -4,7 +4,7 @@
 
 #include "TestBase.h"
 
-#include "LuaBridge/RefCountedPtr.h"
+#include "LuaBridge/RefCountedObject.h"
 
 struct RefCountedPtrTests : TestBase
 {

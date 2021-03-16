@@ -46,6 +46,19 @@ private:
 
 //=================================================================================================
 /**
+ * @brief Get a global value from the lua_State.
+ *
+ * @note This works on any type specialized by `Stack`, including `LuaRef` and its table proxies.
+*/
+template <class T>
+T getGlobal(lua_State* L, const char* name)
+{
+    lua_getglobal(L, name);
+    return luabridge::Stack<T>::get(L, 1);
+}
+
+//=================================================================================================
+/**
  * @brief Set a global value in the lua_State.
  *
  * @note This works on any type specialized by `Stack`, including `LuaRef` and its table proxies.
