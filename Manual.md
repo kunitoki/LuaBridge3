@@ -43,7 +43,7 @@ Contents
     *   [3.4 - Shared Lifetime](#34---shared-lifetime)
         *   [3.4.1 - Class RefCountedObjectPtr](#341---class-refcountedobjectptr)
         *   [3.4.2 - User-defined Containers](#343---user-defined-containers)
-        *   [3.4.3 - shared_ptr As Container](#344---shared-ptr-as-container)
+        *   [3.4.3 - shared_ptr As Container](#344---shared_ptr-as-container)
         *   [3.4.4 - Container Constructors](#344---container-constructors)
     *   [3.5 - Mixing Lifetimes](#35---mixing-lifetimes)
     *   [3.6 - Convenience Functions](#36---convenience-functions)
