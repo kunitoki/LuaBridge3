@@ -43,7 +43,8 @@ Contents
     *   [3.4 - Shared Lifetime](#34---shared-lifetime)
         *   [3.4.1 - Class RefCountedObjectPtr](#341---class-refcountedobjectptr)
         *   [3.4.2 - User-defined Containers](#343---user-defined-containers)
-        *   [3.4.3 - Container Constructors](#344---container-constructors)
+        *   [3.4.3 - shared_ptr As Container](#344---shared-ptr-as-container)
+        *   [3.4.4 - Container Constructors](#344---container-constructors)
     *   [3.5 - Mixing Lifetimes](#35---mixing-lifetimes)
     *   [3.6 - Convenience Functions](#36---convenience-functions)
 
@@ -877,9 +878,41 @@ struct ContainerTraits <CustomContainer<T>>
 } // namespace luabridge
 ```
 
-Standard containers like `std::shared_ptr` or `boost::shared_ptr` will work, if the types they hold are deriving from `std::enable_shared_from_this` or `boost::enable_shared_from_this` respectively. This is because of type erasure; when the object goes from C++ to Lua and back to C++, there is no way to associate the object with the original container, unless it intrusively could reconstruct the container from a raw pointer.
+Containers must be safely constructible from raw pointers to objects that are already referenced by other instances of the container (such as is the case for the provided containers or for example `boost::intrusive_ptr` but not `std::shared_ptr` or `boost::shared_ptr`).
 
-### 3.4.3 - Container Constructors
+### 3.4.3 - shared_ptr As Container
+
+Standard containers like `std::shared_ptr` or `boost::shared_ptr` will work in LuaBridge3, but they require special care. This is because of type erasure; when the object goes from C++ to Lua and back to C++, constructing a new shared_ptr from the raw pointer will create another reference count and result in undefined behavior, unless it could intrusively reconstruct the container from a raw pointer.
+
+To overcome this issue classes that should be managed by `shared_ptr` have to provide a way to correctly reconstruct a `shared_ptr` which can be done only if type hold it is deriving publicly from `std::enable_shared_from_this` or `boost::enable_shared_from_this`. No additional specialization of traits is needed in this case.
+
+```cpp
+struct A : public std::enable_shared_from_this
+{
+  void foo () { }
+};
+
+luabridge::getGlobalNamespace (L)
+  .beginClass <A> ("A")
+    .addConstructor <void(*)(), std::shared_ptr <A> > ()
+    .addFunction ("foo", &A::foo)
+  .endClass ();
+
+std::shared_ptr <A> a = std::make_shared <A> (1);
+luabridge::setGlobal (L, a, "a");
+
+std::shared_ptr <A> retrieveA = luabridge::getGlobal <std::shared_ptr <A> > (L, "a");
+retrieveA->foo();
+```
+
+```lua
+a.foo ()
+
+anotherA = A ()
+anotherA.foo ()
+```
+
+### 3.4.4 - Container Constructors
 
 When a constructor is registered for a class, there is an additional optional second template parameter describing the type of container to use. If this parameter is specified, calls to the constructor will create the object dynamically, via operator new, and place it a container of that type. The container must have been previously specialized in `ContainerTraits`, or else a compile error will result. This code will register two objects, each using a constructor that creates an object with Lua lifetime using the specified container:
 
@@ -1166,12 +1199,16 @@ Free Functions
 /// Enable exceptions globally. Will translate lua_errors into C++ LuaExceptions. Usable only if compiled with C++ exceptions enabled.
 void enableExceptions(lua_State* L);
 
-/// Gets a global Lua variable reference.
+/// Gets a global Lua variable reference as LuaRef.
 LuaRef getGlobal (lua_State* L, const char* name);
 
+/// Gets a global Lua variable reference as type T.
+template <class T>
+T getGlobal (lua_State* L, const char* name);
+
 /// Sets a global Lua variable. Throws or return false if the class is not registered.
-template <class V>
-bool setGlobal (lua_State* L, V* varPtr, const char* name);
+template <class T>
+bool setGlobal (lua_State* L, T* varPtr, const char* name);
 
 /// Gets the global namespace registration object.
 Namespace getGlobalNamespace (lua_State* L);

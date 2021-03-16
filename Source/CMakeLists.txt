@@ -18,14 +18,15 @@ set (LUABRIDGE_DETAIL_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/ClassInfo.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Config.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Dump.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/FuncTraits.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Errors.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/FuncTraits.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Invoke.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Iterator.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/LuaException.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/LuaHelpers.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/LuaRef.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Namespace.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Security.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Stack.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/TypeTraits.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Userdata.h
