@@ -8,6 +8,7 @@
 
 #include "Config.h"
 
+#include <memory>
 #include <string>
 
 namespace luabridge {
