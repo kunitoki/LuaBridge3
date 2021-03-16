@@ -31,6 +31,11 @@ namespace luabridge {
  *  {
  *    using Type = T;
  *
+ *    static ContainerType<T> construct(T* c)
+ *    {
+ *      return c; // Implementation-dependent on ContainerType
+ *    }
+ *
  *    static T* get(const ContainerType<T>& c)
  *    {
  *      return c.get(); // Implementation-dependent on ContainerType
@@ -45,6 +50,29 @@ struct ContainerTraits
     using IsNotContainer = bool;
 
     using Type = T;
+};
+
+/**
+ * @brief Register shared_ptr support as container.
+ *
+ * @tparam T Class that is hold by the shared_ptr, must inherit from std::enable_shared_from_this.
+ */
+template <class T>
+struct ContainerTraits<std::shared_ptr<T>>
+{
+    static_assert(std::is_base_of_v<std::enable_shared_from_this<T>, T>);
+    
+    using Type = T;
+
+    static std::shared_ptr<T> construct(T* t)
+    {
+        return t->shared_from_this();
+    }
+
+    static T* get(const std::shared_ptr<T>& c)
+    {
+        return c.get();
+    }
 };
 
 namespace detail {

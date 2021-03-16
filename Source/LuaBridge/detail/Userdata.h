@@ -287,7 +287,7 @@ public:
      */
     static UserdataValue<T>* place(lua_State* L, std::error_code& ec)
     {
-        UserdataValue<T>* const ud = new (lua_newuserdata(L, sizeof(UserdataValue<T>))) UserdataValue<T>();
+        auto* ud = new (lua_newuserdata(L, sizeof(UserdataValue<T>))) UserdataValue<T>();
 
         lua_rawgetp(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>());
 
@@ -319,7 +319,7 @@ public:
     template <class U>
     static bool push(lua_State* L, const U& u, std::error_code& ec)
     {
-        UserdataValue<T>* ud = place(L, ec);
+        auto* ud = place(L, ec);
 
         if (!ud)
             return false;
@@ -343,7 +343,7 @@ public:
     {
         // If this fails to compile it means you forgot to provide
         // a Container specialization for your container!
-        return reinterpret_cast<T*>(&m_storage[0]);
+        return reinterpret_cast<T*>(&m_storage);
     }
 
 private:
@@ -366,7 +366,7 @@ private:
     UserdataValue<T>(const UserdataValue<T>&);
     UserdataValue<T> operator=(const UserdataValue<T>&);
 
-    char m_storage[sizeof(T)];
+    std::aligned_storage_t<sizeof(T), alignof(T)> m_storage;
 };
 
 //=================================================================================================
@@ -422,7 +422,8 @@ private:
      */
     static bool push(lua_State* L, const void* p, const void* key, std::error_code& ec)
     {
-        UserdataPtr* ptr = new (lua_newuserdata(L, sizeof(UserdataPtr))) UserdataPtr(const_cast<void*>(p));
+        auto* ptr = new (lua_newuserdata(L, sizeof(UserdataPtr))) UserdataPtr(const_cast<void*>(p));
+
         lua_rawgetp(L, LUA_REGISTRYINDEX, key);
 
         if (!lua_istable(L, -1))
@@ -463,6 +464,8 @@ template <class C>
 class UserdataShared : public Userdata
 {
 public:
+    ~UserdataShared() = default;
+
     /**
      * @brief Construct from a container to the class or a derived class.
      *
@@ -490,8 +493,6 @@ public:
     }
 
 private:
-    ~UserdataShared() {}
-
     UserdataShared(const UserdataShared<C>&);
     UserdataShared<C>& operator=(const UserdataShared<C>&);
 
@@ -506,15 +507,26 @@ template <class C, bool MakeObjectConst>
 struct UserdataSharedHelper
 {
     using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
-
-    static bool push(lua_State* L, const C& c, std::error_code&)
+    
+    static bool push(lua_State* L, const C& c, std::error_code& ec)
     {
         if (ContainerTraits<C>::get(c) != nullptr)
         {
-            new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(c);
+            auto* us = new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(c);
+
             lua_rawgetp(L, LUA_REGISTRYINDEX, getClassRegistryKey<T>());
-            // If this goes off it means the class T is unregistered!
-            assert(lua_istable(L, -1)); // TODO - raise luaerror
+
+            if (!lua_istable(L, -1))
+            {
+                lua_pop(L, 1); // possibly: a nil
+
+                us->~UserdataShared<C>();
+
+                ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
+
+                return false;
+            }
+            
             lua_setmetatable(L, -2);
         }
         else
@@ -525,14 +537,25 @@ struct UserdataSharedHelper
         return true;
     }
 
-    static bool push(lua_State* L, T* t, std::error_code&)
+    static bool push(lua_State* L, T* t, std::error_code& ec)
     {
         if (t)
         {
-            new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(t);
+            auto* us = new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(t);
+
             lua_rawgetp(L, LUA_REGISTRYINDEX, getClassRegistryKey<T>());
-            // If this goes off it means the class T is unregistered!
-            assert(lua_istable(L, -1)); // TODO - raise luaerror
+
+            if (!lua_istable(L, -1))
+            {
+                lua_pop(L, 1); // possibly: a nil
+
+                us->~UserdataShared<C>();
+
+                ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
+
+                return false;
+            }
+
             lua_setmetatable(L, -2);
         }
         else
@@ -552,14 +575,25 @@ struct UserdataSharedHelper<C, true>
 {
     using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
 
-    static bool push(lua_State* L, const C& c, std::error_code&)
+    static bool push(lua_State* L, const C& c, std::error_code& ec)
     {
         if (ContainerTraits<C>::get(c) != nullptr)
         {
-            new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(c);
+            auto* us = new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(c);
+
             lua_rawgetp(L, LUA_REGISTRYINDEX, getConstRegistryKey<T>());
-            // If this goes off it means the class T is unregistered!
-            assert(lua_istable(L, -1)); // TODO - raise luaerror
+
+            if (!lua_istable(L, -1))
+            {
+                lua_pop(L, 1); // possibly: a nil
+
+                us->~UserdataShared<C>();
+
+                ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
+
+                return false;
+            }
+
             lua_setmetatable(L, -2);
         }
         else
@@ -570,14 +604,25 @@ struct UserdataSharedHelper<C, true>
         return true;
     }
 
-    static bool push(lua_State* L, T* t, std::error_code&)
+    static bool push(lua_State* L, T* t, std::error_code& ec)
     {
         if (t)
         {
-            new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(t);
+            auto* us = new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(t);
+
             lua_rawgetp(L, LUA_REGISTRYINDEX, getConstRegistryKey<T>());
-            // If this goes off it means the class T is unregistered!
-            assert(lua_istable(L, -1)); // TODO - raise luaerror
+
+            if (!lua_istable(L, -1))
+            {
+                lua_pop(L, 1); // possibly: a nil
+
+                us->~UserdataShared<C>();
+
+                ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
+
+                return false;
+            }
+
             lua_setmetatable(L, -2);
         }
         else
@@ -595,9 +640,6 @@ struct UserdataSharedHelper<C, true>
  *
  * The container controls the object lifetime. Typically this will be a lifetime shared by C++ and Lua using a reference count. Because of type
  * erasure, containers like std::shared_ptr will not work, unless the type hold by them is derived from std::enable_shared_from_this.
- *
- * Containers must either be of the intrusive variety, or in the style of the RefCountedPtr type provided by LuaBridge (that uses a global
- * hash table).
  */
 template <class T, bool ByContainer>
 struct StackHelper
@@ -611,7 +653,7 @@ struct StackHelper
 
     static T get(lua_State* L, int index)
     {
-        return Userdata::get<ReturnType>(L, index, true);
+        return ContainerTraits<T>::construct(Userdata::get<ReturnType>(L, index, true));
     }
 };
 
@@ -655,7 +697,7 @@ struct RefStackHelper
 
     static ReturnType get(lua_State* L, int index)
     {
-        return Userdata::get<T>(L, index, true);
+        return ContainerTraits<T>::construct(Userdata::get<T>(L, index, true));
     }
 };
 

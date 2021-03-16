@@ -358,6 +358,8 @@ struct ContainerTraits<RefCountedObjectPtr<T>>
 {
     using Type = T;
 
+    static RefCountedObjectPtr<T> construct(T* c) { return c; }
+
     static T* get(RefCountedObjectPtr<T> const& c) { return c.getObject(); }
 };
 
