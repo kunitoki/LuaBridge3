@@ -14,6 +14,7 @@
 #include <iostream>
 #include <list>
 #include <map>
+#include <memory>
 #include <optional>
 #include <set>
 #include <sstream>
@@ -621,9 +622,9 @@ namespace luabridge {
 /**
  * @brief Container traits.
  *
- * Unspecialized ContainerTraits has the isNotContainer typedef for SFINAE. All user defined containers
- * must supply an appropriate specialization for ContinerTraits (without the alias isNotContainer).
- * The containers that come with LuaBridge also come with the appropriate ContainerTraits specialization.
+ * Unspecialized ContainerTraits has the isNotContainer typedef for SFINAE. All user defined containers must supply an appropriate
+ * specialization for ContinerTraits (without the alias isNotContainer). The containers that come with LuaBridge also come with the
+ * appropriate ContainerTraits specialization.
  *
  * @note See the corresponding declaration for details.
  *
@@ -636,9 +637,14 @@ namespace luabridge {
  *  {
  *    using Type = T;
  *
+ *    static ContainerType<T> construct(T* c)
+ *    {
+ *      return c; // Implementation-dependent on ContainerType
+ *    }
+ *
  *    static T* get(const ContainerType<T>& c)
  *    {
- *      return c.get (); // Implementation-dependent on ContainerType
+ *      return c.get(); // Implementation-dependent on ContainerType
  *    }
  *  };
  *
@@ -650,6 +656,29 @@ struct ContainerTraits
     using IsNotContainer = bool;
 
     using Type = T;
+};
+
+/**
+ * @brief Register shared_ptr support as container.
+ *
+ * @tparam T Class that is hold by the shared_ptr, must inherit from std::enable_shared_from_this.
+ */
+template <class T>
+struct ContainerTraits<std::shared_ptr<T>>
+{
+    static_assert(std::is_base_of_v<std::enable_shared_from_this<T>, T>);
+    
+    using Type = T;
+
+    static std::shared_ptr<T> construct(T* t)
+    {
+        return t->shared_from_this();
+    }
+
+    static T* get(const std::shared_ptr<T>& c)
+    {
+        return c.get();
+    }
 };
 
 namespace detail {
@@ -678,7 +707,6 @@ public:
 };
 
 } // namespace detail
-
 } // namespace luabridge
 
 // End File: Source/LuaBridge/detail/TypeTraits.h
@@ -694,12 +722,12 @@ public:
 namespace luabridge {
 namespace detail {
 
-//==============================================================================
+//=================================================================================================
 /**
  * @brief Return the identity pointer for our lightuserdata tokens.
  *
- * Because of Lua's dynamic typing and our improvised system of imposing C++ class structure, there is the possibility that executing scripts may
- * knowingly or unknowingly cause invalid data to get passed to the C functions created by LuaBridge.
+ * Because of Lua's dynamic typing and our improvised system of imposing C++ class structure, there is the possibility that executing
+ * scripts may knowingly or unknowingly cause invalid data to get passed to the C functions created by LuaBridge.
  *
  * In particular, our security model addresses the following:
  *
@@ -715,44 +743,30 @@ namespace detail {
  */
 class Userdata
 {
-protected:
-    void* m_p = nullptr; // subclasses must set this
-
-    Userdata() {}
-
-    //--------------------------------------------------------------------------
-    /**
-      Get an untyped pointer to the contained class.
-    */
-    void* getPointer() { return m_p; }
-
 private:
-    //--------------------------------------------------------------------------
+    //=============================================================================================
     /**
-      Validate and retrieve a Userdata on the stack.
-
-      The Userdata must exactly match the corresponding class table or
-      const table, or else a Lua error is raised. This is used for the
-      __gc metamethod.
-    */
-    static Userdata* getExactClass(lua_State* L, int index, void const* /*classKey*/)
+     * @brief Validate and retrieve a Userdata on the stack.
+     *
+     * The Userdata must exactly match the corresponding class table or const table, or else a Lua error is raised. This is used for the
+     * __gc metamethod.
+     */
+    static Userdata* getExactClass(lua_State* L, int index, const void* classKey)
     {
-        return static_cast<Userdata*>(lua_touserdata(L, lua_absindex(L, index)));
+        return (void)classKey, static_cast<Userdata*>(lua_touserdata(L, lua_absindex(L, index)));
     }
 
-    //--------------------------------------------------------------------------
+    //=============================================================================================
     /**
-      Validate and retrieve a Userdata on the stack.
-
-      The Userdata must be derived from or the same as the given base class,
-      identified by the key. If canBeConst is false, generates an error if
-      the resulting Userdata represents to a const object. We do the type check
-      first so that the error message is informative.
-    */
+     * @brief Validate and retrieve a Userdata on the stack.
+     *
+     * The Userdata must be derived from or the same as the given base class, identified by the key. If canBeConst is false, generates
+     * an error if the resulting Userdata represents to a const object. We do the type check first so that the error message is informative.
+     */
     static Userdata* getClass(lua_State* L,
                               int index,
-                              void const* registryConstKey,
-                              void const* registryClassKey,
+                              const void* registryConstKey,
+                              const void* registryClassKey,
                               bool canBeConst)
     {
         index = lua_absindex(L, index);
@@ -810,7 +824,7 @@ private:
         // no return
     }
 
-    static bool isInstance(lua_State* L, int index, void const* registryClassKey)
+    static bool isInstance(lua_State* L, int index, const void* registryClassKey)
     {
         index = lua_absindex(L, index);
 
@@ -889,35 +903,40 @@ private:
 public:
     virtual ~Userdata() {}
 
-    //--------------------------------------------------------------------------
+    //=============================================================================================
     /**
-      Returns the Userdata* if the class on the Lua stack matches.
-      If the class does not match, a Lua error is raised.
-
-      @tparam T     A registered user class.
-      @param  L     A Lua state.
-      @param  index The index of an item on the Lua stack.
-      @returns A userdata pointer if the class matches.
-    */
-    template<class T>
+     * @brief Returns the Userdata* if the class on the Lua stack matches.
+     *
+     * If the class does not match, a Lua error is raised.
+     *
+     * @tparam T  A registered user class.
+     *
+     * @param L A Lua state.
+     * @param index The index of an item on the Lua stack.
+     *
+     * @return A userdata pointer if the class matches.
+     */
+    template <class T>
     static Userdata* getExact(lua_State* L, int index)
     {
         return getExactClass(L, index, detail::getClassRegistryKey<T>());
     }
 
-    //--------------------------------------------------------------------------
+    //=============================================================================================
     /**
-      Get a pointer to the class from the Lua stack.
-      If the object is not the class or a subclass, or it violates the
-      const-ness, a Lua error is raised.
-
-      @tparam T          A registered user class.
-      @param  L          A Lua state.
-      @param  index      The index of an item on the Lua stack.
-      @param  canBeConst TBD
-      @returns A pointer if the class and constness match.
-    */
-    template<class T>
+     * @brief Get a pointer to the class from the Lua stack.
+     *
+     * If the object is not the class or a subclass, or it violates the const-ness, a Lua error is raised.
+     *
+     * @tparam T A registered user class.
+     *
+     * @param L A Lua state.
+     * @param index The index of an item on the Lua stack.
+     * @param canBeConst TBD
+     *
+     * @return A pointer if the class and constness match.
+     */
+    template <class T>
     static T* get(lua_State* L, int index, bool canBeConst)
     {
         if (lua_isnil(L, index))
@@ -934,59 +953,45 @@ public:
                                    ->getPointer());
     }
 
-    template<class T>
+    template <class T>
     static bool isInstance(lua_State* L, int index)
     {
         return isInstance(L, index, detail::getClassRegistryKey<T>());
     }
+
+protected:
+    Userdata() = default;
+
+    /**
+     * @brief Get an untyped pointer to the contained class.
+     */
+    void* getPointer() const noexcept { return m_p; }
+
+    void* m_p = nullptr; // subclasses must set this
 };
 
-//----------------------------------------------------------------------------
+//=================================================================================================
 /**
-  Wraps a class object stored in a Lua userdata.
-
-  The lifetime of the object is managed by Lua. The object is constructed
-  inside the userdata using placement new.
-*/
-template<class T>
+ * @brief Wraps a class object stored in a Lua userdata.
+ *
+ * The lifetime of the object is managed by Lua. The object is constructed inside the userdata using placement new.
+ */
+template <class T>
 class UserdataValue : public Userdata
 {
-private:
-    UserdataValue<T>(UserdataValue<T> const&);
-    UserdataValue<T> operator=(UserdataValue<T> const&);
-
-    char m_storage[sizeof(T)];
-
-private:
-    /**
-      Used for placement construction.
-    */
-    UserdataValue()
-    {
-        m_p = nullptr;
-    }
-
-    ~UserdataValue()
-    {
-        if (getPointer() != nullptr)
-        {
-            getObject()->~T();
-        }
-    }
-
 public:
     /**
-      Push a T via placement new.
-
-      The caller is responsible for calling placement new using the
-      returned uninitialized storage.
-
-      @param L A Lua state.
-      @returns An object referring to the newly created userdata value.
-    */
+     * @brief Push a T via placement new.
+     *
+     * The caller is responsible for calling placement new using the returned uninitialized storage.
+     *
+     * @param L A Lua state.
+     *
+     * @return An object referring to the newly created userdata value.
+     */
     static UserdataValue<T>* place(lua_State* L, std::error_code& ec)
     {
-        UserdataValue<T>* const ud = new (lua_newuserdata(L, sizeof(UserdataValue<T>))) UserdataValue<T>();
+        auto* ud = new (lua_newuserdata(L, sizeof(UserdataValue<T>))) UserdataValue<T>();
 
         lua_rawgetp(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>());
 
@@ -1007,16 +1012,18 @@ public:
     }
 
     /**
-      Push T via copy construction from U.
-
-      @tparam U A container type.
-      @param  L A Lua state.
-      @param  u A container object reference.
-    */
+     * @brief Push T via copy construction from U.
+     *
+     * @tparam U A container type.
+     *
+     * @param L A Lua state.
+     * @param u A container object reference.
+     * @param ec Error code that will be set in case of failure to push on the lua stack.
+     */
     template <class U>
     static bool push(lua_State* L, const U& u, std::error_code& ec)
     {
-        UserdataValue<T>* ud = place(L, ec);
+        auto* ud = place(L, ec);
 
         if (!ud)
             return false;
@@ -1029,39 +1036,98 @@ public:
     }
 
     /**
-      Confirm object construction.
-    */
-    void commit()
+     * @brief Confirm object construction.
+     */
+    void commit() noexcept
     {
         m_p = getObject();
     }
 
-    T* getObject()
+    T* getObject() noexcept
     {
         // If this fails to compile it means you forgot to provide
         // a Container specialization for your container!
-        return reinterpret_cast<T*>(&m_storage[0]);
+        return reinterpret_cast<T*>(&m_storage);
     }
+
+private:
+    /**
+     * @brief Used for placement construction.
+     */
+    UserdataValue() noexcept
+    {
+        m_p = nullptr;
+    }
+
+    ~UserdataValue()
+    {
+        if (getPointer() != nullptr)
+        {
+            getObject()->~T();
+        }
+    }
+
+    UserdataValue<T>(const UserdataValue<T>&);
+    UserdataValue<T> operator=(const UserdataValue<T>&);
+
+    std::aligned_storage_t<sizeof(T), alignof(T)> m_storage;
 };
 
-//----------------------------------------------------------------------------
+//=================================================================================================
 /**
-  Wraps a pointer to a class object inside a Lua userdata.
-
-  The lifetime of the object is managed by C++.
-*/
+ * @brief Wraps a pointer to a class object inside a Lua userdata.
+ *
+ * The lifetime of the object is managed by C++.
+ */
 class UserdataPtr : public Userdata
 {
-private:
-    UserdataPtr(UserdataPtr const&);
-    UserdataPtr operator=(UserdataPtr const&);
+public:
+    /**
+     * @brief Push non-const pointer to object.
+     *
+     * @tparam T A user registered class.
+     *
+     * @param L A Lua state.
+     * @param p A pointer to the user class instance.
+     * @param ec Error code that will be set in case of failure to push on the lua stack.
+     */
+    template <class T>
+    static bool push(lua_State* L, T* p, std::error_code& ec)
+    {
+        if (p)
+            return push(L, p, getClassRegistryKey<T>(), ec);
+
+        lua_pushnil(L);
+        return true;
+    }
+
+    /**
+     * @brief Push const pointer to object.
+     *
+     * @tparam T A user registered class.
+     *
+     * @param L A Lua state.
+     * @param p A pointer to the user class instance.
+     * @param ec Error code that will be set in case of failure to push on the lua stack.
+     */
+    template <class T>
+    static bool push(lua_State* L, const T* p, std::error_code& ec)
+    {
+        if (p)
+            return push(L, p, getConstRegistryKey<T>(), ec);
+
+        lua_pushnil(L);
+        return true;
+    }
 
 private:
-    /** Push a pointer to object using metatable key.
+    /**
+     * @brief Push a pointer to object using metatable key.
      */
     static bool push(lua_State* L, const void* p, const void* key, std::error_code& ec)
     {
-        UserdataPtr* ptr = new (lua_newuserdata(L, sizeof(UserdataPtr))) UserdataPtr(const_cast<void*>(p));
+        auto* ptr = new (lua_newuserdata(L, sizeof(UserdataPtr))) UserdataPtr(const_cast<void*>(p));
+
         lua_rawgetp(L, LUA_REGISTRYINDEX, key);
 
         if (!lua_istable(L, -1))
@@ -1088,38 +1154,8 @@ private:
         m_p = p;
     }
 
-public:
-    /** Push non-const pointer to object.
-
-      @tparam T A user registered class.
-      @param  L A Lua state.
-      @param  p A pointer to the user class instance.
-    */
-    template <class T>
-    static bool push(lua_State* L, T* p, std::error_code& ec)
-    {
-        if (p)
-            return push(L, p, getClassRegistryKey<T>(), ec);
-
-        lua_pushnil(L);
-        return true;
-    }
-
-    /** Push const pointer to object.
-
-      @tparam T A user registered class.
-      @param  L A Lua state.
-      @param  p A pointer to the user class instance.
-    */
-    template <class T>
-    static bool push(lua_State* L, const T* p, std::error_code& ec)
-    {
-        if (p)
-            return push(L, p, getConstRegistryKey<T>(), ec);
-
-        lua_pushnil(L);
-        return true;
-    }
+    UserdataPtr(const UserdataPtr&);
+    UserdataPtr operator=(const UserdataPtr&);
 };
 
 //============================================================================
@@ -1131,24 +1167,16 @@ public:
 template <class C>
 class UserdataShared : public Userdata
 {
-private:
-    UserdataShared(UserdataShared<C> const&);
-    UserdataShared<C>& operator=(UserdataShared<C> const&);
-
-    using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
-
-    C m_c;
-
-private:
-    ~UserdataShared() {}
-
 public:
-    /**
-      Construct from a container to the class or a derived class.
+    ~UserdataShared() = default;
 
-      @tparam U A container type.
-      @param  u A container object reference.
-    */
+    /**
+     * @brief Construct from a container to the class or a derived class.
+     *
+     * @tparam U A container type.
+     *
+     * @param  u A container object reference.
+     */
     template <class U>
     explicit UserdataShared(const U& u) : m_c(u)
     {
@@ -1156,37 +1184,53 @@ public:
     }
 
     /**
-      Construct from a pointer to the class or a derived class.
-
-      @tparam U A container type.
-      @param  u A container object pointer.
-    */
+     * @brief Construct from a pointer to the class or a derived class.
+     *
+     * @tparam U A container type.
+     *
+     * @param u A container object pointer.
+     */
     template <class U>
     explicit UserdataShared(U* u) : m_c(u)
     {
         m_p = const_cast<void*>(reinterpret_cast<const void*>((ContainerTraits<C>::get(m_c))));
     }
+
+private:
+    UserdataShared(const UserdataShared<C>&);
+    UserdataShared<C>& operator=(const UserdataShared<C>&);
+
+    C m_c;
 };
 
-//----------------------------------------------------------------------------
+//=================================================================================================
 /**
- * @brief SFINAE helpers.
+ * @brief SFINAE helper for non-const objects.
  */
-
-// non-const objects
 template <class C, bool MakeObjectConst>
 struct UserdataSharedHelper
 {
     using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
-
-    static bool push(lua_State* L, const C& c, std::error_code&)
+    
+    static bool push(lua_State* L, const C& c, std::error_code& ec)
     {
-        if (ContainerTraits<C>::get(c) != 0)
+        if (ContainerTraits<C>::get(c) != nullptr)
         {
-            new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(c);
+            auto* us = new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(c);
+
             lua_rawgetp(L, LUA_REGISTRYINDEX, getClassRegistryKey<T>());
-            // If this goes off it means the class T is unregistered!
-            assert(lua_istable(L, -1)); // TODO - raise luaerror
+
+            if (!lua_istable(L, -1))
+            {
+                lua_pop(L, 1); // possibly: a nil
+
+                us->~UserdataShared<C>();
+
+                ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
+
+                return false;
+            }
+            
             lua_setmetatable(L, -2);
         }
         else
@@ -1197,57 +1241,25 @@ struct UserdataSharedHelper
         return true;
     }
 
-    static bool push(lua_State* L, T* t, std::error_code&)
+    static bool push(lua_State* L, T* t, std::error_code& ec)
     {
         if (t)
         {
-            new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(t);
+            auto* us = new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(t);
+
             lua_rawgetp(L, LUA_REGISTRYINDEX, getClassRegistryKey<T>());
-            // If this goes off it means the class T is unregistered!
-            assert(lua_istable(L, -1)); // TODO - raise luaerror
-            lua_setmetatable(L, -2);
-        }
-        else
-        {
-            lua_pushnil(L);
-        }
 
-        return true;
-    }
-};
+            if (!lua_istable(L, -1))
+            {
+                lua_pop(L, 1); // possibly: a nil
 
-// const objects
-template<class C>
-struct UserdataSharedHelper<C, true>
-{
-    using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
+                us->~UserdataShared<C>();
 
-    static bool push(lua_State* L, const C& c, std::error_code&)
-    {
-        if (ContainerTraits<C>::get(c) != 0)
-        {
-            new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(c);
-            lua_rawgetp(L, LUA_REGISTRYINDEX, getConstRegistryKey<T>());
-            // If this goes off it means the class T is unregistered!
-            assert(lua_istable(L, -1)); // TODO - raise luaerror
-            lua_setmetatable(L, -2);
-        }
-        else
-        {
-            lua_pushnil(L);
-        }
+                ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
 
-        return true;
-    }
+                return false;
+            }
 
-    static bool push(lua_State* L, T* t, std::error_code&)
-    {
-        if (t)
-        {
-            new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(t);
-            lua_rawgetp(L, LUA_REGISTRYINDEX, getConstRegistryKey<T>());
-            // If this goes off it means the class T is unregistered!
-            assert(lua_istable(L, -1)); // TODO - raise luaerror
             lua_setmetatable(L, -2);
         }
         else
@@ -1260,12 +1272,79 @@ struct UserdataSharedHelper<C, true>
 };
 
 /**
+ * @brief SFINAE helper for const objects.
+ */
+template <class C>
+struct UserdataSharedHelper<C, true>
+{
+    using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
+
+    static bool push(lua_State* L, const C& c, std::error_code& ec)
+    {
+        if (ContainerTraits<C>::get(c) != nullptr)
+        {
+            auto* us = new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(c);
+
+            lua_rawgetp(L, LUA_REGISTRYINDEX, getConstRegistryKey<T>());
+
+            if (!lua_istable(L, -1))
+            {
+                lua_pop(L, 1); // possibly: a nil
+
+                us->~UserdataShared<C>();
+
+                ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
+
+                return false;
+            }
+
+            lua_setmetatable(L, -2);
+        }
+        else
+        {
+            lua_pushnil(L);
+        }
+
+        return true;
+    }
+
+    static bool push(lua_State* L, T* t, std::error_code& ec)
+    {
+        if (t)
+        {
+            auto* us = new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(t);
+
+            lua_rawgetp(L, LUA_REGISTRYINDEX, getConstRegistryKey<T>());
+
+            if (!lua_istable(L, -1))
+            {
+                lua_pop(L, 1); // possibly: a nil
+
+                us->~UserdataShared<C>();
+
+                ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
+
+                return false;
+            }
+
+            lua_setmetatable(L, -2);
+        }
+        else
+        {
+            lua_pushnil(L);
+        }
+
+        return true;
+    }
+};
+
+//=================================================================================================
+/**
  * @brief Pass by container.
  *
  * The container controls the object lifetime. Typically this will be a lifetime shared by C++ and Lua using a reference count. Because of type
- * erasure, containers like std::shared_ptr will not work. Containers must either be of the intrusive variety, or in the style of the RefCountedPtr
- * type provided by LuaBridge (that uses a global hash table).
-*/
+ * erasure, containers like std::shared_ptr will not work, unless the type hold by them is derived from std::enable_shared_from_this.
+ */
 template <class T, bool ByContainer>
 struct StackHelper
 {
@@ -1278,7 +1357,7 @@ struct StackHelper
 
     static T get(lua_State* L, int index)
     {
-        return Userdata::get<ReturnType>(L, index, true);
+        return ContainerTraits<T>::construct(Userdata::get<ReturnType>(L, index, true));
     }
 };
 
@@ -1302,7 +1381,7 @@ struct StackHelper<T, false>
     }
 };
 
-//------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Lua stack conversions for pointers and references to class objects.
  *
@@ -1322,7 +1401,7 @@ struct RefStackHelper
 
     static ReturnType get(lua_State* L, int index)
     {
-        return Userdata::get<T>(L, index, true);
+        return ContainerTraits<T>::construct(Userdata::get<T>(L, index, true));
     }
 };
 
@@ -1347,6 +1426,7 @@ struct RefStackHelper<T, false>
     }
 };
 
+//=================================================================================================
 /**
  * @brief Trait class that selects whether to return a user registered class object by value or by reference.
  */
@@ -1374,8 +1454,7 @@ struct UserdataGetter<T, std::void_t<T (*)()>>
 
 } // namespace detail
 
-//==============================================================================
-
+//=================================================================================================
 /**
  * @brief Lua stack conversions for class objects passed by value.
  */
@@ -1405,6 +1484,7 @@ struct Stack
 
 namespace detail {
 
+//=================================================================================================
 /**
  * @brief Trait class indicating whether the parameter type must be a user registered class.
  *
@@ -1420,6 +1500,7 @@ struct IsUserdata<T, std::void_t<typename Stack<T>::IsUserdata>> : std::bool_con
 {
 };
 
+//=================================================================================================
 /**
  * @brief Trait class that selects a specific push/get implemenation.
  */
@@ -2393,571 +2474,6 @@ struct Stack<std::optional<T>>
 } // namespace luabridge
 
 // End File: Source/LuaBridge/Optional.h
-
-// Begin File: Source/LuaBridge/RefCountedObject.h
-
-// https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
-// Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
-// Copyright 2004-11 by Raw Material Software Ltd.
-// SPDX-License-Identifier: MIT
-
-//==============================================================================
-/*
-  This is a derivative work used by permission from part of
-  JUCE, available at http://www.rawaterialsoftware.com
-
-  License: The MIT License (http://www.opensource.org/licenses/mit-license.php)
-
-  Permission is hereby granted, free of charge, to any person obtaining a copy
-  of this software and associated documentation files (the "Software"), to deal
-  in the Software without restriction, including without limitation the rights
-  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-  copies of the Software, and to permit persons to whom the Software is
-  furnished to do so, subject to the following conditions:
-
-  The above copyright notice and this permission notice shall be included in all
-  copies or substantial portions of the Software.
-
-  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-  SOFTWARE.
-
-  This file incorporates work covered by the following copyright and
-  permission notice:
-
-    This file is part of the JUCE library - "Jules' Utility Class Extensions"
-    Copyright 2004-11 by Raw Material Software Ltd.
-*/
-//==============================================================================
-
-namespace luabridge {
-
-//==============================================================================
-/**
-  Adds reference-counting to an object.
-
-  To add reference-counting to a class, derive it from this class, and
-  use the RefCountedObjectPtr class to point to it.
-
-  e.g. @code
-  class MyClass : public RefCountedObjectType
-  {
-      void foo();
-
-      // This is a neat way of declaring a typedef for a pointer class,
-      // rather than typing out the full templated name each time..
-      typedef RefCountedObjectPtr<MyClass> Ptr;
-  };
-
-  MyClass::Ptr p = new MyClass();
-  MyClass::Ptr p2 = p;
-  p = 0;
-  p2->foo();
-  @endcode
-
-  Once a new RefCountedObjectType has been assigned to a pointer, be
-  careful not to delete the object manually.
-*/
-template<class CounterType>
-class RefCountedObjectType
-{
-public:
-    //==============================================================================
-    /** Increments the object's reference count.
-
-        This is done automatically by the smart pointer, but is public just
-        in case it's needed for nefarious purposes.
-    */
-    inline void incReferenceCount() const { ++refCount; }
-
-    /** Decreases the object's reference count.
-
-        If the count gets to zero, the object will be deleted.
-    */
-    inline void decReferenceCount() const
-    {
-        assert(getReferenceCount() > 0);
-
-        if (--refCount == 0)
-            delete this;
-    }
-
-    /** Returns the object's current reference count.
-     * @returns The reference count.
-     */
-    inline int getReferenceCount() const { return static_cast<int>(refCount); }
-
-protected:
-    //==============================================================================
-    /** Creates the reference-counted object (with an initial ref count of zero). */
-    RefCountedObjectType() : refCount() {}
-
-    /** Destructor. */
-    virtual ~RefCountedObjectType()
-    {
-        // it's dangerous to delete an object that's still referenced by something else!
-        assert(getReferenceCount() == 0);
-    }
-
-private:
-    //==============================================================================
-    CounterType mutable refCount;
-};
-
-//==============================================================================
-
-/** Non thread-safe reference counted object.
-
-    This creates a RefCountedObjectType that uses a non-atomic integer
-    as the counter.
-*/
-typedef RefCountedObjectType<int> RefCountedObject;
-
-//==============================================================================
-/**
-    A smart-pointer class which points to a reference-counted object.
-
-    The template parameter specifies the class of the object you want to point
-    to - the easiest way to make a class reference-countable is to simply make
-    it inherit from RefCountedObjectType, but if you need to, you could roll
-    your own reference-countable class by implementing a pair of methods called
-    incReferenceCount() and decReferenceCount().
-
-    When using this class, you'll probably want to create a typedef to
-    abbreviate the full templated name - e.g.
-
-    @code
-
-    typedef RefCountedObjectPtr <MyClass> MyClassPtr;
-
-    @endcode
-*/
-template<class ReferenceCountedObjectClass>
-class RefCountedObjectPtr
-{
-public:
-    /** The class being referenced by this pointer. */
-    typedef ReferenceCountedObjectClass ReferencedType;
-
-    //==============================================================================
-    /** Creates a pointer to a null object. */
-    inline RefCountedObjectPtr() : referencedObject(0) {}
-
-    /** Creates a pointer to an object.
-        This will increment the object's reference-count if it is non-null.
-
-        @param refCountedObject A reference counted object to own.
-    */
-    inline RefCountedObjectPtr(ReferenceCountedObjectClass* const refCountedObject)
-        : referencedObject(refCountedObject)
-    {
-        if (refCountedObject != 0)
-            refCountedObject->incReferenceCount();
-    }
-
-    /** Copies another pointer.
-        This will increment the object's reference-count (if it is non-null).
-
-        @param other Another pointer.
-    */
-    inline RefCountedObjectPtr(const RefCountedObjectPtr& other)
-        : referencedObject(other.referencedObject)
-    {
-        if (referencedObject != 0)
-            referencedObject->incReferenceCount();
-    }
-
-    /**
-      Takes-over the object from another pointer.
-
-      @param other Another pointer.
-    */
-    inline RefCountedObjectPtr(RefCountedObjectPtr&& other)
-        : referencedObject(other.referencedObject)
-    {
-        other.referencedObject = 0;
-    }
-
-    /** Copies another pointer.
-        This will increment the object's reference-count (if it is non-null).
-
-        @param other Another pointer.
-    */
-    template<class DerivedClass>
-    inline RefCountedObjectPtr(const RefCountedObjectPtr<DerivedClass>& other)
-        : referencedObject(static_cast<ReferenceCountedObjectClass*>(other.getObject()))
-    {
-        if (referencedObject != 0)
-            referencedObject->incReferenceCount();
-    }
-
-    /** Changes this pointer to point at a different object.
-
-        The reference count of the old object is decremented, and it might be
-        deleted if it hits zero. The new object's count is incremented.
-
-        @param other A pointer to assign from.
-        @returns This pointer.
-    */
-    RefCountedObjectPtr& operator=(const RefCountedObjectPtr& other)
-    {
-        return operator=(other.referencedObject);
-    }
-
-    /** Changes this pointer to point at a different object.
-        The reference count of the old object is decremented, and it might be
-        deleted if it hits zero. The new object's count is incremented.
-
-        @param other A pointer to assign from.
-        @returns This pointer.
-    */
-    template<class DerivedClass>
-    RefCountedObjectPtr& operator=(const RefCountedObjectPtr<DerivedClass>& other)
-    {
-        return operator=(static_cast<ReferenceCountedObjectClass*>(other.getObject()));
-    }
-
-    /**
-      Takes-over the object from another pointer.
-
-      @param other A pointer to assign from.
-      @returns This pointer.
-     */
-    RefCountedObjectPtr& operator=(RefCountedObjectPtr&& other)
-    {
-        std::swap(referencedObject, other.referencedObject);
-        return *this;
-    }
-
-    /** Changes this pointer to point at a different object.
-        The reference count of the old object is decremented, and it might be
-        deleted if it hits zero. The new object's count is incremented.
-
-        @param newObject A reference counted object to own.
-        @returns This pointer.
-    */
-    RefCountedObjectPtr& operator=(ReferenceCountedObjectClass* const newObject)
-    {
-        if (referencedObject != newObject)
-        {
-            if (newObject != 0)
-                newObject->incReferenceCount();
-
-            ReferenceCountedObjectClass* const oldObject = referencedObject;
-            referencedObject = newObject;
-
-            if (oldObject != 0)
-                oldObject->decReferenceCount();
-        }
-
-        return *this;
-    }
-
-    /** Destructor.
-        This will decrement the object's reference-count, and may delete it if it
-        gets to zero.
-    */
-    ~RefCountedObjectPtr()
-    {
-        if (referencedObject != 0)
-            referencedObject->decReferenceCount();
-    }
-
-    /** Returns the object that this pointer references.
-        The returned pointer may be null.
-
-        @returns The pointee.
-    */
-    operator ReferenceCountedObjectClass*() const { return referencedObject; }
-
-    /** Returns the object that this pointer references.
-        The returned pointer may be null.
-
-        @returns The pointee.
-    */
-    ReferenceCountedObjectClass* operator->() const { return referencedObject; }
-
-    /** Returns the object that this pointer references.
-        The returned pointer may be null.
-
-        @returns The pointee.
-    */
-    ReferenceCountedObjectClass* getObject() const { return referencedObject; }
-
-private:
-    //==============================================================================
-    ReferenceCountedObjectClass* referencedObject;
-};
-
-/** Compares two ReferenceCountedObjectPointers. */
-template<class ReferenceCountedObjectClass>
-bool operator==(const RefCountedObjectPtr<ReferenceCountedObjectClass>& object1,
-                ReferenceCountedObjectClass* const object2)
-{
-    return object1.getObject() == object2;
-}
-
-/** Compares two ReferenceCountedObjectPointers. */
-template<class ReferenceCountedObjectClass>
-bool operator==(const RefCountedObjectPtr<ReferenceCountedObjectClass>& object1,
-                const RefCountedObjectPtr<ReferenceCountedObjectClass>& object2)
-{
-    return object1.getObject() == object2.getObject();
-}
-
-/** Compares two ReferenceCountedObjectPointers. */
-template<class ReferenceCountedObjectClass>
-bool operator==(ReferenceCountedObjectClass* object1,
-                RefCountedObjectPtr<ReferenceCountedObjectClass>& object2)
-{
-    return object1 == object2.getObject();
-}
-
-/** Compares two ReferenceCountedObjectPointers. */
-template<class ReferenceCountedObjectClass>
-bool operator!=(const RefCountedObjectPtr<ReferenceCountedObjectClass>& object1,
-                const ReferenceCountedObjectClass* object2)
-{
-    return object1.getObject() != object2;
-}
-
-/** Compares two ReferenceCountedObjectPointers. */
-template<class ReferenceCountedObjectClass>
-bool operator!=(const RefCountedObjectPtr<ReferenceCountedObjectClass>& object1,
-                RefCountedObjectPtr<ReferenceCountedObjectClass>& object2)
-{
-    return object1.getObject() != object2.getObject();
-}
-
-/** Compares two ReferenceCountedObjectPointers. */
-template<class ReferenceCountedObjectClass>
-bool operator!=(ReferenceCountedObjectClass* object1,
-                RefCountedObjectPtr<ReferenceCountedObjectClass>& object2)
-{
-    return object1 != object2.getObject();
-}
-
-//==============================================================================
-
-template<class T>
-struct ContainerTraits<RefCountedObjectPtr<T>>
-{
-    typedef T Type;
-
-    static T* get(RefCountedObjectPtr<T> const& c) { return c.getObject(); }
-};
-
-//==============================================================================
-
-} // namespace luabridge
-
-// End File: Source/LuaBridge/RefCountedObject.h
-
-// Begin File: Source/LuaBridge/RefCountedPtr.h
-
-// https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
-// Copyright 2019, Dmitry Tarakanov
-// Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
-// Copyright 2007, Nathan Reed
-// SPDX-License-Identifier: MIT
-
-namespace luabridge {
-
-namespace detail {
-
-//==============================================================================
-/**
-  Support for our RefCountedPtr.
-*/
-struct RefCountedPtrBase
-{
-    // Declaration of container for the refcounts
-    typedef std::unordered_map<const void*, int> RefCountsType;
-
-protected:
-    RefCountsType& getRefCounts() const
-    {
-        static RefCountsType refcounts;
-        return refcounts;
-    }
-};
-
-} // namespace detail
-
-//==============================================================================
-/**
-  A reference counted smart pointer.
-
-  The api is compatible with boost::RefCountedPtr and std::RefCountedPtr, in the
-  sense that it implements a strict subset of the functionality.
-
-  This implementation uses a hash table to look up the reference count
-  associated with a particular pointer.
-
-  @tparam T The class type.
-
-  @todo Decompose RefCountedPtr using a policy. At a minimum, the underlying
-        reference count should be policy based (to support atomic operations)
-        and the delete behavior should be policy based (to support custom
-        disposal methods).
-
-  @todo Provide an intrusive version of RefCountedPtr.
-*/
-template<class T>
-class RefCountedPtr : private detail::RefCountedPtrBase
-{
-public:
-    template<typename Other>
-    struct rebind
-    {
-        typedef RefCountedPtr<Other> other;
-    };
-
-    /** Construct as nullptr or from existing pointer to T.
-
-        @param p The optional, existing pointer to assign from.
-    */
-    RefCountedPtr(T* p = 0) : m_p(p) { ++getRefCounts()[m_p]; }
-
-    /** Construct from another RefCountedPtr.
-
-        @param rhs The RefCountedPtr to assign from.
-    */
-    RefCountedPtr(RefCountedPtr<T> const& rhs) : m_p(rhs.get()) { ++getRefCounts()[m_p]; }
-
-    /** Construct from a RefCountedPtr of a different type.
-
-        @invariant A pointer to U must be convertible to a pointer to T.
-
-        @tparam U   The other object type.
-        @param  rhs The RefCountedPtr to assign from.
-    */
-    template<typename U>
-    RefCountedPtr(RefCountedPtr<U> const& rhs) : m_p(static_cast<T*>(rhs.get()))
-    {
-        ++getRefCounts()[m_p];
-    }
-
-    /** Release the object.
-
-        If there are no more references then the object is deleted.
-    */
-    ~RefCountedPtr() { reset(); }
-
-    /** Assign from another RefCountedPtr.
-
-        @param  rhs The RefCountedPtr to assign from.
-        @returns     A reference to the RefCountedPtr.
-    */
-    RefCountedPtr<T>& operator=(RefCountedPtr<T> const& rhs)
-    {
-        if (m_p != rhs.m_p)
-        {
-            reset();
-            m_p = rhs.m_p;
-            ++getRefCounts()[m_p];
-        }
-        return *this;
-    }
-
-    /** Assign from another RefCountedPtr of a different type.
-
-        @note A pointer to U must be convertible to a pointer to T.
-
-        @tparam U   The other object type.
-        @param  rhs The other RefCountedPtr to assign from.
-        @returns     A reference to the RefCountedPtr.
-    */
-    template<typename U>
-    RefCountedPtr<T>& operator=(RefCountedPtr<U> const& rhs)
-    {
-        reset();
-        m_p = static_cast<T*>(rhs.get());
-        ++getRefCounts()[m_p];
-        return *this;
-    }
-
-    /** Retrieve the raw pointer.
-
-        @returns A pointer to the object.
-    */
-    T* get() const { return m_p; }
-
-    /** Retrieve the raw pointer.
-
-        @returns A pointer to the object.
-    */
-    T* operator*() const { return m_p; }
-
-    /** Retrieve the raw pointer.
-
-        @returns A pointer to the object.
-    */
-    T* operator->() const { return m_p; }
-
-    /** Determine the number of references.
-
-        @note This is not thread-safe.
-
-        @returns The number of active references.
-    */
-    long use_count() const { return getRefCounts()[m_p]; }
-
-    /** Release the pointer.
-
-        The reference count is decremented. If the reference count reaches
-        zero, the object is deleted.
-    */
-    void reset()
-    {
-        if (m_p != 0)
-        {
-            if (--getRefCounts()[m_p] <= 0)
-                delete m_p;
-
-            m_p = 0;
-        }
-    }
-
-private:
-    T* m_p;
-};
-
-template<class T>
-bool operator==(const RefCountedPtr<T>& lhs, const RefCountedPtr<T>& rhs)
-{
-    return lhs.get() == rhs.get();
-}
-
-template<class T>
-bool operator!=(const RefCountedPtr<T>& lhs, const RefCountedPtr<T>& rhs)
-{
-    return lhs.get() != rhs.get();
-}
-
-//==============================================================================
-
-// forward declaration
-template<class T>
-struct ContainerTraits;
-
-template<class T>
-struct ContainerTraits<RefCountedPtr<T>>
-{
-    typedef T Type;
-
-    static T* get(RefCountedPtr<T> const& c) { return c.get(); }
-};
-
-} // namespace luabridge
-
-// End File: Source/LuaBridge/RefCountedPtr.h
 
 // Begin File: Source/LuaBridge/detail/Errors.h
 
@@ -5623,6 +5139,24 @@ private:
 
 //=================================================================================================
 /**
+ * @brief Get a global value from the lua_State.
+ *
+ * @note This works on any type specialized by `Stack`, including `LuaRef` and its table proxies.
+*/
+template <class T>
+T getGlobal(lua_State* L, const char* name)
+{
+    lua_getglobal(L, name);
+
+    auto result = luabridge::Stack<T>::get(L, -1);
+    
+    lua_pop(L, 1);
+    
+    return result;
+}
+
+//=================================================================================================
+/**
  * @brief Set a global value in the lua_State.
  *
  * @note This works on any type specialized by `Stack`, including `LuaRef` and its table proxies.
@@ -5677,9 +5211,6 @@ namespace detail {
 class Registrar
 {
 protected:
-    lua_State* const L;
-    int mutable m_stackSize;
-
     Registrar(lua_State* L)
         : L(L)
         , m_stackSize(0)
@@ -5719,6 +5250,9 @@ protected:
             throw_or_assert<std::logic_error>("Unable to continue registration");
         }
     }
+
+    lua_State* const L = nullptr;
+    int mutable m_stackSize = 0;
 };
 
 } // namespace detail
@@ -7329,6 +6863,372 @@ struct Stack<std::set<K, V>>
 } // namespace luabridge
 
 // End File: Source/LuaBridge/Set.h
+
+// Begin File: Source/LuaBridge/RefCountedObject.h
+
+// https://github.com/kunitoki/LuaBridge3
+// Copyright 2020, Lucio Asnaghi
+// Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
+// Copyright 2004-11 by Raw Material Software Ltd.
+// SPDX-License-Identifier: MIT
+
+//==============================================================================
+/*
+  This is a derivative work used by permission from part of
+  JUCE, available at http://www.rawaterialsoftware.com
+
+  License: The MIT License (http://www.opensource.org/licenses/mit-license.php)
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+
+  This file incorporates work covered by the following copyright and
+  permission notice:
+
+    This file is part of the JUCE library - "Jules' Utility Class Extensions"
+    Copyright 2004-11 by Raw Material Software Ltd.
+*/
+//==============================================================================
+
+namespace luabridge {
+
+//==============================================================================
+/**
+  Adds reference-counting to an object.
+
+  To add reference-counting to a class, derive it from this class, and
+  use the RefCountedObjectPtr class to point to it.
+
+  e.g. @code
+  class MyClass : public RefCountedObjectType
+  {
+      void foo();
+
+      // This is a neat way of declaring a typedef for a pointer class,
+      // rather than typing out the full templated name each time..
+      typedef RefCountedObjectPtr<MyClass> Ptr;
+  };
+
+  MyClass::Ptr p = new MyClass();
+  MyClass::Ptr p2 = p;
+  p = 0;
+  p2->foo();
+  @endcode
+
+  Once a new RefCountedObjectType has been assigned to a pointer, be
+  careful not to delete the object manually.
+*/
+template<class CounterType>
+class RefCountedObjectType
+{
+public:
+    //==============================================================================
+    /** Increments the object's reference count.
+
+        This is done automatically by the smart pointer, but is public just
+        in case it's needed for nefarious purposes.
+    */
+    inline void incReferenceCount() const { ++refCount; }
+
+    /** Decreases the object's reference count.
+
+        If the count gets to zero, the object will be deleted.
+    */
+    inline void decReferenceCount() const
+    {
+        assert(getReferenceCount() > 0);
+
+        if (--refCount == 0)
+            delete this;
+    }
+
+    /** Returns the object's current reference count.
+     * @returns The reference count.
+     */
+    inline int getReferenceCount() const { return static_cast<int>(refCount); }
+
+protected:
+    //==============================================================================
+    /** Creates the reference-counted object (with an initial ref count of zero). */
+    RefCountedObjectType() : refCount() {}
+
+    /** Destructor. */
+    virtual ~RefCountedObjectType()
+    {
+        // it's dangerous to delete an object that's still referenced by something else!
+        assert(getReferenceCount() == 0);
+    }
+
+private:
+    //==============================================================================
+    CounterType mutable refCount;
+};
+
+//==============================================================================
+
+/** Non thread-safe reference counted object.
+
+    This creates a RefCountedObjectType that uses a non-atomic integer
+    as the counter.
+*/
+typedef RefCountedObjectType<int> RefCountedObject;
+
+//==============================================================================
+/**
+    A smart-pointer class which points to a reference-counted object.
+
+    The template parameter specifies the class of the object you want to point
+    to - the easiest way to make a class reference-countable is to simply make
+    it inherit from RefCountedObjectType, but if you need to, you could roll
+    your own reference-countable class by implementing a pair of methods called
+    incReferenceCount() and decReferenceCount().
+
+    When using this class, you'll probably want to create a typedef to
+    abbreviate the full templated name - e.g.
+
+    @code
+
+    typedef RefCountedObjectPtr <MyClass> MyClassPtr;
+
+    @endcode
+*/
+template<class ReferenceCountedObjectClass>
+class RefCountedObjectPtr
+{
+public:
+    /** The class being referenced by this pointer. */
+    typedef ReferenceCountedObjectClass ReferencedType;
+
+    //==============================================================================
+    /** Creates a pointer to a null object. */
+    inline RefCountedObjectPtr() : referencedObject(0) {}
+
+    /** Creates a pointer to an object.
+        This will increment the object's reference-count if it is non-null.
+
+        @param refCountedObject A reference counted object to own.
+    */
+    inline RefCountedObjectPtr(ReferenceCountedObjectClass* const refCountedObject)
+        : referencedObject(refCountedObject)
+    {
+        if (refCountedObject != 0)
+            refCountedObject->incReferenceCount();
+    }
+
+    /** Copies another pointer.
+        This will increment the object's reference-count (if it is non-null).
+
+        @param other Another pointer.
+    */
+    inline RefCountedObjectPtr(const RefCountedObjectPtr& other)
+        : referencedObject(other.referencedObject)
+    {
+        if (referencedObject != 0)
+            referencedObject->incReferenceCount();
+    }
+
+    /**
+      Takes-over the object from another pointer.
+
+      @param other Another pointer.
+    */
+    inline RefCountedObjectPtr(RefCountedObjectPtr&& other)
+        : referencedObject(other.referencedObject)
+    {
+        other.referencedObject = 0;
+    }
+
+    /** Copies another pointer.
+        This will increment the object's reference-count (if it is non-null).
+
+        @param other Another pointer.
+    */
+    template<class DerivedClass>
+    inline RefCountedObjectPtr(const RefCountedObjectPtr<DerivedClass>& other)
+        : referencedObject(static_cast<ReferenceCountedObjectClass*>(other.getObject()))
+    {
+        if (referencedObject != 0)
+            referencedObject->incReferenceCount();
+    }
+
+    /** Changes this pointer to point at a different object.
+
+        The reference count of the old object is decremented, and it might be
+        deleted if it hits zero. The new object's count is incremented.
+
+        @param other A pointer to assign from.
+        @returns This pointer.
+    */
+    RefCountedObjectPtr& operator=(const RefCountedObjectPtr& other)
+    {
+        return operator=(other.referencedObject);
+    }
+
+    /** Changes this pointer to point at a different object.
+        The reference count of the old object is decremented, and it might be
+        deleted if it hits zero. The new object's count is incremented.
+
+        @param other A pointer to assign from.
+        @returns This pointer.
+    */
+    template<class DerivedClass>
+    RefCountedObjectPtr& operator=(const RefCountedObjectPtr<DerivedClass>& other)
+    {
+        return operator=(static_cast<ReferenceCountedObjectClass*>(other.getObject()));
+    }
+
+    /**
+      Takes-over the object from another pointer.
+
+      @param other A pointer to assign from.
+      @returns This pointer.
+     */
+    RefCountedObjectPtr& operator=(RefCountedObjectPtr&& other)
+    {
+        std::swap(referencedObject, other.referencedObject);
+        return *this;
+    }
+
+    /** Changes this pointer to point at a different object.
+        The reference count of the old object is decremented, and it might be
+        deleted if it hits zero. The new object's count is incremented.
+
+        @param newObject A reference counted object to own.
+        @returns This pointer.
+    */
+    RefCountedObjectPtr& operator=(ReferenceCountedObjectClass* const newObject)
+    {
+        if (referencedObject != newObject)
+        {
+            if (newObject != 0)
+                newObject->incReferenceCount();
+
+            ReferenceCountedObjectClass* const oldObject = referencedObject;
+            referencedObject = newObject;
+
+            if (oldObject != 0)
+                oldObject->decReferenceCount();
+        }
+
+        return *this;
+    }
+
+    /** Destructor.
+        This will decrement the object's reference-count, and may delete it if it
+        gets to zero.
+    */
+    ~RefCountedObjectPtr()
+    {
+        if (referencedObject != 0)
+            referencedObject->decReferenceCount();
+    }
+
+    /** Returns the object that this pointer references.
+        The returned pointer may be null.
+
+        @returns The pointee.
+    */
+    operator ReferenceCountedObjectClass*() const { return referencedObject; }
+
+    /** Returns the object that this pointer references.
+        The returned pointer may be null.
+
+        @returns The pointee.
+    */
+    ReferenceCountedObjectClass* operator->() const { return referencedObject; }
+
+    /** Returns the object that this pointer references.
+        The returned pointer may be null.
+
+        @returns The pointee.
+    */
+    ReferenceCountedObjectClass* getObject() const { return referencedObject; }
+
+private:
+    //==============================================================================
+    ReferenceCountedObjectClass* referencedObject;
+};
+
+/** Compares two ReferenceCountedObjectPointers. */
+template<class ReferenceCountedObjectClass>
+bool operator==(const RefCountedObjectPtr<ReferenceCountedObjectClass>& object1,
+                ReferenceCountedObjectClass* const object2)
+{
+    return object1.getObject() == object2;
+}
+
+/** Compares two ReferenceCountedObjectPointers. */
+template<class ReferenceCountedObjectClass>
+bool operator==(const RefCountedObjectPtr<ReferenceCountedObjectClass>& object1,
+                const RefCountedObjectPtr<ReferenceCountedObjectClass>& object2)
+{
+    return object1.getObject() == object2.getObject();
+}
+
+/** Compares two ReferenceCountedObjectPointers. */
+template<class ReferenceCountedObjectClass>
+bool operator==(ReferenceCountedObjectClass* object1,
+                RefCountedObjectPtr<ReferenceCountedObjectClass>& object2)
+{
+    return object1 == object2.getObject();
+}
+
+/** Compares two ReferenceCountedObjectPointers. */
+template<class ReferenceCountedObjectClass>
+bool operator!=(const RefCountedObjectPtr<ReferenceCountedObjectClass>& object1,
+                const ReferenceCountedObjectClass* object2)
+{
+    return object1.getObject() != object2;
+}
+
+/** Compares two ReferenceCountedObjectPointers. */
+template<class ReferenceCountedObjectClass>
+bool operator!=(const RefCountedObjectPtr<ReferenceCountedObjectClass>& object1,
+                RefCountedObjectPtr<ReferenceCountedObjectClass>& object2)
+{
+    return object1.getObject() != object2.getObject();
+}
+
+/** Compares two ReferenceCountedObjectPointers. */
+template<class ReferenceCountedObjectClass>
+bool operator!=(ReferenceCountedObjectClass* object1,
+                RefCountedObjectPtr<ReferenceCountedObjectClass>& object2)
+{
+    return object1 != object2.getObject();
+}
+
+//==============================================================================
+
+template<class T>
+struct ContainerTraits<RefCountedObjectPtr<T>>
+{
+    using Type = T;
+
+    static RefCountedObjectPtr<T> construct(T* c) { return c; }
+
+    static T* get(RefCountedObjectPtr<T> const& c) { return c.getObject(); }
+};
+
+//==============================================================================
+
+} // namespace luabridge
+
+// End File: Source/LuaBridge/RefCountedObject.h
 
 // Begin File: Source/LuaBridge/detail/Dump.h
 
