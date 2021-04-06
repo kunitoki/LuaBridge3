@@ -7,6 +7,7 @@
 #pragma once
 
 #include "Config.h"
+#include "Errors.h"
 #include "LuaException.h"
 #include "ClassInfo.h"
 #include "TypeTraits.h"
@@ -507,7 +508,7 @@ template <class C, bool MakeObjectConst>
 struct UserdataSharedHelper
 {
     using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
-    
+
     static bool push(lua_State* L, const C& c, std::error_code& ec)
     {
         if (ContainerTraits<C>::get(c) != nullptr)
@@ -526,7 +527,7 @@ struct UserdataSharedHelper
 
                 return false;
             }
-            
+
             lua_setmetatable(L, -2);
         }
         else

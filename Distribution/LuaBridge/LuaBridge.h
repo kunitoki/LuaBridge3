@@ -309,6 +309,74 @@ inline void writestringerror(const char* fmt, const char* text)
 
 // End File: Source/LuaBridge/detail/LuaHelpers.h
 
+// Begin File: Source/LuaBridge/detail/Errors.h
+
+// https://github.com/vinniefalco/LuaBridge
+// Copyright 2021, Lucio Asnaghi
+// SPDX-License-Identifier: MIT
+
+namespace luabridge {
+
+//=================================================================================================
+/**
+ * @brief LuaBridge error codes.
+ */
+enum class ErrorCode
+{
+    ClassNotRegistered = 1,
+
+    LuaFunctionCallFailed,
+};
+
+//=================================================================================================
+namespace detail {
+struct ErrorCategory : std::error_category
+{
+    const char* name() const noexcept override
+    {
+        return "luabridge";
+    }
+
+    std::string message(int ev) const override
+    {
+        switch (static_cast<ErrorCode>(ev))
+        {
+        case ErrorCode::ClassNotRegistered:
+            return "The class is not registered in LuaBridge";
+
+        case ErrorCode::LuaFunctionCallFailed:
+            return "The lua function invocation raised an error";
+
+        default:
+            return "Unknown error";
+        }
+    }
+
+    static const ErrorCategory& getInstance() noexcept
+    {
+        static ErrorCategory category;
+        return category;
+    }
+};
+} // namespace detail
+
+//=================================================================================================
+/**
+ * @brief Construct an error code from the error enum.
+ */
+inline std::error_code makeErrorCode(ErrorCode e)
+{
+  return { static_cast<int>(e), detail::ErrorCategory::getInstance() };
+}
+
+} // namespace luabridge
+
+namespace std {
+template <> struct is_error_code_enum<luabridge::ErrorCode> : true_type {};
+} // namespace std
+
+// End File: Source/LuaBridge/detail/Errors.h
+
 // Begin File: Source/LuaBridge/detail/LuaException.h
 
 // https://github.com/kunitoki/LuaBridge3
@@ -1211,7 +1279,7 @@ template <class C, bool MakeObjectConst>
 struct UserdataSharedHelper
 {
     using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
-    
+
     static bool push(lua_State* L, const C& c, std::error_code& ec)
     {
         if (ContainerTraits<C>::get(c) != nullptr)
@@ -1230,7 +1298,7 @@ struct UserdataSharedHelper
 
                 return false;
             }
-            
+
             lua_setmetatable(L, -2);
         }
         else
@@ -2474,74 +2542,6 @@ struct Stack<std::optional<T>>
 } // namespace luabridge
 
 // End File: Source/LuaBridge/Optional.h
-
-// Begin File: Source/LuaBridge/detail/Errors.h
-
-// https://github.com/vinniefalco/LuaBridge
-// Copyright 2021, Lucio Asnaghi
-// SPDX-License-Identifier: MIT
-
-namespace luabridge {
-
-//=================================================================================================
-/**
- * @brief LuaBridge error codes.
- */
-enum class ErrorCode
-{
-    ClassNotRegistered = 1,
-
-    LuaFunctionCallFailed,
-};
-
-//=================================================================================================
-namespace detail {
-struct ErrorCategory : std::error_category
-{
-    const char* name() const noexcept override
-    {
-        return "luabridge";
-    }
-
-    std::string message(int ev) const override
-    {
-        switch (static_cast<ErrorCode>(ev))
-        {
-        case ErrorCode::ClassNotRegistered:
-            return "The class is not registered in LuaBridge";
-
-        case ErrorCode::LuaFunctionCallFailed:
-            return "The lua function invocation raised an error";
-
-        default:
-            return "Unknown error";
-        }
-    }
-
-    static const ErrorCategory& getInstance() noexcept
-    {
-        static ErrorCategory category;
-        return category;
-    }
-};
-} // namespace detail
-
-//=================================================================================================
-/**
- * @brief Construct an error code from the error enum.
- */
-inline std::error_code makeErrorCode(ErrorCode e)
-{
-  return { static_cast<int>(e), detail::ErrorCategory::getInstance() };
-}
-
-} // namespace luabridge
-
-namespace std {
-template <> struct is_error_code_enum<luabridge::ErrorCode> : true_type {};
-} // namespace std
-
-// End File: Source/LuaBridge/detail/Errors.h
 
 // Begin File: Source/LuaBridge/detail/FuncTraits.h
 
