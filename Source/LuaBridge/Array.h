@@ -26,7 +26,7 @@ struct Stack<std::array<T, Size>>
         
         lua_createtable(L, static_cast<int>(Size), 0);
 
-        for (std::size_t i = 0; i < s; ++i)
+        for (std::size_t i = 0; i < Size; ++i)
         {
             lua_pushinteger(L, static_cast<lua_Integer>(i + 1));
 

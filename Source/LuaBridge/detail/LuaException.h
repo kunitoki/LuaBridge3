@@ -61,6 +61,8 @@ public:
 #if LUABRIDGE_HAS_EXCEPTIONS
         throw e;
 #else
+        unused(e);
+
         std::abort();
 #endif
     }
@@ -118,6 +120,8 @@ private:
 #if LUABRIDGE_HAS_EXCEPTIONS
         throw LuaException(L, makeErrorCode(ErrorCode::LuaFunctionCallFailed), FromLua{});
 #else
+        unused(L);
+
         std::abort();
 #endif
     }
@@ -144,6 +148,8 @@ inline void enableExceptions(lua_State* L) noexcept
 #if LUABRIDGE_HAS_EXCEPTIONS
     LuaException::enableExceptions(L);
 #else
+    unused(L);
+
     assert(false); // Never call this function when exceptions are not enabled.
 #endif
 }

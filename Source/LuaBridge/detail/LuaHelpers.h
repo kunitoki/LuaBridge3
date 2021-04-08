@@ -92,6 +92,14 @@ inline int get_length(lua_State* L, int idx)
 #endif
 
 /**
+ * @brief Helper for unused vars.
+ */
+template <class... Args>
+constexpr void unused(Args&&...)
+{
+}
+
+/**
  * @brief Helper to throw or return an error code.
  */
 template <class T, class ErrorType>
@@ -123,6 +131,7 @@ void throw_or_assert(Args&&... args)
 #if LUABRIDGE_HAS_EXCEPTIONS
     throw T(std::forward<Args>(args)...);
 #else
+    unused(std::forward<Args>(args)...);
     assert(false);
 #endif
 }
