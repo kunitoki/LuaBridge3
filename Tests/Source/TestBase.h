@@ -15,9 +15,10 @@
 #include <stdexcept>
 #include <functional>
 
-// traceback function, adapted from lua.c
-// when a runtime error occurs, this will append the call stack to the error message
-//
+// Uncomment this if you want errors to be printed when lua fails to compile or run
+//#define LUABRIDGE_TESTS_PRINT_ERRORS 1
+
+// Traceback function, when a runtime error occurs, this will append the call stack to the error message
 inline int traceback(lua_State* L)
 {
     // look up Lua's 'debug.traceback' function
@@ -39,9 +40,7 @@ inline int traceback(lua_State* L)
     return 1;
 }
 
-/// Base test class. Introduces the global 'result' variable,
-/// used for checking of C++ - Lua interoperation.
-///
+// Base test class. Introduces the global 'result' variable, used for checking of C++ - Lua interoperation.
 struct TestBase : public ::testing::Test
 {
     lua_State* L = nullptr;
@@ -69,8 +68,10 @@ struct TestBase : public ::testing::Test
 #if LUABRIDGE_HAS_EXCEPTIONS
             throw std::runtime_error(lua_tostring(L, -1));
 #else
+#if LUABRIDGE_TESTS_PRINT_ERRORS
             std::cerr << "===== Lua Compile Error =====\n";
             std::cerr << lua_tostring(L, -1) << "\n";
+#endif
             return false;
 #endif
         }
@@ -84,8 +85,10 @@ struct TestBase : public ::testing::Test
             auto errorString = lua_tostring(L, -1);
             throw std::runtime_error(errorString ? errorString : "Unknown lua error");
 #else
+#if LUABRIDGE_TESTS_PRINT_ERRORS
             std::cerr << "===== Lua Call Error =====\n";
             std::cerr << lua_tostring(L, -1) << "\n";
+#endif
             return false;
 #endif
         }

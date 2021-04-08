@@ -19,6 +19,7 @@ struct NamespaceTests : TestBase
 TEST_F(NamespaceTests, Variables)
 {
     int int_ = -10;
+    int stored = 42;
     auto any = luabridge::newTable(L);
     any["a"] = 1;
 
@@ -33,6 +34,8 @@ TEST_F(NamespaceTests, Variables)
         .beginNamespace("ns")
         .addProperty("int", &int_)
         .addProperty("any", &any)
+        .addProperty("fnc_get", [stored] { return stored; })
+        .addProperty("fnc_getset", [stored] { return stored; }, [&stored](int v) { stored = v; })
         .endNamespace();
 
     ASSERT_EQ(-10, variable<int>("ns.int"));
@@ -45,6 +48,15 @@ TEST_F(NamespaceTests, Variables)
     ASSERT_TRUE(any.isTable());
     ASSERT_TRUE(any["b"].isNumber());
     ASSERT_EQ(2, any["b"].cast<int>());
+
+    runLua("result = ns.fnc_get");
+    ASSERT_EQ(stored, result<int>());
+
+    runLua("result = ns.fnc_getset");
+    ASSERT_EQ(stored, result<int>());
+
+    runLua("ns.fnc_getset = 1337");
+    ASSERT_EQ(1337, stored);
 }
 
 TEST_F(NamespaceTests, ReadOnlyVariables)

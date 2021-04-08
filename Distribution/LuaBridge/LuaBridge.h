@@ -5256,13 +5256,15 @@ inline void setHideMetatables(bool shouldHide) noexcept
 namespace luabridge {
 namespace detail {
 
+//=================================================================================================
 /**
- * Base for class and namespace registration.
- * Maintains Lua stack in the proper state.
- * Once beginNamespace, beginClass or deriveClass is called the parent
- * object upon its destruction may no longer clear the Lua stack.
- * Then endNamespace or endClass is called, a new parent is created
- * and the child transfers the responsibility for clearing stack to it.
+ * @brief Base for class and namespace registration.
+ *
+ * Maintains Lua stack in the proper state. Once beginNamespace, beginClass or deriveClass is called the parent object upon its destruction
+ * may no longer clear the Lua stack.
+ *
+ * Then endNamespace or endClass is called, a new parent is created and the child transfers the responsibility for clearing stack to it.
+ *
  * So there can be maximum one "active" registrar object.
  */
 class Registrar
@@ -6551,6 +6553,88 @@ public:
 
         detail::add_property_setter(L, name, -2);
 
+        return *this;
+    }
+
+    //=============================================================================================
+    /**
+     * @brief Add or replace a readonly property.
+     *
+     * @param name The property name.
+     * @param get  A pointer to a property getter function.
+     *
+     * @returns This namespace registration object.
+     */
+    template <class FunctionGetter>
+    Namespace& addProperty(char const* name, FunctionGetter get)
+    {
+        using GetterTraits = detail::function_traits<FunctionGetter>;
+
+        using GetterType = detail::to_std_function_type_t<
+            typename GetterTraits::result_type,
+            typename GetterTraits::argument_types>;
+
+        assert(name != nullptr);
+        assert(lua_istable(L, -1)); // Stack: namespace table (ns)
+
+        lua_newuserdata_aligned<GetterType>(L, std::move(get)); // Stack: ns, function userdata (ud)
+        lua_newtable(L); // Stack: ns, ud, ud metatable (mt)
+        lua_pushcfunction(L, &lua_deleteuserdata_aligned<GetterType>); // Stack: ns, ud, mt, gc function
+        rawsetfield(L, -2, "__gc"); // Stack: ns, ud, mt
+        lua_setmetatable(L, -2); // Stack: ns, ud
+        lua_pushcclosure(L, &detail::invoke_proxy_functor<GetterType>, 1); // Stack: ns, ud, getter
+        detail::add_property_getter(L, name, -2); // Stack: ns, ud, getter
+
+        lua_pushstring(L, name); // Stack: ns, name
+        lua_pushcclosure(L, &detail::read_only_error, 1); // Stack: ns, name, function
+        detail::add_property_setter(L, name, -2); // Stack: ns
+
+        return *this;
+    }
+
+    /**
+     * @brief Add or replace a mutable property.
+     *
+     * @param name The property name.
+     * @param get  A pointer to a property getter function.
+     * @param set  A pointer to a property setter function.
+     *
+     * @returns This namespace registration object.
+     */
+    template <class FunctionGetter, class FunctionSetter>
+    Namespace& addProperty(char const* name, FunctionGetter get, FunctionSetter set)
+    {
+        assert(name != nullptr);
+        assert(lua_istable(L, -1)); // Stack: namespace table (ns)
+
+        using GetterTraits = detail::function_traits<FunctionGetter>;
+
+        using GetterType = detail::to_std_function_type_t<
+            typename GetterTraits::result_type,
+            typename GetterTraits::argument_types>;
+
+        lua_newuserdata_aligned<GetterType>(L, std::move(get)); // Stack: ns, function userdata (ud)
+        lua_newtable(L); // Stack: ns, ud, ud metatable (mt)
+        lua_pushcfunction(L, &lua_deleteuserdata_aligned<GetterType>); // Stack: ns, ud, mt, gc function
+        rawsetfield(L, -2, "__gc"); // Stack: ns, ud, mt
+        lua_setmetatable(L, -2); // Stack: ns, ud
+        lua_pushcclosure(L, &detail::invoke_proxy_functor<GetterType>, 1); // Stack: ns, ud, getter
+        detail::add_property_getter(L, name, -2); // Stack: ns, ud, getter
+        
+        using SetterTraits = detail::function_traits<FunctionSetter>;
+
+        using SetterType = detail::to_std_function_type_t<
+            typename SetterTraits::result_type,
+            typename SetterTraits::argument_types>;
+
+        lua_newuserdata_aligned<SetterType>(L, std::move(set)); // Stack: ns, function userdata (ud)
+        lua_newtable(L); // Stack: ns, ud, ud metatable (mt)
+        lua_pushcfunction(L, &lua_deleteuserdata_aligned<SetterType>); // Stack: ns, ud, mt, gc function
+        rawsetfield(L, -2, "__gc"); // Stack: ns, ud, mt
+        lua_setmetatable(L, -2); // Stack: ns, ud
+        lua_pushcclosure(L, &detail::invoke_proxy_functor<SetterType>, 1); // Stack: ns, ud, getter
+        detail::add_property_setter(L, name, -2); // Stack: ns, ud, getter
+        
         return *this;
     }
 

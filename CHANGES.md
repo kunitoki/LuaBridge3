@@ -11,6 +11,7 @@
 * Breaking Change: Removed `RefCounterPtr`, maintaining the reference counts in a unsynchronized global table is not production quality.
 * Breaking Change: Removed `Class<T>::addStaticData`, it was just an alias for `Class<T>::addStaticProperty`.
 * Added support for specifying factory function in `Class<T>::addFactory` to do placement new of the object instance.
+* Allow using capturing lambdas in `Namespace::addProperty`.
 * Added `getNamespaceFromStack` function to construct a namespace object from a table on the stack.
 * Added `std::shared_ptr` support for types intrusively deriving from `std::enable_shared_from_this`.
 
