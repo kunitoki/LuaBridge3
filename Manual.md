@@ -227,6 +227,18 @@ luabridge::getGlobalNamespace (L)
   .endNamespace ();
 ```
 
+It's also possible to obtain a namespace from a table on the stack, and perform the registration of sub namespaces, properties, functions and classes into that table.
+
+```cpp
+lua_newtable (L);
+
+luabridge::getNamespaceFromStack (L)
+  .addFunction ("test", +[](int x) { return x; })
+  .addFunction ("bar", &bar);
+```
+
+The table is still on top of the stack here and has not been popped, so it's possible to further manipulate it or eventually use it as environment for closures.
+
 2.2 - Properties and Functions
 ------------------------------
 
@@ -557,7 +569,7 @@ NotExposed shouldNotSeeMe;
 
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
-    .beginClass<HardToCreate> ("HardToCreate")
+    .beginClass <HardToCreate> ("HardToCreate")
       .addFactory ([&shouldNotSeeMe](void* ptr, int easy) { new (ptr) HardToCreate (shouldNotSeeMe, easy); })
     .endClass ()
   .endNamespace ();
@@ -568,6 +580,19 @@ Then in lua:
 ```lua
 hard = test.HardToCreate (5) -- Create a new HardToCreate.
 ```
+
+The function `addFactory` also accepts a `lua_State*` as first parameter (but no additional parameters) in order to be used for constructors that needs to be overloaded by different numbers of arguments (arguments will start at index 2 on the stack):
+
+```cpp
+
+luabridge::getGlobalNamespace (L)
+  .beginNamespace ("test")
+    .beginClass <AnotherTest> ("AnotherTest")
+      .addFactory ([](lua_State* L, void* ptr) { new (ptr) AnotherTest (lua_checkinteger (L, 2)); })
+    .endClass ()
+  .endNamespace ();
+```
+
 
 2.7 - Lua Stack
 ---------------
