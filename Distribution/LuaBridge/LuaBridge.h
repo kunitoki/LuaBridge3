@@ -2367,7 +2367,6 @@ struct Stack<std::map<K, V>>
 
         lua_createtable(L, 0, static_cast<int>(map.size()));
 
-        bool result;
         for (auto it = map.begin(); it != map.end(); ++it)
         {
             std::error_code errorCodeKey;
@@ -2445,7 +2444,6 @@ struct Stack<std::unordered_map<K, V>>
         
         lua_createtable(L, 0, static_cast<int>(map.size()));
 
-        bool result;
         for (auto it = map.begin(); it != map.end(); ++it)
         {
             std::error_code errorCodeKey;
@@ -4915,7 +4913,7 @@ LuaResult call(const LuaRef& object, Args&&... args)
 /**
  * @brief Wrapper for lua_pcall that throws if exceptions are enabled.
  */
-static int pcall(lua_State* L, int nargs = 0, int nresults = 0, int msgh = 0)
+inline int pcall(lua_State* L, int nargs = 0, int nresults = 0, int msgh = 0)
 {
     const int code = lua_pcall(L, nargs, nresults, msgh);
 
@@ -6990,7 +6988,6 @@ struct Stack<std::set<K, V>>
         
         lua_createtable(L, 0, static_cast<int>(set.size()));
 
-        bool result;
         for (auto it = set.begin(); it != set.end(); ++it)
         {
             std::error_code errorCodeKey;
