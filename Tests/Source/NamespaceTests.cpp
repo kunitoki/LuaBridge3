@@ -191,6 +191,36 @@ int setDataC(lua_State* L)
 
 } // namespace
 
+TEST_F(NamespaceTests, NamespaceFromStack)
+{
+    lua_newtable(L);
+    luabridge::getNamespaceFromStack(L)
+        .addFunction("Function", [](int x) { return x; });
+
+    int tableReference = luaL_ref(L, LUA_REGISTRYINDEX);
+
+    runLua("result = Function (42)", [this, tableReference]
+    {
+        lua_rawgeti(L, LUA_REGISTRYINDEX, tableReference);
+
+        auto newUpvalueName = lua_setupvalue(L, -2, 1);
+
+        ASSERT_TRUE(newUpvalueName);
+        ASSERT_STREQ("_ENV", newUpvalueName);
+
+        if (! newUpvalueName)
+            lua_pop(L, -1);
+    });
+
+    lua_rawgeti(L, LUA_REGISTRYINDEX, tableReference);
+    auto resultTable = luabridge::LuaRef::fromStack(L);
+
+    ASSERT_TRUE(resultTable.isTable());
+    ASSERT_TRUE(resultTable["result"].cast<int>());
+    ASSERT_EQ(42, resultTable["result"].cast<int>());
+}
+
+
 TEST_F(NamespaceTests, Properties_ProxyCFunctions)
 {
     luabridge::getGlobalNamespace(L)

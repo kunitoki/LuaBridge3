@@ -13,6 +13,7 @@
 #include <gtest/gtest.h>
 
 #include <stdexcept>
+#include <functional>
 
 // traceback function, adapted from lua.c
 // when a runtime error occurs, this will append the call stack to the error message
@@ -61,23 +62,30 @@ struct TestBase : public ::testing::Test
         }
     }
 
-    bool runLua(const std::string& script) const
+    bool runLua(const std::string& script, std::function<void()> postCompilationCallback = nullptr) const
     {
         if (luaL_loadstring(L, script.c_str()) != 0)
         {
 #if LUABRIDGE_HAS_EXCEPTIONS
             throw std::runtime_error(lua_tostring(L, -1));
 #else
+            std::cerr << "===== Lua Compile Error =====\n";
+            std::cerr << lua_tostring(L, -1) << "\n";
             return false;
 #endif
         }
 
+        if (postCompilationCallback)
+            postCompilationCallback();
+        
         if (lua_pcall(L, 0, 0, -2) != 0)
         {
 #if LUABRIDGE_HAS_EXCEPTIONS
             auto errorString = lua_tostring(L, -1);
             throw std::runtime_error(errorString ? errorString : "Unknown lua error");
 #else
+            std::cerr << "===== Lua Call Error =====\n";
+            std::cerr << lua_tostring(L, -1) << "\n";
             return false;
 #endif
         }

@@ -1923,6 +1923,59 @@ TEST_F(ClassTests, MethodTakesMoreThanEightArgs)
     L = nullptr;
 }
 
+TEST_F(ClassTests, Factory)
+{
+    struct FactoryConstructibleClass
+    {
+        FactoryConstructibleClass() = default;
+        FactoryConstructibleClass(int x) : x_(x) {}
+
+        int x_ = 33;
+    };
+
+    {
+        luabridge::getGlobalNamespace(L)
+            .beginClass<FactoryConstructibleClass>("FactoryConstructibleClass")
+            .addFactory([](void* ptr) { return new(ptr) FactoryConstructibleClass(); })
+            .addProperty("x", &FactoryConstructibleClass::x_)
+            .endClass();
+
+        runLua("obj = FactoryConstructibleClass (); result = obj.x");
+
+        ASSERT_TRUE(result().isNumber());
+        ASSERT_EQ(33, result<int>());
+    }
+
+    {
+        luabridge::getGlobalNamespace(L)
+            .beginClass<FactoryConstructibleClass>("FactoryConstructibleClass2")
+            .addFactory([](void* ptr, int x) { return new(ptr) FactoryConstructibleClass(x); })
+            .addProperty("x", &FactoryConstructibleClass::x_)
+            .endClass();
+
+        runLua("obj = FactoryConstructibleClass2 (42); result = obj.x");
+
+        ASSERT_TRUE(result().isNumber());
+        ASSERT_EQ(42, result<int>());
+    }
+
+    {
+        luabridge::getGlobalNamespace(L)
+            .beginClass<FactoryConstructibleClass>("FactoryConstructibleClass3")
+            .addFactory([](lua_State* L, void* ptr) { return new(ptr) FactoryConstructibleClass(luaL_checkinteger(L, 2)); })
+            .addProperty("x", &FactoryConstructibleClass::x_)
+            .endClass();
+
+        runLua("obj = FactoryConstructibleClass3 (42); result = obj.x");
+
+        ASSERT_TRUE(result().isNumber());
+        ASSERT_EQ(42, result<int>());
+    }
+
+    lua_close(L);
+    L = nullptr;
+}
+
 class BaseExampleClass
 {
 public:
