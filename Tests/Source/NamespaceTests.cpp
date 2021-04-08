@@ -203,6 +203,9 @@ TEST_F(NamespaceTests, NamespaceFromStack)
     {
         lua_rawgeti(L, LUA_REGISTRYINDEX, tableReference);
 
+#if LUA_VERSION_NUM < 502
+        lua_setfenv(L, -2);
+#else
         auto newUpvalueName = lua_setupvalue(L, -2, 1);
 
         ASSERT_TRUE(newUpvalueName);
@@ -210,6 +213,7 @@ TEST_F(NamespaceTests, NamespaceFromStack)
 
         if (! newUpvalueName)
             lua_pop(L, -1);
+#endif
     });
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, tableReference);
