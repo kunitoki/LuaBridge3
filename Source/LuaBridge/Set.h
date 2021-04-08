@@ -25,7 +25,6 @@ struct Stack<std::set<K, V>>
         
         lua_createtable(L, 0, static_cast<int>(set.size()));
 
-        bool result;
         for (auto it = set.begin(); it != set.end(); ++it)
         {
             std::error_code errorCodeKey;

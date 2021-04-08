@@ -26,7 +26,6 @@ struct Stack<std::unordered_map<K, V>>
         
         lua_createtable(L, 0, static_cast<int>(map.size()));
 
-        bool result;
         for (auto it = map.begin(); it != map.end(); ++it)
         {
             std::error_code errorCodeKey;

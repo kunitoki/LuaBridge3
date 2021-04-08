@@ -319,6 +319,24 @@ auto pop_arguments(lua_State* L, std::tuple<Types...>& t)
 
 //=================================================================================================
 /**
+ * @brief Remove first type from tuple.
+ */
+template <class T>
+struct remove_first_type
+{
+};
+
+template <class T, class... Ts>
+struct remove_first_type<std::tuple<T, Ts...>>
+{
+    using type = std::tuple<Ts...>;
+};
+
+template <class T>
+using remove_first_type_t = typename remove_first_type<T>::type;
+
+//=================================================================================================
+/**
  * @brief Function generator.
  */
 template <class ReturnType, class ArgsPack, std::size_t Start = 1u>
@@ -476,6 +494,30 @@ struct constructor
         auto alloc = [ptr](auto&&... args) { return new (ptr) T{ std::forward<decltype(args)>(args)... }; };
 
         return std::apply(alloc, args);
+    }
+};
+
+//=================================================================================================
+/**
+ * @brief Factory generators.
+ */
+template <class T>
+struct factory
+{
+    template <class F, class Args>
+    static T* call(lua_State* L, void* ptr, const F& func, const Args& args)
+    {
+        (void)L;
+        
+        auto alloc = [ptr, &func](auto&&... args) { return func(ptr, std::forward<decltype(args)>(args)...); };
+
+        return std::apply(alloc, args);
+    }
+
+    template <class F>
+    static T* call(lua_State* L, void* ptr, const F& func)
+    {
+        return func(L, ptr);
     }
 };
 

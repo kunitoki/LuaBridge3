@@ -3,14 +3,16 @@
 ## Version 3.1
 
 * Reworked the whole library to be able to use it without c++ exceptions enabled.
-* Enbled `std::shared_ptr` support for types intrusively deriving from `std::enable_shared_from_this`.
 * Breaking Change: The method `Stack<T>::push` now takes a `std::error_code&` as last parameter and returns a `bool`.
 * Breaking Change: The class `LuaException` has been reworked and it now take a `std::error_code` instead of a int.
 * Breaking Change: The class `LuaException` is now thrown if a unregistered class is pushed via the Stack class, also when calling `LuaRef::operator()`, but only if exceptions are enabled.
 * Breaking Change: `LuaRef::operator()` now returns the class `LuaResult`, where it is possible to obtain the call results or error message.
 * Breaking Change: LuaBridge does not silently enable exceptions when calling `getGlobalNamespace`. Call `enableExceptions(lua_State*)` if you want to enable them explicitly.
-* Removed `RefCounterPtr`, maintaining the reference counts in a unsynchronized global table is not production quality.
-* Removed `Class<T>::addStaticData`, it was just an alias for `Class<T>::addStaticProperty`.
+* Breaking Change: Removed `RefCounterPtr`, maintaining the reference counts in a unsynchronized global table is not production quality.
+* Breaking Change: Removed `Class<T>::addStaticData`, it was just an alias for `Class<T>::addStaticProperty`.
+* Added support for specifying factory function in `Class<T>::addFactory` to do placement new of the object instance.
+* Added `getNamespaceFromStack` function to construct a namespace object from a table on the stack.
+* Added `std::shared_ptr` support for types intrusively deriving from `std::enable_shared_from_this`.
 
 ## Version 3.0
 
@@ -18,7 +20,6 @@
 * Fixed unaligned access in user allocated member pointers in 64bit machines reported by ASAN.
 * Allow specifying a non virtual base class method when declaring class members (functions or variables) not exposed in the inherited class.
 * Allow using capturing lambdas in `Namespace::addFunction` and `Class<T>::addFunction`.
-* Added support for specifying a capturing lambda in `Class<T>::addConstructor` to do placement new of the object instance.
 * Added support for `std::byte` as stack value type.
 * Added support for `std::string_view` as stack value type.
 * Added support for `std::tuple` as stack value type.
