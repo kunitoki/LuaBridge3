@@ -2,6 +2,8 @@
 // Copyright 2021, Lucio Asnaghi
 // SPDX-License-Identifier: MIT
 
+// clang-format off
+
 #pragma once
 
 #include <array>
@@ -7524,4 +7526,6 @@ inline void dumpState(lua_State* L, std::ostream& stream = std::cerr)
 } // namespace luabridge
 
 // End File: Source/LuaBridge/detail/Dump.h
+
+// clang-format on
 

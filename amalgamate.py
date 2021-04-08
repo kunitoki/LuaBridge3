@@ -162,6 +162,7 @@ class SourceInfo:
 			headerAmalgamation.write("// https://github.com/kunitoki/LuaBridge3\n")
 			headerAmalgamation.write("// Copyright 2021, Lucio Asnaghi\n")
 			headerAmalgamation.write("// SPDX-License-Identifier: MIT\n\n")
+			headerAmalgamation.write("// clang-format off\n\n")
 			headerAmalgamation.write("#pragma once\n\n")
 
 			for header in sorted(list(self.systemHeaders)):
@@ -169,6 +170,8 @@ class SourceInfo:
 			headerAmalgamation.write("\n")
 
 			self.AmalgamateQueue(self.headerQueue, headerAmalgamation)
+
+			headerAmalgamation.write("// clang-format on\n\n")
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Amalgamate LuaBridge.')
