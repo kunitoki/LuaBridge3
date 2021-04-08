@@ -152,6 +152,14 @@ inline int get_length(lua_State* L, int idx)
 #endif
 
 /**
+ * @brief Helper for unused vars.
+ */
+template <class... Args>
+constexpr void unused(Args&&...)
+{
+}
+
+/**
  * @brief Helper to throw or return an error code.
  */
 template <class T, class ErrorType>
@@ -183,6 +191,7 @@ void throw_or_assert(Args&&... args)
 #if LUABRIDGE_HAS_EXCEPTIONS
     throw T(std::forward<Args>(args)...);
 #else
+    unused(std::forward<Args>(args)...);
     assert(false);
 #endif
 }
@@ -433,6 +442,8 @@ public:
 #if LUABRIDGE_HAS_EXCEPTIONS
         throw e;
 #else
+        unused(e);
+
         std::abort();
 #endif
     }
@@ -490,6 +501,8 @@ private:
 #if LUABRIDGE_HAS_EXCEPTIONS
         throw LuaException(L, makeErrorCode(ErrorCode::LuaFunctionCallFailed), FromLua{});
 #else
+        unused(L);
+
         std::abort();
 #endif
     }
@@ -516,6 +529,8 @@ inline void enableExceptions(lua_State* L) noexcept
 #if LUABRIDGE_HAS_EXCEPTIONS
     LuaException::enableExceptions(L);
 #else
+    unused(L);
+
     assert(false); // Never call this function when exceptions are not enabled.
 #endif
 }
@@ -6848,7 +6863,7 @@ struct Stack<std::array<T, Size>>
         
         lua_createtable(L, static_cast<int>(Size), 0);
 
-        for (std::size_t i = 0; i < s; ++i)
+        for (std::size_t i = 0; i < Size; ++i)
         {
             lua_pushinteger(L, static_cast<lua_Integer>(i + 1));
 
