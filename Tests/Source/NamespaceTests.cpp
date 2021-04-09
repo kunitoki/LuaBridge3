@@ -205,28 +205,48 @@ int setDataC(lua_State* L)
 
 TEST_F(NamespaceTests, NamespaceFromStack)
 {
+    // Create environment table
     lua_newtable(L);
+
     luabridge::getNamespaceFromStack(L)
-        .addFunction("Function", [](int x) { return x; });
+        .addFunction("Function", [this](int x) { return x; });
 
     int tableReference = luaL_ref(L, LUA_REGISTRYINDEX);
 
-    runLua("result = Function (42)", [this, tableReference]
-    {
-        lua_rawgeti(L, LUA_REGISTRYINDEX, tableReference);
+    // Load a script
+    std::string script = "result = Function (42)";
+    auto success = luaL_loadbufferx(L, script.data(), script.size(), "custom", "t") == LUA_OK;
+    EXPECT_TRUE(success);
+    
+    // Register
+    lua_rawgeti(L, LUA_REGISTRYINDEX, tableReference);
 
+    // Set as up value
 #if LUA_VERSION_NUM < 502
-        lua_setfenv(L, -2);
+    ASSERT_EQ(1, lua_setfenv(L, -2));
 #else
-        auto newUpvalueName = lua_setupvalue(L, -2, 1);
+    auto newUpvalueName = lua_setupvalue(L, -2, 1);
 
-        ASSERT_TRUE(newUpvalueName);
-        ASSERT_STREQ("_ENV", newUpvalueName);
+    ASSERT_TRUE(newUpvalueName);
+    ASSERT_STREQ("_ENV", newUpvalueName);
 
-        if (! newUpvalueName)
-            lua_pop(L, -1);
+    if (! newUpvalueName)
+        lua_pop(L, -1);
 #endif
-    });
+
+    if (lua_pcall(L, 0, 0, 0) != LUA_OK)
+    {
+#if LUABRIDGE_HAS_EXCEPTIONS
+        auto errorString = lua_tostring(L, -1);
+        throw std::runtime_error(errorString ? errorString : "Unknown lua error");
+#else
+#if LUABRIDGE_TESTS_PRINT_ERRORS
+        std::cerr << "===== Lua Call Error =====\n";
+        std::cerr << lua_tostring(L, -1) << "\n";
+#endif
+        return false;
+#endif
+    }
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, tableReference);
     auto resultTable = luabridge::LuaRef::fromStack(L);

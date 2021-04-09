@@ -12,8 +12,9 @@
 
 #include <gtest/gtest.h>
 
+#if LUABRIDGE_HAS_EXCEPTIONS
 #include <stdexcept>
-#include <functional>
+#endif
 
 // Uncomment this if you want errors to be printed when lua fails to compile or run
 //#define LUABRIDGE_TESTS_PRINT_ERRORS 1
@@ -28,12 +29,14 @@ inline int traceback(lua_State* L)
         lua_pop(L, 1);
         return 1;
     }
+
     lua_getfield(L, -1, "traceback");
     if (!lua_isfunction(L, -1))
     {
         lua_pop(L, 2);
         return 1;
     }
+
     lua_pushvalue(L, 1); /* pass error message */
     lua_pushinteger(L, 2); /* skip this function and traceback */
     lua_call(L, 2, 1); /* call debug.traceback */
@@ -47,9 +50,10 @@ struct TestBase : public ::testing::Test
 
     void SetUp() override
     {
-        L = nullptr;
         L = luaL_newstate();
+
         luaL_openlibs(L);
+
         lua_pushcfunction(L, &traceback);
     }
 
@@ -61,7 +65,7 @@ struct TestBase : public ::testing::Test
         }
     }
 
-    bool runLua(const std::string& script, std::function<void()> postCompilationCallback = nullptr) const
+    bool runLua(const std::string& script) const
     {
         if (luaL_loadstring(L, script.c_str()) != 0)
         {
@@ -76,9 +80,6 @@ struct TestBase : public ::testing::Test
 #endif
         }
 
-        if (postCompilationCallback)
-            postCompilationCallback();
-        
         if (lua_pcall(L, 0, 0, -2) != 0)
         {
 #if LUABRIDGE_HAS_EXCEPTIONS

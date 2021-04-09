@@ -1098,7 +1098,24 @@ private:
         : Registrar(L, 1)
     {
         assert(lua_istable(L, -1));
-        
+
+        {
+            lua_pushvalue(L, -1); // Stack: ns, mt
+
+            // ns.__metatable = ns
+            lua_setmetatable(L, -2); // Stack: ns, mt
+
+            // ns.__index = index_metamethod
+            lua_pushcfunction(L, &detail::index_metamethod);
+            rawsetfield(L, -2, "__index"); // Stack: ns
+
+            lua_newtable(L); // Stack: ns, mt, propget table (pg)
+            lua_rawsetp(L, -2, detail::getPropgetKey()); // ns [propgetKey] = pg. Stack: ns
+
+            lua_newtable(L); // Stack: ns, mt, propset table (ps)
+            lua_rawsetp(L, -2, detail::getPropsetKey()); // ns [propsetKey] = ps. Stack: ns
+        }
+
         ++m_stackSize;
     }
 
@@ -1126,9 +1143,9 @@ private:
             lua_pop(L, 1); // Stack: pns
 
             lua_newtable(L); // Stack: pns, ns
-            lua_pushvalue(L, -1); // Stack: pns, ns, ns
+            lua_pushvalue(L, -1); // Stack: pns, ns, mt
 
-            // na.__metatable = ns
+            // ns.__metatable = ns
             lua_setmetatable(L, -2); // Stack: pns, ns
 
             // ns.__index = index_metamethod
