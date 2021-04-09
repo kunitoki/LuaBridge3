@@ -67,7 +67,7 @@ struct TestBase : public ::testing::Test
 
     bool runLua(const std::string& script) const
     {
-        if (luaL_loadstring(L, script.c_str()) != 0)
+        if (luaL_loadstring(L, script.c_str()) != LUABRIDGE_LUA_OK)
         {
 #if LUABRIDGE_HAS_EXCEPTIONS
             throw std::runtime_error(lua_tostring(L, -1));
@@ -80,7 +80,7 @@ struct TestBase : public ::testing::Test
 #endif
         }
 
-        if (lua_pcall(L, 0, 0, -2) != 0)
+        if (lua_pcall(L, 0, 0, -2) != LUABRIDGE_LUA_OK)
         {
 #if LUABRIDGE_HAS_EXCEPTIONS
             auto errorString = lua_tostring(L, -1);
