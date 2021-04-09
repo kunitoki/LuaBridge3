@@ -215,7 +215,7 @@ TEST_F(NamespaceTests, NamespaceFromStack)
 
     // Load a script
     std::string script = "result = Function (42)";
-    auto success = luaL_loadbufferx(L, script.data(), script.size(), "custom", "t") == LUA_OK;
+    auto success = luaL_loadbufferx(L, script.data(), script.size(), "custom", "t") == LUABRIDGE_LUA_OK;
     EXPECT_TRUE(success);
     
     // Register
@@ -234,7 +234,7 @@ TEST_F(NamespaceTests, NamespaceFromStack)
         lua_pop(L, -1);
 #endif
 
-    if (lua_pcall(L, 0, 0, 0) != LUA_OK)
+    if (lua_pcall(L, 0, 0, 0) != LUABRIDGE_LUA_OK)
     {
 #if LUABRIDGE_HAS_EXCEPTIONS
         auto errorString = lua_tostring(L, -1);
