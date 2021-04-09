@@ -215,8 +215,8 @@ TEST_F(NamespaceTests, NamespaceFromStack)
 
     // Load a script
     std::string script = "result = Function (42)";
-    auto success = luaL_loadbufferx(L, script.data(), script.size(), "custom", "t") == LUABRIDGE_LUA_OK;
-    EXPECT_TRUE(success);
+    auto success = luaL_loadstring(L, script.c_str()) == LUABRIDGE_LUA_OK;
+    ASSERT_TRUE(success);
     
     // Register
     lua_rawgeti(L, LUA_REGISTRYINDEX, tableReference);
@@ -234,19 +234,8 @@ TEST_F(NamespaceTests, NamespaceFromStack)
         lua_pop(L, -1);
 #endif
 
-    if (lua_pcall(L, 0, 0, 0) != LUABRIDGE_LUA_OK)
-    {
-#if LUABRIDGE_HAS_EXCEPTIONS
-        auto errorString = lua_tostring(L, -1);
-        throw std::runtime_error(errorString ? errorString : "Unknown lua error");
-#else
-#if LUABRIDGE_TESTS_PRINT_ERRORS
-        std::cerr << "===== Lua Call Error =====\n";
-        std::cerr << lua_tostring(L, -1) << "\n";
-#endif
-        return false;
-#endif
-    }
+    success = lua_pcall(L, 0, 0, 0) == LUABRIDGE_LUA_OK;
+    ASSERT_TRUE(success);
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, tableReference);
     auto resultTable = luabridge::LuaRef::fromStack(L);
