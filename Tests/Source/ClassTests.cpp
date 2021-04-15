@@ -465,12 +465,14 @@ T proxyConstFunction(const Class<T, Base>* object, T value)
 
 int proxyCFunctionState(lua_State* L)
 {
+    using Int = Class<int, EmptyBase>;
+    
     auto ref = luabridge::LuaRef::fromStack(L, 1);
-    if (!ref.isUserdata()) {
+    if (!ref.isUserdata() || !ref.isInstance<Int>()) {
         return 0;
     }
     
-    auto* this_ = ref.cast<Class<int, EmptyBase>*>();
+    auto* this_ = ref.cast<Int*>();
     if (this_->data != 1) {
         return 0;
     }
