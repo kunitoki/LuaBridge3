@@ -698,7 +698,7 @@ struct RefStackHelper
 
     static ReturnType get(lua_State* L, int index)
     {
-        return ContainerTraits<T>::construct(Userdata::get<T>(L, index, true));
+        return ContainerTraits<C>::construct(Userdata::get<T>(L, index, true));
     }
 };
 
