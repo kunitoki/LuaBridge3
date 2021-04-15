@@ -985,6 +985,25 @@ class Namespace : public detail::Registrar
 
         //=========================================================================================
         /**
+         * @brief Add or replace a free lua_CFunction that works as a member.
+         *
+         * This object is at top of the stack, then all other arguments.
+         */
+        Class<T>& addCFunction(char const* name, int (*fp)(lua_State*))
+        {
+            assert(name != nullptr);
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            lua_pushcclosure(L, fp, 0);
+            lua_pushvalue(L, -1); // Stack: co, cl, st, function, function
+            rawsetfield(L, -3, name); // Stack: co, cl, st, function
+            rawsetfield(L, -3, name); // Stack: co, cl, st
+
+            return *this;
+        }
+
+        //=========================================================================================
+        /**
          * @brief Add or replace a primary Constructor.
          *
          * The primary Constructor is invoked when calling the class type table like a function.

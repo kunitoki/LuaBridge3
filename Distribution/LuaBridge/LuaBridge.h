@@ -1486,7 +1486,7 @@ struct RefStackHelper
 
     static ReturnType get(lua_State* L, int index)
     {
-        return ContainerTraits<T>::construct(Userdata::get<T>(L, index, true));
+        return ContainerTraits<C>::construct(Userdata::get<T>(L, index, true));
     }
 };
 
@@ -6213,6 +6213,25 @@ class Namespace : public detail::Registrar
             lua_pushvalue(L, -1); // Stack: co, cl, st, function, function
             rawsetfield(L, -4, name); // Stack: co, cl, st, function
             rawsetfield(L, -4, name); // Stack: co, cl, st
+
+            return *this;
+        }
+
+        //=========================================================================================
+        /**
+         * @brief Add or replace a free lua_CFunction that works as a member.
+         *
+         * This object is at top of the stack, then all other arguments.
+         */
+        Class<T>& addCFunction(char const* name, int (*fp)(lua_State*))
+        {
+            assert(name != nullptr);
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            lua_pushcclosure(L, fp, 0);
+            lua_pushvalue(L, -1); // Stack: co, cl, st, function, function
+            rawsetfield(L, -3, name); // Stack: co, cl, st, function
+            rawsetfield(L, -3, name); // Stack: co, cl, st
 
             return *this;
         }
