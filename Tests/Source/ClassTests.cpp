@@ -472,11 +472,6 @@ int proxyCFunctionState(lua_State* L)
         return 0;
     }
     
-    auto* this_ = ref.cast<Int*>();
-    if (this_->data != 1) {
-        return 0;
-    }
-
     auto arg = luabridge::LuaRef::fromStack(L, 2);
     if (!arg.isNumber()) {
         return 0;

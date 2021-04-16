@@ -1,7 +1,5 @@
 import os
-import sys
 import re
-import shutil
 import argparse
 from collections import deque
 
@@ -23,6 +21,20 @@ def AdjustFileExtension(ext):
 	if ext[0] != '.':
 		ext = '.' + ext
 
+def RemoveComments(text):
+    def replacer(match):
+        s = match.group(0)
+        if s.startswith('/'):
+            return " " # note: a space and not an empty string
+        else:
+            return s
+
+    pattern = re.compile(
+        r'//.*?$|/\*.*?\*/|\'(?:\\.|[^\\\'])*\'|"(?:\\.|[^\\"])*"',
+        re.DOTALL | re.MULTILINE
+    )
+
+    return re.sub(pattern, replacer, text)
 
 class SourceInfo:
 	def __init__(self, baseDir , outputDir, outputName):
@@ -173,14 +185,24 @@ class SourceInfo:
 
 			headerAmalgamation.write("// clang-format on\n\n")
 
+		return headerPath
+
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Amalgamate LuaBridge.')
 	parser.add_argument('--base', action='store', default="Source/LuaBridge/")
 	parser.add_argument('--output', action='store', default="Distribution/LuaBridge/")
 	parser.add_argument('--name', action='store', default="LuaBridge")
+	parser.add_argument('--strip', action='store_true', default=False)
 
 	args = parser.parse_args()
 
 	sourceInfo = SourceInfo(args.base, args.output, args.name)
 	sourceInfo.ParseDirectories()
-	sourceInfo.WriteAlgamationFiles()
+	amalgamatedHeader = sourceInfo.WriteAlgamationFiles()
+
+	if args.strip:
+		with open (amalgamatedHeader , 'r') as f:
+			text = f.read()
+
+		with open (amalgamatedHeader , 'w') as f:
+			f.write(RemoveComments(text))

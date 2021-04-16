@@ -38,8 +38,8 @@ inline void lua_rawgetp(lua_State* L, int idx, void const* p)
 inline void lua_rawsetp(lua_State* L, int idx, void const* p)
 {
     idx = lua_absindex(L, idx);
+    luaL_checkstack(L, 1, "not enough stack slots");
     lua_pushlightuserdata(L, const_cast<void*>(p));
-    // put key behind value
     lua_insert(L, -2);
     lua_rawset(L, idx);
 }
