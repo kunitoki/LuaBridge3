@@ -1454,6 +1454,9 @@ lua_State* state () const;
 /// Place the object onto the Lua stack.
 void push (lua_State* L);
 
+/// Indicate whether it is a valid reference (not a LUA_NOREF).
+bool isValid () const;
+
 /// Return the lua_type.
 int type () const;
 

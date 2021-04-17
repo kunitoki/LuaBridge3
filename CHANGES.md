@@ -17,6 +17,10 @@
 * Added `getNamespaceFromStack` function to construct a namespace object from a table on the stack.
 * Added `std::shared_ptr` support for types intrusively deriving from `std::enable_shared_from_this`.
 * Added `Class<T>::addFunction` overload taking a `lua_CFunction` as if it were a member.
+* Added `LuaRef::isValid` to check when the reference is a LUA_NOREF.
+* Fixed issue when `LuaRef::cast<>` fails with exceptions enabled, popping from the now empty stack could trigger the panic handler twice.
+* Bumped lua 5.4.x in unit tests from lua 5.4.1 to 5.4.3.
+
 
 ## Version 3.0
 
