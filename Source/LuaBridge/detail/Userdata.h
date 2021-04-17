@@ -237,10 +237,7 @@ public:
     static T* get(lua_State* L, int index, bool canBeConst)
     {
         if (lua_isnil(L, index))
-        {
-            luaL_error(L, "argument %d is nil", index - 1);
             return nullptr;
-        }
 
         return static_cast<T*>(getClass(L,
                                         index,
@@ -262,7 +259,10 @@ protected:
     /**
      * @brief Get an untyped pointer to the contained class.
      */
-    void* getPointer() const noexcept { return m_p; }
+    void* getPointer() const noexcept
+    {
+        return m_p;
+    }
 
     void* m_p = nullptr; // subclasses must set this
 };

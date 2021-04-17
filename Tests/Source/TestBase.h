@@ -62,6 +62,7 @@ struct TestBase : public ::testing::Test
         if (L != nullptr)
         {
             lua_close(L);
+            L = nullptr;
         }
     }
 

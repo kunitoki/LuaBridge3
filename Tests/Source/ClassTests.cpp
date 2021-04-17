@@ -1826,9 +1826,6 @@ TEST_F(ClassTests, ConstructorWithReferences)
         .endClass();
 
     runLua("x = InnerClass () result = OuterClass (x)");
-
-    lua_close(L);
-    L = nullptr;
 }
 
 TEST_F(ClassTests, DestructorIsNotCalledIfConstructorThrows)
@@ -1846,6 +1843,7 @@ TEST_F(ClassTests, DestructorIsNotCalledIfConstructorThrows)
 
     lua_close(L);
     L = nullptr;
+
     ASSERT_EQ(1, InnerClass::destructorCallCount);
     ASSERT_EQ(0, OuterClass::destructorCallCount);
 #endif
@@ -1863,6 +1861,7 @@ TEST_F(ClassTests, DestructorIsCalledOnce)
 
     lua_close(L);
     L = nullptr;
+
     ASSERT_EQ(1, InnerClass::destructorCallCount);
 }
 
@@ -1905,9 +1904,6 @@ TEST_F(ClassTests, ConstructorTakesMoreThanEightArgs)
     ASSERT_EQ(8, result<WideClass>().a8_);
     ASSERT_EQ(9, result<WideClass>().a9_);
     ASSERT_EQ(10, result<WideClass>().a10_);
-
-    lua_close(L);
-    L = nullptr;
 }
 
 TEST_F(ClassTests, MethodTakesMoreThanEightArgs)
@@ -1952,9 +1948,6 @@ TEST_F(ClassTests, MethodTakesMoreThanEightArgs)
     ASSERT_EQ(8, result<WideClass>().a8_);
     ASSERT_EQ(9, result<WideClass>().a9_);
     ASSERT_EQ(10, result<WideClass>().a10_);
-
-    lua_close(L);
-    L = nullptr;
 }
 
 TEST_F(ClassTests, Factory)
@@ -2005,9 +1998,6 @@ TEST_F(ClassTests, Factory)
         ASSERT_TRUE(result().isNumber());
         ASSERT_EQ(42, result<int>());
     }
-
-    lua_close(L);
-    L = nullptr;
 }
 
 class BaseExampleClass
@@ -2097,7 +2087,27 @@ TEST_F(ClassTests, NonVirtualMethodInBaseClassCannotBeExposed)
     ASSERT_EQ(1, result<DerivedExampleClass>().virtualCFunction_);
     ASSERT_EQ(1, result<DerivedExampleClass>().virtualFunctionConst_);
     ASSERT_EQ(1, result<DerivedExampleClass>().virtualCFunctionConst_);
+}
 
-    lua_close(L);
-    L = nullptr;
+TEST_F(ClassTests, NilCanBeConvertedToNullptrButNotToReference)
+{
+    struct X {};
+
+    bool result = false, resultConst = false, called = false;
+    
+    luabridge::getGlobalNamespace(L)
+        .addFunction("TakeNullptr", [&result](X* iAmNullptr) { result = (iAmNullptr == nullptr); })
+        .addFunction("TakeConstNullptr", [&resultConst](const X* iAmNullptr) { resultConst = (iAmNullptr == nullptr); })
+        .addFunction("TakeReference", [&called](const X& iAmNullptr) { called = true; })
+        .beginClass<X>("X")
+        .endClass();
+
+    runLua("TakeNullptr(nil)");
+    EXPECT_TRUE(result);
+    
+    runLua("TakeConstNullptr(nil)");
+    EXPECT_TRUE(resultConst);
+
+    EXPECT_FALSE(runLua("TakeReference(nil)"));
+    EXPECT_FALSE(called);
 }
