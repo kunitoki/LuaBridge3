@@ -314,7 +314,7 @@ class Namespace : public detail::Registrar
      *   -3 const table
      *   -4 enclosing namespace table
      */
-    template<class T>
+    template <class T>
     class Class : public ClassBase
     {
     public:
@@ -1046,7 +1046,7 @@ class Namespace : public detail::Registrar
                 using FnTraits = detail::function_traits<Function>;
                 using FnArgs = detail::remove_first_type_t<typename FnTraits::argument_types>;
 
-                T* obj = detail::factory<T>::call(L, value->getObject(), function, detail::make_arguments_list<FnArgs, 2>(L));
+                T* obj = detail::factory<T>::call(value->getObject(), function, detail::make_arguments_list<FnArgs, 2>(L));
 
                 value->commit();
                 

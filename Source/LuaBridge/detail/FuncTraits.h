@@ -505,19 +505,17 @@ template <class T>
 struct factory
 {
     template <class F, class Args>
-    static T* call(lua_State* L, void* ptr, const F& func, const Args& args)
+    static T* call(void* ptr, const F& func, const Args& args)
     {
-        (void)L;
-        
         auto alloc = [ptr, &func](auto&&... args) { return func(ptr, std::forward<decltype(args)>(args)...); };
 
         return std::apply(alloc, args);
     }
 
     template <class F>
-    static T* call(lua_State* L, void* ptr, const F& func)
+    static T* call(void* ptr, const F& func)
     {
-        return func(L, ptr);
+        return func(ptr);
     }
 };
 
