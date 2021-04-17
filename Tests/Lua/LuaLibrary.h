@@ -1,7 +1,7 @@
 //==============================================================================
 /*
   https://github.com/kunitoki/LuaBridge3
-  
+
   Copyright (C) 2020, Lucio Asnaghi <kunitoki@gmail.com>
   Copyright (C) 2012, Vinnie Falco <vinnie.falco@gmail.com>
 
@@ -33,13 +33,13 @@
 // The value is the same as LUA_VERSION_NUM in lua.h
 
 #ifndef LUABRIDGEDEMO_LUA_VERSION
-#define LUABRIDGEDEMO_LUA_VERSION 504 // By default use 5.4.1
+#define LUABRIDGEDEMO_LUA_VERSION 504 // By default use 5.4
 #endif
 
 #ifndef LUALIBRARY_SOURCE
 
 #if LUABRIDGEDEMO_LUA_VERSION >= 504
-#include "Lua.5.4.1/src/lua.hpp"
+#include "Lua.5.4.3/src/lua.hpp"
 
 #elif LUABRIDGEDEMO_LUA_VERSION >= 503
 #include "Lua.5.3.6/src/lua.hpp"
