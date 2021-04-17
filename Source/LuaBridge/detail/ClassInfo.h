@@ -17,12 +17,7 @@ namespace detail {
  */
 inline const void* getTypeKey()
 {
-#ifdef _NDEBUG
-    static char value;
-    return &value;
-#else
     return reinterpret_cast<void*>(0x71);
-#endif
 }
 
 //=================================================================================================
@@ -31,12 +26,7 @@ inline const void* getTypeKey()
  */
 inline const void* getConstKey()
 {
-#ifdef _NDEBUG
-    static char value;
-    return &value;
-#else
     return reinterpret_cast<void*>(0xc07);
-#endif
 }
 
 //=================================================================================================
@@ -45,12 +35,7 @@ inline const void* getConstKey()
  */
 inline const void* getClassKey()
 {
-#ifdef _NDEBUG
-    static char value;
-    return &value;
-#else
     return reinterpret_cast<void*>(0xc1a);
-#endif
 }
 
 //=================================================================================================
@@ -59,12 +44,7 @@ inline const void* getClassKey()
  */
 inline const void* getPropgetKey()
 {
-#ifdef _NDEBUG
-    static char value;
-    return &value;
-#else
     return reinterpret_cast<void*>(0x6e7);
-#endif
 }
 
 //=================================================================================================
@@ -73,12 +53,7 @@ inline const void* getPropgetKey()
  */
 inline const void* getPropsetKey()
 {
-#ifdef _NDEBUG
-    static char value;
-    return &value;
-#else
     return reinterpret_cast<void*>(0x5e7);
-#endif
 }
 
 //=================================================================================================
@@ -87,12 +62,7 @@ inline const void* getPropsetKey()
  */
 inline const void* getStaticKey()
 {
-#ifdef _NDEBUG
-    static char value;
-    return &value;
-#else
     return reinterpret_cast<void*>(0x57a);
-#endif
 }
 
 //=================================================================================================
@@ -101,12 +71,7 @@ inline const void* getStaticKey()
  */
 inline const void* getParentKey()
 {
-#ifdef _NDEBUG
-    static char value;
-    return &value;
-#else
     return reinterpret_cast<void*>(0xdad);
-#endif
 }
 
 //=================================================================================================
@@ -115,8 +80,8 @@ inline const void* getParentKey()
  *
  * The static table holds the static data members, static properties, and static member functions for a class.
  */
-template<class T>
-void const* getStaticRegistryKey()
+template <class T>
+const void* getStaticRegistryKey()
 {
     static char value;
     return &value;
@@ -129,8 +94,8 @@ void const* getStaticRegistryKey()
  * The class table holds the data members, properties, and member functions of a class. Read-only data and properties, and const
  * member functions are also placed here (to save a lookup in the const table).
  */
-template<class T>
-void const* getClassRegistryKey()
+template <class T>
+const void* getClassRegistryKey()
 {
     static char value;
     return &value;
@@ -142,8 +107,8 @@ void const* getClassRegistryKey()
  *
  * The const table holds read-only data members and properties, and const member functions of a class.
  */
-template<class T>
-void const* getConstRegistryKey()
+template <class T>
+const void* getConstRegistryKey()
 {
     static char value;
     return &value;
