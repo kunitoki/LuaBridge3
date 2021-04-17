@@ -3,6 +3,7 @@ cmake_minimum_required (VERSION 3.5)
 # ====================================================== Unit Tests Files
 
 set (LUABRIDGE_TEST_SOURCE_FILES
+  Source/AmalgamateTests.cpp
   Source/ClassTests.cpp
   Source/IssueTests.cpp
   Source/IteratorTests.cpp
