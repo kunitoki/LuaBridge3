@@ -1025,10 +1025,7 @@ public:
     static T* get(lua_State* L, int index, bool canBeConst)
     {
         if (lua_isnil(L, index))
-        {
-            luaL_error(L, "argument %d is nil", index - 1);
             return nullptr;
-        }
 
         return static_cast<T*>(getClass(L,
                                         index,
@@ -1050,7 +1047,10 @@ protected:
     /**
      * @brief Get an untyped pointer to the contained class.
      */
-    void* getPointer() const noexcept { return m_p; }
+    void* getPointer() const noexcept
+    {
+        return m_p;
+    }
 
     void* m_p = nullptr; // subclasses must set this
 };
@@ -3065,19 +3065,17 @@ template <class T>
 struct factory
 {
     template <class F, class Args>
-    static T* call(lua_State* L, void* ptr, const F& func, const Args& args)
+    static T* call(void* ptr, const F& func, const Args& args)
     {
-        (void)L;
-        
         auto alloc = [ptr, &func](auto&&... args) { return func(ptr, std::forward<decltype(args)>(args)...); };
 
         return std::apply(alloc, args);
     }
 
     template <class F>
-    static T* call(lua_State* L, void* ptr, const F& func)
+    static T* call(void* ptr, const F& func)
     {
-        return func(L, ptr);
+        return func(ptr);
     }
 };
 
@@ -5433,7 +5431,7 @@ class Namespace : public detail::Registrar
          *
          * The Lua stack should have the const table on top.
          */
-        void createClassTable(char const* name)
+        void createClassTable(const char* name)
         {
             assert(name != nullptr);
 
@@ -5456,7 +5454,7 @@ class Namespace : public detail::Registrar
         /**
          * @brief Create the static table.
          */
-        void createStaticTable(char const* name)
+        void createStaticTable(const char* name)
         {
             assert(name != nullptr);
 
@@ -5556,7 +5554,7 @@ class Namespace : public detail::Registrar
      *   -3 const table
      *   -4 enclosing namespace table
      */
-    template<class T>
+    template <class T>
     class Class : public ClassBase
     {
     public:
@@ -5568,7 +5566,7 @@ class Namespace : public detail::Registrar
          * @param name   The new class name.
          * @param parent A parent namespace object.
          */
-        Class(char const* name, Namespace& parent)
+        Class(const char* name, Namespace& parent)
             : ClassBase(parent)
         {
             assert(name != nullptr);
@@ -5626,7 +5624,7 @@ class Namespace : public detail::Registrar
          * @param parent A parent namespace object.
          * @param staticKey Key where the class is stored.
         */
-        Class(char const* name, Namespace& parent, void const* const staticKey)
+        Class(const char* name, Namespace& parent, void const* const staticKey)
             : ClassBase(parent)
         {
             assert(name != nullptr);
@@ -5702,7 +5700,7 @@ class Namespace : public detail::Registrar
          * @returns This class registration object.
          */
         template <class U>
-        Class<T>& addStaticProperty(char const* name, U* value, bool isWritable = true)
+        Class<T>& addStaticProperty(const char* name, U* value, bool isWritable = true)
         {
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
@@ -5740,7 +5738,7 @@ class Namespace : public detail::Registrar
          * @returns This class registration object.
          */
         template <class U>
-        Class<T>& addStaticProperty(char const* name, U (*get)(), void (*set)(U) = nullptr)
+        Class<T>& addStaticProperty(const char* name, U (*get)(), void (*set)(U) = nullptr)
         {
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
@@ -5770,7 +5768,7 @@ class Namespace : public detail::Registrar
          * @brief Add or replace a static member function.
          */
         template <class FP>
-        Class<T>& addStaticFunction(char const* name, FP const fp)
+        Class<T>& addStaticFunction(const char* name, FP fp)
         {
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
@@ -5787,7 +5785,7 @@ class Namespace : public detail::Registrar
          * @brief Add or replace a static member function by std::function.
          */
         template <class ReturnType, class... Params>
-        Class<T>& addStaticFunction(char const* name, std::function<ReturnType(Params...)> function)
+        Class<T>& addStaticFunction(const char* name, std::function<ReturnType(Params...)> function)
         {
             using FnType = decltype(function);
 
@@ -5814,16 +5812,7 @@ class Namespace : public detail::Registrar
          *
          * @returns This class registration object.
          */
-        Class<T>& addStaticFunction(char const* name, int (*const fp)(lua_State*))
-        {
-            return addStaticCFunction(name, fp);
-        }
-
-        //=========================================================================================
-        /**
-         * @brief Add or replace a lua_CFunction.
-         */
-        Class<T>& addStaticCFunction(char const* name, int (*const fp)(lua_State*))
+        Class<T>& addStaticFunction(const char* name, lua_CFunction fp)
         {
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
@@ -5839,7 +5828,7 @@ class Namespace : public detail::Registrar
          * @brief Add or replace a property member.
          */
         template <class U, class V>
-        Class<T>& addProperty(char const* name, U V::*mp, bool isWritable = true)
+        Class<T>& addProperty(const char* name, U V::*mp, bool isWritable = true)
         {
             static_assert(std::is_base_of_v<V, T>);
 
@@ -5869,24 +5858,24 @@ class Namespace : public detail::Registrar
          * @brief Add or replace a property member.
          */
         template <class TG, class TS = TG>
-        Class<T>& addProperty(char const* name, TG (T::*get)() const, void (T::*set)(TS) = nullptr)
+        Class<T>& addProperty(const char* name, TG (T::*get)() const, void (T::*set)(TS) = nullptr)
         {
-            typedef TG (T::*get_t)() const;
-            typedef void (T::*set_t)(TS);
+            using GetType = TG (T::*)() const;
+            using SetType = void (T::*)(TS);
 
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            new (lua_newuserdata(L, sizeof(get_t))) get_t(get); // Stack: co, cl, st, funcion ptr
-            lua_pushcclosure(L, &detail::invoke_const_member_function<get_t, T>, 1); // Stack: co, cl, st, getter
+            new (lua_newuserdata(L, sizeof(GetType))) GetType(get); // Stack: co, cl, st, funcion ptr
+            lua_pushcclosure(L, &detail::invoke_const_member_function<GetType, T>, 1); // Stack: co, cl, st, getter
             lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
             detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
             detail::add_property_getter(L, name, -3); // Stack: co, cl, st
 
             if (set != nullptr)
             {
-                new (lua_newuserdata(L, sizeof(set_t))) set_t(set); // Stack: co, cl, st, function ptr
-                lua_pushcclosure(L, &detail::invoke_member_function<set_t, T>, 1); // Stack: co, cl, st, setter
+                new (lua_newuserdata(L, sizeof(SetType))) SetType(set); // Stack: co, cl, st, function ptr
+                lua_pushcclosure(L, &detail::invoke_member_function<SetType, T>, 1); // Stack: co, cl, st, setter
                 detail::add_property_setter(L, name, -3); // Stack: co, cl, st
             }
 
@@ -5898,24 +5887,24 @@ class Namespace : public detail::Registrar
          * @brief Add or replace a property member.
          */
         template <class TG, class TS = TG>
-        Class<T>& addProperty(char const* name, TG (T::*get)(lua_State*) const, void (T::*set)(TS, lua_State*) = nullptr)
+        Class<T>& addProperty(const char* name, TG (T::*get)(lua_State*) const, void (T::*set)(TS, lua_State*) = nullptr)
         {
-            typedef TG (T::*get_t)(lua_State*) const;
-            typedef void (T::*set_t)(TS, lua_State*);
+            using GetType = TG (T::*)(lua_State*) const;
+            using SetType = void (T::*)(TS, lua_State*);
 
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            new (lua_newuserdata(L, sizeof(get_t))) get_t(get); // Stack: co, cl, st, funcion ptr
-            lua_pushcclosure(L, &detail::invoke_const_member_function<get_t, T>, 1); // Stack: co, cl, st, getter
+            new (lua_newuserdata(L, sizeof(GetType))) GetType(get); // Stack: co, cl, st, funcion ptr
+            lua_pushcclosure(L, &detail::invoke_const_member_function<GetType, T>, 1); // Stack: co, cl, st, getter
             lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
             detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
             detail::add_property_getter(L, name, -3); // Stack: co, cl, st
 
             if (set != nullptr)
             {
-                new (lua_newuserdata(L, sizeof(set_t))) set_t(set); // Stack: co, cl, st, function ptr
-                lua_pushcclosure(L, &detail::invoke_member_function<set_t, T>, 1); // Stack: co, cl, st, setter
+                new (lua_newuserdata(L, sizeof(SetType))) SetType(set); // Stack: co, cl, st, function ptr
+                lua_pushcclosure(L, &detail::invoke_member_function<SetType, T>, 1); // Stack: co, cl, st, setter
                 detail::add_property_setter(L, name, -3); // Stack: co, cl, st
             }
 
@@ -5932,7 +5921,7 @@ class Namespace : public detail::Registrar
          * Both the get and the set functions require a T const* and T* in the first argument respectively.
          */
         template <class TG, class TS = TG>
-        Class<T>& addProperty(char const* name, TG (*get)(T const*), void (*set)(T*, TS) = nullptr)
+        Class<T>& addProperty(const char* name, TG (*get)(T const*), void (*set)(T*, TS) = nullptr)
         {
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
@@ -5963,7 +5952,7 @@ class Namespace : public detail::Registrar
          * The object userdata ('this') value is at the index 1.
          * The new value for set function is at the index 2.
          */
-        Class<T>& addProperty(char const* name, int (*get)(lua_State*), int (*set)(lua_State*) = nullptr)
+        Class<T>& addProperty(const char* name, lua_CFunction get, lua_CFunction set = nullptr)
         {
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
@@ -5983,7 +5972,7 @@ class Namespace : public detail::Registrar
         }
 
         template <class TG, class TS = TG>
-        Class<T>& addProperty(char const* name, std::function<TG(const T*)> get, std::function<void(T*, TS)> set = nullptr)
+        Class<T>& addProperty(const char* name, std::function<TG(const T*)> get, std::function<void(T*, TS)> set = nullptr)
         {
             using GetType = decltype(get);
 
@@ -6021,7 +6010,7 @@ class Namespace : public detail::Registrar
          * @brief Add or replace a namespace function by convertible to std::function (capturing lambdas).
          */
         template <class Function, typename = std::enable_if_t<detail::function_arity_v<Function> != 0>>
-        Class<T> addFunction(char const* name, Function function)
+        Class<T> addFunction(const char* name, Function function)
         {
             using FnTraits = detail::function_traits<Function>;
 
@@ -6068,7 +6057,7 @@ class Namespace : public detail::Registrar
          * @brief Add or replace a member function.
          */
         template <class U, class ReturnType, class... Params>
-        Class<T>& addFunction(char const* name, ReturnType (U::*mf)(Params...))
+        Class<T>& addFunction(const char* name, ReturnType (U::*mf)(Params...))
         {
             static_assert(std::is_base_of_v<U, T>);
 
@@ -6091,7 +6080,7 @@ class Namespace : public detail::Registrar
         }
 
         template <class U, class ReturnType, class... Params>
-        Class<T>& addFunction(char const* name, ReturnType (U::*mf)(Params...) const)
+        Class<T>& addFunction(const char* name, ReturnType (U::*mf)(Params...) const)
         {
             static_assert(std::is_base_of_v<U, T>);
 
@@ -6120,7 +6109,7 @@ class Namespace : public detail::Registrar
          * @brief Add or replace a proxy function.
          */
         template <class ReturnType, class... Params>
-        Class<T>& addFunction(char const* name, ReturnType (*proxyFn)(T* object, Params...))
+        Class<T>& addFunction(const char* name, ReturnType (*proxyFn)(T* object, Params...))
         {
             using FnType = decltype(proxyFn);
 
@@ -6141,7 +6130,7 @@ class Namespace : public detail::Registrar
         }
 
         template <class ReturnType, class... Params>
-        Class<T>& addFunction(char const* name, ReturnType (*proxyFn)(const T* object, Params...))
+        Class<T>& addFunction(const char* name, ReturnType (*proxyFn)(const T* object, Params...))
         {
             using FnType = decltype(proxyFn);
 
@@ -6168,19 +6157,7 @@ class Namespace : public detail::Registrar
          * @brief Add or replace a member lua_CFunction.
          */
         template <class U>
-        Class<T>& addFunction(char const* name, int (U::*mfp)(lua_State*))
-        {
-            static_assert(std::is_base_of_v<U, T>);
-
-            return addCFunction<U>(name, mfp);
-        }
-
-        //=========================================================================================
-        /**
-         * @brief Add or replace a member lua_CFunction.
-         */
-        template <class U>
-        Class<T>& addCFunction(char const* name, int (U::*mfp)(lua_State*))
+        Class<T>& addFunction(const char* name, int (U::*mfp)(lua_State*))
         {
             static_assert(std::is_base_of_v<U, T>);
 
@@ -6207,19 +6184,7 @@ class Namespace : public detail::Registrar
          * @brief Add or replace a const member lua_CFunction.
          */
         template <class U>
-        Class<T>& addFunction(char const* name, int (U::*mfp)(lua_State*) const)
-        {
-            static_assert(std::is_base_of_v<U, T>);
-
-            return addCFunction<U>(name, mfp);
-        }
-
-        //=========================================================================================
-        /**
-         * @brief Add or replace a const member lua_CFunction.
-         */
-        template <class U>
-        Class<T>& addCFunction(char const* name, int (U::*mfp)(lua_State*) const)
+        Class<T>& addFunction(const char* name, int (U::*mfp)(lua_State*) const)
         {
             static_assert(std::is_base_of_v<U, T>);
 
@@ -6249,7 +6214,7 @@ class Namespace : public detail::Registrar
          *
          * This object is at top of the stack, then all other arguments.
          */
-        Class<T>& addCFunction(char const* name, int (*fp)(lua_State*))
+        Class<T>& addFunction(const char* name, lua_CFunction fp)
         {
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
@@ -6307,7 +6272,7 @@ class Namespace : public detail::Registrar
          * address of a Constructor and pass it as an argument).
          */
         template <class Function>
-        Class<T> addFactory(Function function)
+        Class<T> addConstructor(Function function)
         {
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
@@ -6319,26 +6284,15 @@ class Namespace : public detail::Registrar
                     luaL_error(L, ec.message().c_str());
 
                 using FnTraits = detail::function_traits<Function>;
-                using FirstArg = detail::function_argument_t<0, Function>;
-                
-                T* obj = nullptr;
+                using FnArgs = detail::remove_first_type_t<typename FnTraits::argument_types>;
 
-                if constexpr (std::is_same_v<std::decay_t<std::remove_pointer_t<FirstArg>>, lua_State>)
-                {
-                    obj = detail::factory<T>::call(L, value->getObject(), function);
-                }
-                else
-                {
-                    using FnArgs = detail::remove_first_type_t<typename FnTraits::argument_types>;
-
-                    obj = detail::factory<T>::call(L, value->getObject(), function, detail::make_arguments_list<FnArgs, 2>(L));
-                }
+                T* obj = detail::factory<T>::call(value->getObject(), function, detail::make_arguments_list<FnArgs, 2>(L));
 
                 value->commit();
                 
                 return obj;
             };
-            
+
             using FactoryFnType = decltype(factory);
             
             lua_newuserdata_aligned<FactoryFnType>(L, std::move(factory)); // Stack: co, cl, st, function userdata (ud)
@@ -6413,7 +6367,7 @@ private:
      *
      * @pre The parent namespace is at the top of the Lua stack.
      */
-    Namespace(char const* name, Namespace& parent)
+    Namespace(const char* name, Namespace& parent)
         : Registrar(parent)
     {
         assert(name != nullptr);
@@ -6505,7 +6459,7 @@ public:
      *
      * @returns A namespace registration object.
      */
-    Namespace beginNamespace(char const* name)
+    Namespace beginNamespace(const char* name)
     {
         assertIsActive();
         return Namespace(name, *this);
@@ -6545,7 +6499,7 @@ public:
      * @returns This namespace registration object.
      */
     template <class T>
-    Namespace& addProperty(char const* name, T* value, bool isWritable = true)
+    Namespace& addProperty(const char* name, T* value, bool isWritable = true)
     {
         if (m_stackSize == 1)
         {
@@ -6590,7 +6544,7 @@ public:
      * @returns This namespace registration object.
      */
     template <class TG, class TS = TG>
-    Namespace& addProperty(char const* name, TG (*get)(), void (*set)(TS) = nullptr)
+    Namespace& addProperty(const char* name, TG (*get)(), void (*set)(TS) = nullptr)
     {
         if (m_stackSize == 1)
         {
@@ -6632,7 +6586,7 @@ public:
      * @returns This namespace registration object.
      */
     template <class FunctionGetter>
-    Namespace& addProperty(char const* name, FunctionGetter get)
+    Namespace& addProperty(const char* name, FunctionGetter get)
     {
         using GetterTraits = detail::function_traits<FunctionGetter>;
 
@@ -6668,7 +6622,7 @@ public:
      * @returns This namespace registration object.
      */
     template <class FunctionGetter, class FunctionSetter>
-    Namespace& addProperty(char const* name, FunctionGetter get, FunctionSetter set)
+    Namespace& addProperty(const char* name, FunctionGetter get, FunctionSetter set)
     {
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
@@ -6716,15 +6670,8 @@ public:
      *
      * @returns This namespace registration object.
      */
-    Namespace& addProperty(char const* name, int (*get)(lua_State*), int (*set)(lua_State*) = nullptr)
+    Namespace& addProperty(const char* name, lua_CFunction get, lua_CFunction set = nullptr)
     {
-        if (m_stackSize == 1)
-        {
-            throw_or_assert<std::logic_error>("addProperty() called on global namespace");
-
-            return *this;
-        }
-
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 
@@ -6751,7 +6698,7 @@ public:
      * @brief Add or replace a namespace function by convertible to std::function.
      */
     template <class Function>
-    Namespace& addFunction(char const* name, Function function)
+    Namespace& addFunction(const char* name, Function function)
     {
         using FnTraits = detail::function_traits<Function>;
 
@@ -6778,7 +6725,7 @@ public:
      * @brief Add or replace a free function.
      */
     template <class ReturnType, class... Params>
-    Namespace& addFunction(char const* name, ReturnType (*fp)(Params...))
+    Namespace& addFunction(const char* name, ReturnType (*fp)(Params...))
     {
         using FnType = decltype(fp);
 
@@ -6801,21 +6748,7 @@ public:
      *
      * @returns This namespace registration object.
      */
-    Namespace& addFunction(char const* name, int (*const fp)(lua_State*))
-    {
-        return addCFunction(name, fp);
-    }
-
-    //=============================================================================================
-    /**
-     * @brief Add or replace a lua_CFunction.
-     *
-     * @param name The function name.
-     * @param fp   A C-function pointer.
-     *
-     * @returns This namespace registration object.
-     */
-    Namespace& addCFunction(char const* name, int (*const fp)(lua_State*))
+    Namespace& addFunction(const char* name, lua_CFunction fp)
     {
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
@@ -6835,7 +6768,7 @@ public:
      * @returns A class registration object.
      */
     template <class T>
-    Class<T> beginClass(char const* name)
+    Class<T> beginClass(const char* name)
     {
         assertIsActive();
         return Class<T>(name, *this);
@@ -6852,7 +6785,7 @@ public:
      * @returns A class registration object.
      */
     template <class Derived, class Base>
-    Class<Derived> deriveClass(char const* name)
+    Class<Derived> deriveClass(const char* name)
     {
         assertIsActive();
         return Class<Derived>(name, *this, detail::getStaticRegistryKey<Base>());
