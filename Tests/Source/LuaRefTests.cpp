@@ -149,6 +149,7 @@ TEST_F(LuaRefTests, Comparison)
 
     luabridge::getGlobalNamespace(L).beginClass<Class>("Class").endClass();
 
+    luabridge::LuaRef invalid(L);
     luabridge::LuaRef nil(L, luabridge::LuaNil());
     luabridge::LuaRef boolFalse(L, false);
     luabridge::LuaRef boolTrue(L, true);
@@ -160,6 +161,12 @@ TEST_F(LuaRefTests, Comparison)
     luabridge::LuaRef t2 = luabridge::getGlobal(L, "t2");
     luabridge::LuaRef t3 = luabridge::getGlobal(L, "t3");
     luabridge::LuaRef t4 = luabridge::getGlobal(L, "t4");
+
+    EXPECT_FALSE(invalid.isValid());
+    EXPECT_TRUE(nil.isValid());
+
+    EXPECT_TRUE(nil == invalid);
+    EXPECT_TRUE(invalid == nil);
 
     EXPECT_TRUE(nil == nil);
 
@@ -264,9 +271,9 @@ TEST_F(LuaRefTests, Callable)
     
     runLua("meta1 = { __call = function(self) return 5 end }");
     auto meta1 = luabridge::getGlobal(L, "meta1");
-    EXPECT_TRUE(meta1.isCallable());
+    EXPECT_FALSE(meta1.isCallable());
 
-    runLua("meta2 = { __call = function(self) self.i = self.i + 100 end } obj = { i = 100 } setmetatable(obj, meta2)");
+    runLua("meta2 = { __call = function(self) self.i = self.i + 100 end }; obj = { i = 100 }; setmetatable(obj, meta2)");
     auto obj = luabridge::getGlobal(L, "obj");
     EXPECT_TRUE(obj.isCallable());
     EXPECT_EQ(100, obj["i"].cast<int>());

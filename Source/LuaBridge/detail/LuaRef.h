@@ -9,11 +9,11 @@
 #pragma once
 
 #include "Config.h"
-#include "LuaException.h"
 #include "Errors.h"
 #include "Stack.h"
 
 #include <iostream>
+#include <exception>
 #include <map>
 #include <string>
 #include <optional>
@@ -23,12 +23,12 @@ namespace luabridge {
 
 class LuaResult;
 
-//------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Type tag for representing LUA_TNIL.
  *
- * Construct one of these using `LuaNil ()` to represent a Lua nil. This is faster
- * than creating a reference in the registry to nil. Example:
+ * Construct one of these using `LuaNil ()` to represent a Lua nil. This is faster than creating a reference in the registry to nil.
+ * Example:
  *
  * @code
  *     LuaRef t (LuaRef::createTable (L));
@@ -40,9 +40,8 @@ struct LuaNil
 {
 };
 
-//------------------------------------------------------------------------------
 /**
- * @code Stack specialization for LuaNil.
+ * @brief Stack specialization for LuaNil.
  */
 template <>
 struct Stack<LuaNil>
@@ -59,6 +58,7 @@ struct Stack<LuaNil>
     }
 };
 
+//=================================================================================================
 /**
  * @brief Base class for Lua variables and table item reference classes.
  */
@@ -66,94 +66,124 @@ template <class Impl, class LuaRef>
 class LuaRefBase
 {
 protected:
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
-        Pop the Lua stack.
-
-        Pops the specified number of stack items on destruction. We use this
-        when returning objects, to avoid an explicit temporary variable, since
-        the destructor executes after the return statement. For example:
-
-            template <class U>
-            U cast (lua_State* L)
-            {
-              StackPop p (L, 1);
-              ...
-              return U (); // dtor called after this line
-            }
-
-        @note The `StackPop` object must always be a named local variable.
-    */
+     * @brief Pop the Lua stack.
+     *
+     * Pops the specified number of stack items on destruction. We use this when returning objects, to avoid an explicit temporary
+     * variable, since the destructor executes after the return statement. For example:
+     *
+     * @code
+     *     template <class U>
+     *     U cast (lua_State* L)
+     *     {
+     *         StackPop p (L, 1);
+     *         ...
+     *         return U (); // Destructor called after this line
+     *     }
+     * @endcode
+     *
+     * @note The `StackPop` object must always be a named local variable.
+     */
     class StackPop
     {
     public:
-        /** Create a StackPop object.
+        /**
+         * @brief Create a StackPop object.
+         *
+         * @param L  A Lua state.
+         * @param count The number of stack entries to pop on destruction.
+         */
+        StackPop(lua_State* L, int count)
+            : m_L(L)
+            , m_count(count) {
+        }
 
-            @param L     A Lua state.
-            @param count The number of stack entries to pop on destruction.
-        */
-        StackPop(lua_State* L, int count) : m_L(L), m_count(count) {}
+        /**
+         * @brief Destroy a StackPop object.
+         *
+         * In case an exception is in flight before the destructor is called, stack is potentially cleared by lua. So we never pop more than
+         * the actual size of the stack.
+         */
+        ~StackPop()
+        {
+            const int stackSize = lua_gettop(m_L);
 
-        ~StackPop() { lua_pop(m_L, m_count); }
+            lua_pop(m_L, stackSize < m_count ? stackSize : m_count);
+        }
 
-        void popCount(int newCount) { m_count = newCount; }
+        /**
+         * @brief Set a new number to pop.
+         *
+         * @param newCount The new number of stack entries to pop on destruction.
+         */
+        void popCount(int newCount)
+        {
+            m_count = newCount;
+        }
 
     private:
-        lua_State* m_L;
-        int m_count;
+        lua_State* m_L = nullptr;
+        int m_count = 0;
     };
 
     friend struct Stack<LuaRef>;
 
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
-        Type tag for stack construction.
-    */
+     * @brief Type tag for stack construction.
+     */
     struct FromStack
     {
     };
 
-    LuaRefBase(lua_State* L) : m_L(L) {}
+    LuaRefBase(lua_State* L)
+        : m_L(L)
+    {
+    }
 
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
-        Create a reference to this reference.
-
-        @returns An index in the Lua registry.
-    */
+     * @brief Create a reference to this reference.
+     *
+     * @returns An index in the Lua registry.
+     */
     int createRef() const
     {
         impl().push();
+
         return luaL_ref(m_L, LUA_REGISTRYINDEX);
     }
 
 public:
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
-        Convert to a string using lua_tostring function.
-
-        @returns A string representation of the referred Lua value.
-    */
+     * @brief Convert to a string using lua_tostring function.
+     *
+     * @returns A string representation of the referred Lua value.
+     */
     std::string tostring() const
     {
+        StackPop p(m_L, 1);
+        
         lua_getglobal(m_L, "tostring");
 
         impl().push();
 
         lua_call(m_L, 1, 1);
-        const char* str = lua_tostring(m_L, -1);
-        lua_pop(m_L, 1);
 
-        return str;
+        const char* str = lua_tostring(m_L, -1);
+        return str != nullptr ? str : "";
     }
 
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
-        Print a text description of the value to a stream.
-        This is used for diagnostics.
-
-        @param os An output stream.
-    */
+     * @brief Print a text description of the value to a stream.
+     *
+     * This is used for diagnostics.
+     *
+     * @param os An output stream.
+     */
     void print(std::ostream& os) const
     {
         switch (type())
@@ -171,7 +201,7 @@ public:
             break;
 
         case LUA_TSTRING:
-            os << '"' << cast<std::string>() << '"';
+            os << '"' << cast<const char*>() << '"';
             break;
 
         case LUA_TTABLE:
@@ -200,37 +230,38 @@ public:
         }
     }
 
-    //------------------------------------------------------------------------------
+    //=============================================================================================
     /**
-      Insert a Lua value or table item reference to a stream.
-
-      @param os  An output stream.
-      @param ref A Lua reference.
-      @returns The output stream.
-    */
+     * @brief Insert a Lua value or table item reference to a stream.
+     *
+     * @param os  An output stream.
+     * @param ref A Lua reference.
+     *
+     * @returns The output stream.
+     */
     friend std::ostream& operator<<(std::ostream& os, LuaRefBase const& ref)
     {
         ref.print(os);
         return os;
     }
 
-    //============================================================================
-    //
-    // This group of member functions is mirrored in TableItem
-    //
-
-    /** Retrieve the lua_State associated with the reference.
-
-      @returns A Lua state.
-    */
-    lua_State* state() const { return m_L; }
-
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
-        Place the object onto the Lua stack.
+     * @brief Retrieve the lua_State associated with the reference.
+     *
+     * @returns A Lua state.
+     */
+    lua_State* state() const
+    {
+        return m_L;
+    }
 
-        @param L A Lua state.
-    */
+    //=============================================================================================
+    /**
+     * @brief Place the object onto the Lua stack.
+     *
+     * @param L A Lua state.
+     */
     void push(lua_State* L) const
     {
         assert(equalstates(L, m_L));
@@ -239,12 +270,12 @@ public:
         impl().push();
     }
 
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
-        Pop the top of Lua stack and assign it to the reference.
-
-        @param L A Lua state.
-    */
+     * @brief Pop the top of Lua stack and assign it to the reference.
+     *
+     * @param L A Lua state.
+     */
     void pop(lua_State* L)
     {
         assert(equalstates(L, m_L));
@@ -253,84 +284,95 @@ public:
         impl().pop();
     }
 
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
-        Return the Lua type of the referred value. This invokes lua_type().
-
-        @returns The type of the referred value.
-        @see lua_type()
-    */
-    /** @{ */
+     * @brief Return the Lua type of the referred value.
+     *
+     * This invokes lua_type().
+     *
+     * @returns The type of the referred value.
+     *
+     * @see lua_type()
+     */
     int type() const
     {
         StackPop p(m_L, 1);
 
         impl().push();
 
-        return lua_type(m_L, -1);
+        const int refType = lua_type(m_L, -1);
+        
+        return refType;
     }
 
-    // should never happen
-    // bool isNone () const { return m_ref == LUA_NOREF; }
-
-    /// Indicate whether it is a nil reference.
-    ///
-    /// @returns True if this is a nil reference, false otherwice.
-    ///
+    /**
+     * @brief Indicate whether it is a nil reference.
+     *
+     * @returns True if this is a nil reference, false otherwise.
+     */
     bool isNil() const { return type() == LUA_TNIL; }
 
-    /// Indicate whether it is a reference to a boolean.
-    ///
-    /// @returns True if it is a reference to a boolean, false otherwice.
-    ///
+    /**
+     * @brief Indicate whether it is a reference to a boolean.
+     *
+     * @returns True if it is a reference to a boolean, false otherwise.
+     */
     bool isBool() const { return type() == LUA_TBOOLEAN; }
 
-    /// Indicate whether it is a reference to a number.
-    ///
-    /// @returns True if it is a reference to a number, false otherwise.
-    ///
+    /**
+     * @brief Indicate whether it is a reference to a number.
+     *
+     * @returns True if it is a reference to a number, false otherwise.
+     */
     bool isNumber() const { return type() == LUA_TNUMBER; }
 
-    /// Indicate whether it is a reference to a string.
-    ///
-    /// @returns True if it is a reference to a string, false otherwise.
-    ///
+    /**
+     * @brief Indicate whether it is a reference to a string.
+     *
+     * @returns True if it is a reference to a string, false otherwise.
+     */
     bool isString() const { return type() == LUA_TSTRING; }
 
-    /// Indicate whether it is a reference to a table.
-    ///
-    /// @returns True if it is a reference to a table, false otherwise.
-    ///
+    /**
+     * @brief Indicate whether it is a reference to a table.
+     *
+     * @returns True if it is a reference to a table, false otherwise.
+     */
     bool isTable() const { return type() == LUA_TTABLE; }
 
-    /// Indicate whether it is a reference to a function.
-    ///
-    /// @returns True if it is a reference to a function, false otherwise.
-    ///
+    /**
+     * @brief Indicate whether it is a reference to a function.
+     *
+     * @returns True if it is a reference to a function, false otherwise.
+     */
     bool isFunction() const { return type() == LUA_TFUNCTION; }
 
-    /// Indicate whether it is a reference to a full userdata.
-    ///
-    /// @returns True if it is a reference to a full userdata, false otherwise.
-    ///
+    /**
+     * @brief Indicate whether it is a reference to a full userdata.
+     *
+     * @returns True if it is a reference to a full userdata, false otherwise.
+     */
     bool isUserdata() const { return type() == LUA_TUSERDATA; }
 
-    /// Indicate whether it is a reference to a Lua thread.
-    ///
-    /// @returns True if it is a reference to a Lua thread, false otherwise.
-    ///
+    /**
+     * @brief Indicate whether it is a reference to a lua thread (coroutine).
+     *
+     * @returns True if it is a reference to a lua thread, false otherwise.
+     */
     bool isThread() const { return type() == LUA_TTHREAD; }
 
-    /// Indicate whether it is a reference to a light userdata.
-    ///
-    /// @returns True if it is a reference to a light userdata, false otherwise.
-    ///
+    /**
+     * @brief Indicate whether it is a reference to a light userdata.
+     *
+     * @returns True if it is a reference to a light userdata, false otherwise.
+     */
     bool isLightUserdata() const { return type() == LUA_TLIGHTUSERDATA; }
 
-    /// Indicate whether it is a callable.
-    ///
-    /// @returns True if it is a callable, false otherwise.
-    ///
+    /**
+     * @brief Indicate whether it is a callable.
+     *
+     * @returns True if it is a callable, false otherwise.
+     */
     bool isCallable() const
     {
         if (isFunction())
@@ -339,8 +381,6 @@ public:
         auto metatable = getMetatable();
         return metatable.isTable() && metatable["__call"].isFunction();
     }
-
-    /** @} */
 
     //=============================================================================================
     /**
@@ -397,17 +437,20 @@ public:
         if (isNil())
             return LuaRef(m_L);
 
-        StackPop p(m_L, 1);
+        StackPop p(m_L, 2);
 
         impl().push();
 
-        lua_getmetatable(m_L, -1);
+        if (! lua_getmetatable(m_L, -1))
+        {
+            p.popCount(1);
+            return LuaRef(m_L);
+        }
 
         return LuaRef::fromStack(m_L);
     }
 
-    //----------------------------------------------------------------------------
-    /** @{ */
+    //=============================================================================================
     /**
         Compare this reference with a specified value using lua_compare().
         This invokes metamethods.
@@ -524,8 +567,8 @@ public:
             return false;
         }
 
-        int lhsType = lua_type(m_L, -2);
-        int rhsType = lua_type(m_L, -1);
+        const int lhsType = lua_type(m_L, -2);
+        const int rhsType = lua_type(m_L, -1);
         if (lhsType != rhsType)
             return lhsType > rhsType;
 
@@ -553,8 +596,8 @@ public:
             return false;
         }
 
-        int lhsType = lua_type(m_L, -2);
-        int rhsType = lua_type(m_L, -1);
+        const int lhsType = lua_type(m_L, -2);
+        const int rhsType = lua_type(m_L, -1);
         if (lhsType != rhsType)
             return lhsType >= rhsType;
 
@@ -584,9 +627,8 @@ public:
 
         return lua_rawequal(m_L, -1, -2) == 1;
     }
-    /** @} */
 
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
         Append a value to a referred table.
         If the table is a sequence this will add another element to it.
@@ -607,7 +649,7 @@ public:
         luaL_ref(m_L, -2);
     }
 
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
         Return the length of a referred array.
         This is identical to applying the Lua # operator.
@@ -623,7 +665,7 @@ public:
         return get_length(m_L, -1);
     }
 
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
         Call Lua code.
 
@@ -635,8 +677,6 @@ public:
     template <class... Args>
     LuaResult operator()(Args&&... args) const;
 
-    //============================================================================
-
 protected:
     lua_State* m_L;
 
@@ -646,7 +686,7 @@ private:
     Impl& impl() { return static_cast<Impl&>(*this); }
 };
 
-//------------------------------------------------------------------------------
+//=================================================================================================
 /**
     Lightweight reference to a Lua object.
 
@@ -974,6 +1014,14 @@ public:
         return LuaRef(L, FromStack());
     }
 
+    //=============================================================================================
+    /**
+     * @brief Indicate whether it is an invalid reference.
+     *
+     * @returns True if this is an invalid reference, false otherwise.
+     */
+    bool isValid() const { return m_ref != LUA_NOREF; }
+
     //----------------------------------------------------------------------------
     /**
         Assign another LuaRef to this LuaRef.
@@ -1103,7 +1151,7 @@ private:
     int m_ref;
 };
 
-//------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `LuaRef`.
  */
@@ -1121,12 +1169,12 @@ struct Stack<LuaRef>
     }
 };
 
-//------------------------------------------------------------------------------
+//=================================================================================================
 /**
  * @brief Stack specialization for `TableItem`.
  */
 template <>
-struct Stack <LuaRef::TableItem>
+struct Stack<LuaRef::TableItem>
 {
     static bool push(lua_State* L, const LuaRef::TableItem& v, std::error_code&)
     {
@@ -1134,36 +1182,36 @@ struct Stack <LuaRef::TableItem>
     }
 };
 
-//------------------------------------------------------------------------------
+//=================================================================================================
 /**
-    Create a reference to a new, empty table.
-
-    This is a syntactic abbreviation for LuaRef::newTable ().
-*/
+ * @brief Create a reference to a new, empty table.
+ *
+ * This is a syntactic abbreviation for LuaRef::newTable ().
+ */
 inline LuaRef newTable(lua_State* L)
 {
     return LuaRef::newTable(L);
 }
 
-//------------------------------------------------------------------------------
+//=================================================================================================
 /**
-    Create a reference to a value in the global table.
-
-    This is a syntactic abbreviation for LuaRef::getGlobal ().
-*/
-inline LuaRef getGlobal(lua_State* L, char const* name)
+ * @brief Create a reference to a value in the global table.
+ *
+ * This is a syntactic abbreviation for LuaRef::getGlobal ().
+ */
+inline LuaRef getGlobal(lua_State* L, const char* name)
 {
     return LuaRef::getGlobal(L, name);
 }
 
-//------------------------------------------------------------------------------
-
-// more C++-like cast syntax
-//
-template<class T>
-T LuaRef_cast(LuaRef const& lr)
+//=================================================================================================
+/**
+ * @brief C++ like cast syntax.
+ */
+template <class T>
+T cast(const LuaRef& ref)
 {
-    return lr.cast<T>();
+    return ref.cast<T>();
 }
 
 } // namespace luabridge

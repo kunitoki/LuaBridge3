@@ -2108,6 +2108,10 @@ TEST_F(ClassTests, NilCanBeConvertedToNullptrButNotToReference)
     runLua("TakeConstNullptr(nil)");
     EXPECT_TRUE(resultConst);
 
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_THROW(runLua("TakeReference(nil)"), std::exception);
+#else
     EXPECT_FALSE(runLua("TakeReference(nil)"));
+#endif
     EXPECT_FALSE(called);
 }

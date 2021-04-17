@@ -8,6 +8,7 @@
 #include "Errors.h"
 #include "Stack.h"
 #include "LuaRef.h"
+#include "LuaException.h"
 
 #include <vector>
 #include <functional>
