@@ -10,10 +10,13 @@
 * Breaking Change: LuaBridge does not silently enable exceptions when calling `getGlobalNamespace`. Call `enableExceptions(lua_State*)` if you want to enable them explicitly.
 * Breaking Change: Removed `RefCounterPtr`, maintaining the reference counts in a unsynchronized global table is not production quality.
 * Breaking Change: Removed `Class<T>::addStaticData`, it was just an alias for `Class<T>::addStaticProperty`.
-* Added support for specifying factory function in `Class<T>::addFactory` to do placement new of the object instance.
+* Breaking Change: Removed `Class<T>::addCFunction`, it was just an alias for `Class<T>::addFunction`.
+* Breaking Change: Removed `Class<T>::addStaticCFunction`, it was just an alias for `Class<T>::addStaticFunction`.
+* Added support for specifying factory functor in `Class<T>::addConstructor` to do placement new of the object instance.
 * Allow using capturing lambdas in `Namespace::addProperty`.
 * Added `getNamespaceFromStack` function to construct a namespace object from a table on the stack.
 * Added `std::shared_ptr` support for types intrusively deriving from `std::enable_shared_from_this`.
+* Added `Class<T>::addFunction` overload taking a `lua_CFunction` as if it were a member.
 
 ## Version 3.0
 

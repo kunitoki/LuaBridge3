@@ -572,16 +572,7 @@ class Namespace : public detail::Registrar
          *
          * @returns This class registration object.
          */
-        Class<T>& addStaticFunction(char const* name, int (*const fp)(lua_State*))
-        {
-            return addStaticCFunction(name, fp);
-        }
-
-        //=========================================================================================
-        /**
-         * @brief Add or replace a lua_CFunction.
-         */
-        Class<T>& addStaticCFunction(char const* name, int (*const fp)(lua_State*))
+        Class<T>& addStaticFunction(char const* name, int (*fp)(lua_State*))
         {
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
@@ -930,18 +921,6 @@ class Namespace : public detail::Registrar
         {
             static_assert(std::is_base_of_v<U, T>);
 
-            return addCFunction<U>(name, mfp);
-        }
-
-        //=========================================================================================
-        /**
-         * @brief Add or replace a member lua_CFunction.
-         */
-        template <class U>
-        Class<T>& addCFunction(char const* name, int (U::*mfp)(lua_State*))
-        {
-            static_assert(std::is_base_of_v<U, T>);
-
             using F = decltype(mfp);
 
             assert(name != nullptr);
@@ -966,18 +945,6 @@ class Namespace : public detail::Registrar
          */
         template <class U>
         Class<T>& addFunction(char const* name, int (U::*mfp)(lua_State*) const)
-        {
-            static_assert(std::is_base_of_v<U, T>);
-
-            return addCFunction<U>(name, mfp);
-        }
-
-        //=========================================================================================
-        /**
-         * @brief Add or replace a const member lua_CFunction.
-         */
-        template <class U>
-        Class<T>& addCFunction(char const* name, int (U::*mfp)(lua_State*) const)
         {
             static_assert(std::is_base_of_v<U, T>);
 
@@ -1007,7 +974,7 @@ class Namespace : public detail::Registrar
          *
          * This object is at top of the stack, then all other arguments.
          */
-        Class<T>& addCFunction(char const* name, int (*fp)(lua_State*))
+        Class<T>& addFunction(char const* name, int (*fp)(lua_State*))
         {
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
@@ -1065,7 +1032,7 @@ class Namespace : public detail::Registrar
          * address of a Constructor and pass it as an argument).
          */
         template <class Function>
-        Class<T> addFactory(Function function)
+        Class<T> addConstructor(Function function)
         {
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
@@ -1077,26 +1044,15 @@ class Namespace : public detail::Registrar
                     luaL_error(L, ec.message().c_str());
 
                 using FnTraits = detail::function_traits<Function>;
-                using FirstArg = detail::function_argument_t<0, Function>;
-                
-                T* obj = nullptr;
+                using FnArgs = detail::remove_first_type_t<typename FnTraits::argument_types>;
 
-                if constexpr (std::is_same_v<std::decay_t<std::remove_pointer_t<FirstArg>>, lua_State>)
-                {
-                    obj = detail::factory<T>::call(L, value->getObject(), function);
-                }
-                else
-                {
-                    using FnArgs = detail::remove_first_type_t<typename FnTraits::argument_types>;
-
-                    obj = detail::factory<T>::call(L, value->getObject(), function, detail::make_arguments_list<FnArgs, 2>(L));
-                }
+                T* obj = detail::factory<T>::call(L, value->getObject(), function, detail::make_arguments_list<FnArgs, 2>(L));
 
                 value->commit();
                 
                 return obj;
             };
-            
+
             using FactoryFnType = decltype(factory);
             
             lua_newuserdata_aligned<FactoryFnType>(L, std::move(factory)); // Stack: co, cl, st, function userdata (ud)

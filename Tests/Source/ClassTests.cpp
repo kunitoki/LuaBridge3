@@ -571,7 +571,7 @@ TEST_F(ClassFunctions, ProxyCFunction)
 
     luabridge::getGlobalNamespace(L)
         .beginClass<Int>("Int")
-        .addCFunction("method", &proxyCFunctionState)
+        .addFunction("method", &proxyCFunctionState)
         .endClass();
 
     addHelperFunctions(L);
@@ -1970,7 +1970,7 @@ TEST_F(ClassTests, Factory)
     {
         luabridge::getGlobalNamespace(L)
             .beginClass<FactoryConstructibleClass>("FactoryConstructibleClass")
-            .addFactory([](void* ptr) { return new(ptr) FactoryConstructibleClass(); })
+            .addConstructor([](void* ptr) { return new(ptr) FactoryConstructibleClass(); })
             .addProperty("x", &FactoryConstructibleClass::x_)
             .endClass();
 
@@ -1983,7 +1983,7 @@ TEST_F(ClassTests, Factory)
     {
         luabridge::getGlobalNamespace(L)
             .beginClass<FactoryConstructibleClass>("FactoryConstructibleClass2")
-            .addFactory([](void* ptr, int x) { return new(ptr) FactoryConstructibleClass(x); })
+            .addConstructor([](void* ptr, int x) { return new(ptr) FactoryConstructibleClass(x); })
             .addProperty("x", &FactoryConstructibleClass::x_)
             .endClass();
 
@@ -1996,7 +1996,7 @@ TEST_F(ClassTests, Factory)
     {
         luabridge::getGlobalNamespace(L)
             .beginClass<FactoryConstructibleClass>("FactoryConstructibleClass3")
-            .addFactory([](lua_State* L, void* ptr) { return new(ptr) FactoryConstructibleClass(luaL_checkinteger(L, 2)); })
+            .addConstructor([](void* ptr, lua_State* L) { return new(ptr) FactoryConstructibleClass(luaL_checkinteger(L, 2)); })
             .addProperty("x", &FactoryConstructibleClass::x_)
             .endClass();
 

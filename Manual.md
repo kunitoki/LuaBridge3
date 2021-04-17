@@ -31,7 +31,7 @@ Contents
     *   [2.3 - Class Objects](#23---class-objects)
     *   [2.4 - Property Member Proxies](#24---property-member-proxies)
     *   [2.5 - Function Member Proxies](#25---function-member-proxies)
-    *   [2.6 - Constructors and Factories](#26---constructors-and-factories)
+    *   [2.6 - Constructors](#26---constructors)
     *   [2.7 - Lua Stack](#27---lua-stack)
     *   [2.8 - lua_State](#28---lua_state)
 
@@ -453,7 +453,7 @@ luabridge::getGlobalNamespace (L)
   .endNamespace ();
 ```
 
-Or the more concise version (notice the `+` before the lambda is mandatory to convert a non capturing lambda to a function pointer):
+Or the more concise version (notice the `+` before the lambda is useful to convert a non capturing lambda to a function pointer in order to avoid allocating a std::function internally, where storing the lambda as function pointer might avoid lua usertype allocation overhead):
 
 ```cpp
 luabridge::getGlobalNamespace (L)
@@ -509,7 +509,7 @@ float y = atan(1.0f) * 4.0f;
 
 luabridge::getGlobalNamespace (L)
   .beginClass <Vec> ("Vec")
-    .addFunction ("scaleX", [] (Vec* vec, float v) { vec->coord [0] *= v; })
+    .addFunction ("scaleX", +[] (Vec* vec, float v) { vec->coord [0] *= v; })
     .addFunction ("scaleY", [y] (Vec* vec, float v) { vec->coord [1] *= v * y; })
   .endClass ()
 ```
@@ -517,8 +517,8 @@ luabridge::getGlobalNamespace (L)
 Of course when not capturing, it is better to prefix the lambda with `+` so it is converted and stored internally to a function pointer instead of an `std::function`, so it is actually lighter to store and faster to call.
 
 
-2.6 - Constructors and Factories
---------------------------------
+2.6 - Constructors
+------------------
 
 A single constructor may be added for a class using `addConstructor`. LuaBridge cannot automatically determine the number and types of constructor parameters like it can for functions and methods, so you must provide them. This is done by specifying the signature of the desired constructor function as the first template parameter to `addConstructor`. The parameter types will be extracted from this (the return type is ignored). For example, these statements register constructors for the given classes:
 
@@ -552,7 +552,7 @@ b = test.B ("hello", 5) -- Create a new B.
 b = test.B ()           -- Error: expected string in argument 1
 ```
 
-Sometimes is not possible to use a constructor for a class, because some of the constructor arguments have types that couldn't be exposed to lua. So it is possible to workaround that problem by using `addFactory`, which will allow to placement new the c++ class in a c++ lambda, specifying any custom parameter there:
+Sometimes is not possible to use a constructor for a class, because some of the constructor arguments have types that couldn't be exposed to lua. So it is possible to workaround that problem by using a special `addConstructor` call taking a functor, which will allow to placement new the c++ class in a c++ lambda, specifying any custom parameter there:
 
 ```cpp
 struct NotExposed
@@ -570,7 +570,7 @@ NotExposed shouldNotSeeMe;
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
     .beginClass <HardToCreate> ("HardToCreate")
-      .addFactory ([&shouldNotSeeMe](void* ptr, int easy) { new (ptr) HardToCreate (shouldNotSeeMe, easy); })
+      .addConstructor ([&shouldNotSeeMe](void* ptr, int easy) { new (ptr) HardToCreate (shouldNotSeeMe, easy); })
     .endClass ()
   .endNamespace ();
 ```
@@ -581,14 +581,14 @@ Then in lua:
 hard = test.HardToCreate (5) -- Create a new HardToCreate.
 ```
 
-The function `addFactory` also accepts a `lua_State*` as first parameter (but no additional parameters) in order to be used for constructors that needs to be overloaded by different numbers of arguments (arguments will start at index 2 on the stack):
+The `addConstructor` overload taking a generic functor also accepts a `lua_State*` as last parameter in order to be used for constructors that needs to be overloaded by different numbers of arguments (arguments will start at index 2 of the stack):
 
 ```cpp
 
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
     .beginClass <AnotherTest> ("AnotherTest")
-      .addFactory ([](lua_State* L, void* ptr) { new (ptr) AnotherTest (lua_checkinteger (L, 2)); })
+      .addConstructor ([](void* ptr, lua_State* L) { new (ptr) AnotherTest (lua_checkinteger (L, 2)); })
     .endClass ()
   .endNamespace ();
 ```
@@ -1302,7 +1302,7 @@ Namespace addProperty (const char* name, int (*getFn)(lua_State*));
 
 /// Registers a variable, writable or read-only.
 template <class V>
-Namespace addVariable (const char* name, V* varPtr, bool isWritable = true);
+Namespace addProperty (const char* name, V* varPtr, bool isWritable = true);
 ```
 
 Class Registration - Class<T>
@@ -1322,19 +1322,20 @@ template <class T>
 Namespace endClass ();
 ```
 
-### Constructor and Factory Registration
+### Constructor Registration
 
 ```cpp
 /// Registers a constructor for type T.
 template <class F>
 Class<T> addConstructor ();
 
-/// Registers a factory for type T using arguments known at compile time.
+/// Registers a functor to construct type T using arguments known at compile time.
 template <class... Params>
-Class<T> addFactory (std::function<T* (void* ptr, Params...)>);
+Class<T> addConstructor (std::function<T* (void* ptr, Params...)>);
 
-/// Registers a factory for type T using arguments known at runtime (using lua_State).
-Class<T> addFactory (std::function<T* (lua_State*, void* ptr)>);
+/// Registers a functor to construct type T using arguments known at both compile time and runtime (using lua_State as last parameter, runtime args start at index 2 of the stack).
+template <class... Params>
+Class<T> addConstructor (std::function<T* (void* ptr, Params..., lua_State*)>);
 ```
 
 ### Member Function Registration
