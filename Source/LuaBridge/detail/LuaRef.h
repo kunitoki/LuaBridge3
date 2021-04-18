@@ -46,7 +46,7 @@ struct LuaNil
 template <>
 struct Stack<LuaNil>
 {
-    static bool push(lua_State* L, LuaNil, std::error_code&)
+    static bool push(lua_State* L, const LuaNil&, std::error_code&)
     {
         lua_pushnil(L);
         return true;
@@ -239,7 +239,7 @@ public:
      *
      * @returns The output stream.
      */
-    friend std::ostream& operator<<(std::ostream& os, LuaRefBase const& ref)
+    friend std::ostream& operator<<(std::ostream& os, const LuaRefBase& ref)
     {
         ref.print(os);
         return os;
@@ -452,12 +452,14 @@ public:
 
     //=============================================================================================
     /**
-        Compare this reference with a specified value using lua_compare().
-        This invokes metamethods.
-
-        @param rhs A value to compare with.
-        @returns True if the referred value is equal to the specified one.
-    */
+     * @brief Compare this reference with a specified value using lua_compare().
+     *
+     * This invokes metamethods.
+     *
+     * @param rhs A value to compare with.
+     *
+     * @returns True if the referred value is equal to the specified one.
+     */
     template <class T>
     bool operator==(T rhs) const
     {
@@ -476,12 +478,14 @@ public:
     }
 
     /**
-        Compare this reference with a specified value using lua_compare().
-        This invokes metamethods.
-
-        @param rhs A value to compare with.
-        @returns True if the referred value is not equal to the specified one.
-    */
+     * @brief Compare this reference with a specified value using lua_compare().
+     *
+     * This invokes metamethods.
+     *
+     * @param rhs A value to compare with.
+     *
+     * @returns True if the referred value is not equal to the specified one.
+     */
     template <class T>
     bool operator!=(T rhs) const
     {
@@ -489,12 +493,14 @@ public:
     }
 
     /**
-        Compare this reference with a specified value using lua_compare().
-        This invokes metamethods.
-
-        @param rhs A value to compare with.
-        @returns True if the referred value is less than the specified one.
-    */
+     * @brief Compare this reference with a specified value using lua_compare().
+     *
+     * This invokes metamethods.
+     *
+     * @param rhs A value to compare with.
+     *
+     * @returns True if the referred value is less than the specified one.
+     */
     template <class T>
     bool operator<(T rhs) const
     {
@@ -509,8 +515,8 @@ public:
             return false;
         }
 
-        int lhsType = lua_type(m_L, -2);
-        int rhsType = lua_type(m_L, -1);
+        const int lhsType = lua_type(m_L, -2);
+        const int rhsType = lua_type(m_L, -1);
         if (lhsType != rhsType)
             return lhsType < rhsType;
 
@@ -518,12 +524,14 @@ public:
     }
 
     /**
-        Compare this reference with a specified value using lua_compare().
-        This invokes metamethods.
-
-        @param rhs A value to compare with.
-        @returns True if the referred value is less than or equal to the specified one.
-    */
+     * @brief Compare this reference with a specified value using lua_compare().
+     *
+     * This invokes metamethods.
+     *
+     * @param rhs A value to compare with.
+     *
+     * @returns True if the referred value is less than or equal to the specified one.
+     */
     template <class T>
     bool operator<=(T rhs) const
     {
@@ -538,8 +546,8 @@ public:
             return false;
         }
 
-        int lhsType = lua_type(m_L, -2);
-        int rhsType = lua_type(m_L, -1);
+        const int lhsType = lua_type(m_L, -2);
+        const int rhsType = lua_type(m_L, -1);
         if (lhsType != rhsType)
             return lhsType <= rhsType;
 
@@ -547,12 +555,14 @@ public:
     }
 
     /**
-        Compare this reference with a specified value using lua_compare().
-        This invokes metamethods.
-
-        @param rhs A value to compare with.
-        @returns True if the referred value is greater than the specified one.
-    */
+     * @brief Compare this reference with a specified value using lua_compare().
+     *
+     * This invokes metamethods.
+     *
+     * @param rhs A value to compare with.
+     *
+     * @returns True if the referred value is greater than the specified one.
+     */
     template <class T>
     bool operator>(T rhs) const
     {
@@ -576,12 +586,14 @@ public:
     }
 
     /**
-        Compare this reference with a specified value using lua_compare().
-        This invokes metamethods.
-
-        @param rhs A value to compare with.
-        @returns True if the referred value is greater than or equal to the specified one.
-    */
+     * @brief Compare this reference with a specified value using lua_compare().
+     *
+     * This invokes metamethods.
+     *
+     * @param rhs A value to compare with.
+     *
+     * @returns True if the referred value is greater than or equal to the specified one.
+     */
     template <class T>
     bool operator>=(T rhs) const
     {
@@ -605,12 +617,14 @@ public:
     }
 
     /**
-        Compare this reference with a specified value using lua_compare().
-        This does not invoke metamethods.
-
-        @param rhs A value to compare with.
-        @returns True if the referred value is equal to the specified one.
-    */
+     * @brief Compare this reference with a specified value using lua_compare().
+     *
+     * This does not invoke metamethods.
+     *
+     * @param rhs A value to compare with.
+     *
+     * @returns True if the referred value is equal to the specified one.
+     */
     template <class T>
     bool rawequal(T v) const
     {
@@ -630,11 +644,12 @@ public:
 
     //=============================================================================================
     /**
-        Append a value to a referred table.
-        If the table is a sequence this will add another element to it.
-
-        @param v A value to append to the table.
-    */
+     * @brief Append a value to a referred table.
+     *
+     * If the table is a sequence this will add another element to it.
+     *
+     * @param v A value to append to the table.
+     */
     template <class T>
     void append(T v) const
     {
@@ -651,11 +666,12 @@ public:
 
     //=============================================================================================
     /**
-        Return the length of a referred array.
-        This is identical to applying the Lua # operator.
-
-        @returns The length of the referred array.
-    */
+     * @brief Return the length of a referred array.
+     *
+     * This is identical to applying the Lua # operator.
+     *
+     * @returns The length of the referred array.
+     */
     int length() const
     {
         StackPop p(m_L, 1);
@@ -667,18 +683,19 @@ public:
 
     //=============================================================================================
     /**
-        Call Lua code.
-
-        The return value is provided as a LuaRef (which may be LUA_REFNIL).
-        If an error occurs, a LuaException is thrown.
-
-        @returns A result of the call.
-    */
+     * @brief Call Lua code.
+     *
+     * The return value is provided as a LuaRef (which may be LUA_REFNIL).
+     *
+     * If an error occurs, a LuaException is thrown (only if exceptions are enabled).
+     *
+     * @returns A result of the call.
+     */
     template <class... Args>
     LuaResult operator()(Args&&... args) const;
 
 protected:
-    lua_State* m_L;
+    lua_State* m_L = nullptr;
 
 private:
     const Impl& impl() const { return static_cast<const Impl&>(*this); }
@@ -688,48 +705,53 @@ private:
 
 //=================================================================================================
 /**
-    Lightweight reference to a Lua object.
-
-    The reference is maintained for the lifetime of the C++ object.
-*/
+ * @brief Lightweight reference to a Lua object.
+ *
+ * The reference is maintained for the lifetime of the C++ object.
+ */
 class LuaRef : public LuaRefBase<LuaRef, LuaRef>
 {
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
-        A proxy for representing table values.
-    */
+     * @brief A proxy for representing table values.
+     */
     class TableItem : public LuaRefBase<TableItem, LuaRef>
     {
         friend class LuaRef;
 
     public:
-        //--------------------------------------------------------------------------
+        //=========================================================================================
         /**
-            Construct a TableItem from a table value.
-            The table is in the registry, and the key is at the top of the stack.
-            The key is popped off the stack.
-
-            @param L        A lua state.
-            @param tableRef The index of a table in the Lua registry.
-        */
+         * @brief Construct a TableItem from a table value.
+         *
+         * The table is in the registry, and the key is at the top of the stack.
+         * The key is popped off the stack.
+         *
+         * @param L A lua state.
+         * @param tableRef The index of a table in the Lua registry.
+         */
         TableItem(lua_State* L, int tableRef)
-            : LuaRefBase(L), m_tableRef(LUA_NOREF), m_keyRef(luaL_ref(L, LUA_REGISTRYINDEX))
+            : LuaRefBase(L)
+            , m_tableRef(LUA_NOREF)
+            , m_keyRef(luaL_ref(L, LUA_REGISTRYINDEX))
         {
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, tableRef);
             m_tableRef = luaL_ref(L, LUA_REGISTRYINDEX);
         }
 
-        //--------------------------------------------------------------------------
+        //=========================================================================================
         /**
-            Create a TableItem via copy constructor.
-            It is best to avoid code paths that invoke this, because it creates
-            an extra temporary Lua reference. Typically this is done by passing
-            the TableItem parameter as a `const` reference.
-
-            @param other Another Lua table item reference.
-        */
-        TableItem(TableItem const& other)
-            : LuaRefBase(other.m_L), m_tableRef(LUA_NOREF), m_keyRef(LUA_NOREF)
+         * @brief Create a TableItem via copy constructor.
+         *
+         * It is best to avoid code paths that invoke this, because it creates an extra temporary Lua reference. Typically this is done by
+         * passing the TableItem parameter as a `const` reference.
+         *
+         * @param other Another Lua table item reference.
+         */
+        TableItem(const TableItem& other)
+            : LuaRefBase(other.m_L)
+            , m_tableRef(LUA_NOREF)
+            , m_keyRef(LUA_NOREF)
         {
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, other.m_tableRef);
             m_tableRef = luaL_ref(m_L, LUA_REGISTRYINDEX);
@@ -738,27 +760,34 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             m_keyRef = luaL_ref(m_L, LUA_REGISTRYINDEX);
         }
 
-        //--------------------------------------------------------------------------
+        //=========================================================================================
         /**
-            Destroy the proxy.
-            This does not destroy the table value.
-        */
+         * @brief Destroy the proxy.
+         *
+         * This does not destroy the table value.
+         */
         ~TableItem()
         {
-            luaL_unref(m_L, LUA_REGISTRYINDEX, m_keyRef);
-            luaL_unref(m_L, LUA_REGISTRYINDEX, m_tableRef);
+            if (m_keyRef != LUA_NOREF)
+                luaL_unref(m_L, LUA_REGISTRYINDEX, m_keyRef);
+            
+            if (m_tableRef != LUA_NOREF)
+                luaL_unref(m_L, LUA_REGISTRYINDEX, m_tableRef);
         }
 
-        //--------------------------------------------------------------------------
+        //=========================================================================================
         /**
-            Assign a new value to this table key.
-            This may invoke metamethods.
-
-            @tparam T The type of a value to assing.
-            @param  v A value to assign.
-            @returns This reference.
-        */
-        template<class T>
+         * @brief Assign a new value to this table key.
+         *
+         * This may invoke metamethods.
+         *
+         * @tparam T The type of a value to assing.
+         *
+         * @param v A value to assign.
+         *
+         * @returns This reference.
+         */
+        template <class T>
         TableItem& operator=(T v)
         {
             StackPop p(m_L, 1);
@@ -773,16 +802,19 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             return *this;
         }
 
-        //--------------------------------------------------------------------------
+        //=========================================================================================
         /**
-            Assign a new value to this table key.
-            The assignment is raw, no metamethods are invoked.
-
-            @tparam T The type of a value to assing.
-            @param  v A value to assign.
-            @returns This reference.
-        */
-        template<class T>
+         * @brief Assign a new value to this table key.
+         *
+         * The assignment is raw, no metamethods are invoked.
+         *
+         * @tparam T The type of a value to assing.
+         *
+         * @param v A value to assign.
+         *
+         * @returns This reference.
+         */
+        template <class T>
         TableItem& rawset(T v)
         {
             StackPop p(m_L, 1);
@@ -797,10 +829,10 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             return *this;
         }
 
-        //--------------------------------------------------------------------------
+        //=========================================================================================
         /**
-            Push the value onto the Lua stack.
-        */
+         * @brief Push the value onto the Lua stack.
+         */
         using LuaRefBase::push;
 
         void push() const
@@ -811,32 +843,37 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             lua_remove(m_L, -2); // remove the table
         }
 
-        //--------------------------------------------------------------------------
+        //=========================================================================================
         /**
-            Access a table value using a key.
-            This invokes metamethods.
-
-            @tparam T   The type of a key.
-            @param  key A key value.
-            @returns A Lua table item reference.
-        */
-        template<class T>
+         * @brief Access a table value using a key.
+         *
+         * This invokes metamethods.
+         *
+         * @tparam T The type of a key.
+         *
+         * @param key A key value.
+         *
+         * @returns A Lua table item reference.
+         */
+        template <class T>
         TableItem operator[](T key) const
         {
             return LuaRef(*this)[key];
         }
 
-        //--------------------------------------------------------------------------
+        //=========================================================================================
         /**
-            Access a table value using a key.
-            The operation is raw, metamethods are not invoked. The result is
-            passed by value and may not be modified.
-
-            @tparam T   The type of a key.
-            @param  key A key value.
-            @returns A Lua value reference.
-        */
-        template<class T>
+         * @brief Access a table value using a key.
+         *
+         * The operation is raw, metamethods are not invoked. The result is passed by value and may not be modified.
+         *
+         * @tparam T The type of a key.
+         *
+         * @param key A key value.
+         *
+         * @returns A Lua value reference.
+         */
+        template <class T>
         LuaRef rawget(T key) const
         {
             return LuaRef(*this).rawget(key);
@@ -850,31 +887,34 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
     friend struct Stack<TableItem>;
     friend struct Stack<TableItem&>;
 
-    //----------------------------------------------------------------------------
+    //=========================================================================================
     /**
-        Create a reference to an object at the top of the Lua stack and pop it.
-        This constructor is private and not invoked directly.
-        Instead, use the `fromStack` function.
-
-        @param L A Lua state.
-        @note The object is popped.
-    */
+     * @brief Create a reference to an object at the top of the Lua stack and pop it.
+     *
+     * This constructor is private and not invoked directly. Instead, use the `fromStack` function.
+     *
+     * @param L A Lua state.
+     *
+     * @note The object is popped.
+     */
     LuaRef(lua_State* L, FromStack)
         : LuaRefBase(L)
         , m_ref(luaL_ref(m_L, LUA_REGISTRYINDEX))
     {
     }
 
-    //----------------------------------------------------------------------------
+    //=========================================================================================
     /**
-        Create a reference to an object on the Lua stack.
-        This constructor is private and not invoked directly.
-        Instead, use the `fromStack` function.
-
-        @param L     A Lua state.
-        @param index The index of the value on the Lua stack.
-        @note The object is not popped.
-    */
+     * @brief Create a reference to an object on the Lua stack.
+     *
+     * This constructor is private and not invoked directly. Instead, use the `fromStack` function.
+     *
+     * @param L A Lua state.
+     *
+     * @param index The index of the value on the Lua stack.
+     *
+     * @note The object is not popped.
+     */
     LuaRef(lua_State* L, int index, FromStack)
         : LuaRefBase(L)
         , m_ref(LUA_NOREF)
@@ -884,27 +924,28 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
     }
 
 public:
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
-        Create a nil reference.
-        The Lua reference may be assigned later.
-
-        @param L A Lua state.
-    */
+     * @brief Create an invalid reference that will be treated as nil.
+     *
+     * The Lua reference may be assigned later.
+     *
+     * @param L A Lua state.
+     */
     LuaRef(lua_State* L)
         : LuaRefBase(L)
         , m_ref(LUA_NOREF)
     {
     }
 
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
-        Push a value onto a Lua stack and return a reference to it.
-
-        @param L A Lua state.
-        @param v A value to push.
-    */
-    template<class T>
+     * @brief Push a value onto a Lua stack and return a reference to it.
+     *
+     * @param L A Lua state.
+     * @param v A value to push.
+     */
+    template <class T>
     LuaRef(lua_State* L, T v)
         : LuaRefBase(L)
         , m_ref(LUA_NOREF)
@@ -916,99 +957,104 @@ public:
         m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX);
     }
 
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
-        Create a reference to a table item.
-
-        @param v A table item reference.
-    */
-    LuaRef(TableItem const& v)
+     * @brief Create a reference to a table item.
+     *
+     * @param v A table item reference.
+     */
+    LuaRef(const TableItem& v)
         : LuaRefBase(v.state())
         , m_ref(v.createRef())
     {
     }
 
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
-        Create a new reference to an existing Lua value.
-
-        @param other An existing reference.
-    */
-    LuaRef(LuaRef const& other)
+     * @brief Create a new reference to an existing Lua value.
+     *
+     * @param other An existing reference.
+     */
+    LuaRef(const LuaRef& other)
         : LuaRefBase(other.m_L)
         , m_ref(other.createRef())
     {
     }
 
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
-        Destroy a reference.
-
-        The corresponding Lua registry reference will be released.
-
-        @note If the state refers to a thread, it is the responsibility of the
-              caller to ensure that the thread still exists when the LuaRef
-              is destroyed.
-    */
+     * @brief Destroy a reference.
+     *
+     * The corresponding Lua registry reference will be released.
+     *
+     * @note If the state refers to a thread, it is the responsibility of the caller to ensure that the thread still exists when the LuaRef is destroyed.
+     */
     ~LuaRef()
     {
         if (m_ref != LUA_NOREF)
             luaL_unref(m_L, LUA_REGISTRYINDEX, m_ref);
     }
 
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
-        Return a reference to a top Lua stack item.
-        The stack item is not popped.
-
-        @param L A Lua state.
-        @returns A reference to a value on the top of a Lua stack.
-    */
+     * @brief Return a reference to a top Lua stack item.
+     *
+     * The stack item is not popped.
+     *
+     * @param L A Lua state.
+     *
+     * @returns A reference to a value on the top of a Lua stack.
+     */
     static LuaRef fromStack(lua_State* L)
     {
         return LuaRef(L, FromStack());
     }
 
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
-        Return a reference to a Lua stack item with a specified index.
-        The stack item is not removed.
-
-        @param L     A Lua state.
-        @param index An index in the Lua stack.
-        @returns A reference to a value in a Lua stack.
-    */
+     * @brief Return a reference to a Lua stack item with a specified index.
+     *
+     * The stack item is not removed.
+     *
+     * @param L     A Lua state.
+     * @param index An index in the Lua stack.
+     *
+     * @returns A reference to a value in a Lua stack.
+     */
     static LuaRef fromStack(lua_State* L, int index)
     {
         lua_pushvalue(L, index);
         return LuaRef(L, FromStack());
     }
 
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
-        Create a new empty table on the top of a Lua stack
-        and return a reference to it.
-
-        @param L A Lua state.
-        @returns A reference to the newly created table.
-        @see luabridge::newTable()
-    */
+     * @brief Create a new empty table on the top of a Lua stack and return a reference to it.
+     *
+     * @param L A Lua state.
+     *
+     * @returns A reference to the newly created table.
+     *
+     * @see luabridge::newTable()
+     */
     static LuaRef newTable(lua_State* L)
     {
         lua_newtable(L);
         return LuaRef(L, FromStack());
     }
 
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
-        Return a reference to a named global Lua variable.
-
-        @param L    A Lua state.
-        @param name The name of a global variable.
-        @returns A reference to the Lua variable.
-        @see luabridge::getGlobal()
-    */
-    static LuaRef getGlobal(lua_State* L, char const* name)
+     * @brief Return a reference to a named global Lua variable.
+     *
+     * @param L    A Lua state.
+     * @param name The name of a global variable.
+     *
+     * @returns A reference to the Lua variable.
+     *
+     * @see luabridge::getGlobal()
+     */
+    static LuaRef getGlobal(lua_State* L, const char* name)
     {
         lua_getglobal(L, name);
         return LuaRef(L, FromStack());
@@ -1022,55 +1068,58 @@ public:
      */
     bool isValid() const { return m_ref != LUA_NOREF; }
 
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
-        Assign another LuaRef to this LuaRef.
-
-        @param rhs A reference to assign from.
-        @returns This reference.
-    */
-    LuaRef& operator=(LuaRef const& rhs)
+     * @brief Assign another LuaRef to this LuaRef.
+     *
+     * @param rhs A reference to assign from.
+     *
+     * @returns This reference.
+     */
+    LuaRef& operator=(const LuaRef& rhs)
     {
         LuaRef ref(rhs);
         swap(ref);
         return *this;
     }
 
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
-        Assign a table item reference.
-
-        @param rhs A table item reference.
-        @returns This reference.
-    */
-    LuaRef& operator=(LuaRef::TableItem const& rhs)
+     * @brief Assign a table item reference.
+     *
+     * @param rhs A table item reference.
+     *
+     * @returns This reference.
+     */
+    LuaRef& operator=(const LuaRef::TableItem& rhs)
     {
         LuaRef ref(rhs);
         swap(ref);
         return *this;
     }
 
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
-      Assign nil to this reference.
-
-      @returns This reference.
-    */
-    LuaRef& operator=(LuaNil const&)
+     * @brief Assign nil to this reference.
+     *
+     * @returns This reference.
+     */
+    LuaRef& operator=(const LuaNil&)
     {
         LuaRef ref(m_L);
         swap(ref);
         return *this;
     }
 
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
-        Assign a different value to this reference.
-
-        @param rhs A value to assign.
-        @returns This reference.
-    */
-    template<class T>
+     * @brief Assign a different value to this reference.
+     *
+     * @param rhs A value to assign.
+     *
+     * @returns This reference.
+     */
+    template <class T>
     LuaRef& operator=(T rhs)
     {
         LuaRef ref(m_L, rhs);
@@ -1078,10 +1127,10 @@ public:
         return *this;
     }
 
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
-        Place the object onto the Lua stack.
-    */
+     * @brief Place the object onto the Lua stack.
+     */
     using LuaRefBase::push;
 
     void push() const
@@ -1089,43 +1138,46 @@ public:
         lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_ref);
     }
 
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
-        Pop the top of Lua stack and assign the ref to m_ref
-    */
+     * @brief Pop the top of Lua stack and assign the ref to m_ref
+     */
     void pop()
     {
         luaL_unref(m_L, LUA_REGISTRYINDEX, m_ref);
         m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX);
     }
 
-    //----------------------------------------------------------------------------
+    //=============================================================================================
     /**
-        Access a table value using a key.
-        This invokes metamethods.
-
-        @param key A key in the table.
-        @returns A reference to the table item.
-    */
+     * @brief Access a table value using a key.
+     *
+     * This invokes metamethods.
+     *
+     * @param key A key in the table.
+     *
+     * @returns A reference to the table item.
+     */
     template <class T>
     TableItem operator[](T key) const
     {
         std::error_code ec;
         if (! Stack<T>::push(m_L, key, ec))
-            return TableItem(m_L, m_ref); // TODO - return optional ?
+            return TableItem(m_L, m_ref);
 
         return TableItem(m_L, m_ref);
     }
 
-    //--------------------------------------------------------------------------
+    //=============================================================================================
     /**
-        Access a table value using a key.
-        The operation is raw, metamethods are not invoked. The result is
-        passed by value and may not be modified.
-
-        @param key A key in the table.
-        @returns A reference to the table item.
-    */
+     * @brief Access a table value using a key.
+     *
+     * The operation is raw, metamethods are not invoked. The result is passed by value and may not be modified.
+     *
+     * @param key A key in the table.
+     *
+     * @returns A reference to the table item.
+     */
     template <class T>
     LuaRef rawget(T key) const
     {
@@ -1135,7 +1187,7 @@ public:
 
         std::error_code ec;
         if (! Stack<T>::push(m_L, key, ec))
-            return LuaRef(m_L); // TODO - return optional ?
+            return LuaRef(m_L);
 
         lua_rawget(m_L, -2);
         return LuaRef(m_L, FromStack());
@@ -1144,11 +1196,13 @@ public:
 private:
     void swap(LuaRef& other)
     {
-        std::swap(m_L, other.m_L);
-        std::swap(m_ref, other.m_ref);
+        using std::swap;
+        
+        swap(m_L, other.m_L);
+        swap(m_ref, other.m_ref);
     }
 
-    int m_ref;
+    int m_ref = LUA_NOREF;
 };
 
 //=================================================================================================

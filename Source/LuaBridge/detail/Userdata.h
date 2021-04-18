@@ -788,12 +788,12 @@ namespace detail {
  * The trait checks the existence of member type Stack::IsUserdata specialization for detection.
  */
 template <class T, class Enable = void>
-struct IsUserdata : std::bool_constant<false>
+struct IsUserdata : std::false_type
 {
 };
 
 template <class T>
-struct IsUserdata<T, std::void_t<typename Stack<T>::IsUserdata>> : std::bool_constant<true>
+struct IsUserdata<T, std::void_t<typename Stack<T>::IsUserdata>> : std::true_type
 {
 };
 
@@ -830,7 +830,7 @@ struct StackOpSelector<const T*, true>
     static bool isInstance(lua_State* L, int index) { return Userdata::isInstance<T>(L, index); }
 };
 
-// reference
+// l-value reference
 template <class T>
 struct StackOpSelector<T&, true>
 {
@@ -844,7 +844,7 @@ struct StackOpSelector<T&, true>
     static bool isInstance(lua_State* L, int index) { return Userdata::isInstance<T>(L, index); }
 };
 
-// reference to const
+// l-value reference to const
 template <class T>
 struct StackOpSelector<const T&, true>
 {

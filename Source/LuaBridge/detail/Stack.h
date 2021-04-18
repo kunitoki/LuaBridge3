@@ -45,6 +45,30 @@ struct Stack<void>
 
 //=================================================================================================
 /**
+ * @brief Specialization for nullptr_t.
+ */
+template <>
+struct Stack<std::nullptr_t>
+{
+    static bool push(lua_State* L, std::nullptr_t, std::error_code&)
+    {
+        lua_pushnil(L);
+        return true;
+    }
+
+    static std::nullptr_t get(lua_State*, int)
+    {
+        return nullptr;
+    }
+
+    static bool isInstance(lua_State* L, int index)
+    {
+        return lua_isnil(L, index);
+    }
+};
+
+//=================================================================================================
+/**
  * @brief Receive the lua_State* as an argument.
  */
 template <>
@@ -408,6 +432,30 @@ struct Stack<double>
     static double get(lua_State* L, int index)
     {
         return static_cast<double>(luaL_checknumber(L, index));
+    }
+
+    static bool isInstance(lua_State* L, int index)
+    {
+        return lua_type(L, index) == LUA_TNUMBER;
+    }
+};
+
+//=================================================================================================
+/**
+ * @brief Stack specialization for `long double`.
+ */
+template <>
+struct Stack<long double>
+{
+    static bool push(lua_State* L, long double value, std::error_code&)
+    {
+        lua_pushnumber(L, static_cast<lua_Number>(value));
+        return true;
+    }
+
+    static long double get(lua_State* L, int index)
+    {
+        return static_cast<long double>(luaL_checknumber(L, index));
     }
 
     static bool isInstance(lua_State* L, int index)
