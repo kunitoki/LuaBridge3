@@ -1,7 +1,8 @@
 ## Master
 
-## Version 3.1
+## Version 3.0
 
+* Moved to C++17 as minimum supported standard C++ version.
 * Reworked the whole library to be able to use it without c++ exceptions enabled.
 * Breaking Change: The method `Stack<T>::push` now takes a `std::error_code&` as last parameter and returns a `bool`.
 * Breaking Change: The class `LuaException` has been reworked and it now take a `std::error_code` instead of a int.
@@ -12,22 +13,14 @@
 * Breaking Change: Removed `Class<T>::addStaticData`, it was just an alias for `Class<T>::addStaticProperty`.
 * Breaking Change: Removed `Class<T>::addCFunction`, it was just an alias for `Class<T>::addFunction`.
 * Breaking Change: Removed `Class<T>::addStaticCFunction`, it was just an alias for `Class<T>::addStaticFunction`.
+* Allow specifying a non virtual base class method when declaring class members (functions or variables) not exposed in the inherited class.
+* Allow using capturing lambdas in `Namespace::addFunction` and `Class<T>::addFunction`.
 * Added support for specifying factory functor in `Class<T>::addConstructor` to do placement new of the object instance.
 * Allow using capturing lambdas in `Namespace::addProperty`.
 * Added `getNamespaceFromStack` function to construct a namespace object from a table on the stack.
 * Added `std::shared_ptr` support for types intrusively deriving from `std::enable_shared_from_this`.
 * Added `Class<T>::addFunction` overload taking a `lua_CFunction` as if it were a member.
 * Added `LuaRef::isValid` to check when the reference is a LUA_NOREF.
-* Fixed issue when `LuaRef::cast<>` fails with exceptions enabled, popping from the now empty stack could trigger the panic handler twice.
-* Bumped lua 5.4.x in unit tests from lua 5.4.1 to 5.4.3.
-
-
-## Version 3.0
-
-* Moved to C++17 as minimum supported standard C++ version.
-* Fixed unaligned access in user allocated member pointers in 64bit machines reported by ASAN.
-* Allow specifying a non virtual base class method when declaring class members (functions or variables) not exposed in the inherited class.
-* Allow using capturing lambdas in `Namespace::addFunction` and `Class<T>::addFunction`.
 * Added support for `std::byte` as stack value type.
 * Added support for `std::string_view` as stack value type.
 * Added support for `std::tuple` as stack value type.
@@ -41,8 +34,11 @@
 * Removed `Class<T>::addData`, it was just an alias for `Class<T>::addProperty`.
 * Removed `TypeList` from loki, using parameter packs and `std::tuple` with `std::apply`.
 * Removed juce traces from unit tests, simplified unit tests runs.
+* Fixed issue when `LuaRef::cast<>` fails with exceptions enabled, popping from the now empty stack could trigger the panic handler twice.
+* Fixed unaligned access in user allocated member pointers in 64bit machines reported by ASAN.
 * Bumped lua 5.2.x in unit tests from lua 5.2.0 to 5.2.4.
-* Run against lua 5.3.6 and 5.4.1 in unit tests.
+* Bumped lua 5.4.x in unit tests from lua 5.4.1 to 5.4.3.
+* Run against lua 5.3.6 and 5.4.3 in unit tests.
 * Converted the manual from html to markdown.
 * Small improvements to code and doxygen comments readability.
 

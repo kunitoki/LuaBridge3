@@ -6,13 +6,13 @@
 </a>
 <br>
 
-# LuaBridge 3.1
+# LuaBridge 3.0
 
 [LuaBridge][1] is a lightweight and dependency-free library for mapping data,
 functions, and classes back and forth between C++ and [Lua][2] (a powerful,
 fast, lightweight, embeddable scripting language). LuaBridge has been tested
 and works with Lua revisions starting from 5.1.5, and also compatibility is
-provided with lua 5.2.4, 5.3.6 and 5.4.1 as well as [LuaJit][3].
+provided with lua 5.2.4, 5.3.6 and 5.4.3 as well as [LuaJit][3].
 
 ## Features
 

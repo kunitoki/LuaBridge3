@@ -1,6 +1,6 @@
 * * *
 
-LuaBridge 3.1 Reference Manual
+LuaBridge 3.0 Reference Manual
 ==============================
 
 * * *
