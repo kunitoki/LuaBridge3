@@ -4960,20 +4960,19 @@ private:
         return LuaResult(L, ec, errorString ? errorString : ec.message());
     }
 
-    static LuaResult valuesFromStack(lua_State* L)
+    static LuaResult valuesFromStack(lua_State* L, int stackTop)
     {
         std::vector<LuaRef> values;
 
-        const int numReturnedValues = lua_gettop(L) - 1;
+        const int numReturnedValues = lua_gettop(L) - stackTop;
         if (numReturnedValues > 0)
         {
             values.reserve(numReturnedValues);
 
-            for (int index = 0; index < numReturnedValues; ++index)
-            {
-                values.insert(std::begin(values), LuaRef::fromStack(L, -1));
-                lua_pop(L, 1);
-            }
+            for (int index = numReturnedValues; index > 0; --index)
+                values.emplace_back(LuaRef::fromStack(L, -index));
+
+            lua_pop(L, numReturnedValues);
         }
 
         return LuaResult(L, std::move(values));
@@ -5018,6 +5017,7 @@ template <class... Args>
 LuaResult call(const LuaRef& object, Args&&... args)
 {
     lua_State* L = object.state();
+    const int stackTop = lua_gettop(L);
 
     object.push();
 
@@ -5044,7 +5044,7 @@ LuaResult call(const LuaRef& object, Args&&... args)
 #endif
     }
 
-    return LuaResult::valuesFromStack(L);
+    return LuaResult::valuesFromStack(L, stackTop);
 }
 
 //=============================================================================================
