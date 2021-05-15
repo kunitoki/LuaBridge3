@@ -167,3 +167,30 @@ TEST_F(IssueTests, Issue127)
     runLua("result = 1");
     ASSERT_EQ(MyEnum::VALUE1, result<MyEnum>());
 }
+
+TEST_F(IssueTests, Issue8)
+{
+    runLua(R"(function HelloWorld(args) return args end)");
+            
+    luabridge::LuaRef func = luabridge::getGlobal(L, "HelloWorld");
+
+    {
+        auto result = func("helloworld");
+        ASSERT_EQ(1, result.size());
+        ASSERT_STREQ("helloworld", result[0].cast<const char*>());
+    }
+
+    {
+        const char* str = "helloworld";
+        auto result = func(str);
+        ASSERT_EQ(1, result.size());
+        ASSERT_STREQ("helloworld", result[0].cast<const char*>());
+    }
+
+    {
+        std::string str = "helloworld";
+        auto result = func(std::move(str));
+        ASSERT_EQ(1, result.size());
+        ASSERT_STREQ("helloworld", result[0].cast<const char*>());
+    }
+}

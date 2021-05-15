@@ -11,6 +11,7 @@
 #include "LuaException.h"
 #include "ClassInfo.h"
 #include "TypeTraits.h"
+#include "Stack.h"
 
 #include <cassert>
 #include <stdexcept>
@@ -314,7 +315,7 @@ public:
      * @tparam U A container type.
      *
      * @param L A Lua state.
-     * @param u A container object reference.
+     * @param u A container object l-value reference.
      * @param ec Error code that will be set in case of failure to push on the lua stack.
      */
     template <class U>
@@ -326,6 +327,30 @@ public:
             return false;
 
         new (ud->getObject()) U(u);
+
+        ud->commit();
+
+        return true;
+    }
+
+    /**
+     * @brief Push T via move construction from U.
+     *
+     * @tparam U A container type.
+     *
+     * @param L A Lua state.
+     * @param u A container object r-value reference.
+     * @param ec Error code that will be set in case of failure to push on the lua stack.
+     */
+    template <class U>
+    static bool push(lua_State* L, U&& u, std::error_code& ec)
+    {
+        auto* ud = place(L, ec);
+
+        if (!ud)
+            return false;
+
+        new (ud->getObject()) U(std::move(u));
 
         ud->commit();
 
@@ -672,6 +697,11 @@ struct StackHelper<T, false>
         return UserdataValue<T>::push(L, t, ec);
     }
 
+    static bool push(lua_State* L, T&& t, std::error_code& ec)
+    {
+        return UserdataValue<T>::push(L, std::move(t), ec);
+    }
+
     static T const& get(lua_State* L, int index)
     {
         return *Userdata::get<T>(L, index, true);
@@ -755,7 +785,7 @@ struct UserdataGetter<T, std::void_t<T (*)()>>
 /**
  * @brief Lua stack conversions for class objects passed by value.
  */
-template <class T>
+template <class T, class = void>
 struct Stack
 {
     using IsUserdata = void;
@@ -766,6 +796,11 @@ struct Stack
     static bool push(lua_State* L, const T& value, std::error_code& ec)
     {
         return detail::StackHelper<T, detail::IsContainer<T>::value>::push(L, value, ec);
+    }
+
+    static bool push(lua_State* L, T&& value, std::error_code& ec)
+    {
+        return detail::StackHelper<T, detail::IsContainer<T>::value>::push(L, std::move(value), ec);
     }
 
     static ReturnType get(lua_State* L, int index)

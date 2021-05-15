@@ -27,7 +27,7 @@ namespace luabridge {
  *
  * @tparam T A C++ type.
  */
-template <class T>
+template <class T, class>
 struct Stack;
 
 //=================================================================================================
@@ -494,6 +494,28 @@ struct Stack<const char*>
 
 //=================================================================================================
 /**
+ * @brief Stack specialization for `const char[N]` literals.
+ */
+namespace detail {
+template <class T>
+struct IsStringLiteral : std::is_same<T,
+    std::add_lvalue_reference_t<const char[std::extent_v<std::remove_reference_t<T>>]>>
+{
+};
+} // namespace detail
+
+template <class T>
+struct Stack<T, std::enable_if_t<detail::IsStringLiteral<T>::value>>
+{
+    static bool push(lua_State* L, const char (&str)[std::extent_v<std::remove_reference_t<T>>], std::error_code&)
+    {
+        lua_pushlstring(L, str, std::extent_v<std::remove_reference_t<T>>);
+        return true;
+    }
+};
+
+//=================================================================================================
+/**
  * @brief Stack specialization for `std::string_view`.
  */
 template <>
@@ -700,7 +722,7 @@ struct StackOpSelector<const T*, false>
 } // namespace detail
 
 template <class T>
-struct Stack<T&>
+struct Stack<T&, std::enable_if_t<!detail::IsStringLiteral<T&>::value>>
 {
     using Helper = detail::StackOpSelector<T&, detail::IsUserdata<T>::value>;
     using ReturnType = typename Helper::ReturnType;
@@ -713,7 +735,7 @@ struct Stack<T&>
 };
 
 template <class T>
-struct Stack<const T&>
+struct Stack<const T&, std::enable_if_t<!detail::IsStringLiteral<const T&>::value>>
 {
     using Helper = detail::StackOpSelector<const T&, detail::IsUserdata<T>::value>;
     using ReturnType = typename Helper::ReturnType;

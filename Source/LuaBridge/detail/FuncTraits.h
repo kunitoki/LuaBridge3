@@ -227,13 +227,13 @@ struct to_std_function_type
 {
 };
 
-template <class ReturnType, typename... Args>
+template <class ReturnType, class... Args>
 struct to_std_function_type<ReturnType, std::tuple<Args...>>
 {
     using type = std::function<ReturnType(Args...)>;
 };
 
-template <class ReturnType, typename... Args>
+template <class ReturnType, class... Args>
 using to_std_function_type_t = typename to_std_function_type<ReturnType, Args...>::type;
 
 //=================================================================================================
@@ -271,15 +271,15 @@ auto make_arguments_list(lua_State* L)
 /**
  * @brief Helpers for iterating through tuple arguments, pushing each argument to the lua stack.
  */
-template <std::size_t Index = 0, typename... Types>
-auto push_arguments(lua_State*, const std::tuple<Types...>&, std::error_code&)
+template <std::size_t Index = 0, class... Types>
+auto push_arguments(lua_State*, std::tuple<Types...>, std::error_code&)
     -> std::enable_if_t<Index == sizeof...(Types), std::size_t>
 {
     return Index + 1;
 }
 
-template <std::size_t Index = 0, typename... Types>
-auto push_arguments(lua_State* L, const std::tuple<Types...>& t, std::error_code& ec)
+template <std::size_t Index = 0, class... Types>
+auto push_arguments(lua_State* L, std::tuple<Types...> t, std::error_code& ec)
     -> std::enable_if_t<Index < sizeof...(Types), std::size_t>
 {
     using T = std::tuple_element_t<Index, std::tuple<Types...>>;
@@ -292,21 +292,21 @@ auto push_arguments(lua_State* L, const std::tuple<Types...>& t, std::error_code
         return Index + 1;
     }
 
-    return push_arguments<Index + 1, Types...>(L, t, ec);
+    return push_arguments<Index + 1, Types...>(L, std::move(t), ec);
 }
 
 //=================================================================================================
 /**
  * @brief Helpers for iterating through tuple arguments, popping each argument from the lua stack.
  */
-template <std::ptrdiff_t Start, std::ptrdiff_t Index = 0, typename... Types>
+template <std::ptrdiff_t Start, std::ptrdiff_t Index = 0, class... Types>
 auto pop_arguments(lua_State*, std::tuple<Types...>&)
     -> std::enable_if_t<Index == sizeof...(Types), std::size_t>
 {
     return sizeof...(Types);
 }
 
-template <std::ptrdiff_t Start, std::ptrdiff_t Index = 0, typename... Types>
+template <std::ptrdiff_t Start, std::ptrdiff_t Index = 0, class... Types>
 auto pop_arguments(lua_State* L, std::tuple<Types...>& t)
     -> std::enable_if_t<Index < sizeof...(Types), std::size_t>
 {
