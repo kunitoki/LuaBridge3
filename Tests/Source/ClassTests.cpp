@@ -1164,10 +1164,13 @@ TEST_F(ClassProperties, StdFunctions)
         object->data = value;
     };
 
+    int data2 = 1;
+
     luabridge::getGlobalNamespace(L)
         .beginClass<Int>("Int")
         .addConstructor<void (*)(int)>()
         .addProperty("data", std::move(getter), std::move(setter))
+        .addProperty("data2", [&data2](const Int*) { return data2; }, [data2 = std::addressof(data2)](Int*, int v) { *data2 = v; })
         .endClass();
 
     getter = nullptr;
@@ -1184,6 +1187,10 @@ TEST_F(ClassProperties, StdFunctions)
     runLua("result.data = -2");
     ASSERT_TRUE(result()["data"].isNumber());
     ASSERT_EQ(-2, result()["data"].cast<int>());
+
+    runLua("result.data2 = -2");
+    ASSERT_TRUE(result()["data2"].isNumber());
+    ASSERT_EQ(-2, result()["data2"].cast<int>());
 
     runLua("result = nil");
     lua_close(L); // Force garbage collection
@@ -1950,7 +1957,7 @@ TEST_F(ClassTests, MethodTakesMoreThanEightArgs)
     ASSERT_EQ(10, result<WideClass>().a10_);
 }
 
-TEST_F(ClassTests, Factory)
+TEST_F(ClassTests, ConstructorFactory)
 {
     struct FactoryConstructibleClass
     {

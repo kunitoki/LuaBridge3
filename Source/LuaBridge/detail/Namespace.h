@@ -527,14 +527,14 @@ class Namespace : public detail::Registrar
         /**
          * @brief Add or replace a static member function.
          */
-        template <class FP>
-        Class<T>& addStaticFunction(const char* name, FP fp)
+        template <class Function, typename = std::enable_if_t<std::is_pointer_v<Function>>>
+        Class<T>& addStaticFunction(const char* name, Function fp)
         {
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             lua_pushlightuserdata(L, reinterpret_cast<void*>(fp)); // Stack: co, cl, st, function ptr
-            lua_pushcclosure(L, &detail::invoke_proxy_function<FP>, 1); // co, cl, st, function
+            lua_pushcclosure(L, &detail::invoke_proxy_function<Function>, 1); // co, cl, st, function
             rawsetfield(L, -2, name); // co, cl, st
 
             return *this;
@@ -542,10 +542,10 @@ class Namespace : public detail::Registrar
 
         //=========================================================================================
         /**
-         * @brief Add or replace a static member function by std::function.
+         * @brief Add or replace a static member function for constructible by std::function.
          */
-        template <class ReturnType, class... Params>
-        Class<T>& addStaticFunction(const char* name, std::function<ReturnType(Params...)> function)
+        template <class Function, typename = std::enable_if_t<!std::is_pointer_v<Function>>>
+        Class<T> addStaticFunction(const char* name, Function function)
         {
             using FnType = decltype(function);
 
@@ -562,7 +562,7 @@ class Namespace : public detail::Registrar
 
             return *this;
         }
-
+        
         //=========================================================================================
         /**
          * @brief Add or replace a lua_CFunction.
@@ -731,13 +731,20 @@ class Namespace : public detail::Registrar
             return *this;
         }
 
-        template <class TG, class TS = TG>
-        Class<T>& addProperty(const char* name, std::function<TG(const T*)> get, std::function<void(T*, TS)> set = nullptr)
+        //=========================================================================================
+        /**
+         * @brief Add or replace a property member, by constructible by std::function.
+         */
+        template <class Getter, typename = std::enable_if_t<!std::is_pointer_v<Getter>>>
+        Class<T>& addProperty(const char* name, Getter get)
         {
-            using GetType = decltype(get);
+            using FirstArg = detail::function_argument_t<0, Getter>;
+            static_assert(std::is_same_v<std::decay_t<std::remove_pointer_t<FirstArg>>, T>);
 
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            using GetType = decltype(get);
 
             lua_newuserdata_aligned<GetType>(L, std::move(get)); // Stack: co, cl, st, function userdata (ud)
             lua_newtable(L); // Stack: co, cl, st, ud, ud metatable (mt)
@@ -748,19 +755,30 @@ class Namespace : public detail::Registrar
             lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
             detail::add_property_getter(L, name, -4); // Stack: co, cl, st, getter
             detail::add_property_getter(L, name, -4); // Stack: co, cl, st
+            
+            return *this;
+        }
 
-            if (set != nullptr)
-            {
-                using SetType = decltype(set);
+        template <class Getter, class Setter, typename = std::enable_if_t<!std::is_pointer_v<Getter> && !std::is_pointer_v<Setter>>>
+        Class<T>& addProperty(const char* name, Getter get, Setter set)
+        {
+            addProperty<Getter>(name, std::move(get));
+            
+            using FirstArg = detail::function_argument_t<0, Setter>;
+            static_assert(std::is_same_v<std::decay_t<std::remove_pointer_t<FirstArg>>, T>);
 
-                lua_newuserdata_aligned<SetType>(L, std::move(set)); // Stack: co, cl, st, function userdata (ud)
-                lua_newtable(L); // Stack: co, cl, st, ud, ud metatable (mt)
-                lua_pushcfunction(L, &lua_deleteuserdata_aligned<SetType>); // Stack: co, cl, st, ud, mt, gc function
-                rawsetfield(L, -2, "__gc"); // Stack: co, cl, st, ud, mt
-                lua_setmetatable(L, -2); // Stack: co, cl, st, ud
-                lua_pushcclosure(L, &detail::invoke_proxy_functor<SetType>, 1); // Stack: co, cl, st, setter
-                detail::add_property_setter(L, name, -3); // Stack: co, cl, st
-            }
+            assert(name != nullptr);
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            using SetType = decltype(set);
+
+            lua_newuserdata_aligned<SetType>(L, std::move(set)); // Stack: co, cl, st, function userdata (ud)
+            lua_newtable(L); // Stack: co, cl, st, ud, ud metatable (mt)
+            lua_pushcfunction(L, &lua_deleteuserdata_aligned<SetType>); // Stack: co, cl, st, ud, mt, gc function
+            rawsetfield(L, -2, "__gc"); // Stack: co, cl, st, ud, mt
+            lua_setmetatable(L, -2); // Stack: co, cl, st, ud
+            lua_pushcclosure(L, &detail::invoke_proxy_functor<SetType>, 1); // Stack: co, cl, st, setter
+            detail::add_property_setter(L, name, -3); // Stack: co, cl, st
 
             return *this;
         }
@@ -772,11 +790,7 @@ class Namespace : public detail::Registrar
         template <class Function, typename = std::enable_if_t<detail::function_arity_v<Function> != 0>>
         Class<T> addFunction(const char* name, Function function)
         {
-            using FnTraits = detail::function_traits<Function>;
-
-            using FnType = detail::to_std_function_type_t<
-                typename FnTraits::result_type,
-                typename FnTraits::argument_types>;
+            using FnType = decltype(function);
 
             using FirstArg = detail::function_argument_t<0, Function>;
             static_assert(std::is_same_v<std::decay_t<std::remove_pointer_t<FirstArg>>, T>);
@@ -789,7 +803,7 @@ class Namespace : public detail::Registrar
                 throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
                 return *this;
             }
-            
+                        
             lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: co, cl, st, function userdata (ud)
             lua_newtable(L); // Stack: co, cl, st, ud, ud metatable (mt)
             lua_pushcfunction(L, &lua_deleteuserdata_aligned<FnType>); // Stack: co, cl, st, ud, mt, gc function
@@ -1036,7 +1050,7 @@ class Namespace : public detail::Registrar
         {
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            std::function<T*(lua_State*)> factory = [function = std::move(function)](lua_State* L)
+            auto factory = [function = std::move(function)](lua_State* L) -> T*
             {
                 std::error_code ec;
                 detail::UserdataValue<T>* value = detail::UserdataValue<T>::place(L, ec);
@@ -1345,24 +1359,20 @@ public:
      *
      * @returns This namespace registration object.
      */
-    template <class FunctionGetter>
-    Namespace& addProperty(const char* name, FunctionGetter get)
+    template <class Getter>
+    Namespace& addProperty(const char* name, Getter get)
     {
-        using GetterTraits = detail::function_traits<FunctionGetter>;
-
-        using GetterType = detail::to_std_function_type_t<
-            typename GetterTraits::result_type,
-            typename GetterTraits::argument_types>;
+        using GetType = decltype(get);
 
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 
-        lua_newuserdata_aligned<GetterType>(L, std::move(get)); // Stack: ns, function userdata (ud)
+        lua_newuserdata_aligned<GetType>(L, std::move(get)); // Stack: ns, function userdata (ud)
         lua_newtable(L); // Stack: ns, ud, ud metatable (mt)
-        lua_pushcfunction(L, &lua_deleteuserdata_aligned<GetterType>); // Stack: ns, ud, mt, gc function
+        lua_pushcfunction(L, &lua_deleteuserdata_aligned<GetType>); // Stack: ns, ud, mt, gc function
         rawsetfield(L, -2, "__gc"); // Stack: ns, ud, mt
         lua_setmetatable(L, -2); // Stack: ns, ud
-        lua_pushcclosure(L, &detail::invoke_proxy_functor<GetterType>, 1); // Stack: ns, ud, getter
+        lua_pushcclosure(L, &detail::invoke_proxy_functor<GetType>, 1); // Stack: ns, ud, getter
         detail::add_property_getter(L, name, -2); // Stack: ns, ud, getter
 
         lua_pushstring(L, name); // Stack: ns, name
@@ -1381,38 +1391,22 @@ public:
      *
      * @returns This namespace registration object.
      */
-    template <class FunctionGetter, class FunctionSetter>
-    Namespace& addProperty(const char* name, FunctionGetter get, FunctionSetter set)
+    template <class Getter, class Setter>
+    Namespace& addProperty(const char* name, Getter get, Setter set)
     {
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 
-        using GetterTraits = detail::function_traits<FunctionGetter>;
+        addProperty<Getter>(name, std::move(get));
 
-        using GetterType = detail::to_std_function_type_t<
-            typename GetterTraits::result_type,
-            typename GetterTraits::argument_types>;
+        using SetType = decltype(set);
 
-        lua_newuserdata_aligned<GetterType>(L, std::move(get)); // Stack: ns, function userdata (ud)
+        lua_newuserdata_aligned<SetType>(L, std::move(set)); // Stack: ns, function userdata (ud)
         lua_newtable(L); // Stack: ns, ud, ud metatable (mt)
-        lua_pushcfunction(L, &lua_deleteuserdata_aligned<GetterType>); // Stack: ns, ud, mt, gc function
+        lua_pushcfunction(L, &lua_deleteuserdata_aligned<SetType>); // Stack: ns, ud, mt, gc function
         rawsetfield(L, -2, "__gc"); // Stack: ns, ud, mt
         lua_setmetatable(L, -2); // Stack: ns, ud
-        lua_pushcclosure(L, &detail::invoke_proxy_functor<GetterType>, 1); // Stack: ns, ud, getter
-        detail::add_property_getter(L, name, -2); // Stack: ns, ud, getter
-        
-        using SetterTraits = detail::function_traits<FunctionSetter>;
-
-        using SetterType = detail::to_std_function_type_t<
-            typename SetterTraits::result_type,
-            typename SetterTraits::argument_types>;
-
-        lua_newuserdata_aligned<SetterType>(L, std::move(set)); // Stack: ns, function userdata (ud)
-        lua_newtable(L); // Stack: ns, ud, ud metatable (mt)
-        lua_pushcfunction(L, &lua_deleteuserdata_aligned<SetterType>); // Stack: ns, ud, mt, gc function
-        rawsetfield(L, -2, "__gc"); // Stack: ns, ud, mt
-        lua_setmetatable(L, -2); // Stack: ns, ud
-        lua_pushcclosure(L, &detail::invoke_proxy_functor<SetterType>, 1); // Stack: ns, ud, getter
+        lua_pushcclosure(L, &detail::invoke_proxy_functor<SetType>, 1); // Stack: ns, ud, getter
         detail::add_property_setter(L, name, -2); // Stack: ns, ud, getter
         
         return *this;
@@ -1460,11 +1454,7 @@ public:
     template <class Function>
     Namespace& addFunction(const char* name, Function function)
     {
-        using FnTraits = detail::function_traits<Function>;
-
-        using FnType = detail::to_std_function_type_t<
-            typename FnTraits::result_type,
-            typename FnTraits::argument_types>;
+        using FnType = decltype(function);
 
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
