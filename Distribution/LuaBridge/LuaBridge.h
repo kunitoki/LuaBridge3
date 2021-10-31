@@ -947,7 +947,7 @@ private:
         }
 
         luaL_argerror(L, index, lua_pushfstring(L, "%s expected, got %s", expected, got));
-        return 0;
+        return nullptr;
     }
 
 public:
@@ -1030,6 +1030,17 @@ template <class T>
 class UserdataValue : public Userdata
 {
 public:
+    UserdataValue(const UserdataValue&) = delete;
+    UserdataValue operator=(const UserdataValue&) = delete;
+
+    ~UserdataValue()
+    {
+        if (getPointer() != nullptr)
+        {
+            getObject()->~T();
+        }
+    }
+
     /**
      * @brief Push a T via placement new.
      *
@@ -1129,20 +1140,9 @@ private:
      * @brief Used for placement construction.
      */
     UserdataValue() noexcept
+        : Userdata()
     {
-        m_p = nullptr;
     }
-
-    ~UserdataValue()
-    {
-        if (getPointer() != nullptr)
-        {
-            getObject()->~T();
-        }
-    }
-
-    UserdataValue<T>(const UserdataValue<T>&);
-    UserdataValue<T> operator=(const UserdataValue<T>&);
 
     std::aligned_storage_t<sizeof(T), alignof(T)> m_storage;
 };
@@ -1156,6 +1156,9 @@ private:
 class UserdataPtr : public Userdata
 {
 public:
+    UserdataPtr(const UserdataPtr&) = delete;
+    UserdataPtr operator=(const UserdataPtr&) = delete;
+    
     /**
      * @brief Push non-const pointer to object.
      *
@@ -1227,9 +1230,6 @@ private:
 
         m_p = p;
     }
-
-    UserdataPtr(const UserdataPtr&);
-    UserdataPtr operator=(const UserdataPtr&);
 };
 
 //============================================================================
@@ -1242,6 +1242,9 @@ template <class C>
 class UserdataShared : public Userdata
 {
 public:
+    UserdataShared(const UserdataShared&) = delete;
+    UserdataShared& operator=(const UserdataShared&) = delete;
+
     ~UserdataShared() = default;
 
     /**
@@ -1271,9 +1274,6 @@ public:
     }
 
 private:
-    UserdataShared(const UserdataShared<C>&);
-    UserdataShared<C>& operator=(const UserdataShared<C>&);
-
     C m_c;
 };
 
