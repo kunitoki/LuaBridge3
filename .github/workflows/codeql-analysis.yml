@@ -5,8 +5,8 @@ on:
     branches: [ master ]
   pull_request:
     branches: [ master ]
-  schedule:
-    - cron: '27 16 * * 4'
+  #schedule:
+  #  - cron: '27 16 * * 4'
 
 env:
   BUILD_TYPE: Release
