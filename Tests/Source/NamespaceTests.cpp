@@ -175,6 +175,42 @@ TEST_F(NamespaceTests, ReadOnlyProperties)
     ASSERT_EQ(-10, getProperty<int>());
 }
 
+TEST_F(NamespaceTests, Constants)
+{
+    int int_ = -10;
+    auto any = luabridge::newTable(L);
+    any["a"] = 1;
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    ASSERT_THROW(luabridge::getGlobalNamespace(L).addConstant("int", &int_), std::logic_error);
+#endif
+    
+    runLua("result = int");
+    ASSERT_TRUE(result().isNil());
+
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("ns")
+        .addConstant("int", int_)
+        .addConstant("any", any)
+        .endNamespace();
+
+    ASSERT_EQ(-10, variable<int>("ns.int"));
+    ASSERT_EQ(any, variable<luabridge::LuaRef>("ns.any"));
+
+    runLua("ns.int = -20");
+    ASSERT_EQ(-10, int_);
+
+    runLua("result = ns.int");
+    ASSERT_EQ(-20, result().cast<int>());
+
+    runLua("ns.any = {a = 42, b = 2}");
+    ASSERT_TRUE(any.isTable());
+    ASSERT_TRUE(any["b"].isNil());
+
+    runLua("result = ns.any.a");
+    ASSERT_EQ(42, result().cast<int>());
+}
+
 namespace {
 
 template<class T>

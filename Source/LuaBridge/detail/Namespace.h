@@ -1264,6 +1264,37 @@ public:
 
     //=============================================================================================
     /**
+     * @brief Add or replace a constant.
+     *
+     * @param name The property name.
+     * @param value A value pointer.
+     *
+     * @returns This namespace registration object.
+     */
+    template <class T>
+    Namespace& addConstant(const char* name, const T& value)
+    {
+        if (m_stackSize == 1)
+        {
+            throw_or_assert<std::logic_error>("addConstant() called on global namespace");
+
+            return *this;
+        }
+
+        assert(name != nullptr);
+        assert(lua_istable(L, -1)); // Stack: namespace table (ns)
+
+        std::error_code ec;
+        if (! Stack<T>::push(L, value, ec))
+            luaL_error(L, ec.message().c_str());
+
+        rawsetfield(L, -2, name); // Stack: ns
+
+        return *this;
+    }
+
+    //=============================================================================================
+    /**
      * @brief Add or replace a property.
      *
      * @param name The property name.
