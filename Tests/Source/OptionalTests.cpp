@@ -15,7 +15,7 @@ struct OptionalTest : TestBase
 {
 };
 
-TYPED_TEST_CASE_P(OptionalTest);
+TYPED_TEST_SUITE_P(OptionalTest);
 
 template<typename T>
 std::string toLuaSrcString(T const& value)
@@ -111,14 +111,14 @@ TYPED_TEST_P(OptionalTest, LuaRefIsInstanceNotPresent)
     std::optional<TypeParam> const actual = optCast<TypeParam>(actualRef);
 }
 
-REGISTER_TYPED_TEST_CASE_P(OptionalTest,
+REGISTER_TYPED_TEST_SUITE_P(OptionalTest,
                            LuaRefPresent,
                            LuaRefNotPresent,
                            LuaRefIsInstancePresent,
                            LuaRefIsInstancePresentWrongType,
                            LuaRefIsInstanceNotPresent);
 
-INSTANTIATE_TYPED_TEST_CASE_P(OptionalTest, OptionalTest, TestTypes);
+INSTANTIATE_TYPED_TEST_SUITE_P(OptionalTest, OptionalTest, TestTypes);
 
 namespace {
 
