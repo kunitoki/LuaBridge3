@@ -469,6 +469,14 @@ public:
         lua_atpanic(L, panicHandlerCallback);
     }
 
+    //=============================================================================================
+    /**
+     * @brief Retrieve the lua_State associated with the exception.
+     *
+     * @return A Lua state.
+     */
+    lua_State* state() const { return m_L; }
+
 private:
     struct FromLua {};
 
@@ -717,7 +725,7 @@ template <class T>
 struct ContainerTraits<std::shared_ptr<T>>
 {
     static_assert(std::is_base_of_v<std::enable_shared_from_this<T>, T>);
-    
+
     using Type = T;
 
     static std::shared_ptr<T> construct(T* t)
@@ -1158,7 +1166,7 @@ class UserdataPtr : public Userdata
 public:
     UserdataPtr(const UserdataPtr&) = delete;
     UserdataPtr operator=(const UserdataPtr&) = delete;
-    
+
     /**
      * @brief Push non-const pointer to object.
      *
@@ -1586,7 +1594,7 @@ struct IsUserdata<T, std::void_t<typename Stack<T>::IsUserdata>> : std::true_typ
 
 //=================================================================================================
 /**
- * @brief Trait class that selects a specific push/get implemenation.
+ * @brief Trait class that selects a specific push/get implementation for userdata.
  */
 template <class T, bool IsUserdata>
 struct StackOpSelector;
@@ -2134,28 +2142,6 @@ struct Stack<const char*>
 
 //=================================================================================================
 /**
- * @brief Stack specialization for `const char[N]` literals.
- */
-namespace detail {
-template <class T>
-struct IsStringLiteral : std::is_same<T,
-    std::add_lvalue_reference_t<const char[std::extent_v<std::remove_reference_t<T>>]>>
-{
-};
-} // namespace detail
-
-template <class T>
-struct Stack<T, std::enable_if_t<detail::IsStringLiteral<T>::value>>
-{
-    static bool push(lua_State* L, const char (&str)[std::extent_v<std::remove_reference_t<T>>], std::error_code&)
-    {
-        lua_pushlstring(L, str, std::extent_v<std::remove_reference_t<T>>);
-        return true;
-    }
-};
-
-//=================================================================================================
-/**
  * @brief Stack specialization for `std::string_view`.
  */
 template <>
@@ -2309,6 +2295,47 @@ private:
     }
 };
 
+//=================================================================================================
+/**
+ * @brief Stack specialization for `T[N]`.
+ */
+template <class T, std::size_t N>
+struct Stack<T[N]>
+{
+    static_assert(N > 0, "Unsupported zero sized array");
+
+    static bool push(lua_State* L, const T (&value)[N], std::error_code& ec)
+    {
+        if constexpr (std::is_same_v<T, char>)
+        {
+            lua_pushlstring(L, value, N - 1);
+            return true;
+        }
+
+        const int initialStackSize = lua_gettop(L);
+
+        lua_createtable(L, static_cast<int>(N), 0);
+
+        for (std::size_t i = 0; i < N; ++i)
+        {
+            lua_pushinteger(L, static_cast<lua_Integer>(i + 1));
+
+            std::error_code push_ec;
+            bool result = Stack<T>::push(L, value[i], push_ec);
+            if (! result)
+            {
+                ec = push_ec;
+                lua_pop(L, lua_gettop(L) - initialStackSize);
+                return false;
+            }
+
+            lua_settable(L, -3);
+        }
+
+        return true;
+    }
+};
+
 namespace detail {
 
 template <class T>
@@ -2330,7 +2357,7 @@ struct StackOpSelector<const T&, false>
 
     static bool push(lua_State* L, const T& value, std::error_code& ec) { return Stack<T>::push(L, value, ec); }
 
-    static ReturnType get(lua_State* L, int index) { return Stack<T>::get(L, index); }
+    static auto get(lua_State* L, int index) { return Stack<T>::get(L, index); }
 
     static bool isInstance(lua_State* L, int index) { return Stack<T>::isInstance(L, index); }
 };
@@ -2362,7 +2389,7 @@ struct StackOpSelector<const T*, false>
 } // namespace detail
 
 template <class T>
-struct Stack<T&, std::enable_if_t<!detail::IsStringLiteral<T&>::value>>
+struct Stack<T&, std::enable_if_t<!std::is_array_v<T&>>>
 {
     using Helper = detail::StackOpSelector<T&, detail::IsUserdata<T>::value>;
     using ReturnType = typename Helper::ReturnType;
@@ -2375,14 +2402,14 @@ struct Stack<T&, std::enable_if_t<!detail::IsStringLiteral<T&>::value>>
 };
 
 template <class T>
-struct Stack<const T&, std::enable_if_t<!detail::IsStringLiteral<const T&>::value>>
+struct Stack<const T&, std::enable_if_t<!std::is_array_v<const T&>>>
 {
     using Helper = detail::StackOpSelector<const T&, detail::IsUserdata<T>::value>;
     using ReturnType = typename Helper::ReturnType;
 
     static bool push(lua_State* L, const T& value, std::error_code& ec) { return Helper::push(L, value, ec); }
 
-    static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
+    static auto get(lua_State* L, int index) { return Helper::get(L, index); }
 
     static bool isInstance(lua_State* L, int index) { return Helper::template isInstance<T>(L, index); }
 };
@@ -2396,7 +2423,7 @@ struct Stack<T*>
     static bool push(lua_State* L, T* value, std::error_code& ec) { return Helper::push(L, value, ec); }
 
     static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
-    
+
     static bool isInstance(lua_State* L, int index) { return Helper::template isInstance<T>(L, index); }
 };
 
@@ -2418,7 +2445,7 @@ struct Stack<const T*>
  * @brief Push an object onto the Lua stack.
  */
 template <class T>
-bool push(lua_State* L, T t, std::error_code& ec)
+bool push(lua_State* L, const T& t, std::error_code& ec)
 {
     return Stack<T>::push(L, t, ec);
 }
@@ -2481,7 +2508,7 @@ struct Stack<std::map<K, V>>
 
             lua_settable(L, -3);
         }
-        
+
         return true;
     }
 
@@ -2535,7 +2562,7 @@ struct Stack<std::unordered_map<K, V>>
     static bool push(lua_State* L, const Type& map, std::error_code& ec)
     {
         const int initialStackSize = lua_gettop(L);
-        
+
         lua_createtable(L, 0, static_cast<int>(map.size()));
 
         for (auto it = map.begin(); it != map.end(); ++it)
@@ -2547,7 +2574,7 @@ struct Stack<std::unordered_map<K, V>>
                 lua_pop(L, lua_gettop(L) - initialStackSize);
                 return false;
             }
-            
+
             std::error_code errorCodeValue;
             if (! Stack<V>::push(L, it->second, errorCodeValue))
             {
@@ -2558,7 +2585,7 @@ struct Stack<std::unordered_map<K, V>>
 
             lua_settable(L, -3);
         }
-        
+
         return true;
     }
 
@@ -2607,7 +2634,7 @@ template <class T>
 struct Stack<std::optional<T>>
 {
     using Type = std::optional<T>;
-    
+
     static bool push(lua_State* L, const Type& value, std::error_code& ec)
     {
         if (value)
@@ -2621,7 +2648,7 @@ struct Stack<std::optional<T>>
     {
         if (lua_type(L, index) == LUA_TNIL)
             return std::nullopt;
-        
+
         return Stack<T>::get(L, index);
     }
 
@@ -3804,7 +3831,7 @@ public:
     std::string tostring() const
     {
         StackPop p(m_L, 1);
-        
+
         lua_getglobal(m_L, "tostring");
 
         impl().push();
@@ -3940,7 +3967,7 @@ public:
         impl().push();
 
         const int refType = lua_type(m_L, -1);
-        
+
         return refType;
     }
 
@@ -4100,7 +4127,7 @@ public:
      * @returns True if the referred value is equal to the specified one.
      */
     template <class T>
-    bool operator==(T rhs) const
+    bool operator==(const T& rhs) const
     {
         StackPop p(m_L, 2);
 
@@ -4126,7 +4153,7 @@ public:
      * @returns True if the referred value is not equal to the specified one.
      */
     template <class T>
-    bool operator!=(T rhs) const
+    bool operator!=(const T& rhs) const
     {
         return !(*this == rhs);
     }
@@ -4141,7 +4168,7 @@ public:
      * @returns True if the referred value is less than the specified one.
      */
     template <class T>
-    bool operator<(T rhs) const
+    bool operator<(const T& rhs) const
     {
         StackPop p(m_L, 2);
 
@@ -4172,7 +4199,7 @@ public:
      * @returns True if the referred value is less than or equal to the specified one.
      */
     template <class T>
-    bool operator<=(T rhs) const
+    bool operator<=(const T& rhs) const
     {
         StackPop p(m_L, 2);
 
@@ -4203,7 +4230,7 @@ public:
      * @returns True if the referred value is greater than the specified one.
      */
     template <class T>
-    bool operator>(T rhs) const
+    bool operator>(const T& rhs) const
     {
         StackPop p(m_L, 2);
 
@@ -4234,7 +4261,7 @@ public:
      * @returns True if the referred value is greater than or equal to the specified one.
      */
     template <class T>
-    bool operator>=(T rhs) const
+    bool operator>=(const T& rhs) const
     {
         StackPop p(m_L, 2);
 
@@ -4265,7 +4292,7 @@ public:
      * @returns True if the referred value is equal to the specified one.
      */
     template <class T>
-    bool rawequal(T v) const
+    bool rawequal(const T& v) const
     {
         StackPop p(m_L, 2);
 
@@ -4290,7 +4317,7 @@ public:
      * @param v A value to append to the table.
      */
     template <class T>
-    void append(T v) const
+    void append(const T& v) const
     {
         StackPop p(m_L, 1);
 
@@ -4409,7 +4436,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         {
             if (m_keyRef != LUA_NOREF)
                 luaL_unref(m_L, LUA_REGISTRYINDEX, m_keyRef);
-            
+
             if (m_tableRef != LUA_NOREF)
                 luaL_unref(m_L, LUA_REGISTRYINDEX, m_tableRef);
         }
@@ -4427,7 +4454,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
          * @returns This reference.
          */
         template <class T>
-        TableItem& operator=(T v)
+        TableItem& operator=(const T& v)
         {
             StackPop p(m_L, 1);
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_tableRef);
@@ -4454,7 +4481,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
          * @returns This reference.
          */
         template <class T>
-        TableItem& rawset(T v)
+        TableItem& rawset(const T& v)
         {
             StackPop p(m_L, 1);
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_tableRef);
@@ -4495,7 +4522,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
          * @returns A Lua table item reference.
          */
         template <class T>
-        TableItem operator[](T key) const
+        TableItem operator[](const T& key) const
         {
             return LuaRef(*this)[key];
         }
@@ -4513,7 +4540,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
          * @returns A Lua value reference.
          */
         template <class T>
-        LuaRef rawget(T key) const
+        LuaRef rawget(const T& key) const
         {
             return LuaRef(*this).rawget(key);
         }
@@ -4585,7 +4612,7 @@ public:
      * @param v A value to push.
      */
     template <class T>
-    LuaRef(lua_State* L, T v)
+    LuaRef(lua_State* L, const T& v)
         : LuaRefBase(L)
         , m_ref(LUA_NOREF)
     {
@@ -4759,7 +4786,7 @@ public:
      * @returns This reference.
      */
     template <class T>
-    LuaRef& operator=(T rhs)
+    LuaRef& operator=(const T& rhs)
     {
         LuaRef ref(m_L, rhs);
         swap(ref);
@@ -4798,7 +4825,7 @@ public:
      * @returns A reference to the table item.
      */
     template <class T>
-    TableItem operator[](T key) const
+    TableItem operator[](const T& key) const
     {
         std::error_code ec;
         if (! Stack<T>::push(m_L, key, ec))
@@ -4818,7 +4845,7 @@ public:
      * @returns A reference to the table item.
      */
     template <class T>
-    LuaRef rawget(T key) const
+    LuaRef rawget(const T& key) const
     {
         StackPop(m_L, 1);
 
@@ -4836,7 +4863,7 @@ private:
     void swap(LuaRef& other)
     {
         using std::swap;
-        
+
         swap(m_L, other.m_L);
         swap(m_ref, other.m_ref);
     }
@@ -5383,9 +5410,9 @@ T getGlobal(lua_State* L, const char* name)
     lua_getglobal(L, name);
 
     auto result = luabridge::Stack<T>::get(L, -1);
-    
+
     lua_pop(L, 1);
-    
+
     return result;
 }
 
@@ -5973,7 +6000,7 @@ class Namespace : public detail::Registrar
 
             return *this;
         }
-        
+
         //=========================================================================================
         /**
          * @brief Add or replace a lua_CFunction.
@@ -6166,7 +6193,7 @@ class Namespace : public detail::Registrar
             lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
             detail::add_property_getter(L, name, -4); // Stack: co, cl, st, getter
             detail::add_property_getter(L, name, -4); // Stack: co, cl, st
-            
+
             return *this;
         }
 
@@ -6174,7 +6201,7 @@ class Namespace : public detail::Registrar
         Class<T>& addProperty(const char* name, Getter get, Setter set)
         {
             addProperty<Getter>(name, std::move(get));
-            
+
             using FirstArg = detail::function_argument_t<0, Setter>;
             static_assert(std::is_same_v<std::decay_t<std::remove_pointer_t<FirstArg>>, T>);
 
@@ -6214,7 +6241,7 @@ class Namespace : public detail::Registrar
                 throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
                 return *this;
             }
-                        
+
             lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: co, cl, st, function userdata (ud)
             lua_newtable(L); // Stack: co, cl, st, ud, ud metatable (mt)
             lua_pushcfunction(L, &lua_deleteuserdata_aligned<FnType>); // Stack: co, cl, st, ud, mt, gc function
@@ -6474,12 +6501,12 @@ class Namespace : public detail::Registrar
                 T* obj = detail::factory<T>::call(value->getObject(), function, detail::make_arguments_list<FnArgs, 2>(L));
 
                 value->commit();
-                
+
                 return obj;
             };
 
             using FactoryFnType = decltype(factory);
-            
+
             lua_newuserdata_aligned<FactoryFnType>(L, std::move(factory)); // Stack: co, cl, st, function userdata (ud)
             lua_newtable(L); // Stack: co, cl, st, ud, ud metatable (mt)
             lua_pushcfunction(L, &lua_deleteuserdata_aligned<FactoryFnType>); // Stack: co, cl, st, ud, mt, gc function
@@ -6495,7 +6522,7 @@ class Namespace : public detail::Registrar
 
 private:
     struct FromStack {};
-    
+
     //=============================================================================================
     /**
      * @brief Open the global namespace for registrations.
@@ -6635,7 +6662,7 @@ public:
     {
         return Namespace(L, FromStack{});
     }
-    
+
     //=============================================================================================
     /**
      * @brief Open a new or existing namespace for registrations.
@@ -6671,6 +6698,37 @@ public:
         --m_stackSize;
         lua_pop(L, 1);
         return Namespace(*this);
+    }
+
+    //=============================================================================================
+    /**
+     * @brief Add or replace a constant.
+     *
+     * @param name The property name.
+     * @param value A value pointer.
+     *
+     * @returns This namespace registration object.
+     */
+    template <class T>
+    Namespace& addConstant(const char* name, const T& value)
+    {
+        if (m_stackSize == 1)
+        {
+            throw_or_assert<std::logic_error>("addConstant() called on global namespace");
+
+            return *this;
+        }
+
+        assert(name != nullptr);
+        assert(lua_istable(L, -1)); // Stack: namespace table (ns)
+
+        std::error_code ec;
+        if (! Stack<T>::push(L, value, ec))
+            luaL_error(L, ec.message().c_str());
+
+        rawsetfield(L, -2, name); // Stack: ns
+
+        return *this;
     }
 
     //=============================================================================================
@@ -6819,7 +6877,7 @@ public:
         lua_setmetatable(L, -2); // Stack: ns, ud
         lua_pushcclosure(L, &detail::invoke_proxy_functor<SetType>, 1); // Stack: ns, ud, getter
         detail::add_property_setter(L, name, -2); // Stack: ns, ud, getter
-        
+
         return *this;
     }
 
@@ -7028,7 +7086,7 @@ template <class T>
 struct Stack<std::list<T>>
 {
     using Type = std::list<T>;
-    
+
     static bool push(lua_State* L, const Type& list, std::error_code& ec)
     {
         const int initialStackSize = lua_gettop(L);
@@ -7050,7 +7108,7 @@ struct Stack<std::list<T>>
 
             lua_settable(L, -3);
         }
-        
+
         return true;
     }
 
@@ -7104,7 +7162,7 @@ struct Stack<std::array<T, Size>>
     static bool push(lua_State* L, const Type& array, std::error_code& ec)
     {
         const int initialStackSize = lua_gettop(L);
-        
+
         lua_createtable(L, static_cast<int>(Size), 0);
 
         for (std::size_t i = 0; i < Size; ++i)
@@ -7122,7 +7180,7 @@ struct Stack<std::array<T, Size>>
 
             lua_settable(L, -3);
         }
-        
+
         return true;
     }
 
@@ -7175,13 +7233,13 @@ struct Stack<std::vector<T>>
     static bool push(lua_State* L, const Type& vector, std::error_code& ec)
     {
         const int initialStackSize = lua_gettop(L);
-        
+
         lua_createtable(L, static_cast<int>(vector.size()), 0);
 
         for (std::size_t i = 0; i < vector.size(); ++i)
         {
             lua_pushinteger(L, static_cast<lua_Integer>(i + 1));
-            
+
             std::error_code errorCode;
             if (! Stack<T>::push(L, vector[i], errorCode))
             {
@@ -7189,10 +7247,10 @@ struct Stack<std::vector<T>>
                 lua_pop(L, lua_gettop(L) - initialStackSize);
                 return false;
             }
-            
+
             lua_settable(L, -3);
         }
-        
+
         return true;
     }
 
@@ -7242,11 +7300,11 @@ template <class K, class V>
 struct Stack<std::set<K, V>>
 {
     using Type = std::set<K, V>;
-    
+
     static bool push(lua_State* L, const Type& set, std::error_code& ec)
     {
         const int initialStackSize = lua_gettop(L);
-        
+
         lua_createtable(L, 0, static_cast<int>(set.size()));
 
         for (auto it = set.begin(); it != set.end(); ++it)
@@ -7269,7 +7327,7 @@ struct Stack<std::set<K, V>>
 
             lua_settable(L, -3);
         }
-        
+
         return true;
     }
 
