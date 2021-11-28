@@ -834,7 +834,7 @@ struct IsUserdata<T, std::void_t<typename Stack<T>::IsUserdata>> : std::true_typ
 
 //=================================================================================================
 /**
- * @brief Trait class that selects a specific push/get implemenation.
+ * @brief Trait class that selects a specific push/get implementation for userdata.
  */
 template <class T, bool IsUserdata>
 struct StackOpSelector;

@@ -491,29 +491,7 @@ struct Stack<const char*>
         return lua_isnil(L, index) || lua_type(L, index) == LUA_TSTRING;
     }
 };
-
-//=================================================================================================
-/**
- * @brief Stack specialization for `const char[N]` literals.
- */
-namespace detail {
-template <class T>
-struct IsStringLiteral : std::is_same<T,
-    std::add_lvalue_reference_t<const char[std::extent_v<std::remove_reference_t<T>>]>>
-{
-};
-} // namespace detail
-
-template <class T>
-struct Stack<T, std::enable_if_t<detail::IsStringLiteral<T>::value>>
-{
-    static bool push(lua_State* L, const char (&str)[std::extent_v<std::remove_reference_t<T>>], std::error_code&)
-    {
-        lua_pushlstring(L, str, std::extent_v<std::remove_reference_t<T>>);
-        return true;
-    }
-};
-
+ 
 //=================================================================================================
 /**
  * @brief Stack specialization for `std::string_view`.
@@ -669,6 +647,47 @@ private:
     }
 };
 
+//=================================================================================================
+/**
+ * @brief Stack specialization for `T[N]`.
+ */
+template <class T, std::size_t N>
+struct Stack<T[N]>
+{
+    static_assert(N > 0, "Unsupported zero sized array");
+
+    static bool push(lua_State* L, const T (&value)[N], std::error_code& ec)
+    {
+        if constexpr (std::is_same_v<T, char>)
+        {
+            lua_pushlstring(L, value, N - 1);
+            return true;
+        }
+
+        const int initialStackSize = lua_gettop(L);
+        
+        lua_createtable(L, static_cast<int>(N), 0);
+
+        for (std::size_t i = 0; i < N; ++i)
+        {
+            lua_pushinteger(L, static_cast<lua_Integer>(i + 1));
+
+            std::error_code push_ec;
+            bool result = Stack<T>::push(L, value[i], push_ec);
+            if (! result)
+            {
+                ec = push_ec;
+                lua_pop(L, lua_gettop(L) - initialStackSize);
+                return false;
+            }
+
+            lua_settable(L, -3);
+        }
+
+        return true;
+    }
+};
+
 namespace detail {
 
 template <class T>
@@ -690,7 +709,7 @@ struct StackOpSelector<const T&, false>
 
     static bool push(lua_State* L, const T& value, std::error_code& ec) { return Stack<T>::push(L, value, ec); }
 
-    static ReturnType get(lua_State* L, int index) { return Stack<T>::get(L, index); }
+    static auto get(lua_State* L, int index) { return Stack<T>::get(L, index); }
 
     static bool isInstance(lua_State* L, int index) { return Stack<T>::isInstance(L, index); }
 };
@@ -722,7 +741,7 @@ struct StackOpSelector<const T*, false>
 } // namespace detail
 
 template <class T>
-struct Stack<T&, std::enable_if_t<!detail::IsStringLiteral<T&>::value>>
+struct Stack<T&, std::enable_if_t<!std::is_array_v<T&>>>
 {
     using Helper = detail::StackOpSelector<T&, detail::IsUserdata<T>::value>;
     using ReturnType = typename Helper::ReturnType;
@@ -735,14 +754,14 @@ struct Stack<T&, std::enable_if_t<!detail::IsStringLiteral<T&>::value>>
 };
 
 template <class T>
-struct Stack<const T&, std::enable_if_t<!detail::IsStringLiteral<const T&>::value>>
+struct Stack<const T&, std::enable_if_t<!std::is_array_v<const T&>>>
 {
     using Helper = detail::StackOpSelector<const T&, detail::IsUserdata<T>::value>;
     using ReturnType = typename Helper::ReturnType;
 
     static bool push(lua_State* L, const T& value, std::error_code& ec) { return Helper::push(L, value, ec); }
 
-    static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
+    static auto get(lua_State* L, int index) { return Helper::get(L, index); }
 
     static bool isInstance(lua_State* L, int index) { return Helper::template isInstance<T>(L, index); }
 };
@@ -778,7 +797,7 @@ struct Stack<const T*>
  * @brief Push an object onto the Lua stack.
  */
 template <class T>
-bool push(lua_State* L, T t, std::error_code& ec)
+bool push(lua_State* L, const T& t, std::error_code& ec)
 {
     return Stack<T>::push(L, t, ec);
 }

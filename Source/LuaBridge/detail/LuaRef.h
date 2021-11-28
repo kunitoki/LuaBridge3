@@ -461,7 +461,7 @@ public:
      * @returns True if the referred value is equal to the specified one.
      */
     template <class T>
-    bool operator==(T rhs) const
+    bool operator==(const T& rhs) const
     {
         StackPop p(m_L, 2);
 
@@ -487,7 +487,7 @@ public:
      * @returns True if the referred value is not equal to the specified one.
      */
     template <class T>
-    bool operator!=(T rhs) const
+    bool operator!=(const T& rhs) const
     {
         return !(*this == rhs);
     }
@@ -502,7 +502,7 @@ public:
      * @returns True if the referred value is less than the specified one.
      */
     template <class T>
-    bool operator<(T rhs) const
+    bool operator<(const T& rhs) const
     {
         StackPop p(m_L, 2);
 
@@ -533,7 +533,7 @@ public:
      * @returns True if the referred value is less than or equal to the specified one.
      */
     template <class T>
-    bool operator<=(T rhs) const
+    bool operator<=(const T& rhs) const
     {
         StackPop p(m_L, 2);
 
@@ -564,7 +564,7 @@ public:
      * @returns True if the referred value is greater than the specified one.
      */
     template <class T>
-    bool operator>(T rhs) const
+    bool operator>(const T& rhs) const
     {
         StackPop p(m_L, 2);
 
@@ -595,7 +595,7 @@ public:
      * @returns True if the referred value is greater than or equal to the specified one.
      */
     template <class T>
-    bool operator>=(T rhs) const
+    bool operator>=(const T& rhs) const
     {
         StackPop p(m_L, 2);
 
@@ -626,7 +626,7 @@ public:
      * @returns True if the referred value is equal to the specified one.
      */
     template <class T>
-    bool rawequal(T v) const
+    bool rawequal(const T& v) const
     {
         StackPop p(m_L, 2);
 
@@ -651,7 +651,7 @@ public:
      * @param v A value to append to the table.
      */
     template <class T>
-    void append(T v) const
+    void append(const T& v) const
     {
         StackPop p(m_L, 1);
 
@@ -788,7 +788,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
          * @returns This reference.
          */
         template <class T>
-        TableItem& operator=(T v)
+        TableItem& operator=(const T& v)
         {
             StackPop p(m_L, 1);
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_tableRef);
@@ -815,7 +815,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
          * @returns This reference.
          */
         template <class T>
-        TableItem& rawset(T v)
+        TableItem& rawset(const T& v)
         {
             StackPop p(m_L, 1);
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_tableRef);
@@ -856,7 +856,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
          * @returns A Lua table item reference.
          */
         template <class T>
-        TableItem operator[](T key) const
+        TableItem operator[](const T& key) const
         {
             return LuaRef(*this)[key];
         }
@@ -874,7 +874,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
          * @returns A Lua value reference.
          */
         template <class T>
-        LuaRef rawget(T key) const
+        LuaRef rawget(const T& key) const
         {
             return LuaRef(*this).rawget(key);
         }
@@ -946,7 +946,7 @@ public:
      * @param v A value to push.
      */
     template <class T>
-    LuaRef(lua_State* L, T v)
+    LuaRef(lua_State* L, const T& v)
         : LuaRefBase(L)
         , m_ref(LUA_NOREF)
     {
@@ -1120,7 +1120,7 @@ public:
      * @returns This reference.
      */
     template <class T>
-    LuaRef& operator=(T rhs)
+    LuaRef& operator=(const T& rhs)
     {
         LuaRef ref(m_L, rhs);
         swap(ref);
@@ -1159,7 +1159,7 @@ public:
      * @returns A reference to the table item.
      */
     template <class T>
-    TableItem operator[](T key) const
+    TableItem operator[](const T& key) const
     {
         std::error_code ec;
         if (! Stack<T>::push(m_L, key, ec))
@@ -1179,7 +1179,7 @@ public:
      * @returns A reference to the table item.
      */
     template <class T>
-    LuaRef rawget(T key) const
+    LuaRef rawget(const T& key) const
     {
         StackPop(m_L, 1);
 
