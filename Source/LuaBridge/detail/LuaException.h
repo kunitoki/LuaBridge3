@@ -88,6 +88,14 @@ public:
         lua_atpanic(L, panicHandlerCallback);
     }
 
+    //=============================================================================================
+    /**
+     * @brief Retrieve the lua_State associated with the exception.
+     *
+     * @return A Lua state.
+     */
+    lua_State* state() const { return m_L; }
+
 private:
     struct FromLua {};
 
