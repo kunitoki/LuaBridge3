@@ -12,6 +12,10 @@
 
 #include <gtest/gtest.h>
 
+#if LUABRIDGE_ON_LUAU
+#include "../../ThirdParty/luau/Compiler/include/luacode.h"
+#endif
+
 #if LUABRIDGE_HAS_EXCEPTIONS
 #include <stdexcept>
 #endif
@@ -43,6 +47,20 @@ inline int traceback(lua_State* L)
     return 1;
 }
 
+#if LUABRIDGE_ON_LUAU
+inline int luaL_loadstring(lua_State *L, const char *s)
+{
+    std::size_t bytecodeSize = 0;
+
+    auto bytecode = std::shared_ptr<char>(
+        luau_compile(s, std::strlen(s), nullptr, &bytecodeSize),
+        [](char* x) { std::free(x); }
+    );
+    
+    return luau_load(L, "code", bytecode.get(), bytecodeSize, 0);
+}
+#endif
+
 // Base test class. Introduces the global 'result' variable, used for checking of C++ - Lua interoperation.
 struct TestBase : public ::testing::Test
 {
@@ -54,7 +72,7 @@ struct TestBase : public ::testing::Test
 
         luaL_openlibs(L);
 
-        lua_pushcfunction(L, &traceback);
+        luabridge::lua_pushcfunction_x(L, &traceback);
     }
 
     void TearDown() override
@@ -76,9 +94,9 @@ struct TestBase : public ::testing::Test
 #if LUABRIDGE_TESTS_PRINT_ERRORS
             std::cerr << "===== Lua Compile Error =====\n";
             std::cerr << lua_tostring(L, -1) << "\n";
-#endif
+#endif // LUABRIDGE_TESTS_PRINT_ERRORS
             return false;
-#endif
+#endif // LUABRIDGE_HAS_EXCEPTIONS
         }
 
         if (lua_pcall(L, 0, 0, -2) != LUABRIDGE_LUA_OK)
@@ -90,9 +108,9 @@ struct TestBase : public ::testing::Test
 #if LUABRIDGE_TESTS_PRINT_ERRORS
             std::cerr << "===== Lua Call Error =====\n";
             std::cerr << lua_tostring(L, -1) << "\n";
-#endif
+#endif // LUABRIDGE_TESTS_PRINT_ERRORS
             return false;
-#endif
+#endif // LUABRIDGE_HAS_EXCEPTIONS
         }
         
         return true;

@@ -89,7 +89,7 @@ struct Stack<lua_CFunction>
 {
     static bool push(lua_State* L, lua_CFunction f, std::error_code&)
     {
-        lua_pushcfunction(L, f);
+        lua_pushcfunction_x(L, f);
         return true;
     }
 
@@ -491,7 +491,7 @@ struct Stack<const char*>
         return lua_isnil(L, index) || lua_type(L, index) == LUA_TSTRING;
     }
 };
- 
+
 //=================================================================================================
 /**
  * @brief Stack specialization for `std::string_view`.
@@ -665,7 +665,7 @@ struct Stack<T[N]>
         }
 
         const int initialStackSize = lua_gettop(L);
-        
+
         lua_createtable(L, static_cast<int>(N), 0);
 
         for (std::size_t i = 0; i < N; ++i)
@@ -775,7 +775,7 @@ struct Stack<T*>
     static bool push(lua_State* L, T* value, std::error_code& ec) { return Helper::push(L, value, ec); }
 
     static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
-    
+
     static bool isInstance(lua_State* L, int index) { return Helper::template isInstance<T>(L, index); }
 };
 

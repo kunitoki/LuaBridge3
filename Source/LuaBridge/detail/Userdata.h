@@ -300,7 +300,7 @@ public:
      */
     static UserdataValue<T>* place(lua_State* L, std::error_code& ec)
     {
-        auto* ud = new (lua_newuserdata(L, sizeof(UserdataValue<T>))) UserdataValue<T>();
+        auto* ud = new (lua_newuserdata_x(L, sizeof(UserdataValue<T>))) UserdataValue<T>();
 
         lua_rawgetp(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>());
 
@@ -406,7 +406,7 @@ class UserdataPtr : public Userdata
 public:
     UserdataPtr(const UserdataPtr&) = delete;
     UserdataPtr operator=(const UserdataPtr&) = delete;
-    
+
     /**
      * @brief Push non-const pointer to object.
      *
@@ -451,7 +451,7 @@ private:
      */
     static bool push(lua_State* L, const void* p, const void* key, std::error_code& ec)
     {
-        auto* ptr = new (lua_newuserdata(L, sizeof(UserdataPtr))) UserdataPtr(const_cast<void*>(p));
+        auto* ptr = new (lua_newuserdata_x(L, sizeof(UserdataPtr))) UserdataPtr(const_cast<void*>(p));
 
         lua_rawgetp(L, LUA_REGISTRYINDEX, key);
 
@@ -538,7 +538,7 @@ struct UserdataSharedHelper
     {
         if (ContainerTraits<C>::get(c) != nullptr)
         {
-            auto* us = new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(c);
+            auto* us = new (lua_newuserdata_x(L, sizeof(UserdataShared<C>))) UserdataShared<C>(c);
 
             lua_rawgetp(L, LUA_REGISTRYINDEX, getClassRegistryKey<T>());
 
@@ -567,7 +567,7 @@ struct UserdataSharedHelper
     {
         if (t)
         {
-            auto* us = new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(t);
+            auto* us = new (lua_newuserdata_x(L, sizeof(UserdataShared<C>))) UserdataShared<C>(t);
 
             lua_rawgetp(L, LUA_REGISTRYINDEX, getClassRegistryKey<T>());
 
@@ -605,7 +605,7 @@ struct UserdataSharedHelper<C, true>
     {
         if (ContainerTraits<C>::get(c) != nullptr)
         {
-            auto* us = new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(c);
+            auto* us = new (lua_newuserdata_x(L, sizeof(UserdataShared<C>))) UserdataShared<C>(c);
 
             lua_rawgetp(L, LUA_REGISTRYINDEX, getConstRegistryKey<T>());
 
@@ -634,7 +634,7 @@ struct UserdataSharedHelper<C, true>
     {
         if (t)
         {
-            auto* us = new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(t);
+            auto* us = new (lua_newuserdata_x(L, sizeof(UserdataShared<C>))) UserdataShared<C>(t);
 
             lua_rawgetp(L, LUA_REGISTRYINDEX, getConstRegistryKey<T>());
 

@@ -29,3 +29,13 @@
 #define LUABRIDGE_HAS_EXCEPTIONS 0
 #endif
 #endif
+
+#if defined(LUA_VERSION_NUM)
+#define LUABRIDGE_ON_LUA 1
+#elif defined(LUA_JROOT)
+#define LUABRIDGE_ON_LUAJIT 1
+#elif defined(LUAU_FASTMATH_BEGIN)
+#define LUABRIDGE_ON_LUAU 1
+#else
+#error "Lua headers must be included prior to LuaBridge ones"
+#endif

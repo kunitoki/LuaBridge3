@@ -102,7 +102,7 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
         if (lua_isnil(L, -1)) // Stack: mt, nil
         {
             lua_pop(L, 2); // Stack: -
-            return luaL_error(L, "No member named '%s'", lua_tostring(L, 2));
+            luaL_error(L, "No member named '%s'", lua_tostring(L, 2));
         }
 
         assert(lua_istable(L, -1));
@@ -129,7 +129,7 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
         if (lua_isnil(L, -1)) // Stack: mt, nil
         {
             lua_pop(L, 1); // Stack: -
-            return luaL_error(L, "No writable member '%s'", lua_tostring(L, 2));
+            luaL_error(L, "No writable member '%s'", lua_tostring(L, 2));
         }
 
         assert(lua_istable(L, -1)); // Stack: mt, parent mt
@@ -172,7 +172,9 @@ inline int read_only_error(lua_State* L)
 
     s = s + "'" + lua_tostring(L, lua_upvalueindex(1)) + "' is read-only";
 
-    return luaL_error(L, s.c_str());
+    luaL_error(L, "%s", s.c_str());
+
+    return 0;
 }
 
 //=================================================================================================
@@ -212,7 +214,7 @@ struct property_getter<T, void>
 
         std::error_code ec;
         if (! Stack<T&>::push(L, *ptr, ec))
-            luaL_error(L, ec.message().c_str());
+            luaL_error(L, "%s", ec.message().c_str());
 
         return 1;
     }
@@ -231,7 +233,7 @@ struct property_getter<std::reference_wrapper<T>, void>
 
         std::error_code ec;
         if (! Stack<T&>::push(L, ptr->get(), ec))
-            luaL_error(L, ec.message().c_str());
+            luaL_error(L, "%s", ec.message().c_str());
 
         return 1;
     }
@@ -258,13 +260,13 @@ struct property_getter
 #endif
             std::error_code ec;
             if (! Stack<T&>::push(L, c->**mp, ec))
-                luaL_error(L, ec.message().c_str());
+                luaL_error(L, "%s", ec.message().c_str());
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
         {
-            luaL_error(L, e.what());
+            luaL_error(L, "%s", e.what());
         }
         catch (...)
         {
@@ -359,7 +361,7 @@ struct property_setter
         }
         catch (const std::exception& e)
         {
-            luaL_error(L, e.what());
+            luaL_error(L, "%s", e.what());
         }
         catch (...)
         {

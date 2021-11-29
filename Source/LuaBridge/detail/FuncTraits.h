@@ -352,7 +352,7 @@ struct function
             std::error_code ec;
             bool result = Stack<ReturnType>::push(L, std::apply(func, make_arguments_list<ArgsPack, Start>(L)), ec);
             if (! result)
-                return luaL_error(L, ec.message().c_str());
+                luaL_error(L, "%s", ec.message().c_str());
 
             return 1;
 
@@ -360,11 +360,11 @@ struct function
         }
         catch (const std::exception& e)
         {
-            return luaL_error(L, e.what());
+            luaL_error(L, "%s", e.what());
         }
         catch (...)
         {
-            return luaL_error(L, "Error while calling function");
+            luaL_error(L, "Error while calling function");
         }
 #endif
     }
@@ -381,7 +381,7 @@ struct function
             std::error_code ec;
             bool result = Stack<ReturnType>::push(L, std::apply(f, make_arguments_list<ArgsPack, Start>(L)), ec);
             if (! result)
-                return luaL_error(L, ec.message().c_str());
+                luaL_error(L, "%s", ec.message().c_str());
 
             return 1;
 
@@ -389,11 +389,11 @@ struct function
         }
         catch (const std::exception& e)
         {
-            return luaL_error(L, e.what());
+            luaL_error(L, "%s", e.what());
         }
         catch (...)
         {
-            return luaL_error(L, "Error while calling method");
+            luaL_error(L, "Error while calling method");
         }
 #endif
     }
@@ -417,11 +417,11 @@ struct function<void, ArgsPack, Start>
         }
         catch (const std::exception& e)
         {
-            return luaL_error(L, e.what());
+            luaL_error(L, "%s", e.what());
         }
         catch (...)
         {
-            return luaL_error(L, "Error while calling function");
+            luaL_error(L, "Error while calling function");
         }
 #endif
     }
@@ -443,11 +443,11 @@ struct function<void, ArgsPack, Start>
         }
         catch (const std::exception& e)
         {
-            return luaL_error(L, e.what());
+            luaL_error(L, "%s", e.what());
         }
         catch (...)
         {
-            return luaL_error(L, "Error while calling method");
+            luaL_error(L, "Error while calling method");
         }
 #endif
     }

@@ -27,41 +27,36 @@
 */
 //==============================================================================
 
-#pragma once
-
-// This determines which version of Lua to use.
-// The value is the same as LUA_VERSION_NUM in lua.h
-
-#ifndef LUABRIDGEDEMO_LUA_VERSION
-#define LUABRIDGEDEMO_LUA_VERSION 504 // By default use 5.4
-#endif
-
-#if !defined(LUALIBRARY_SOURCE)
+#define LUALIBRARY_SOURCE
+#include "Lua/LuaLibrary.h"
 
 #if LUABRIDGEDEMO_LUAU
-#include "../../ThirdParty/luau/VM/include/lua.h"
-#include "../../ThirdParty/luau/VM/include/luaconf.h"
-#include "../../ThirdParty/luau/VM/include/lualib.h"
 
-#elif LUABRIDGEDEMO_LUA_VERSION >= 504
-#include "Lua.5.4.3/src/lua.hpp"
+#if _MSC_VER
+#pragma push_macro("_CRT_SECURE_NO_WARNINGS")
+#ifndef _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
+#endif
+#endif
 
-#elif LUABRIDGEDEMO_LUA_VERSION >= 503
-#include "Lua.5.3.6/src/lua.hpp"
+// Ast
+#include "../../ThirdParty/luau/Ast/src/Ast.cpp"
+#include "../../ThirdParty/luau/Ast/src/Confusables.cpp"
+#include "../../ThirdParty/luau/Ast/src/StringUtils.cpp"
+#include "../../ThirdParty/luau/Ast/src/Location.cpp"
+#include "../../ThirdParty/luau/Ast/src/Lexer.cpp"
+#include "../../ThirdParty/luau/Ast/src/TimeTrace.cpp"
 
-#elif LUABRIDGEDEMO_LUA_VERSION >= 502
-#include "Lua.5.2.4/src/lua.hpp"
+// Compiler
+#include "../../ThirdParty/luau/Compiler/src/BytecodeBuilder.cpp"
+#include "../../ThirdParty/luau/Compiler/src/Compiler.cpp"
+#include "../../ThirdParty/luau/Compiler/src/lcode.cpp"
 
-#elif LUABRIDGEDEMO_LUA_VERSION >= 501
-extern "C" {
-#include "Lua.5.1.5/src/lua.h"
-#include "Lua.5.1.5/src/lualib.h"
-#include "Lua.5.1.5/src/lauxlib.h"
-} // extern "C"
+#if _MSC_VER
+#pragma pop_macro("_CRT_SECURE_NO_WARNINGS")
+#endif
 
 #else
-#error "Unknown LUA_VERSION_NUM"
+void dummy_symbol_luau2() {}
 
-#endif // LUABRIDGEDEMO_*
-
-#endif // LUALIBRARY_SOURCE
+#endif // LUABRIDGEDEMO_LUAU

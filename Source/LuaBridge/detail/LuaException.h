@@ -85,7 +85,12 @@ public:
     {
         exceptionsEnabled() = true;
 
+#if LUABRIDGE_ON_LUAU
+        auto callbacks = lua_callbacks(L);
+        callbacks->panic = +[](lua_State* L, int) { panicHandlerCallback(L); };
+#else
         lua_atpanic(L, panicHandlerCallback);
+#endif
     }
 
     //=============================================================================================

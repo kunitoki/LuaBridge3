@@ -15,6 +15,56 @@
 
 namespace luabridge {
 
+// These functions and defines are for Luau.
+#if LUABRIDGE_ON_LUAU
+
+inline int luaL_ref(lua_State* L, int idx)
+{
+    return lua_ref(L, idx);
+}
+
+inline void luaL_unref(lua_State* L, int idx, int ref)
+{
+    lua_unref(L, ref);
+}
+
+inline void* lua_newuserdata_x(lua_State* L, size_t sz)
+{
+    return lua_newuserdata(L, sz, 0);
+}
+
+inline void lua_pushcfunction_x(lua_State *L, lua_CFunction fn)
+{
+    lua_pushcfunction(L, fn, "");
+}
+
+inline void lua_pushcclosure_x(lua_State* L, lua_CFunction fn, int n)
+{
+    lua_pushcclosure(L, fn, "", n);
+}
+
+#else
+
+using ::luaL_ref;
+using ::luaL_unref;
+
+inline void* lua_newuserdata_x(lua_State* L, size_t sz)
+{
+    return lua_newuserdata(L, sz);
+}
+
+inline void lua_pushcfunction_x(lua_State *L, lua_CFunction fn)
+{
+    lua_pushcfunction(L, fn);
+}
+
+inline void lua_pushcclosure_x(lua_State* L, lua_CFunction fn, int n)
+{
+    lua_pushcclosure(L, fn, n);
+}
+
+#endif // LUABRIDGE_ON_LUAU
+
 // These are for Lua versions prior to 5.2.0.
 #if LUA_VERSION_NUM < 502
 
@@ -224,7 +274,7 @@ template <class T>
 template <class T, class... Args>
 void* lua_newuserdata_aligned(lua_State* L, Args&&... args)
 {
-    void* pointer = lua_newuserdata(L, maximum_space_needed_to_align<T>());
+    void* pointer = lua_newuserdata_x(L, maximum_space_needed_to_align<T>());
 
     T* aligned = align<T>(pointer);
 
