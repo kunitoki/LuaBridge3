@@ -19,6 +19,7 @@
 #include <memory>
 #include <string>
 
+namespace {
 void printValue(lua_State* L, int index)
 {
     int type = lua_type(L, index);
@@ -42,31 +43,37 @@ void printValue(lua_State* L, int index)
     std::cerr << ": " << lua_typename(L, type) << " (" << type << ")" << std::endl;
 }
 
-struct LuaBridgeTest : TestBase
-{
-};
-
-template<class T>
+template <class T>
 T identityCFunction(T value)
 {
     return value;
 }
+} // namespace
+
+struct LuaBridgeTest : TestBase
+{
+};
 
 TEST_F(LuaBridgeTest, LambdaGlobalNamespace)
 {
     int x = 100;
     
     luabridge::getGlobalNamespace(L)
-        .addFunction("test", [x](int v) -> int { return v + x; })
-        .addFunction("test2", [x](lua_State* L, int v) -> int { return v + (L != nullptr ? x : 0); });
+        .addFunction("test", [x](int v) -> int {
+            return v + x;
+        })
+        .addFunction("test2", [x](lua_State* L, int v) -> int {
+            return v + (L != nullptr ? x : 0);
+        });
 
     runLua("result = test (255)");
-    EXPECT_EQ(true, result().isNumber());
+    
+    ASSERT_EQ(true, result().isNumber());
     EXPECT_EQ(355, result<int>());
 
     resetResult();
     runLua("result = test2 (nil, 255)");
-    EXPECT_EQ(true, result().isNumber());
+    ASSERT_EQ(true, result().isNumber());
     EXPECT_EQ(355, result<int>());
 }
 

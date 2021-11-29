@@ -18,8 +18,12 @@ namespace luabridge {
 // These functions and defines are for Luau.
 #if LUABRIDGE_ON_LUAU
 
+inline constexpr int LUA_REGISTRYINDEX_X = -1;
+
 inline int luaL_ref(lua_State* L, int idx)
 {
+    assert(idx != LUA_REGISTRYINDEX);
+
     return lua_ref(L, idx);
 }
 
@@ -47,6 +51,8 @@ inline void lua_pushcclosure_x(lua_State* L, lua_CFunction fn, int n)
 
 using ::luaL_ref;
 using ::luaL_unref;
+
+inline constexpr int LUA_REGISTRYINDEX_X = LUA_REGISTRYINDEX;
 
 inline void* lua_newuserdata_x(lua_State* L, size_t sz)
 {

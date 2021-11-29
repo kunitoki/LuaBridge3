@@ -88,12 +88,14 @@ struct TestBase : public ::testing::Test
     {
         if (luaL_loadstring(L, script.c_str()) != LUABRIDGE_LUA_OK)
         {
+            auto errorString = lua_tostring(L, -1);
+
 #if LUABRIDGE_HAS_EXCEPTIONS
-            throw std::runtime_error(lua_tostring(L, -1));
+            throw std::runtime_error(errorString ? errorString : "Unknown lua compilation error");
 #else
 #if LUABRIDGE_TESTS_PRINT_ERRORS
             std::cerr << "===== Lua Compile Error =====\n";
-            std::cerr << lua_tostring(L, -1) << "\n";
+            std::cerr << errorString ? errorString : "Unknown lua compilation error" << "\n";
 #endif // LUABRIDGE_TESTS_PRINT_ERRORS
             return false;
 #endif // LUABRIDGE_HAS_EXCEPTIONS
@@ -101,24 +103,28 @@ struct TestBase : public ::testing::Test
 
         if (lua_pcall(L, 0, 0, -2) != LUABRIDGE_LUA_OK)
         {
-#if LUABRIDGE_HAS_EXCEPTIONS
             auto errorString = lua_tostring(L, -1);
-            throw std::runtime_error(errorString ? errorString : "Unknown lua error");
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+            throw std::runtime_error(errorString ? errorString : "Unknown lua runtime error");
 #else
 #if LUABRIDGE_TESTS_PRINT_ERRORS
             std::cerr << "===== Lua Call Error =====\n";
-            std::cerr << lua_tostring(L, -1) << "\n";
+            std::cerr << (errorString ? errorString : "Unknown lua runtime error") << "\n";
 #endif // LUABRIDGE_TESTS_PRINT_ERRORS
             return false;
 #endif // LUABRIDGE_HAS_EXCEPTIONS
         }
-        
+
         return true;
     }
 
     template <class T = luabridge::LuaRef>
     T result() const
     {
+        if constexpr (std::is_same_v<T, luabridge::LuaRef>)
+            return luabridge::getGlobal(L, "result");
+
         return luabridge::getGlobal(L, "result").cast<T>();
     }
 

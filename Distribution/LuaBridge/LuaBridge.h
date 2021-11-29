@@ -88,8 +88,12 @@ namespace luabridge {
 // These functions and defines are for Luau.
 #if LUABRIDGE_ON_LUAU
 
+inline constexpr int LUA_REGISTRYINDEX_X = -1;
+
 inline int luaL_ref(lua_State* L, int idx)
 {
+    assert(idx != LUA_REGISTRYINDEX);
+
     return lua_ref(L, idx);
 }
 
@@ -117,6 +121,8 @@ inline void lua_pushcclosure_x(lua_State* L, lua_CFunction fn, int n)
 
 using ::luaL_ref;
 using ::luaL_unref;
+
+inline constexpr int LUA_REGISTRYINDEX_X = LUA_REGISTRYINDEX;
 
 inline void* lua_newuserdata_x(lua_State* L, size_t sz)
 {
@@ -790,7 +796,7 @@ template <class T>
 struct ContainerTraits<std::shared_ptr<T>>
 {
     static_assert(std::is_base_of_v<std::enable_shared_from_this<T>, T>);
-    
+
     using Type = T;
 
     static std::shared_ptr<T> construct(T* t)
@@ -2288,7 +2294,7 @@ struct Stack<std::tuple<Types...>>
             luaL_error(L, "#%d argment must be a table", index);
 
         if (get_length(L, index) != Size)
-            luaL_error(L, "table size should be %d but is %d", Size, get_length(L, index));
+            luaL_error(L, "table size should be %d but is %d", static_cast<unsigned>(Size), get_length(L, index));
 
         std::tuple<Types...> value;
 
@@ -2573,7 +2579,7 @@ struct Stack<std::map<K, V>>
 
             lua_settable(L, -3);
         }
-        
+
         return true;
     }
 
@@ -2627,7 +2633,7 @@ struct Stack<std::unordered_map<K, V>>
     static bool push(lua_State* L, const Type& map, std::error_code& ec)
     {
         const int initialStackSize = lua_gettop(L);
-        
+
         lua_createtable(L, 0, static_cast<int>(map.size()));
 
         for (auto it = map.begin(); it != map.end(); ++it)
@@ -2639,7 +2645,7 @@ struct Stack<std::unordered_map<K, V>>
                 lua_pop(L, lua_gettop(L) - initialStackSize);
                 return false;
             }
-            
+
             std::error_code errorCodeValue;
             if (! Stack<V>::push(L, it->second, errorCodeValue))
             {
@@ -2650,7 +2656,7 @@ struct Stack<std::unordered_map<K, V>>
 
             lua_settable(L, -3);
         }
-        
+
         return true;
     }
 
@@ -2699,7 +2705,7 @@ template <class T>
 struct Stack<std::optional<T>>
 {
     using Type = std::optional<T>;
-    
+
     static bool push(lua_State* L, const Type& value, std::error_code& ec)
     {
         if (value)
@@ -2713,7 +2719,7 @@ struct Stack<std::optional<T>>
     {
         if (lua_type(L, index) == LUA_TNIL)
             return std::nullopt;
-        
+
         return Stack<T>::get(L, index);
     }
 
@@ -3075,8 +3081,6 @@ struct function
             if (! result)
                 luaL_error(L, "%s", ec.message().c_str());
 
-            return 1;
-
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
@@ -3088,6 +3092,8 @@ struct function
             luaL_error(L, "Error while calling function");
         }
 #endif
+
+        return 1;
     }
 
     template <class T, class F>
@@ -3104,8 +3110,6 @@ struct function
             if (! result)
                 luaL_error(L, "%s", ec.message().c_str());
 
-            return 1;
-
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
@@ -3117,6 +3121,8 @@ struct function
             luaL_error(L, "Error while calling method");
         }
 #endif
+
+        return 1;
     }
 };
 
@@ -3132,8 +3138,6 @@ struct function<void, ArgsPack, Start>
 #endif
             std::apply(func, make_arguments_list<ArgsPack, Start>(L));
 
-            return 0;
-
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
@@ -3145,6 +3149,8 @@ struct function<void, ArgsPack, Start>
             luaL_error(L, "Error while calling function");
         }
 #endif
+
+        return 0;
     }
 
     template <class T, class F>
@@ -3158,8 +3164,6 @@ struct function<void, ArgsPack, Start>
 
             std::apply(f, make_arguments_list<ArgsPack, Start>(L));
 
-            return 0;
-
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
@@ -3171,6 +3175,8 @@ struct function<void, ArgsPack, Start>
             luaL_error(L, "Error while calling method");
         }
 #endif
+
+        return 0;
     }
 };
 
@@ -3377,7 +3383,7 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
         // Repeat the search in the parent
     }
 
-    // no return
+    return 0;
 }
 
 //=================================================================================================
@@ -3885,7 +3891,7 @@ protected:
     {
         impl().push();
 
-        return luaL_ref(m_L, LUA_REGISTRYINDEX);
+        return luaL_ref(m_L, LUA_REGISTRYINDEX_X);
     }
 
 public:
@@ -3898,7 +3904,7 @@ public:
     std::string tostring() const
     {
         StackPop p(m_L, 1);
-        
+
         lua_getglobal(m_L, "tostring");
 
         impl().push();
@@ -4034,7 +4040,7 @@ public:
         impl().push();
 
         const int refType = lua_type(m_L, -1);
-        
+
         return refType;
     }
 
@@ -4466,10 +4472,10 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         TableItem(lua_State* L, int tableRef)
             : LuaRefBase(L)
             , m_tableRef(LUA_NOREF)
-            , m_keyRef(luaL_ref(L, LUA_REGISTRYINDEX))
+            , m_keyRef(luaL_ref(L, LUA_REGISTRYINDEX_X))
         {
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, tableRef);
-            m_tableRef = luaL_ref(L, LUA_REGISTRYINDEX);
+            m_tableRef = luaL_ref(L, LUA_REGISTRYINDEX_X);
         }
 
         //=========================================================================================
@@ -4487,10 +4493,10 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             , m_keyRef(LUA_NOREF)
         {
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, other.m_tableRef);
-            m_tableRef = luaL_ref(m_L, LUA_REGISTRYINDEX);
+            m_tableRef = luaL_ref(m_L, LUA_REGISTRYINDEX_X);
 
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, other.m_keyRef);
-            m_keyRef = luaL_ref(m_L, LUA_REGISTRYINDEX);
+            m_keyRef = luaL_ref(m_L, LUA_REGISTRYINDEX_X);
         }
 
         //=========================================================================================
@@ -4503,7 +4509,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         {
             if (m_keyRef != LUA_NOREF)
                 luaL_unref(m_L, LUA_REGISTRYINDEX, m_keyRef);
-            
+
             if (m_tableRef != LUA_NOREF)
                 luaL_unref(m_L, LUA_REGISTRYINDEX, m_tableRef);
         }
@@ -4632,7 +4638,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
      */
     LuaRef(lua_State* L, FromStack)
         : LuaRefBase(L)
-        , m_ref(luaL_ref(m_L, LUA_REGISTRYINDEX))
+        , m_ref(luaL_ref(m_L, LUA_REGISTRYINDEX_X))
     {
     }
 
@@ -4653,7 +4659,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         , m_ref(LUA_NOREF)
     {
         lua_pushvalue(m_L, index);
-        m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX);
+        m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX_X);
     }
 
 public:
@@ -4687,7 +4693,7 @@ public:
         if (! Stack<T>::push(m_L, v, ec))
             return;
 
-        m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX);
+        m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX_X);
     }
 
     //=============================================================================================
@@ -4877,8 +4883,8 @@ public:
      */
     void pop()
     {
-        luaL_unref(m_L, LUA_REGISTRYINDEX, m_ref);
-        m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX);
+        luaL_unref(m_L, LUA_REGISTRYINDEX_X, m_ref);
+        m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX_X);
     }
 
     //=============================================================================================
@@ -4930,7 +4936,7 @@ private:
     void swap(LuaRef& other)
     {
         using std::swap;
-        
+
         swap(m_L, other.m_L);
         swap(m_ref, other.m_ref);
     }
@@ -5477,9 +5483,9 @@ T getGlobal(lua_State* L, const char* name)
     lua_getglobal(L, name);
 
     auto result = luabridge::Stack<T>::get(L, -1);
-    
+
     lua_pop(L, 1);
-    
+
     return result;
 }
 
@@ -5608,38 +5614,40 @@ class Namespace : public detail::Registrar
 {
     //=============================================================================================
 #if 0
-  /**
-    Error reporting.
-
-    VF: This function looks handy, why aren't we using it?
-  */
-  static int luaError (lua_State* L, std::string message)
-  {
-    assert (lua_isstring (L, lua_upvalueindex (1)));
-    std::string s;
-
-    // Get information on the caller's caller to format the message,
-    // so the error appears to originate from the Lua source.
-    lua_Debug ar;
-    int result = lua_getstack (L, 2, &ar);
-    if (result != 0)
+    /**
+     * @brief Error reporting.
+     *
+     * This function looks handy, why aren't we using it?
+     */
+    static int luaError(lua_State* L, std::string message)
     {
-      lua_getinfo (L, "Sl", &ar);
-      s = ar.short_src;
-      if (ar.currentline != -1)
-      {
-        // poor mans int to string to avoid <strstrream>.
-        lua_pushnumber (L, ar.currentline);
-        s = s + ":" + lua_tostring (L, -1) + ": ";
-        lua_pop (L, 1);
-      }
+        assert(lua_isstring(L, lua_upvalueindex(1)));
+        std::string s;
+
+        // Get information on the caller's caller to format the message,
+        // so the error appears to originate from the Lua source.
+        lua_Debug ar;
+
+        int result = lua_getstack(L, 2, &ar);
+        if (result != 0)
+        {
+            lua_getinfo(L, "Sl", &ar);
+            s = ar.short_src;
+            if (ar.currentline != -1)
+            {
+                // poor mans int to string to avoid <strstrream>.
+                lua_pushnumber(L, ar.currentline);
+                s = s + ":" + lua_tostring(L, -1) + ": ";
+                lua_pop(L, 1);
+            }
+        }
+
+        s = s + message;
+
+        luaL_error(L, "%s", s.c_str());
+
+        return 0;
     }
-
-    s = s + message;
-
-    luaL_error (L, "%s", s.c_str ());
-    return 0;
-  }
 #endif
 
     //=============================================================================================
@@ -7150,7 +7158,7 @@ template <class T>
 struct Stack<std::list<T>>
 {
     using Type = std::list<T>;
-    
+
     static bool push(lua_State* L, const Type& list, std::error_code& ec)
     {
         const int initialStackSize = lua_gettop(L);
@@ -7172,7 +7180,7 @@ struct Stack<std::list<T>>
 
             lua_settable(L, -3);
         }
-        
+
         return true;
     }
 
@@ -7226,7 +7234,7 @@ struct Stack<std::array<T, Size>>
     static bool push(lua_State* L, const Type& array, std::error_code& ec)
     {
         const int initialStackSize = lua_gettop(L);
-        
+
         lua_createtable(L, static_cast<int>(Size), 0);
 
         for (std::size_t i = 0; i < Size; ++i)
@@ -7244,7 +7252,7 @@ struct Stack<std::array<T, Size>>
 
             lua_settable(L, -3);
         }
-        
+
         return true;
     }
 
@@ -7254,7 +7262,7 @@ struct Stack<std::array<T, Size>>
             luaL_error(L, "#%d argment must be a table", index);
 
         if (get_length(L, index) != Size)
-            luaL_error(L, "table size should be %d but is %d", Size, get_length(L, index));
+            luaL_error(L, "table size should be %u but is %d", static_cast<unsigned>(Size), get_length(L, index));
 
         Type array;
 
@@ -7297,13 +7305,13 @@ struct Stack<std::vector<T>>
     static bool push(lua_State* L, const Type& vector, std::error_code& ec)
     {
         const int initialStackSize = lua_gettop(L);
-        
+
         lua_createtable(L, static_cast<int>(vector.size()), 0);
 
         for (std::size_t i = 0; i < vector.size(); ++i)
         {
             lua_pushinteger(L, static_cast<lua_Integer>(i + 1));
-            
+
             std::error_code errorCode;
             if (! Stack<T>::push(L, vector[i], errorCode))
             {
@@ -7311,10 +7319,10 @@ struct Stack<std::vector<T>>
                 lua_pop(L, lua_gettop(L) - initialStackSize);
                 return false;
             }
-            
+
             lua_settable(L, -3);
         }
-        
+
         return true;
     }
 
@@ -7364,11 +7372,11 @@ template <class K, class V>
 struct Stack<std::set<K, V>>
 {
     using Type = std::set<K, V>;
-    
+
     static bool push(lua_State* L, const Type& set, std::error_code& ec)
     {
         const int initialStackSize = lua_gettop(L);
-        
+
         lua_createtable(L, 0, static_cast<int>(set.size()));
 
         for (auto it = set.begin(); it != set.end(); ++it)
@@ -7391,7 +7399,7 @@ struct Stack<std::set<K, V>>
 
             lua_settable(L, -3);
         }
-        
+
         return true;
     }
 
