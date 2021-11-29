@@ -575,7 +575,7 @@ struct Stack<std::tuple<Types...>>
             luaL_error(L, "#%d argment must be a table", index);
 
         if (get_length(L, index) != Size)
-            luaL_error(L, "table size should be %d but is %d", Size, get_length(L, index));
+            luaL_error(L, "table size should be %d but is %d", static_cast<unsigned>(Size), get_length(L, index));
 
         std::tuple<Types...> value;
 

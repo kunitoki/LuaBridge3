@@ -49,6 +49,8 @@ struct A
 {
     A() : data(0), prop(0) {}
 
+    virtual ~A() = default;
+
     void mf1() {}
 
     void mf2(A*) {}

@@ -246,7 +246,17 @@ TEST_F(LuaRefTests, Assignment)
     EXPECT_TRUE(value.isNumber());
     ASSERT_EQ(5, value.cast<int>());
 
+#if __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wself-assign-overloaded"
+#endif
+    
     value = value;
+
+#if __clang__
+#pragma clang diagnostic pop
+#endif
+
     ASSERT_EQ(LUA_TNUMBER, value.type());
     EXPECT_TRUE(value.isNumber());
     ASSERT_EQ(5, value.cast<int>());

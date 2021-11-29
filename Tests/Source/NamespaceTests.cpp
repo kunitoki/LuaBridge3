@@ -245,7 +245,7 @@ TEST_F(NamespaceTests, NamespaceFromStack)
     lua_newtable(L);
 
     luabridge::getNamespaceFromStack(L)
-        .addFunction("Function", [this](int x) { return x; });
+        .addFunction("Function", [](int x) { return x; });
 
     int tableReference = luabridge::luaL_ref(L, LUA_REGISTRYINDEX);
 
