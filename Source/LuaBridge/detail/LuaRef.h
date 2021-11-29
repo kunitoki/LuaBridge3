@@ -165,7 +165,7 @@ public:
     std::string tostring() const
     {
         StackPop p(m_L, 1);
-        
+
         lua_getglobal(m_L, "tostring");
 
         impl().push();
@@ -301,7 +301,7 @@ public:
         impl().push();
 
         const int refType = lua_type(m_L, -1);
-        
+
         return refType;
     }
 
@@ -770,7 +770,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         {
             if (m_keyRef != LUA_NOREF)
                 luaL_unref(m_L, LUA_REGISTRYINDEX, m_keyRef);
-            
+
             if (m_tableRef != LUA_NOREF)
                 luaL_unref(m_L, LUA_REGISTRYINDEX, m_tableRef);
         }
@@ -1197,7 +1197,7 @@ private:
     void swap(LuaRef& other)
     {
         using std::swap;
-        
+
         swap(m_L, other.m_L);
         swap(m_ref, other.m_ref);
     }
