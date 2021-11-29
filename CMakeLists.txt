@@ -5,6 +5,8 @@ project (LuaBridge)
 include (CMakeDependentOption)
 
 set (CMAKE_CXX_STANDARD 17)
+set (CMAKE_CXX_STANDARD_REQUIRED ON)
+set (CMAKE_CXX_EXTENSIONS OFF)
 
 cmake_dependent_option (LUABRIDGE_TESTING "Build tests" ON
   "CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR" OFF)
@@ -14,7 +16,6 @@ add_subdirectory (Source)
 if (LUABRIDGE_TESTING)
     set (gtest_force_shared_crt ON CACHE BOOL "Use /MD and /MDd" FORCE)
     add_subdirectory (ThirdParty/gtest)
-
     add_subdirectory (Tests)
 endif ()
 
