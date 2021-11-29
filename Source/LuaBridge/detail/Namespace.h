@@ -104,38 +104,40 @@ class Namespace : public detail::Registrar
 {
     //=============================================================================================
 #if 0
-  /**
-    Error reporting.
-
-    VF: This function looks handy, why aren't we using it?
-  */
-  static int luaError (lua_State* L, std::string message)
-  {
-    assert (lua_isstring (L, lua_upvalueindex (1)));
-    std::string s;
-
-    // Get information on the caller's caller to format the message,
-    // so the error appears to originate from the Lua source.
-    lua_Debug ar;
-    int result = lua_getstack (L, 2, &ar);
-    if (result != 0)
+    /**
+     * @brief Error reporting.
+     *
+     * This function looks handy, why aren't we using it?
+     */
+    static int luaError(lua_State* L, std::string message)
     {
-      lua_getinfo (L, "Sl", &ar);
-      s = ar.short_src;
-      if (ar.currentline != -1)
-      {
-        // poor mans int to string to avoid <strstrream>.
-        lua_pushnumber (L, ar.currentline);
-        s = s + ":" + lua_tostring (L, -1) + ": ";
-        lua_pop (L, 1);
-      }
+        assert(lua_isstring(L, lua_upvalueindex(1)));
+        std::string s;
+
+        // Get information on the caller's caller to format the message,
+        // so the error appears to originate from the Lua source.
+        lua_Debug ar;
+    
+        int result = lua_getstack(L, 2, &ar);
+        if (result != 0)
+        {
+            lua_getinfo(L, "Sl", &ar);
+            s = ar.short_src;
+            if (ar.currentline != -1)
+            {
+                // poor mans int to string to avoid <strstrream>.
+                lua_pushnumber(L, ar.currentline);
+                s = s + ":" + lua_tostring(L, -1) + ": ";
+                lua_pop(L, 1);
+            }
+        }
+
+        s = s + message;
+
+        luaL_error(L, "%s", s.c_str());
+
+        return 0;
     }
-
-    s = s + message;
-
-    luaL_error (L, "%s", s.c_str ());
-    return 0;
-  }
 #endif
 
     //=============================================================================================

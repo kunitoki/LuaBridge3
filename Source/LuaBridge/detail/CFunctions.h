@@ -137,7 +137,7 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
         // Repeat the search in the parent
     }
 
-    // no return
+    return 0;
 }
 
 //=================================================================================================
