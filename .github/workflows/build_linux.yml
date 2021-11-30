@@ -31,7 +31,7 @@ jobs:
 
     - name: Test Lua 5.1 - No Exceptions
       working-directory: ${{runner.workspace}}/build/Tests
-      run: ./LuaBridgeTests51NoExcept
+      run: ./LuaBridgeTests51Noexcept
 
     - name: Test Lua 5.2
       working-directory: ${{runner.workspace}}/build/Tests
