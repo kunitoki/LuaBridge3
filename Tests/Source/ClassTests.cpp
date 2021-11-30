@@ -343,16 +343,19 @@ TEST_F(ClassTests, PassingUnregisteredClassFromLuaThrows)
 #endif
 }
 
+#if LUABRIDGE_HAS_EXCEPTIONS
 TEST_F(ClassTests, DeriveFromUnregisteredClassThrows)
 {
-#if LUABRIDGE_HAS_EXCEPTIONS
     using Base = Class<int, EmptyBase>;
     using Derived = Class<float, Base>;
 
-    ASSERT_THROW((luabridge::getGlobalNamespace(L).deriveClass<Derived, Base>("Derived")), std::exception);
-    ASSERT_EQ(1, lua_gettop(L));
-#endif
+    EXPECT_EQ(0, lua_gettop(L));
+
+    EXPECT_THROW((luabridge::getGlobalNamespace(L).deriveClass<Derived, Base>("Derived")), std::exception);
+
+    EXPECT_EQ(0, lua_gettop(L));
 }
+#endif
 
 struct ClassFunctions : ClassTests
 {

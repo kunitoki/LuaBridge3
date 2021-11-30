@@ -15,28 +15,48 @@ struct MapTests : TestBase
 TEST_F(MapTests, LuaRef)
 {
     {
-        runLua("result = {[false] = true, a = 'abc', [1] = 5, [3.14] = -1.1}");
+        using Map = std::map<int, char>;
 
-        using Map = std::map<luabridge::LuaRef, luabridge::LuaRef>;
-        Map expected{
-            {luabridge::LuaRef(L, false), luabridge::LuaRef(L, true)},
-            {luabridge::LuaRef(L, 'a'), luabridge::LuaRef(L, "abc")},
-            {luabridge::LuaRef(L, 1), luabridge::LuaRef(L, 5)},
-            {luabridge::LuaRef(L, 3.14), luabridge::LuaRef(L, -1.1)},
-        };
+        const Map expected { {1, 'a'}, {2, 'b'}, {3, 'c'} };
+
+        runLua("result = {'a', 'b', 'c'}");
+
         Map actual = result();
-        ASSERT_EQ(expected, actual);
-        ASSERT_EQ(expected, result<Map>());
+        EXPECT_EQ(expected, actual);
+        EXPECT_EQ(expected, result<Map>());
     }
 
     {
-        runLua("result = {'a', 'b', 'c'}");
+        using Map = std::map<int, std::string>;
+        
+        const Map expected { {1, "abcdef"}, {2, "bcdef"}, {3, "cdef"} };
 
-        using Int2Char = std::map<int, char>;
-        Int2Char expected{{1, 'a'}, {2, 'b'}, {3, 'c'}};
-        Int2Char actual = result();
-        ASSERT_EQ(expected, actual);
-        ASSERT_EQ(expected, result<Int2Char>());
+        runLua("result = {'abcdef', 'bcdef', 'cdef'}");
+
+        Map actual = result();
+        EXPECT_EQ(expected, actual);
+        EXPECT_EQ(expected, result<Map>());
+    }
+
+    {
+        using Map = std::map<luabridge::LuaRef, luabridge::LuaRef>;
+
+        const Map expected {
+            { luabridge::LuaRef(L, false), luabridge::LuaRef(L, true) },
+            { luabridge::LuaRef(L, 'a'), luabridge::LuaRef(L, "abc") },
+            { luabridge::LuaRef(L, 1), luabridge::LuaRef(L, 5) },
+            { luabridge::LuaRef(L, 3.14), luabridge::LuaRef(L, -1.1) },
+        };
+
+        runLua("result = {[false] = true, a = 'abc', [1] = 5, [3.14] = -1.1}");
+
+        auto resultRef = result();
+        EXPECT_TRUE(resultRef.isInstance<Map>());
+
+        Map actual = resultRef;
+        EXPECT_EQ(expected, actual);
+
+        EXPECT_EQ(expected, result<Map>());
     }
 }
 

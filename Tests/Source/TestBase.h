@@ -72,7 +72,6 @@ struct TestBase : public ::testing::Test
 
         luaL_openlibs(L);
 
-        luabridge::lua_pushcfunction_x(L, &traceback);
     }
 
     void TearDown() override

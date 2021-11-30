@@ -195,6 +195,7 @@ TEST_F(LuaRefTests, Comparison)
 
     EXPECT_TRUE(stringA < t1);
 
+#if !defined(LUABRIDGE_ON_LUAU) // TODO - Luau
     EXPECT_TRUE(t1 == t1);
     EXPECT_FALSE(t1 == t2);
     EXPECT_TRUE(t1 == t3);
@@ -232,6 +233,7 @@ TEST_F(LuaRefTests, Comparison)
     EXPECT_FALSE(t1 >= t2);
     EXPECT_TRUE(t1 >= t3);
     EXPECT_TRUE(t2 >= t3);
+#endif
 }
 
 TEST_F(LuaRefTests, Assignment)

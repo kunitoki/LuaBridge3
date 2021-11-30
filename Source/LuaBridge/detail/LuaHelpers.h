@@ -24,7 +24,11 @@ inline int luaL_ref(lua_State* L, int idx)
 {
     assert(idx != LUA_REGISTRYINDEX);
 
-    return lua_ref(L, idx);
+    const int ref = lua_ref(L, idx);
+
+    lua_pop(L, 1);
+    
+    return ref;
 }
 
 inline void luaL_unref(lua_State* L, int idx, int ref)
@@ -128,7 +132,7 @@ inline int lua_compare(lua_State* L, int idx1, int idx2, int op)
 
     default:
         return 0;
-    };
+    }
 }
 
 inline int get_length(lua_State* L, int idx)

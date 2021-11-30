@@ -80,7 +80,7 @@ inline void dumpValue(lua_State* L, int index, std::ostream& stream, unsigned le
     }
 }
 
-inline void dumpTable(lua_State* L, int index, std::ostream& stream, unsigned level)
+inline void dumpTable(lua_State* L, int index, std::ostream& stream, unsigned level = 0)
 {
     stream << "table@" << lua_topointer(L, index);
 
