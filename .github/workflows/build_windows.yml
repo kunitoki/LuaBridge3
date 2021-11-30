@@ -67,3 +67,7 @@ jobs:
       shell: bash
       run: ./LuaBridgeTests54Noexcept.exe
 
+    - name: Test Luau
+      working-directory: ${{runner.workspace}}/build/Tests/Release
+      shell: bash
+      run: ./LuaBridgeTestsLuau.exe

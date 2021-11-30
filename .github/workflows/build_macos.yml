@@ -56,3 +56,7 @@ jobs:
     - name: Test Lua 5.4 - No Exceptions
       working-directory: ${{runner.workspace}}/build/Tests
       run: ./LuaBridgeTests54Noexcept
+
+    - name: Test Luau
+      working-directory: ${{runner.workspace}}/build/Tests
+      run: ./LuaBridgeTestsLuau

@@ -58,3 +58,8 @@ jobs:
       working-directory: ${{runner.workspace}}/build/Tests
       shell: bash
       run: ./LuaBridgeTests54Noexcept
+
+    - name: Test Luau
+      working-directory: ${{runner.workspace}}/build/Tests
+      shell: bash
+      run: ./LuaBridgeTestsLuau
