@@ -120,7 +120,7 @@ endmacro (add_test_app)
 # ====================================================== Real Unit Tests
 
 add_test_app (LuaBridgeTests51 501 "${LUABRIDGE_TEST_LUA51_FILES}" 1)
-add_test_app (LuaBridgeTests51NoExcept 501 "${LUABRIDGE_TEST_LUA51_FILES}" 0)
+add_test_app (LuaBridgeTests51Noexcept 501 "${LUABRIDGE_TEST_LUA51_FILES}" 0)
 
 add_test_app (LuaBridgeTests52 502 "${LUABRIDGE_TEST_LUA52_FILES}" 1)
 add_test_app (LuaBridgeTests52Noexcept 502 "${LUABRIDGE_TEST_LUA52_FILES}" 0)
