@@ -156,7 +156,7 @@ protected:
     {
         impl().push();
 
-        return luaL_ref(m_L, LUA_REGISTRYINDEX_X);
+        return luaL_ref(m_L, LUA_REGISTRYINDEX);
     }
 
 public:
@@ -742,14 +742,14 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
          */
         TableItem(lua_State* L, int tableRef)
             : LuaRefBase(L)
-            , m_keyRef(luaL_ref(L, LUA_REGISTRYINDEX_X))
+            , m_keyRef(luaL_ref(L, LUA_REGISTRYINDEX))
         {
 #if LUABRIDGE_SAFE_STACK_CHECKS
             luaL_checkstack(m_L, 1, detail::error_lua_stack_overflow);
 #endif
 
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, tableRef);
-            m_tableRef = luaL_ref(L, LUA_REGISTRYINDEX_X);
+            m_tableRef = luaL_ref(L, LUA_REGISTRYINDEX);
         }
 
         //=========================================================================================
@@ -769,10 +769,10 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
 #endif
 
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, other.m_tableRef);
-            m_tableRef = luaL_ref(m_L, LUA_REGISTRYINDEX_X);
+            m_tableRef = luaL_ref(m_L, LUA_REGISTRYINDEX);
 
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, other.m_keyRef);
-            m_keyRef = luaL_ref(m_L, LUA_REGISTRYINDEX_X);
+            m_keyRef = luaL_ref(m_L, LUA_REGISTRYINDEX);
         }
 
         //=========================================================================================
@@ -928,7 +928,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
      */
     LuaRef(lua_State* L, FromStack)
         : LuaRefBase(L)
-        , m_ref(luaL_ref(m_L, LUA_REGISTRYINDEX_X))
+        , m_ref(luaL_ref(m_L, LUA_REGISTRYINDEX))
     {
     }
 
@@ -952,7 +952,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
 #endif
 
         lua_pushvalue(m_L, index);
-        m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX_X);
+        m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX);
     }
 
 public:
@@ -984,7 +984,7 @@ public:
         if (! Stack<T>::push(m_L, v, ec))
             return;
 
-        m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX_X);
+        m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX);
     }
 
     //=============================================================================================
@@ -1216,8 +1216,10 @@ public:
      */
     void pop()
     {
-        luaL_unref(m_L, LUA_REGISTRYINDEX_X, m_ref);
-        m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX_X);
+        if (m_ref != LUA_NOREF)
+            luaL_unref(m_L, LUA_REGISTRYINDEX, m_ref);
+        
+        m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX);
     }
 
     //=============================================================================================
