@@ -247,7 +247,7 @@ TEST_F(NamespaceTests, NamespaceFromStack)
     luabridge::getNamespaceFromStack(L)
         .addFunction("Function", [](int x) { return x; });
 
-    int tableReference = luabridge::luaL_ref(L, LUA_REGISTRYINDEX);
+    int tableReference = luabridge::luaL_ref(L, -1);
 
     // Load a script
     std::string script = "result = Function (42)";

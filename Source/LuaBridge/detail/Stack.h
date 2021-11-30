@@ -8,6 +8,7 @@
 #pragma once
 
 #include "LuaHelpers.h"
+#include "Errors.h"
 #include "Userdata.h"
 
 #include <cstddef>
@@ -52,6 +53,10 @@ struct Stack<std::nullptr_t>
 {
     static bool push(lua_State* L, std::nullptr_t, std::error_code&)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+#endif
+        
         lua_pushnil(L);
         return true;
     }
@@ -89,6 +94,10 @@ struct Stack<lua_CFunction>
 {
     static bool push(lua_State* L, lua_CFunction f, std::error_code&)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+#endif
+
         lua_pushcfunction_x(L, f);
         return true;
     }
@@ -113,6 +122,10 @@ struct Stack<bool>
 {
     static bool push(lua_State* L, bool value, std::error_code&)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+#endif
+
         lua_pushboolean(L, value ? 1 : 0);
         return true;
     }
@@ -137,6 +150,10 @@ struct Stack<std::byte>
 {
     static bool push(lua_State* L, std::byte value, std::error_code&)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+#endif
+
         pushunsigned(L, std::to_integer<lua_Unsigned>(value));
         return true;
     }
@@ -161,6 +178,10 @@ struct Stack<char>
 {
     static bool push(lua_State* L, char value, std::error_code&)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+#endif
+
         lua_pushlstring(L, &value, 1);
         return true;
     }
@@ -185,6 +206,10 @@ struct Stack<unsigned char>
 {
     static bool push(lua_State* L, unsigned char value, std::error_code&)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+#endif
+
         pushunsigned(L, value);
         return true;
     }
@@ -209,6 +234,10 @@ struct Stack<short>
 {
     static bool push(lua_State* L, short value, std::error_code&)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+#endif
+
         lua_pushinteger(L, static_cast<lua_Integer>(value));
         return true;
     }
@@ -233,6 +262,10 @@ struct Stack<unsigned short>
 {
     static bool push(lua_State* L, unsigned short value, std::error_code&)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+#endif
+
         pushunsigned(L, value);
         return true;
     }
@@ -257,6 +290,10 @@ struct Stack<int>
 {
     static bool push(lua_State* L, int value, std::error_code&)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+#endif
+
         lua_pushinteger(L, static_cast<lua_Integer>(value));
         return true;
     }
@@ -281,6 +318,10 @@ struct Stack<unsigned int>
 {
     static bool push(lua_State* L, unsigned int value, std::error_code&)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+#endif
+
         pushunsigned(L, value);
         return true;
     }
@@ -305,6 +346,10 @@ struct Stack<long>
 {
     static bool push(lua_State* L, long value, std::error_code&)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+#endif
+
         lua_pushinteger(L, static_cast<lua_Integer>(value));
         return true;
     }
@@ -329,6 +374,10 @@ struct Stack<unsigned long>
 {
     static bool push(lua_State* L, unsigned long value, std::error_code&)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+#endif
+
         pushunsigned(L, value);
         return true;
     }
@@ -353,6 +402,10 @@ struct Stack<long long>
 {
     static bool push(lua_State* L, long long value, std::error_code&)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+#endif
+
         lua_pushinteger(L, static_cast<lua_Integer>(value));
         return true;
     }
@@ -377,6 +430,10 @@ struct Stack<unsigned long long>
 {
     static bool push(lua_State* L, unsigned long long value, std::error_code&)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+#endif
+
         pushunsigned(L, value);
         return true;
     }
@@ -401,6 +458,10 @@ struct Stack<float>
 {
     static bool push(lua_State* L, float value, std::error_code&)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+#endif
+
         lua_pushnumber(L, static_cast<lua_Number>(value));
         return true;
     }
@@ -425,6 +486,10 @@ struct Stack<double>
 {
     static bool push(lua_State* L, double value, std::error_code&)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+#endif
+
         lua_pushnumber(L, static_cast<lua_Number>(value));
         return true;
     }
@@ -449,6 +514,10 @@ struct Stack<long double>
 {
     static bool push(lua_State* L, long double value, std::error_code&)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+#endif
+
         lua_pushnumber(L, static_cast<lua_Number>(value));
         return true;
     }
@@ -473,6 +542,10 @@ struct Stack<const char*>
 {
     static bool push(lua_State* L, const char* str, std::error_code&)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+#endif
+
         if (str != nullptr)
             lua_pushstring(L, str);
         else
@@ -501,6 +574,10 @@ struct Stack<std::string_view>
 {
     static bool push(lua_State* L, std::string_view str, std::error_code&)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+#endif
+
         lua_pushlstring(L, str.data(), str.size());
         return true;
     }
@@ -525,6 +602,10 @@ struct Stack<std::string>
 {
     static bool push(lua_State* L, const std::string& str, std::error_code&)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+#endif
+
         lua_pushlstring(L, str.data(), str.size());
         return true;
     }
@@ -564,6 +645,10 @@ struct Stack<std::tuple<Types...>>
 {
     static bool push(lua_State* L, const std::tuple<Types...>& t, std::error_code& ec)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(L, 2, detail::error_lua_stack_overflow);
+#endif
+
         lua_createtable(L, static_cast<int>(Size), 0);
 
         return push_element(L, t, ec);
@@ -660,9 +745,17 @@ struct Stack<T[N]>
     {
         if constexpr (std::is_same_v<T, char>)
         {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+            luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+#endif
+
             lua_pushlstring(L, value, N - 1);
             return true;
         }
+
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(L, 2, detail::error_lua_stack_overflow);
+#endif
 
         const int initialStackSize = lua_gettop(L);
 

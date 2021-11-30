@@ -30,12 +30,16 @@
 #endif
 #endif
 
-#if defined(LUA_VERSION_NUM)
-#define LUABRIDGE_ON_LUA 1
+#if defined(LUAU_FASTMATH_BEGIN)
+#define LUABRIDGE_ON_LUAU 1
 #elif defined(LUA_JROOT)
 #define LUABRIDGE_ON_LUAJIT 1
-#elif defined(LUAU_FASTMATH_BEGIN)
-#define LUABRIDGE_ON_LUAU 1
+#elif defined(LUA_VERSION_NUM)
+#define LUABRIDGE_ON_LUA 1
 #else
 #error "Lua headers must be included prior to LuaBridge ones"
+#endif
+
+#if !defined(LUABRIDGE_SAFE_STACK_CHECKS)
+#define LUABRIDGE_SAFE_STACK_CHECKS 1
 #endif

@@ -32,9 +32,14 @@ inline void luaL_unref(lua_State* L, int idx, int ref)
     lua_unref(L, ref);
 }
 
+template <class T>
 inline void* lua_newuserdata_x(lua_State* L, size_t sz)
 {
-    return lua_newuserdata(L, sz, 0);
+    return lua_newuserdatadtor(L, sz, [](void* x)
+    {
+        auto object = static_cast<T*>(x);
+        object->~T();
+    });
 }
 
 inline void lua_pushcfunction_x(lua_State *L, lua_CFunction fn)
@@ -54,6 +59,7 @@ using ::luaL_unref;
 
 inline constexpr int LUA_REGISTRYINDEX_X = LUA_REGISTRYINDEX;
 
+template <class T>
 inline void* lua_newuserdata_x(lua_State* L, size_t sz)
 {
     return lua_newuserdata(L, sz);
@@ -273,23 +279,6 @@ template <class T>
 }
 
 /**
- * @brief Allocate lua userdata taking into account alignment.
- *
- * Using this instead of lua_newuserdata directly prevents alignment warnings on 64bits platforms.
- */
-template <class T, class... Args>
-void* lua_newuserdata_aligned(lua_State* L, Args&&... args)
-{
-    void* pointer = lua_newuserdata_x(L, maximum_space_needed_to_align<T>());
-
-    T* aligned = align<T>(pointer);
-
-    new (aligned) T(std::forward<Args>(args)...);
-
-    return pointer;
-}
-
-/**
  * @brief Deallocate lua userdata taking into account alignment.
  */
 template <class T>
@@ -301,6 +290,36 @@ int lua_deleteuserdata_aligned(lua_State* L)
     aligned->~T();
 
     return 0;
+}
+
+/**
+ * @brief Allocate lua userdata taking into account alignment.
+ *
+ * Using this instead of lua_newuserdata directly prevents alignment warnings on 64bits platforms.
+ */
+template <class T, class... Args>
+void* lua_newuserdata_aligned(lua_State* L, Args&&... args)
+{
+#if LUABRIDGE_USE_LUAU
+    void* pointer = lua_newuserdatadtor(L, maximum_space_needed_to_align<T>(), [](void* x)
+    {
+        T* aligned = align<T>(x);
+        aligned->~T();
+    });
+#else
+    void* pointer = lua_newuserdata_x<T>(L, maximum_space_needed_to_align<T>());
+
+    lua_newtable(L);
+    lua_pushcfunction_x(L, &lua_deleteuserdata_aligned<T>);
+    rawsetfield(L, -2, "__gc");
+    lua_setmetatable(L, -2);
+#endif
+
+    T* aligned = align<T>(pointer);
+
+    new (aligned) T(std::forward<Args>(args)...);
+
+    return pointer;
 }
 
 /**

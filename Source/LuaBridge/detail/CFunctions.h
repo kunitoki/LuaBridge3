@@ -24,6 +24,10 @@ namespace detail {
  */
 inline int index_metamethod(lua_State* L)
 {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+    luaL_checkstack(L, 3, detail::error_lua_stack_overflow);
+#endif
+
     assert(lua_istable(L, 1) || lua_isuserdata(L, 1)); // Stack (further not shown): table | userdata, name
 
     lua_getmetatable(L, 1); // Stack: class/const table (mt)
@@ -90,6 +94,10 @@ inline int index_metamethod(lua_State* L)
  */
 inline int newindex_metamethod(lua_State* L, bool pushSelf)
 {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+    luaL_checkstack(L, 3, detail::error_lua_stack_overflow);
+#endif
+
     assert(lua_istable(L, 1) || lua_isuserdata(L, 1)); // Stack (further not shown): table | userdata, name, new value
 
     lua_getmetatable(L, 1); // Stack: metatable (mt)
@@ -283,6 +291,10 @@ struct property_getter
  */
 inline void add_property_getter(lua_State* L, const char* name, int tableIndex)
 {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+    luaL_checkstack(L, 2, detail::error_lua_stack_overflow);
+#endif
+
     assert(name != nullptr);
     assert(lua_istable(L, tableIndex));
     assert(lua_iscfunction(L, -1)); // Stack: getter
@@ -378,6 +390,10 @@ struct property_setter
  */
 inline void add_property_setter(lua_State* L, const char* name, int tableIndex)
 {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+    luaL_checkstack(L, 2, detail::error_lua_stack_overflow);
+#endif
+
     assert(name != nullptr);
     assert(lua_istable(L, tableIndex));
     assert(lua_iscfunction(L, -1)); // Stack: setter

@@ -132,6 +132,10 @@ private:
 
     void next()
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(m_L, 2, detail::error_lua_stack_overflow);
+#endif
+
         m_table.push();
         m_key.push();
 

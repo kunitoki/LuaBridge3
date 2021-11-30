@@ -86,6 +86,9 @@ struct TestBase : public ::testing::Test
 
     bool runLua(const std::string& script) const
     {
+        lua_settop(L, 0);
+        luabridge::lua_pushcfunction_x(L, &traceback);
+
         if (luaL_loadstring(L, script.c_str()) != LUABRIDGE_LUA_OK)
         {
             auto errorString = lua_tostring(L, -1);
