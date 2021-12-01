@@ -19,54 +19,38 @@
 #include <memory>
 #include <string>
 
-void printValue(lua_State* L, int index)
-{
-    int type = lua_type(L, index);
-    switch (type)
-    {
-    case LUA_TBOOLEAN:
-        std::cerr << std::boolalpha << (lua_toboolean(L, index) != 0);
-        break;
-    case LUA_TSTRING:
-        std::cerr << lua_tostring(L, index);
-        break;
-    case LUA_TNUMBER:
-        std::cerr << lua_tonumber(L, index);
-        break;
-    case LUA_TTABLE:
-    case LUA_TTHREAD:
-    case LUA_TFUNCTION:
-        std::cerr << lua_topointer(L, index);
-        break;
-    }
-    std::cerr << ": " << lua_typename(L, type) << " (" << type << ")" << std::endl;
-}
-
-struct LuaBridgeTest : TestBase
-{
-};
-
-template<class T>
+namespace {
+template <class T>
 T identityCFunction(T value)
 {
     return value;
 }
+} // namespace
+
+struct LuaBridgeTest : TestBase
+{
+};
 
 TEST_F(LuaBridgeTest, LambdaGlobalNamespace)
 {
     int x = 100;
     
     luabridge::getGlobalNamespace(L)
-        .addFunction("test", [x](int v) -> int { return v + x; })
-        .addFunction("test2", [x](lua_State* L, int v) -> int { return v + (L != nullptr ? x : 0); });
+        .addFunction("test", [x](int v) -> int {
+            return v + x;
+        })
+        .addFunction("test2", [x](lua_State* L, int v) -> int {
+            return v + (L != nullptr ? x : 0);
+        });
 
     runLua("result = test (255)");
-    EXPECT_EQ(true, result().isNumber());
+    
+    ASSERT_EQ(true, result().isNumber());
     EXPECT_EQ(355, result<int>());
 
     resetResult();
     runLua("result = test2 (nil, 255)");
-    EXPECT_EQ(true, result().isNumber());
+    ASSERT_EQ(true, result().isNumber());
     EXPECT_EQ(355, result<int>());
 }
 

@@ -10,8 +10,6 @@ static constexpr const char Tests_lua[] = R"_(
 
 -- test lua script to be run with the luabridge test program
 
-print("Running LuaBridge tests:");
-
 -- enum from C++
 FN_CTOR = 0
 FN_DTOR = 1
@@ -103,8 +101,6 @@ object1.testProp2 = 49;             assert(testAFnCalled(FN_PROPSET) and object1
 
 object1a = object1 + object1;    assert(testAFnCalled(FN_OPERATOR));
 assert(object1a:getName() == "object1 + object1");
-
-print("All tests succeeded.");
 
 )_";
 

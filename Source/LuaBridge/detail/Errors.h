@@ -11,6 +11,13 @@
 namespace luabridge {
 
 //=================================================================================================
+namespace detail {
+
+static inline constexpr char error_lua_stack_overflow[] = "stack overflow";
+
+} // namespace detail
+
+//=================================================================================================
 /**
  * @brief LuaBridge error codes.
  */

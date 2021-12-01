@@ -104,11 +104,6 @@ bool operator==(const Data& lhs, const Data& rhs)
     return lhs.i == rhs.i;
 }
 
-bool operator<(const Data& lhs, const Data& rhs)
-{
-    return lhs.i < rhs.i;
-}
-
 std::ostream& operator<<(std::ostream& lhs, const Data& rhs)
 {
     lhs << "{" << rhs.i << "}";

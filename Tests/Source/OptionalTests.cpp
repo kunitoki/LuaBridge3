@@ -89,6 +89,7 @@ TYPED_TEST_P(OptionalTest, LuaRefIsInstancePresent)
 
         // if isInstance returns true a cast without issues is possible
         std::optional<TypeParam> const actual = optCast<TypeParam>(actualRef);
+        (void)actual;
     }
 }
 
@@ -109,6 +110,7 @@ TYPED_TEST_P(OptionalTest, LuaRefIsInstanceNotPresent)
 
     // if isInstance returns true a cast without issues is possible
     std::optional<TypeParam> const actual = optCast<TypeParam>(actualRef);
+    (void)actual;
 }
 
 REGISTER_TYPED_TEST_SUITE_P(OptionalTest,

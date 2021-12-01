@@ -48,6 +48,10 @@ struct Stack<LuaNil>
 {
     static bool push(lua_State* L, const LuaNil&, std::error_code&)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+#endif
+
         lua_pushnil(L);
         return true;
     }
@@ -164,8 +168,12 @@ public:
      */
     std::string tostring() const
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(m_L, 2, detail::error_lua_stack_overflow);
+#endif
+
         StackPop p(m_L, 1);
-        
+
         lua_getglobal(m_L, "tostring");
 
         impl().push();
@@ -301,7 +309,7 @@ public:
         impl().push();
 
         const int refType = lua_type(m_L, -1);
-        
+
         return refType;
     }
 
@@ -650,6 +658,7 @@ public:
      *
      * @param v A value to append to the table.
      */
+#if 0
     template <class T>
     void append(const T& v) const
     {
@@ -663,7 +672,8 @@ public:
 
         luaL_ref(m_L, -2);
     }
-
+#endif
+    
     //=============================================================================================
     /**
      * @brief Return the length of a referred array.
@@ -732,9 +742,12 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
          */
         TableItem(lua_State* L, int tableRef)
             : LuaRefBase(L)
-            , m_tableRef(LUA_NOREF)
             , m_keyRef(luaL_ref(L, LUA_REGISTRYINDEX))
         {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+            luaL_checkstack(m_L, 1, detail::error_lua_stack_overflow);
+#endif
+
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, tableRef);
             m_tableRef = luaL_ref(L, LUA_REGISTRYINDEX);
         }
@@ -750,9 +763,11 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
          */
         TableItem(const TableItem& other)
             : LuaRefBase(other.m_L)
-            , m_tableRef(LUA_NOREF)
-            , m_keyRef(LUA_NOREF)
         {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+            luaL_checkstack(m_L, 1, detail::error_lua_stack_overflow);
+#endif
+
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, other.m_tableRef);
             m_tableRef = luaL_ref(m_L, LUA_REGISTRYINDEX);
 
@@ -770,7 +785,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         {
             if (m_keyRef != LUA_NOREF)
                 luaL_unref(m_L, LUA_REGISTRYINDEX, m_keyRef);
-            
+
             if (m_tableRef != LUA_NOREF)
                 luaL_unref(m_L, LUA_REGISTRYINDEX, m_tableRef);
         }
@@ -790,7 +805,12 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         template <class T>
         TableItem& operator=(const T& v)
         {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+            luaL_checkstack(m_L, 2, detail::error_lua_stack_overflow);
+#endif
+
             StackPop p(m_L, 1);
+
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_tableRef);
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_keyRef);
 
@@ -817,7 +837,12 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         template <class T>
         TableItem& rawset(const T& v)
         {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+            luaL_checkstack(m_L, 2, detail::error_lua_stack_overflow);
+#endif
+
             StackPop p(m_L, 1);
+
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_tableRef);
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_keyRef);
 
@@ -837,6 +862,10 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
 
         void push() const
         {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+            luaL_checkstack(m_L, 3, detail::error_lua_stack_overflow);
+#endif
+
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_tableRef);
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_keyRef);
             lua_gettable(m_L, -2);
@@ -880,8 +909,8 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         }
 
     private:
-        int m_tableRef;
-        int m_keyRef;
+        int m_tableRef = LUA_NOREF;
+        int m_keyRef = LUA_NOREF;
     };
 
     friend struct Stack<TableItem>;
@@ -917,8 +946,11 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
      */
     LuaRef(lua_State* L, int index, FromStack)
         : LuaRefBase(L)
-        , m_ref(LUA_NOREF)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(m_L, 1, detail::error_lua_stack_overflow);
+#endif
+
         lua_pushvalue(m_L, index);
         m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX);
     }
@@ -934,7 +966,6 @@ public:
      */
     LuaRef(lua_State* L)
         : LuaRefBase(L)
-        , m_ref(LUA_NOREF)
     {
     }
 
@@ -948,7 +979,6 @@ public:
     template <class T>
     LuaRef(lua_State* L, const T& v)
         : LuaRefBase(L)
-        , m_ref(LUA_NOREF)
     {
         std::error_code ec;
         if (! Stack<T>::push(m_L, v, ec))
@@ -978,6 +1008,18 @@ public:
     LuaRef(const LuaRef& other)
         : LuaRefBase(other.m_L)
         , m_ref(other.createRef())
+    {
+    }
+
+    //=============================================================================================
+    /**
+     * @brief Move a reference to an existing Lua value.
+     *
+     * @param other An existing reference.
+     */
+    LuaRef(LuaRef&& other)
+        : LuaRefBase(other.m_L)
+        , m_ref(std::exchange(other.m_ref, LUA_NOREF))
     {
     }
 
@@ -1023,8 +1065,7 @@ public:
      */
     static LuaRef fromStack(lua_State* L, int index)
     {
-        lua_pushvalue(L, index);
-        return LuaRef(L, FromStack());
+        return LuaRef(L, index, FromStack());
     }
 
     //=============================================================================================
@@ -1039,6 +1080,10 @@ public:
      */
     static LuaRef newTable(lua_State* L)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+#endif
+
         lua_newtable(L);
         return LuaRef(L, FromStack());
     }
@@ -1056,6 +1101,10 @@ public:
      */
     static LuaRef getGlobal(lua_State* L, const char* name)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+#endif
+
         lua_getglobal(L, name);
         return LuaRef(L, FromStack());
     }
@@ -1083,6 +1132,25 @@ public:
         return *this;
     }
 
+    //=============================================================================================
+    /**
+     * @brief Move assign another LuaRef to this LuaRef.
+     *
+     * @param rhs A reference to assign from.
+     *
+     * @returns This reference.
+     */
+    LuaRef& operator=(LuaRef&& rhs)
+    {
+        if (m_ref != LUA_NOREF)
+            luaL_unref(m_L, LUA_REGISTRYINDEX, m_ref);
+
+        m_L = rhs.m_L;
+        m_ref = std::exchange(rhs.m_ref, LUA_NOREF);
+        
+        return *this;
+    }
+    
     //=============================================================================================
     /**
      * @brief Assign a table item reference.
@@ -1135,6 +1203,10 @@ public:
 
     void push() const
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(m_L, 1, detail::error_lua_stack_overflow);
+#endif
+
         lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_ref);
     }
 
@@ -1144,7 +1216,9 @@ public:
      */
     void pop()
     {
-        luaL_unref(m_L, LUA_REGISTRYINDEX, m_ref);
+        if (m_ref != LUA_NOREF)
+            luaL_unref(m_L, LUA_REGISTRYINDEX, m_ref);
+        
         m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX);
     }
 
@@ -1197,7 +1271,7 @@ private:
     void swap(LuaRef& other)
     {
         using std::swap;
-        
+
         swap(m_L, other.m_L);
         swap(m_ref, other.m_ref);
     }

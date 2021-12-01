@@ -195,6 +195,7 @@ TEST_F(LuaRefTests, Comparison)
 
     EXPECT_TRUE(stringA < t1);
 
+#if !defined(LUABRIDGE_ON_LUAU) // TODO - Luau
     EXPECT_TRUE(t1 == t1);
     EXPECT_FALSE(t1 == t2);
     EXPECT_TRUE(t1 == t3);
@@ -232,6 +233,7 @@ TEST_F(LuaRefTests, Comparison)
     EXPECT_FALSE(t1 >= t2);
     EXPECT_TRUE(t1 >= t3);
     EXPECT_TRUE(t2 >= t3);
+#endif
 }
 
 TEST_F(LuaRefTests, Assignment)
@@ -246,7 +248,17 @@ TEST_F(LuaRefTests, Assignment)
     EXPECT_TRUE(value.isNumber());
     ASSERT_EQ(5, value.cast<int>());
 
+#if __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wself-assign-overloaded"
+#endif
+    
     value = value;
+
+#if __clang__
+#pragma clang diagnostic pop
+#endif
+
     ASSERT_EQ(LUA_TNUMBER, value.type());
     EXPECT_TRUE(value.isNumber());
     ASSERT_EQ(5, value.cast<int>());

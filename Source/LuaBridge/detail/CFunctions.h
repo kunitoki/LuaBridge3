@@ -24,6 +24,10 @@ namespace detail {
  */
 inline int index_metamethod(lua_State* L)
 {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+    luaL_checkstack(L, 3, detail::error_lua_stack_overflow);
+#endif
+
     assert(lua_istable(L, 1) || lua_isuserdata(L, 1)); // Stack (further not shown): table | userdata, name
 
     lua_getmetatable(L, 1); // Stack: class/const table (mt)
@@ -90,6 +94,10 @@ inline int index_metamethod(lua_State* L)
  */
 inline int newindex_metamethod(lua_State* L, bool pushSelf)
 {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+    luaL_checkstack(L, 3, detail::error_lua_stack_overflow);
+#endif
+
     assert(lua_istable(L, 1) || lua_isuserdata(L, 1)); // Stack (further not shown): table | userdata, name, new value
 
     lua_getmetatable(L, 1); // Stack: metatable (mt)
@@ -102,7 +110,7 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
         if (lua_isnil(L, -1)) // Stack: mt, nil
         {
             lua_pop(L, 2); // Stack: -
-            return luaL_error(L, "No member named '%s'", lua_tostring(L, 2));
+            luaL_error(L, "No member named '%s'", lua_tostring(L, 2));
         }
 
         assert(lua_istable(L, -1));
@@ -129,7 +137,7 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
         if (lua_isnil(L, -1)) // Stack: mt, nil
         {
             lua_pop(L, 1); // Stack: -
-            return luaL_error(L, "No writable member '%s'", lua_tostring(L, 2));
+            luaL_error(L, "No writable member '%s'", lua_tostring(L, 2));
         }
 
         assert(lua_istable(L, -1)); // Stack: mt, parent mt
@@ -137,7 +145,7 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
         // Repeat the search in the parent
     }
 
-    // no return
+    return 0;
 }
 
 //=================================================================================================
@@ -172,7 +180,9 @@ inline int read_only_error(lua_State* L)
 
     s = s + "'" + lua_tostring(L, lua_upvalueindex(1)) + "' is read-only";
 
-    return luaL_error(L, s.c_str());
+    luaL_error(L, "%s", s.c_str());
+
+    return 0;
 }
 
 //=================================================================================================
@@ -212,7 +222,7 @@ struct property_getter<T, void>
 
         std::error_code ec;
         if (! Stack<T&>::push(L, *ptr, ec))
-            luaL_error(L, ec.message().c_str());
+            luaL_error(L, "%s", ec.message().c_str());
 
         return 1;
     }
@@ -231,7 +241,7 @@ struct property_getter<std::reference_wrapper<T>, void>
 
         std::error_code ec;
         if (! Stack<T&>::push(L, ptr->get(), ec))
-            luaL_error(L, ec.message().c_str());
+            luaL_error(L, "%s", ec.message().c_str());
 
         return 1;
     }
@@ -258,13 +268,13 @@ struct property_getter
 #endif
             std::error_code ec;
             if (! Stack<T&>::push(L, c->**mp, ec))
-                luaL_error(L, ec.message().c_str());
+                luaL_error(L, "%s", ec.message().c_str());
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
         {
-            luaL_error(L, e.what());
+            luaL_error(L, "%s", e.what());
         }
         catch (...)
         {
@@ -281,6 +291,10 @@ struct property_getter
  */
 inline void add_property_getter(lua_State* L, const char* name, int tableIndex)
 {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+    luaL_checkstack(L, 2, detail::error_lua_stack_overflow);
+#endif
+
     assert(name != nullptr);
     assert(lua_istable(L, tableIndex));
     assert(lua_iscfunction(L, -1)); // Stack: getter
@@ -359,7 +373,7 @@ struct property_setter
         }
         catch (const std::exception& e)
         {
-            luaL_error(L, e.what());
+            luaL_error(L, "%s", e.what());
         }
         catch (...)
         {
@@ -376,6 +390,10 @@ struct property_setter
  */
 inline void add_property_setter(lua_State* L, const char* name, int tableIndex)
 {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+    luaL_checkstack(L, 2, detail::error_lua_stack_overflow);
+#endif
+
     assert(name != nullptr);
     assert(lua_istable(L, tableIndex));
     assert(lua_iscfunction(L, -1)); // Stack: setter

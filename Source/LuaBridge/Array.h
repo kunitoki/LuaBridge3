@@ -22,6 +22,10 @@ struct Stack<std::array<T, Size>>
 
     static bool push(lua_State* L, const Type& array, std::error_code& ec)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(L, 2, detail::error_lua_stack_overflow);
+#endif
+
         const int initialStackSize = lua_gettop(L);
         
         lua_createtable(L, static_cast<int>(Size), 0);
@@ -51,7 +55,7 @@ struct Stack<std::array<T, Size>>
             luaL_error(L, "#%d argment must be a table", index);
 
         if (get_length(L, index) != Size)
-            luaL_error(L, "table size should be %d but is %d", Size, get_length(L, index));
+            luaL_error(L, "table size should be %u but is %d", static_cast<unsigned>(Size), get_length(L, index));
 
         Type array;
 

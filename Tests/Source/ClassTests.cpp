@@ -326,8 +326,6 @@ void addHelperFunctions(lua_State* L)
 
 TEST_F(ClassTests, PassingUnregisteredClassFromLuaThrows)
 {
-    using Unregistered = Class<int, EmptyBase>;
-
     addHelperFunctions(L);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
@@ -345,16 +343,19 @@ TEST_F(ClassTests, PassingUnregisteredClassFromLuaThrows)
 #endif
 }
 
+#if LUABRIDGE_HAS_EXCEPTIONS
 TEST_F(ClassTests, DeriveFromUnregisteredClassThrows)
 {
-#if LUABRIDGE_HAS_EXCEPTIONS
     using Base = Class<int, EmptyBase>;
     using Derived = Class<float, Base>;
 
-    ASSERT_THROW((luabridge::getGlobalNamespace(L).deriveClass<Derived, Base>("Derived")), std::exception);
-    ASSERT_EQ(1, lua_gettop(L));
-#endif
+    EXPECT_EQ(0, lua_gettop(L));
+
+    EXPECT_THROW((luabridge::getGlobalNamespace(L).deriveClass<Derived, Base>("Derived")), std::exception);
+
+    EXPECT_EQ(0, lua_gettop(L));
 }
+#endif
 
 struct ClassFunctions : ClassTests
 {
@@ -1725,8 +1726,6 @@ TEST_F(ClassMetaMethods, __index)
 
 TEST_F(ClassMetaMethods, __newindex)
 {
-    typedef Class<int, EmptyBase> Int;
-
     luabridge::getGlobalNamespace(L)
         .beginClass<Table>("Table")
         .addFunction("__newindex", &Table::newIndex)
@@ -1821,7 +1820,7 @@ TEST_F(ClassTests, ConstructorWithReferences)
         OuterClass(const InnerClass& x) : y(x) {}
         
     private:
-        InnerClass y;
+        [[maybe_unused]] InnerClass y;
     };
 
     luabridge::getGlobalNamespace(L)
@@ -2011,6 +2010,7 @@ class BaseExampleClass
 {
 public:
     BaseExampleClass() = default;
+    virtual ~BaseExampleClass() = default;
     
     virtual void virtualFunction(int arg) = 0;
     virtual int virtualCFunction(lua_State*) = 0;

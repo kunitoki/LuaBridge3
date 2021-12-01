@@ -24,6 +24,10 @@ struct Stack<std::optional<T>>
         if (value)
             return Stack<T>::push(L, *value, ec);
 
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+#endif
+
         lua_pushnil(L);
         return true;
     }

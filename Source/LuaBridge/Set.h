@@ -21,6 +21,10 @@ struct Stack<std::set<K, V>>
     
     static bool push(lua_State* L, const Type& set, std::error_code& ec)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(L, 3, detail::error_lua_stack_overflow);
+#endif
+
         const int initialStackSize = lua_gettop(L);
         
         lua_createtable(L, 0, static_cast<int>(set.size()));

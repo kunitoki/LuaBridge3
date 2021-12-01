@@ -1,5 +1,9 @@
 cmake_minimum_required (VERSION 3.5)
 
+# ====================================================== Locations
+
+set (LUABRIDGE_LUAU_LOCATION "${CMAKE_CURRENT_LIST_DIR}/../ThirdParty/luau")
+
 # ====================================================== Unit Tests Files
 
 set (LUABRIDGE_TEST_SOURCE_FILES
@@ -60,6 +64,14 @@ file (GLOB_RECURSE LUABRIDGE_TEST_LUA54_FILES
   Lua/LuaLibrary5.4.3.cpp
 )
 
+# ====================================================== Luau
+
+file (GLOB_RECURSE LUABRIDGE_TEST_LUAU_FILES
+  Lua/LuaLibrary.h
+  Lua/Luau.cpp
+  Lua/LuauSplit.cpp
+)
+
 # ====================================================== Macro
 
 macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_FILES LUABRIDGE_EXCEPTIONS)
@@ -70,20 +82,29 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
   )
 
   target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE . Source)
-  target_compile_options (${LUABRIDGE_TEST_NAME} PUBLIC -DLUABRIDGEDEMO_LUA_VERSION=${LUA_VERSION})
+  if (${LUA_VERSION} STREQUAL "LUAU")
+    target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/VM/include")
+    target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/Ast/include")
+    target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/Compiler/include")
+    target_compile_options (${LUABRIDGE_TEST_NAME} PUBLIC -DLUABRIDGEDEMO_LUAU=1)
+  else () # if(${LUA_VERSION} MATCHES "^[0-9]*")
+    target_compile_options (${LUABRIDGE_TEST_NAME} PUBLIC -DLUABRIDGEDEMO_LUA_VERSION=${LUA_VERSION})
+  endif ()
 
   if (MSVC)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++17")
+    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++17 /W3")
+  else ()
+    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
   endif (MSVC)
 
   if (NOT ${LUABRIDGE_EXCEPTIONS})
-    target_compile_definitions(${LUABRIDGE_TEST_NAME} PUBLIC LUA_USE_LONGJMP=1)
+    target_compile_definitions (${LUABRIDGE_TEST_NAME} PUBLIC LUA_USE_LONGJMP=1)
     if (APPLE)
       target_compile_options (${LUABRIDGE_TEST_NAME} PUBLIC -fno-exceptions)
       set_target_properties (${LUABRIDGE_TEST_NAME} PROPERTIES XCODE_ATTRIBUTE_GCC_ENABLE_CPP_EXCEPTIONS "NO")
     elseif (WIN32)
       target_compile_options (${LUABRIDGE_TEST_NAME} PUBLIC /EHs-c-)
-      target_compile_definitions(${LUABRIDGE_TEST_NAME} PUBLIC _HAS_EXCEPTIONS=0)
+      target_compile_definitions (${LUABRIDGE_TEST_NAME} PUBLIC _HAS_EXCEPTIONS=0)
     else ()
       target_compile_options (${LUABRIDGE_TEST_NAME} PUBLIC -fno-exceptions)
     endif ()
@@ -99,7 +120,7 @@ endmacro (add_test_app)
 # ====================================================== Real Unit Tests
 
 add_test_app (LuaBridgeTests51 501 "${LUABRIDGE_TEST_LUA51_FILES}" 1)
-add_test_app (LuaBridgeTests51NoExcept 501 "${LUABRIDGE_TEST_LUA51_FILES}" 0)
+add_test_app (LuaBridgeTests51Noexcept 501 "${LUABRIDGE_TEST_LUA51_FILES}" 0)
 
 add_test_app (LuaBridgeTests52 502 "${LUABRIDGE_TEST_LUA52_FILES}" 1)
 add_test_app (LuaBridgeTests52Noexcept 502 "${LUABRIDGE_TEST_LUA52_FILES}" 0)
@@ -109,3 +130,6 @@ add_test_app (LuaBridgeTests53Noexcept 503 "${LUABRIDGE_TEST_LUA53_FILES}" 0)
 
 add_test_app (LuaBridgeTests54 504 "${LUABRIDGE_TEST_LUA54_FILES}" 1)
 add_test_app (LuaBridgeTests54Noexcept 504 "${LUABRIDGE_TEST_LUA54_FILES}" 0)
+
+add_test_app (LuaBridgeTestsLuau "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 1)
+#add_test_app (LuaBridgeTestsLuauNoexcept "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 0)

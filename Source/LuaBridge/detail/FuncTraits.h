@@ -352,21 +352,21 @@ struct function
             std::error_code ec;
             bool result = Stack<ReturnType>::push(L, std::apply(func, make_arguments_list<ArgsPack, Start>(L)), ec);
             if (! result)
-                return luaL_error(L, ec.message().c_str());
-
-            return 1;
+                luaL_error(L, "%s", ec.message().c_str());
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
         {
-            return luaL_error(L, e.what());
+            luaL_error(L, "%s", e.what());
         }
         catch (...)
         {
-            return luaL_error(L, "Error while calling function");
+            luaL_error(L, "Error while calling function");
         }
 #endif
+
+        return 1;
     }
 
     template <class T, class F>
@@ -381,21 +381,21 @@ struct function
             std::error_code ec;
             bool result = Stack<ReturnType>::push(L, std::apply(f, make_arguments_list<ArgsPack, Start>(L)), ec);
             if (! result)
-                return luaL_error(L, ec.message().c_str());
-
-            return 1;
+                luaL_error(L, "%s", ec.message().c_str());
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
         {
-            return luaL_error(L, e.what());
+            luaL_error(L, "%s", e.what());
         }
         catch (...)
         {
-            return luaL_error(L, "Error while calling method");
+            luaL_error(L, "Error while calling method");
         }
 #endif
+
+        return 1;
     }
 };
 
@@ -411,19 +411,19 @@ struct function<void, ArgsPack, Start>
 #endif
             std::apply(func, make_arguments_list<ArgsPack, Start>(L));
 
-            return 0;
-
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
         {
-            return luaL_error(L, e.what());
+            luaL_error(L, "%s", e.what());
         }
         catch (...)
         {
-            return luaL_error(L, "Error while calling function");
+            luaL_error(L, "Error while calling function");
         }
 #endif
+
+        return 0;
     }
 
     template <class T, class F>
@@ -437,19 +437,19 @@ struct function<void, ArgsPack, Start>
 
             std::apply(f, make_arguments_list<ArgsPack, Start>(L));
 
-            return 0;
-
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
         {
-            return luaL_error(L, e.what());
+            luaL_error(L, "%s", e.what());
         }
         catch (...)
         {
-            return luaL_error(L, "Error while calling method");
+            luaL_error(L, "Error while calling method");
         }
 #endif
+
+        return 0;
     }
 };
 
