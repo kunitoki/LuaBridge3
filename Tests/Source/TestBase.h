@@ -20,6 +20,8 @@
 #include <stdexcept>
 #endif
 
+#include <cstring>
+
 // Uncomment this if you want errors to be printed when lua fails to compile or run
 //#define LUABRIDGE_TESTS_PRINT_ERRORS 1
 
@@ -41,9 +43,20 @@ inline int traceback(lua_State* L)
         return 1;
     }
 
-    lua_pushvalue(L, 1); /* pass error message */
-    lua_pushinteger(L, 2); /* skip this function and traceback */
-    lua_call(L, 2, 1); /* call debug.traceback */
+    lua_pushvalue(L, 1);
+    lua_pushinteger(L, 2);
+    lua_call(L, 2, 1);
+    
+    lua_getglobal(L, "print");
+    if (!lua_isfunction(L, -1))
+    {
+        lua_pop(L, 1);
+        return 1;
+    }
+
+    lua_pushvalue(L, 1);
+    lua_call(L, 1, 0);
+    
     return 1;
 }
 
