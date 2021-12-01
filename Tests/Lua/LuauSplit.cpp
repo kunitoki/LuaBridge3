@@ -2,8 +2,7 @@
 /*
   https://github.com/kunitoki/LuaBridge3
 
-  Copyright (C) 2020, Lucio Asnaghi <kunitoki@gmail.com>
-  Copyright (C) 2012, Vinnie Falco <vinnie.falco@gmail.com>
+  Copyright (C) 2021, Lucio Asnaghi <kunitoki@gmail.com>
 
   License: The MIT License (http://www.opensource.org/licenses/mit-license.php)
 
@@ -39,6 +38,11 @@
 #endif
 #endif
 
+// Compiler
+#include "../../ThirdParty/luau/Compiler/src/BytecodeBuilder.cpp"
+#include "../../ThirdParty/luau/Compiler/src/Compiler.cpp"
+#include "../../ThirdParty/luau/Compiler/src/lcode.cpp"
+
 // Ast
 #include "../../ThirdParty/luau/Ast/src/Ast.cpp"
 #include "../../ThirdParty/luau/Ast/src/Confusables.cpp"
@@ -46,11 +50,6 @@
 #include "../../ThirdParty/luau/Ast/src/Location.cpp"
 #include "../../ThirdParty/luau/Ast/src/Lexer.cpp"
 #include "../../ThirdParty/luau/Ast/src/TimeTrace.cpp"
-
-// Compiler
-#include "../../ThirdParty/luau/Compiler/src/BytecodeBuilder.cpp"
-#include "../../ThirdParty/luau/Compiler/src/Compiler.cpp"
-#include "../../ThirdParty/luau/Compiler/src/lcode.cpp"
 
 #if _MSC_VER
 #pragma pop_macro("_CRT_SECURE_NO_WARNINGS")

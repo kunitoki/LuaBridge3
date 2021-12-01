@@ -2,8 +2,7 @@
 /*
   https://github.com/kunitoki/LuaBridge3
 
-  Copyright (C) 2020, Lucio Asnaghi <kunitoki@gmail.com>
-  Copyright (C) 2012, Vinnie Falco <vinnie.falco@gmail.com>
+  Copyright (C) 2021, Lucio Asnaghi <kunitoki@gmail.com>
 
   License: The MIT License (http://www.opensource.org/licenses/mit-license.php)
 
@@ -43,7 +42,6 @@
 #include "../../ThirdParty/luau/Ast/src/Parser.cpp"
 
 // Vm
-#include "../../ThirdParty/luau/VM/src/lperf.cpp"
 #include "../../ThirdParty/luau/VM/src/ltm.cpp"
 #include "../../ThirdParty/luau/VM/src/lvmexecute.cpp"
 #include "../../ThirdParty/luau/VM/src/lfunc.cpp"
@@ -70,6 +68,11 @@
 #include "../../ThirdParty/luau/VM/src/lmathlib.cpp"
 #include "../../ThirdParty/luau/VM/src/lbuiltins.cpp"
 #include "../../ThirdParty/luau/VM/src/ldblib.cpp"
+
+/* lperf.cpp includes Windows.h, which defines the min and max macro,
+   so include it last to prevent errors.
+*/
+#include "../../ThirdParty/luau/VM/src/lperf.cpp"
 
 #if _MSC_VER
 #pragma pop_macro("_CRT_SECURE_NO_WARNINGS")
