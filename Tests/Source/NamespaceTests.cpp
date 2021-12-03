@@ -175,14 +175,14 @@ TEST_F(NamespaceTests, ReadOnlyProperties)
     ASSERT_EQ(-10, getProperty<int>());
 }
 
-TEST_F(NamespaceTests, Constants)
+TEST_F(NamespaceTests, AddVariable)
 {
     int int_ = -10;
     auto any = luabridge::newTable(L);
     any["a"] = 1;
 
 #if LUABRIDGE_HAS_EXCEPTIONS
-    ASSERT_THROW(luabridge::getGlobalNamespace(L).addConstant("int", &int_), std::logic_error);
+    ASSERT_THROW(luabridge::getGlobalNamespace(L).addVariable("int", &int_), std::logic_error);
 #endif
     
     runLua("result = int");
@@ -190,8 +190,8 @@ TEST_F(NamespaceTests, Constants)
 
     luabridge::getGlobalNamespace(L)
         .beginNamespace("ns")
-        .addConstant("int", int_)
-        .addConstant("any", any)
+        .addVariable("int", int_)
+        .addVariable("any", any)
         .endNamespace();
 
     ASSERT_EQ(-10, variable<int>("ns.int"));

@@ -17,7 +17,7 @@
 * Allow using capturing lambdas in `Namespace::addFunction` and `Class<T>::addFunction`.
 * Added support for specifying factory functor in `Class<T>::addConstructor` to do placement new of the object instance.
 * Allow using capturing lambdas in `Namespace::addProperty`.
-* Added `Namespace::addConstant` to allow adding a value by copy into the namespace without incurring in function calls.
+* Added `Namespace::addVariable` to allow adding a modifiable value by copy into the namespace without incurring in function calls or metatables generation.
 * Added `getNamespaceFromStack` function to construct a namespace object from a table on the stack.
 * Added `std::shared_ptr` support for types intrusively deriving from `std::enable_shared_from_this`.
 * Added `Class<T>::addFunction` overload taking a `lua_CFunction` as if it were a member.

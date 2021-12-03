@@ -1254,7 +1254,7 @@ public:
 
     //=============================================================================================
     /**
-     * @brief Add or replace a constant.
+     * @brief Add or replace a variable.
      *
      * @param name The property name.
      * @param value A value pointer.
@@ -1262,11 +1262,11 @@ public:
      * @returns This namespace registration object.
      */
     template <class T>
-    Namespace& addConstant(const char* name, const T& value)
+    Namespace& addVariable(const char* name, const T& value)
     {
         if (m_stackSize == 1)
         {
-            throw_or_assert<std::logic_error>("addConstant() called on global namespace");
+            throw_or_assert<std::logic_error>("addVariable() called on global namespace");
 
             return *this;
         }
