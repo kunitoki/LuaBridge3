@@ -17,6 +17,7 @@
 #include <map>
 #include <string>
 #include <optional>
+#include <type_traits>
 #include <vector>
 
 namespace luabridge {
@@ -403,7 +404,16 @@ public:
 
         impl().push();
 
-        return Stack<T>::get(m_L, -1);
+        if constexpr (std::is_enum_v<T>)
+        {
+            using U = std::underlying_type_t<T>;
+
+            return static_cast<T>(Stack<U>::get(m_L, -1));
+        }
+        else
+        {
+            return Stack<T>::get(m_L, -1);
+        }
     }
 
     //=============================================================================================
@@ -419,7 +429,16 @@ public:
 
         impl().push();
 
-        return Stack<T>::isInstance(m_L, -1);
+        if constexpr (std::is_enum_v<T>)
+        {
+            using U = std::underlying_type_t<T>;
+            
+            return Stack<U>::isInstance(m_L, -1);
+        }
+        else
+        {
+            return Stack<T>::isInstance(m_L, -1);
+        }
     }
 
     //=============================================================================================
