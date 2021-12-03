@@ -1275,8 +1275,18 @@ public:
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 
         std::error_code ec;
-        if (! Stack<T>::push(L, value, ec))
-            luaL_error(L, "%s", ec.message().c_str());
+        if constexpr (std::is_enum_v<T>)
+        {
+            using U = std::underlying_type_t<T>;
+            
+            if (! Stack<U>::push(L, static_cast<U>(value), ec))
+                luaL_error(L, "%s", ec.message().c_str());
+        }
+        else
+        {
+            if (! Stack<T>::push(L, value, ec))
+                luaL_error(L, "%s", ec.message().c_str());
+        }
 
         rawsetfield(L, -2, name); // Stack: ns
 

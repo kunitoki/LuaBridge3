@@ -181,6 +181,8 @@ TEST_F(NamespaceTests, AddVariable)
     auto any = luabridge::newTable(L);
     any["a"] = 1;
 
+    enum class A { a, b, c, d };
+
 #if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(luabridge::getGlobalNamespace(L).addVariable("int", &int_), std::logic_error);
 #endif
@@ -190,12 +192,21 @@ TEST_F(NamespaceTests, AddVariable)
 
     luabridge::getGlobalNamespace(L)
         .beginNamespace("ns")
-        .addVariable("int", int_)
-        .addVariable("any", any)
+            .addVariable("int", int_)
+            .addVariable("any", any)
+            .beginNamespace("A")
+                .addVariable("a", A::a)
+                .addVariable("b", A::b)
+                .addVariable("c", A::c)
+                .addVariable("d", A::d)
+            .endNamespace()
         .endNamespace();
 
     ASSERT_EQ(-10, variable<int>("ns.int"));
     ASSERT_EQ(any, variable<luabridge::LuaRef>("ns.any"));
+
+    runLua("ns.A.a = 2; result = ns.A.a");
+    ASSERT_EQ(A::c, static_cast<A>(result<int>()));
 
     runLua("ns.int = -20");
     ASSERT_EQ(-10, int_);
