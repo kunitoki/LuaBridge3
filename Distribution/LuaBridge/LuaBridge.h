@@ -156,6 +156,7 @@ inline void lua_pushcclosure_x(lua_State* L, lua_CFunction fn, int n)
 
 using lua_Unsigned = lua_Integer;
 
+#if ! LUABRIDGE_ON_LUAU
 inline int lua_absindex(lua_State* L, int idx)
 {
     if (idx > LUA_REGISTRYINDEX && idx < 0)
@@ -163,6 +164,7 @@ inline int lua_absindex(lua_State* L, int idx)
     else
         return idx;
 }
+#endif
 
 inline void lua_rawgetp(lua_State* L, int idx, void const* p)
 {

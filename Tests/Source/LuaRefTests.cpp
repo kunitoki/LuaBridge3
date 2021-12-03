@@ -195,7 +195,6 @@ TEST_F(LuaRefTests, Comparison)
 
     EXPECT_TRUE(stringA < t1);
 
-#if !defined(LUABRIDGE_ON_LUAU) // TODO - Luau
     EXPECT_TRUE(t1 == t1);
     EXPECT_FALSE(t1 == t2);
     EXPECT_TRUE(t1 == t3);
@@ -204,7 +203,7 @@ TEST_F(LuaRefTests, Comparison)
     EXPECT_TRUE(t2 == t2);
     EXPECT_FALSE(t2 == t3);
 
-#if LUABRIDGEDEMO_LUA_VERSION >= 503
+#if LUABRIDGEDEMO_LUA_VERSION >= 503 && !LUABRIDGE_ON_LUAU
     // This has changed in lua 5.3 and is quite a behaviour change
     EXPECT_TRUE(t2 == t4);
 #else
@@ -233,7 +232,6 @@ TEST_F(LuaRefTests, Comparison)
     EXPECT_FALSE(t1 >= t2);
     EXPECT_TRUE(t1 >= t3);
     EXPECT_TRUE(t2 >= t3);
-#endif
 }
 
 TEST_F(LuaRefTests, Assignment)
