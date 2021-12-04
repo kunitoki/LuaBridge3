@@ -84,6 +84,9 @@ function (setup_target_for_coverage TARGET_NAME SOURCE_LOCATION SOURCE_PACKAGE)
     target_link_options (${TARGET_NAME} PRIVATE -fprofile-arcs)
   endif()
 
+  add_custom_command(TARGET ${TARGET_NAME} PRE_BUILD
+    COMMAND ${FIND_EXECUTABLE} Tests/LuaBridge.build/Debug/${TARGET_NAME}.build -iname "*.gcda" -delete)
+
   add_custom_command (
     OUTPUT "coverage/${TARGET_NAME}.info"
     COMMAND ${FIND_EXECUTABLE} Tests/LuaBridge.build/Debug/${TARGET_NAME}.build -iname "*.gcda" -delete
