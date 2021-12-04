@@ -75,9 +75,14 @@ file (GLOB_RECURSE LUABRIDGE_TEST_LUAU_FILES
 # ====================================================== Coverage
 
 function (setup_target_for_coverage TARGET_NAME SOURCE_LOCATION SOURCE_PACKAGE)
-  set_target_properties (${TARGET_NAME} PROPERTIES XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS "YES")
-  set_target_properties (${TARGET_NAME} PROPERTIES XCODE_ATTRIBUTE_GCC_INSTRUMENT_PROGRAM_FLOW_ARCS "YES")
-  set_target_properties (${TARGET_NAME} PROPERTIES XCODE_ATTRIBUTE_GCC_GENERATE_TEST_COVERAGE_FILES "YES")
+  if ("${CMAKE_GENERATOR}" STREQUAL "Xcode")
+    set_target_properties (${TARGET_NAME} PROPERTIES XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS "YES")
+    set_target_properties (${TARGET_NAME} PROPERTIES XCODE_ATTRIBUTE_GCC_INSTRUMENT_PROGRAM_FLOW_ARCS "YES")
+    set_target_properties (${TARGET_NAME} PROPERTIES XCODE_ATTRIBUTE_GCC_GENERATE_TEST_COVERAGE_FILES "YES")
+  else ()
+    target_compile_options (${TARGET_NAME} PRIVATE -fprofile-arcs -ftest-coverage)
+    target_link_options (${TARGET_NAME} PRIVATE -fprofile-arcs)
+  endif()
 
   add_custom_command (
     OUTPUT "${CMAKE_BINARY_DIR}/coverage/${TARGET_NAME}.info"
