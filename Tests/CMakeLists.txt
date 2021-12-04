@@ -72,6 +72,70 @@ file (GLOB_RECURSE LUABRIDGE_TEST_LUAU_FILES
   Lua/LuauSplit.cpp
 )
 
+# ====================================================== Coverage
+
+function (setup_target_for_coverage TARGET_NAME SOURCE_LOCATION SOURCE_PACKAGE)
+  if ("${CMAKE_GENERATOR}" STREQUAL "Xcode")
+    set_target_properties (${TARGET_NAME} PROPERTIES XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS "YES")
+    set_target_properties (${TARGET_NAME} PROPERTIES XCODE_ATTRIBUTE_GCC_INSTRUMENT_PROGRAM_FLOW_ARCS "YES")
+    set_target_properties (${TARGET_NAME} PROPERTIES XCODE_ATTRIBUTE_GCC_GENERATE_TEST_COVERAGE_FILES "YES")
+  else ()
+    target_compile_options (${TARGET_NAME} PRIVATE -fprofile-arcs -ftest-coverage)
+    target_link_options (${TARGET_NAME} PRIVATE -fprofile-arcs)
+  endif()
+
+  add_custom_command (
+    OUTPUT "${CMAKE_BINARY_DIR}/coverage/${TARGET_NAME}.info"
+    COMMAND ${FIND_EXECUTABLE} . -iname "*.gcda" -delete
+    COMMAND ${TARGET_NAME} ${ARGV3}
+    COMMAND ${CMAKE_COMMAND} -E make_directory coverage
+    COMMAND ${CMAKE_COMMAND} -E rm -f coverage_html/${TARGET_NAME}.info
+    COMMAND ${LCOV_EXECUTABLE}
+      -c -d "${CMAKE_BINARY_DIR}"
+      --include "*/${SOURCE_PACKAGE}/*"
+      --exclude "*/Tests/*"
+      --exclude "*/Distribution/*"
+      --exclude "*/coverage_html/*"
+      -o "${CMAKE_BINARY_DIR}/coverage/${TARGET_NAME}.info"
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    VERBATIM)
+
+  # Message status
+  message (STATUS "Luabridge3 -- Enabled code coverage reporting for ${TARGET_NAME}")
+endfunction ()
+
+function (setup_coverage_single_target)
+  add_custom_target (LuaBridgeTestsCoverage
+    COMMAND ${CMAKE_COMMAND} -E make_directory coverage_html
+    COMMAND ${CMAKE_COMMAND} -E rm -Rf coverage_html/*
+    COMMAND ${LCOV_EXECUTABLE}
+      -a "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTests51.info"
+      -a "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTests51Noexcept.info"
+      -a "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTests52.info"
+      -a "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTests52Noexcept.info"
+      -a "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTests53.info"
+      -a "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTests53Noexcept.info"
+      -a "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTests54.info"
+      -a "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTests54Noexcept.info"
+      -a "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTestsLuau.info"
+      -o "${CMAKE_BINARY_DIR}/coverage/Merged.info"
+    COMMAND ${GENHTML_EXECUTABLE}
+      "${CMAKE_BINARY_DIR}/coverage/Merged.info" -o "${CMAKE_BINARY_DIR}/coverage_html"
+    DEPENDS
+      "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTests51.info"
+      "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTests51Noexcept.info"
+      "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTests52.info"
+      "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTests52Noexcept.info"
+      "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTests53.info"
+      "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTests53Noexcept.info"
+      "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTests54.info"
+      "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTests54Noexcept.info"
+      "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTestsLuau.info"
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    VERBATIM)
+
+endfunction ()
+
 # ====================================================== Macro
 
 macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_FILES LUABRIDGE_EXCEPTIONS)
@@ -80,6 +144,11 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
     ${LUABRIDGE_TEST_SOURCE_FILES}
     ${LUABRIDGE_TEST_LUA_LIBRARY_FILES}
   )
+
+  if (LUABRIDGE_COVERAGE)
+    get_filename_component (SOURCE_LOCATION "${CMAKE_CURRENT_LIST_DIR}/../Source" ABSOLUTE)
+    setup_target_for_coverage (${LUABRIDGE_TEST_NAME} ${SOURCE_LOCATION} LuaBridge)
+  endif ()
 
   target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE . Source)
   if (${LUA_VERSION} STREQUAL "LUAU")
@@ -133,3 +202,7 @@ add_test_app (LuaBridgeTests54Noexcept 504 "${LUABRIDGE_TEST_LUA54_FILES}" 0)
 
 add_test_app (LuaBridgeTestsLuau "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 1)
 #add_test_app (LuaBridgeTestsLuauNoexcept "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 0)
+
+if (LUABRIDGE_COVERAGE)
+  setup_coverage_single_target ()
+endif ()

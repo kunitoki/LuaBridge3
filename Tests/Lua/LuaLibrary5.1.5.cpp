@@ -1,7 +1,7 @@
 //==============================================================================
 /*
   https://github.com/kunitoki/LuaBridge3
-  
+
   Copyright (C) 2020, Lucio Asnaghi <kunitoki@gmail.com>
   Copyright (C) 2012, Vinnie Falco <vinnie.falco@gmail.com>
 
@@ -60,7 +60,12 @@ extern "C"
 #pragma warning (disable: 4297) /* Function assumed not to throw an exception but does */
 #pragma warning (disable: 4334) /* Result of 32-bit shift implicitly converted to 64 bits */
 #pragma warning (disable: 4702) /* Unreachable code */
+#elif __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmisleading-indentation"
 #endif
+
+#if GNUC
 
 /* Include this early to prevent the conflict with luai_hashnum
    and supress the warning caused by #define lua_assert
@@ -102,6 +107,8 @@ extern "C"
 
 #if _MSC_VER
 #pragma warning (pop)
+#elif __GNUC__
+#pragma GCC diagnostic pop
 #endif
 
 #ifdef __cplusplus
