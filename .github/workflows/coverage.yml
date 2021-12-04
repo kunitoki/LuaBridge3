@@ -1,4 +1,4 @@
-name: Build MacOS
+name: Code Coverage
 
 on: [push]
 
