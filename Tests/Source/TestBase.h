@@ -107,7 +107,7 @@ struct TestBase : public ::testing::Test
 
         if (luaL_loadstring(L, script.c_str()) != LUABRIDGE_LUA_OK)
         {
-            auto errorString = lua_tostring(L, -1);
+            [[maybe_unused]] auto errorString = lua_tostring(L, -1);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
             throw std::runtime_error(errorString ? errorString : "Unknown lua compilation error");
@@ -122,7 +122,7 @@ struct TestBase : public ::testing::Test
 
         if (lua_pcall(L, 0, 0, -2) != LUABRIDGE_LUA_OK)
         {
-            auto errorString = lua_tostring(L, -1);
+            [[maybe_unused]] auto errorString = lua_tostring(L, -1);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
             throw std::runtime_error(errorString ? errorString : "Unknown lua runtime error");

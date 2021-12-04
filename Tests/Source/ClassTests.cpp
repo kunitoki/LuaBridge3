@@ -1741,18 +1741,18 @@ TEST_F(ClassMetaMethods, __newindex)
     ASSERT_EQ((std::map<std::string, int>{{"a", 1}, {"b", 2}}), t.map);
 }
 
+#if LUABRIDGE_HAS_EXCEPTIONS
 TEST_F(ClassMetaMethods, __gcForbidden)
 {
-    typedef Class<int, EmptyBase> Int;
+    using Int = Class<int, EmptyBase>;
 
-#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(luabridge::getGlobalNamespace(L)
                      .beginClass<Int>("Int")
                      .addFunction("__gc", &Int::method)
                      .endClass(),
                  std::exception);
-#endif
 }
+#endif
 
 TEST_F(ClassTests, EnclosedClassProperties)
 {
