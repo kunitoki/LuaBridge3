@@ -60,9 +60,6 @@ extern "C"
 #pragma warning (disable: 4297) /* Function assumed not to throw an exception but does */
 #pragma warning (disable: 4334) /* Result of 32-bit shift implicitly converted to 64 bits */
 #pragma warning (disable: 4702) /* Unreachable code */
-#elif __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmisleading-indentation"
 #endif
 
 #if GNUC
@@ -107,8 +104,6 @@ extern "C"
 
 #if _MSC_VER
 #pragma warning (pop)
-#elif __GNUC__
-#pragma GCC diagnostic pop
 #endif
 
 #ifdef __cplusplus
