@@ -85,18 +85,18 @@ function (setup_target_for_coverage TARGET_NAME SOURCE_LOCATION SOURCE_PACKAGE)
   endif()
 
   add_custom_command (
-    OUTPUT "${CMAKE_BINARY_DIR}/coverage/${TARGET_NAME}.info"
-    COMMAND ${FIND_EXECUTABLE} . -iname "*.gcda" -delete
+    OUTPUT "coverage/${TARGET_NAME}.info"
+    COMMAND ${FIND_EXECUTABLE} Tests/LuaBridge.build/Debug/${TARGET_NAME}.build -iname "*.gcda" -delete
     COMMAND ${TARGET_NAME} ${ARGV3}
     COMMAND ${CMAKE_COMMAND} -E make_directory coverage
-    COMMAND ${CMAKE_COMMAND} -E rm -f coverage_html/${TARGET_NAME}.info
+    COMMAND ${CMAKE_COMMAND} -E rm -f coverage/${TARGET_NAME}.info
     COMMAND ${LCOV_EXECUTABLE}
       -c -d "${CMAKE_BINARY_DIR}"
       --include "*/${SOURCE_PACKAGE}/*"
       --exclude "*/Tests/*"
       --exclude "*/Distribution/*"
       --exclude "*/coverage_html/*"
-      -o "${CMAKE_BINARY_DIR}/coverage/${TARGET_NAME}.info"
+      -o "coverage/${TARGET_NAME}.info"
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     VERBATIM)
 
@@ -108,29 +108,30 @@ function (setup_coverage_single_target)
   add_custom_target (LuaBridgeTestsCoverage
     COMMAND ${CMAKE_COMMAND} -E make_directory coverage_html
     COMMAND ${CMAKE_COMMAND} -E rm -Rf coverage_html/*
+    COMMAND ${CMAKE_COMMAND} -E rm -f coverage/Merged.info
     COMMAND ${LCOV_EXECUTABLE}
-      -a "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTests51.info"
-      -a "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTests51Noexcept.info"
-      -a "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTests52.info"
-      -a "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTests52Noexcept.info"
-      -a "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTests53.info"
-      -a "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTests53Noexcept.info"
-      -a "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTests54.info"
-      -a "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTests54Noexcept.info"
-      -a "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTestsLuau.info"
-      -o "${CMAKE_BINARY_DIR}/coverage/Merged.info"
+      -a "coverage/LuaBridgeTests51.info"
+      -a "coverage/LuaBridgeTests51Noexcept.info"
+      -a "coverage/LuaBridgeTests52.info"
+      -a "coverage/LuaBridgeTests52Noexcept.info"
+      -a "coverage/LuaBridgeTests53.info"
+      -a "coverage/LuaBridgeTests53Noexcept.info"
+      -a "coverage/LuaBridgeTests54.info"
+      -a "coverage/LuaBridgeTests54Noexcept.info"
+      -a "coverage/LuaBridgeTestsLuau.info"
+      -o "coverage/Merged.info"
     COMMAND ${GENHTML_EXECUTABLE}
-      "${CMAKE_BINARY_DIR}/coverage/Merged.info" -o "${CMAKE_BINARY_DIR}/coverage_html"
+      "coverage/Merged.info" -o "coverage_html"
     DEPENDS
-      "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTests51.info"
-      "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTests51Noexcept.info"
-      "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTests52.info"
-      "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTests52Noexcept.info"
-      "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTests53.info"
-      "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTests53Noexcept.info"
-      "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTests54.info"
-      "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTests54Noexcept.info"
-      "${CMAKE_BINARY_DIR}/coverage/LuaBridgeTestsLuau.info"
+      "coverage/LuaBridgeTests51.info"
+      "coverage/LuaBridgeTests51Noexcept.info"
+      "coverage/LuaBridgeTests52.info"
+      "coverage/LuaBridgeTests52Noexcept.info"
+      "coverage/LuaBridgeTests53.info"
+      "coverage/LuaBridgeTests53Noexcept.info"
+      "coverage/LuaBridgeTests54.info"
+      "coverage/LuaBridgeTests54Noexcept.info"
+      "coverage/LuaBridgeTestsLuau.info"
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     VERBATIM)
 
