@@ -62,10 +62,6 @@ TEST_F(MapTests, LuaRef)
 
 TEST_F(MapTests, CastToMap)
 {
-#if LUABRIDGE_HAS_EXCEPTIONS
-    luabridge::enableExceptions(L);
-#endif
-    
     using StrToInt = std::map<std::string, int>;
     runLua("result = {[1] = 2, a = 3}");
     ASSERT_EQ((StrToInt{{"1", 2}, {"a", 3}}), result().cast<StrToInt>());

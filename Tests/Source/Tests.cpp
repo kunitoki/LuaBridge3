@@ -426,7 +426,6 @@ TEST_F(LuaBridgeTest, InvokePassingUnregisteredClassShouldThrowAndRestoreStack)
         auto f1 = luabridge::getGlobal(L, "f1");
 
 #if LUABRIDGE_HAS_EXCEPTIONS
-        luabridge::enableExceptions(L);
         EXPECT_THROW(luabridge::call(f1, unregistered), luabridge::LuaException);
 #else
         int stackTop = lua_gettop(L);

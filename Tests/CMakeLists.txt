@@ -85,7 +85,9 @@ function (setup_target_for_coverage TARGET_NAME SOURCE_LOCATION SOURCE_PACKAGE)
   endif()
 
   add_custom_command(TARGET ${TARGET_NAME} PRE_BUILD
-    COMMAND ${FIND_EXECUTABLE} Tests/LuaBridge.build/Debug/${TARGET_NAME}.build -iname "*.gcda" -delete)
+    COMMAND ${FIND_EXECUTABLE} Tests/LuaBridge.build/Debug/${TARGET_NAME}.build -iname "*.gcda" -delete
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    VERBATIM)
 
   add_custom_command (
     OUTPUT "coverage/${TARGET_NAME}.info"

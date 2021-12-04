@@ -89,6 +89,9 @@ struct TestBase : public ::testing::Test
 
         luaL_openlibs(L);
 
+#if LUABRIDGE_HAS_EXCEPTIONS
+        luabridge::enableExceptions(L);
+#endif
     }
 
     void TearDown() override

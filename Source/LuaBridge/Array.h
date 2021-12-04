@@ -55,7 +55,7 @@ struct Stack<std::array<T, Size>>
             luaL_error(L, "#%d argment must be a table", index);
 
         if (get_length(L, index) != Size)
-            luaL_error(L, "table size should be %u but is %d", static_cast<unsigned>(Size), get_length(L, index));
+            luaL_error(L, "table size should be %d but is %d", static_cast<int>(Size), get_length(L, index));
 
         Type array;
 
