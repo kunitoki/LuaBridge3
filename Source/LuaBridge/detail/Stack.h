@@ -586,19 +586,19 @@ struct Stack<const char*>
         if (str != nullptr)
             lua_pushstring(L, str);
         else
-            lua_pushnil(L);
+            lua_pushlstring(L, "", 0);
 
         return true;
     }
 
     static const char* get(lua_State* L, int index)
     {
-        return lua_isnil(L, index) ? nullptr : luaL_checkstring(L, index);
+        return luaL_checkstring(L, index);
     }
 
     static bool isInstance(lua_State* L, int index)
     {
-        return lua_isnil(L, index) || lua_type(L, index) == LUA_TSTRING;
+        return lua_type(L, index) == LUA_TSTRING;
     }
 };
 

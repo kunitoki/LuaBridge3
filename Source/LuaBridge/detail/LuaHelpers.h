@@ -375,11 +375,16 @@ inline bool is_unsigned_instance(lua_State* L, int index)
 template <class T>
 inline bool is_floating_point_instance(lua_State* L, int index)
 {
+    constexpr auto lua_number_max = std::numeric_limits<lua_Number>::max();
+    
     if (lua_type(L, index) == LUA_TNUMBER)
     {
         const auto value = luaL_checknumber(L, index);
-        return value >= std::numeric_limits<T>::min()
-            && value <= std::numeric_limits<T>::max();
+
+        if constexpr (lua_number_max <= std::numeric_limits<T>::max())
+            return static_cast<lua_Number>(value) <= std::numeric_limits<T>::max();
+
+        return value <= static_cast<lua_Number>(std::numeric_limits<T>::max());
     }
 
     return false;
