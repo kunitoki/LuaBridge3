@@ -19,7 +19,7 @@ add_subdirectory (Source)
 
 if (LUABRIDGE_TESTING)
     set (gtest_force_shared_crt ON CACHE BOOL "Use /MD and /MDd" FORCE)
-    add_subdirectory (ThirdParty/gtest)
+    add_subdirectory (ThirdParty/googletest)
     add_subdirectory (Tests)
 endif ()
 
