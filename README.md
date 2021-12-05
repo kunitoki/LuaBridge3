@@ -35,6 +35,8 @@ LuaBridge is usable from a compliant C++17 compiler and offers the following fea
 ![Build MacOS](https://github.com/kunitoki/LuaBridge3/workflows/Build%20MacOS/badge.svg?branch=master)
 ![Build Windows](https://github.com/kunitoki/LuaBridge3/workflows/Build%20Windows/badge.svg?branch=master)
 ![Build Linux](https://github.com/kunitoki/LuaBridge3/workflows/Build%20Linux/badge.svg?branch=master)
+
+## Code Coverage
 [![Coverage Status](https://coveralls.io/repos/github/kunitoki/LuaBridge3/badge.svg?branch=master)](https://coveralls.io/github/kunitoki/LuaBridge3?branch=master)
 
 ## Documentation

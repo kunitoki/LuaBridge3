@@ -99,14 +99,12 @@ TEST_F(ArrayTests, PassFromLua)
     ASSERT_EQ((std::array<Data, 3>({-3, 4, 9})), (result<std::array<Data, 3>>()));
 }
 
+#if LUABRIDGE_HAS_EXCEPTIONS
 TEST_F(ArrayTests, RaiseOnWrongSize)
 {
     runLua("result = { 1, 2, 3, 4 }");
-
-    std::array<lua_Integer, 3> output;
     
-#if LUABRIDGE_HAS_EXCEPTIONS
+    std::array<lua_Integer, 3> output;
     ASSERT_THROW((result<decltype(output)>()), std::exception);
-#else
-#endif
 }
+#endif
