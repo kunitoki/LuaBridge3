@@ -30,15 +30,6 @@ TEST_F(StackTests, NullptrType)
         EXPECT_FALSE(luabridge::isInstance<bool>(L, -1));
         EXPECT_FALSE(luabridge::isInstance<std::byte>(L, -1));
         EXPECT_FALSE(luabridge::isInstance<char>(L, -1));
-        EXPECT_FALSE(luabridge::isInstance<short>(L, -1));
-        EXPECT_FALSE(luabridge::isInstance<int>(L, -1));
-        EXPECT_FALSE(luabridge::isInstance<long>(L, -1));
-        EXPECT_FALSE(luabridge::isInstance<long long>(L, -1));
-        EXPECT_FALSE(luabridge::isInstance<unsigned char>(L, -1));
-        EXPECT_FALSE(luabridge::isInstance<unsigned short>(L, -1));
-        EXPECT_FALSE(luabridge::isInstance<unsigned int>(L, -1));
-        EXPECT_FALSE(luabridge::isInstance<unsigned long>(L, -1));
-        EXPECT_FALSE(luabridge::isInstance<unsigned long long>(L, -1));
         EXPECT_FALSE(luabridge::isInstance<float>(L, -1));
         EXPECT_FALSE(luabridge::isInstance<double>(L, -1));
         EXPECT_FALSE(luabridge::isInstance<long double>(L, -1));
@@ -88,15 +79,6 @@ TEST_F(StackTests, LuaCFunctionType)
     EXPECT_FALSE(luabridge::isInstance<bool>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::byte>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<char>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<short>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<int>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<long>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<long long>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<unsigned char>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<unsigned short>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<unsigned int>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<unsigned long>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<unsigned long long>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<float>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<double>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<long double>(L, -1));
@@ -136,15 +118,6 @@ TEST_F(StackTests, BoolType)
     EXPECT_TRUE(luabridge::isInstance<bool>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::byte>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<char>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<short>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<int>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<long>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<long long>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<unsigned char>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<unsigned short>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<unsigned int>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<unsigned long>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<unsigned long long>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<float>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<double>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<long double>(L, -1));
@@ -184,15 +157,6 @@ TEST_F(StackTests, CharType)
     EXPECT_FALSE(luabridge::isInstance<bool>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::byte>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<char>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<short>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<int>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<long>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<long long>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<unsigned char>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<unsigned short>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<unsigned int>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<unsigned long>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<unsigned long long>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<float>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<double>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<long double>(L, -1));
@@ -235,33 +199,24 @@ TEST_F(StackTests, Int8Type)
     EXPECT_FALSE(luabridge::isInstance<bool>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<std::byte>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<char>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<short>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<int>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<long>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<long long>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<unsigned char>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<unsigned short>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<unsigned int>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<unsigned long>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<unsigned long long>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<float>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<double>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<long double>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<const char*>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::string_view>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::string>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::tuple<short>>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::vector<short>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::tuple<int16_t>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::vector<int16_t>>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<std::optional<int8_t>>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<std::optional<uint8_t>>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::optional<char>>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::optional<unsigned char>>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::optional<short>>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::optional<unsigned short>>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::optional<int>>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::optional<unsigned int>>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::optional<long>>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::optional<unsigned long>>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<std::optional<uint8_t>>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<std::optional<int16_t>>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<std::optional<uint16_t>>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<std::optional<int32_t>>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<std::optional<uint32_t>>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<std::optional<int64_t>>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<std::optional<uint64_t>>(L, -1));
 
     {
         auto result = luabridge::get<int8_t>(L, -1);
@@ -270,9 +225,9 @@ TEST_F(StackTests, Int8Type)
 }
 
 
-TEST_F(StackTests, ShortType)
+TEST_F(StackTests, Int16Type)
 {
-    short value = 32767;
+    int16_t value = 32767;
 
     {
         std::error_code ec;
@@ -293,37 +248,28 @@ TEST_F(StackTests, ShortType)
     EXPECT_FALSE(luabridge::isInstance<bool>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::byte>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<char>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<short>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<int>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<long>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<long long>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<unsigned char>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<unsigned short>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<unsigned int>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<unsigned long>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<unsigned long long>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<float>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<double>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<long double>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<const char*>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::string_view>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::string>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::tuple<short>>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::vector<short>>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::optional<unsigned char>>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::optional<short>>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::optional<int>>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::optional<long>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::tuple<int16_t>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::vector<int16_t>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::optional<uint8_t>>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<std::optional<int16_t>>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<std::optional<int32_t>>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<std::optional<int64_t>>(L, -1));
 
     {
-        auto result = luabridge::get<short>(L, -1);
+        auto result = luabridge::get<int16_t>(L, -1);
         EXPECT_EQ(value, result);
     }
 }
 
-TEST_F(StackTests, IntType)
+TEST_F(StackTests, Int32Type)
 {
-    int value = 1073741824;
+    int32_t value = 2147483647;
 
     {
         std::error_code ec;
@@ -344,37 +290,27 @@ TEST_F(StackTests, IntType)
     EXPECT_FALSE(luabridge::isInstance<bool>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::byte>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<char>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<short>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<int>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<long>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<long long>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<unsigned char>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<unsigned short>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<unsigned int>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<unsigned long>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<unsigned long long>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<float>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<double>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<long double>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<const char*>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::string_view>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::string>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::tuple<int>>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::vector<int>>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::optional<short>>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::optional<int>>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::optional<long>>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::optional<long long>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::tuple<int32_t>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::vector<int32_t>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::optional<int16_t>>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<std::optional<int32_t>>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<std::optional<int64_t>>(L, -1));
 
     {
-        auto result = luabridge::get<int>(L, -1);
+        auto result = luabridge::get<int32_t>(L, -1);
         EXPECT_EQ(value, result);
     }
 }
 
-TEST_F(StackTests, LongType)
+TEST_F(StackTests, Int64Type)
 {
-    long value = 4294967296l;
+    int64_t value = 4294967296ll;
 
     {
         std::error_code ec;
@@ -395,27 +331,17 @@ TEST_F(StackTests, LongType)
     EXPECT_FALSE(luabridge::isInstance<bool>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::byte>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<char>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<short>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<int>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<long>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<long long>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<unsigned char>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<unsigned short>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<unsigned int>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<unsigned long>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<unsigned long long>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<float>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<double>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<long double>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<const char*>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::string_view>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::string>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::tuple<int>>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::vector<int>>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::optional<short>>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::optional<int>>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::optional<long>>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::optional<long long>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::tuple<int32_t>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::vector<int32_t>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::optional<int16_t>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::optional<int32_t>>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<std::optional<int64_t>>(L, -1));
 
     {
         auto result = luabridge::get<long>(L, -1);
@@ -446,33 +372,23 @@ TEST_F(StackTests, Uint8Type)
     EXPECT_FALSE(luabridge::isInstance<bool>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<std::byte>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<char>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<short>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<int>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<long>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<long long>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<unsigned char>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<unsigned short>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<unsigned int>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<unsigned long>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<unsigned long long>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<float>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<double>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<long double>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<const char*>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::string_view>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::string>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::tuple<short>>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::vector<short>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::tuple<uint8_t>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::vector<uint8_t>>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::optional<int8_t>>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<std::optional<uint8_t>>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::optional<char>>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::optional<unsigned char>>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::optional<short>>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::optional<unsigned short>>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::optional<int>>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::optional<unsigned int>>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::optional<long>>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::optional<unsigned long>>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<std::optional<int16_t>>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<std::optional<uint16_t>>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<std::optional<int32_t>>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<std::optional<uint32_t>>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<std::optional<int64_t>>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<std::optional<uint64_t>>(L, -1));
 
     {
         auto result = luabridge::get<uint8_t>(L, -1);
@@ -480,10 +396,9 @@ TEST_F(StackTests, Uint8Type)
     }
 }
 
-
-TEST_F(StackTests, UnsignedShortType)
+TEST_F(StackTests, Uint16Type)
 {
-    unsigned short value = 32768;
+    uint16_t value = 32768;
 
     {
         std::error_code ec;
@@ -504,38 +419,31 @@ TEST_F(StackTests, UnsignedShortType)
     EXPECT_FALSE(luabridge::isInstance<bool>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::byte>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<char>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<short>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<int>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<long>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<long long>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<unsigned char>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<unsigned short>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<unsigned int>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<unsigned long>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<unsigned long long>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<float>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<double>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<long double>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<const char*>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::string_view>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::string>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::tuple<short>>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::vector<short>>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::optional<unsigned char>>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::optional<short>>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::optional<unsigned short>>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::optional<int>>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::optional<long>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::tuple<uint16_t>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::vector<uint16_t>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::optional<uint8_t>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::optional<int16_t>>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<std::optional<uint16_t>>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<std::optional<int32_t>>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<std::optional<uint32_t>>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<std::optional<int64_t>>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<std::optional<uint64_t>>(L, -1));
 
     {
-        auto result = luabridge::get<unsigned short>(L, -1);
+        auto result = luabridge::get<uint16_t>(L, -1);
         EXPECT_EQ(value, result);
     }
 }
 
-TEST_F(StackTests, UnsignedIntType)
+TEST_F(StackTests, Uint32Type)
 {
-    unsigned int value = 2147483648;
+    uint32_t value = 2147483648;
 
     {
         std::error_code ec;
@@ -556,40 +464,32 @@ TEST_F(StackTests, UnsignedIntType)
     EXPECT_FALSE(luabridge::isInstance<bool>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::byte>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<char>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<short>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<int>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<long>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<long long>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<unsigned char>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<unsigned short>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<unsigned int>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<unsigned long>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<unsigned long long>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<float>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<double>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<long double>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<const char*>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::string_view>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::string>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::tuple<int>>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::vector<int>>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::optional<short>>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::optional<int>>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::optional<unsigned int>>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::optional<long>>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::optional<unsigned long>>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::optional<long long>>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::optional<unsigned long long>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::tuple<uint32_t>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::vector<uint32_t>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::optional<int8_t>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::optional<uint8_t>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::optional<int16_t>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::optional<uint16_t>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::optional<int32_t>>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<std::optional<uint32_t>>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<std::optional<int64_t>>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<std::optional<uint64_t>>(L, -1));
 
     {
-        auto result = luabridge::get<unsigned int>(L, -1);
+        auto result = luabridge::get<uint32_t>(L, -1);
         EXPECT_EQ(value, result);
     }
 }
 
-TEST_F(StackTests, UnsignedLongType)
+TEST_F(StackTests, Uint64Type)
 {
-    unsigned long value = 9223372036854775808ul;
+    uint64_t value = 9223372036854775808ul;
 
     {
         std::error_code ec;
@@ -602,38 +502,33 @@ TEST_F(StackTests, UnsignedLongType)
     EXPECT_FALSE(luabridge::isInstance<int8_t>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<int16_t>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<int32_t>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<int64_t>(L, -1)); // FAIL: because lua_Integer is long long this is bound to pass
+    EXPECT_TRUE(luabridge::isInstance<int64_t>(L, -1)); // FAIL: because lua_Integer is long long this is stored as -1
     EXPECT_FALSE(luabridge::isInstance<uint8_t>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<uint16_t>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<uint32_t>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<uint64_t>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<uint64_t>(L, -1)); // FAIL: because lua_Integer is long long this is stored as -1
     EXPECT_FALSE(luabridge::isInstance<bool>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::byte>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<char>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<short>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<int>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<long>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<long long>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<unsigned char>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<unsigned short>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<unsigned int>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<unsigned long>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<unsigned long long>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<float>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<double>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<long double>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<const char*>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::string_view>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::string>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::tuple<int>>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::vector<int>>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::optional<short>>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::optional<int>>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::optional<long>>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::optional<long long>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::tuple<uint64_t>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::vector<uint64_t>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::optional<int8_t>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::optional<uint8_t>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::optional<int16_t>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::optional<uint16_t>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::optional<int32_t>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::optional<uint32_t>>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<std::optional<int64_t>>(L, -1)); // FAIL: because lua_Integer is long long this is stored as -1
+    EXPECT_FALSE(luabridge::isInstance<std::optional<uint64_t>>(L, -1)); // FAIL: because lua_Integer is long long this is stored as -1
 
     {
-        auto result = luabridge::get<unsigned long>(L, -1);
+        auto result = luabridge::get<uint64_t>(L, -1);
         EXPECT_EQ(value, result);
     }
 }

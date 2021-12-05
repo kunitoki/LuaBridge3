@@ -167,7 +167,7 @@ struct Stack<std::byte>
 
     static bool isInstance(lua_State* L, int index)
     {
-        return is_integral_instance<unsigned char>(L, index);
+        return is_unsigned_instance<unsigned char>(L, index);
     }
 };
 
@@ -230,18 +230,18 @@ struct Stack<int8_t>
 
     static bool isInstance(lua_State* L, int index)
     {
-        return is_integral_instance<int8_t>(L, index);
+        return is_signed_instance<int8_t>(L, index);
     }
 };
 
 //=================================================================================================
 /**
- * @brief Stack specialization for `uint8_t`.
+ * @brief Stack specialization for `unsigned char`.
  */
 template <>
-struct Stack<uint8_t>
+struct Stack<unsigned char>
 {
-    static bool push(lua_State* L, uint8_t value, std::error_code&)
+    static bool push(lua_State* L, unsigned char value, std::error_code&)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
@@ -251,25 +251,25 @@ struct Stack<uint8_t>
         return true;
     }
 
-    static uint8_t get(lua_State* L, int index)
+    static unsigned char get(lua_State* L, int index)
     {
-        return static_cast<uint8_t>(luaL_checkinteger(L, index));
+        return static_cast<unsigned char>(luaL_checkinteger(L, index));
     }
 
     static bool isInstance(lua_State* L, int index)
     {
-        return is_integral_instance<uint8_t>(L, index);
+        return is_unsigned_instance<unsigned char>(L, index);
     }
 };
 
 //=================================================================================================
 /**
- * @brief Stack specialization for `int16_t`.
+ * @brief Stack specialization for `short`.
  */
 template <>
-struct Stack<int16_t>
+struct Stack<short>
 {
-    static bool push(lua_State* L, int16_t value, std::error_code&)
+    static bool push(lua_State* L, short value, std::error_code&)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
@@ -279,25 +279,25 @@ struct Stack<int16_t>
         return true;
     }
 
-    static int16_t get(lua_State* L, int index)
+    static short get(lua_State* L, int index)
     {
-        return static_cast<int16_t>(luaL_checkinteger(L, index));
+        return static_cast<short>(luaL_checkinteger(L, index));
     }
 
     static bool isInstance(lua_State* L, int index)
     {
-        return is_integral_instance<int16_t>(L, index);
+        return is_signed_instance<short>(L, index);
     }
 };
 
 //=================================================================================================
 /**
- * @brief Stack specialization for `uint16_t`.
+ * @brief Stack specialization for `unsigned short`.
  */
 template <>
-struct Stack<uint16_t>
+struct Stack<unsigned short>
 {
-    static bool push(lua_State* L, uint16_t value, std::error_code&)
+    static bool push(lua_State* L, unsigned short value, std::error_code&)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
@@ -307,25 +307,25 @@ struct Stack<uint16_t>
         return true;
     }
 
-    static uint16_t get(lua_State* L, int index)
+    static unsigned short get(lua_State* L, int index)
     {
-        return static_cast<uint16_t>(luaL_checkinteger(L, index));
+        return static_cast<unsigned short>(luaL_checkinteger(L, index));
     }
 
     static bool isInstance(lua_State* L, int index)
     {
-        return is_integral_instance<uint16_t>(L, index);
+        return is_unsigned_instance<unsigned short>(L, index);
     }
 };
 
 //=================================================================================================
 /**
- * @brief Stack specialization for `int32_t`.
+ * @brief Stack specialization for `int`.
  */
 template <>
-struct Stack<int32_t>
+struct Stack<int>
 {
-    static bool push(lua_State* L, int32_t value, std::error_code&)
+    static bool push(lua_State* L, int value, std::error_code&)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
@@ -335,25 +335,25 @@ struct Stack<int32_t>
         return true;
     }
 
-    static int32_t get(lua_State* L, int index)
+    static int get(lua_State* L, int index)
     {
-        return static_cast<int32_t>(luaL_checkinteger(L, index));
+        return static_cast<int>(luaL_checkinteger(L, index));
     }
 
     static bool isInstance(lua_State* L, int index)
     {
-        return is_integral_instance<int32_t>(L, index);
+        return is_signed_instance<int>(L, index);
     }
 };
 
 //=================================================================================================
 /**
- * @brief Stack specialization for `uint32_t`.
+ * @brief Stack specialization for `unsigned int`.
  */
 template <>
-struct Stack<uint32_t>
+struct Stack<unsigned int>
 {
-    static bool push(lua_State* L, uint32_t value, std::error_code&)
+    static bool push(lua_State* L, unsigned int value, std::error_code&)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
@@ -365,68 +365,12 @@ struct Stack<uint32_t>
 
     static uint32_t get(lua_State* L, int index)
     {
-        return static_cast<uint32_t>(luaL_checkinteger(L, index));
+        return static_cast<unsigned int>(luaL_checkinteger(L, index));
     }
 
     static bool isInstance(lua_State* L, int index)
     {
-        return is_integral_instance<uint32_t>(L, index);
-    }
-};
-
-//=================================================================================================
-/**
- * @brief Stack specialization for `int64_t`.
- */
-template <>
-struct Stack<int64_t>
-{
-    static bool push(lua_State* L, int64_t value, std::error_code&)
-    {
-#if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
-#endif
-
-        lua_pushinteger(L, static_cast<lua_Integer>(value));
-        return true;
-    }
-
-    static int64_t get(lua_State* L, int index)
-    {
-        return static_cast<int64_t>(luaL_checkinteger(L, index));
-    }
-
-    static bool isInstance(lua_State* L, int index)
-    {
-        return is_integral_instance<int64_t>(L, index);
-    }
-};
-
-//=================================================================================================
-/**
- * @brief Stack specialization for `uint64_t`.
- */
-template <>
-struct Stack<uint64_t>
-{
-    static bool push(lua_State* L, uint64_t value, std::error_code&)
-    {
-#if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
-#endif
-
-        pushunsigned(L, value);
-        return true;
-    }
-
-    static uint64_t get(lua_State* L, int index)
-    {
-        return static_cast<uint64_t>(luaL_checkinteger(L, index));
-    }
-
-    static bool isInstance(lua_State* L, int index)
-    {
-        return is_integral_instance<uint64_t>(L, index);
+        return is_unsigned_instance<unsigned int>(L, index);
     }
 };
 
@@ -454,7 +398,7 @@ struct Stack<long>
 
     static bool isInstance(lua_State* L, int index)
     {
-        return is_integral_instance<long>(L, index);
+        return is_signed_instance<long>(L, index);
     }
 };
 
@@ -482,7 +426,63 @@ struct Stack<unsigned long>
 
     static bool isInstance(lua_State* L, int index)
     {
-        return is_integral_instance<unsigned long>(L, index);
+        return is_unsigned_instance<unsigned long>(L, index);
+    }
+};
+
+//=================================================================================================
+/**
+ * @brief Stack specialization for `long long`.
+ */
+template <>
+struct Stack<long long>
+{
+    static bool push(lua_State* L, long long value, std::error_code&)
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+#endif
+
+        lua_pushinteger(L, static_cast<lua_Integer>(value));
+        return true;
+    }
+
+    static long long get(lua_State* L, int index)
+    {
+        return static_cast<long long>(luaL_checkinteger(L, index));
+    }
+
+    static bool isInstance(lua_State* L, int index)
+    {
+        return is_signed_instance<long long>(L, index);
+    }
+};
+
+//=================================================================================================
+/**
+ * @brief Stack specialization for `unsigned long long`.
+ */
+template <>
+struct Stack<unsigned long long>
+{
+    static bool push(lua_State* L, unsigned long long value, std::error_code&)
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+#endif
+
+        pushunsigned(L, value);
+        return true;
+    }
+
+    static unsigned long get(lua_State* L, int index)
+    {
+        return static_cast<unsigned long long>(luaL_checkinteger(L, index));
+    }
+
+    static bool isInstance(lua_State* L, int index)
+    {
+        return is_unsigned_instance<unsigned long long>(L, index);
     }
 };
 
