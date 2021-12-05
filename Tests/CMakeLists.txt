@@ -85,15 +85,13 @@ function (setup_target_for_coverage TARGET_NAME SOURCE_LOCATION SOURCE_PACKAGE)
   endif()
 
   add_custom_command(TARGET ${TARGET_NAME} PRE_BUILD
-  COMMAND ${FIND_EXECUTABLE} . -path "*/Tests/*/${TARGET_NAME}.build/*/*.gcda" -delete
+  COMMAND ${FIND_EXECUTABLE} . -path "*/Tests/*/${TARGET_NAME}.*/*/*.gcda" -delete
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     VERBATIM)
 
   add_custom_command (
     OUTPUT "coverage/${TARGET_NAME}.info"
-
-    find . -path "*/LuaBridgeTests51.build/*/*.gcno"
-    COMMAND ${FIND_EXECUTABLE} . -path "*/Tests/*/${TARGET_NAME}.build/*/*.gcda" -delete
+    COMMAND ${FIND_EXECUTABLE} . -path "*/Tests/*/${TARGET_NAME}.*/*/*.gcda" -delete
     COMMAND ${TARGET_NAME} ${ARGV3}
     COMMAND ${CMAKE_COMMAND} -E make_directory coverage
     COMMAND ${CMAKE_COMMAND} -E rm -f coverage/${TARGET_NAME}.info
@@ -103,6 +101,7 @@ function (setup_target_for_coverage TARGET_NAME SOURCE_LOCATION SOURCE_PACKAGE)
       --exclude "*/Tests/*"
       --exclude "*/Distribution/*"
       --exclude "*/coverage_html/*"
+      --rc lcov_branch_coverage=1
       -o "coverage/${TARGET_NAME}.info"
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     VERBATIM)
@@ -128,6 +127,7 @@ function (setup_coverage_single_target)
       -a "coverage/LuaBridgeTestsLuau.info"
       -o "coverage/Merged.info"
     COMMAND ${GENHTML_EXECUTABLE}
+      --rc lcov_branch_coverage=1
       "coverage/Merged.info" -o "coverage_html"
     DEPENDS
       "coverage/LuaBridgeTests51.info"
