@@ -6,8 +6,6 @@
 #include "TestBase.h"
 #include "TestTypes.h"
 
-#include "LuaBridge/Optional.h"
-
 #include <optional>
 
 template<class T>

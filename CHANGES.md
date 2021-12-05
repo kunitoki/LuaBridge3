@@ -26,7 +26,7 @@
 * Added support for `std::byte` as stack value type.
 * Added support for `std::string_view` as stack value type.
 * Added support for `std::tuple` as stack value type.
-* Added support for `std::optional` as stack value type by using `LuaBridge/Optional.h`.
+* Added support for `std::optional` as stack value type.
 * Added support for `std::set` as stack value type by using `LuaBridge/Set.h`.
 * Added single header amalgamated distribution file, to simplify including in projects.
 * Added more asserts for functions and property names.
@@ -39,6 +39,7 @@
 * Changed all generic functions in `LuaRef` and `TableItem` to accept arguments by const reference instead of by copy.
 * Fixed issue when `LuaRef::cast<>` fails with exceptions enabled, popping from the now empty stack could trigger the panic handler twice.
 * Fixed unaligned access in user allocated member pointers in 64bit machines reported by ASAN.
+* Included testing against Luau VM
 * Bumped lua 5.2.x in unit tests from lua 5.2.0 to 5.2.4.
 * Bumped lua 5.4.x in unit tests from lua 5.4.1 to 5.4.3.
 * Run against lua 5.3.6 and 5.4.3 in unit tests.

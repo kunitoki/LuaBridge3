@@ -325,6 +325,38 @@ void* lua_newuserdata_aligned(lua_State* L, Args&&... args)
 }
 
 /**
+ * @brief Checks if the value on the stack is a number type and can fit into the corresponding c++ numerical type..
+ */
+template <class T>
+inline bool is_integral_instance(lua_State* L, int index)
+{
+    if (lua_type(L, index) == LUA_TNUMBER)
+    {
+        const auto value = luaL_checkinteger(L, index);
+        return value >= std::numeric_limits<T>::min()
+            && value <= std::numeric_limits<T>::max();
+    }
+
+    return false;
+}
+
+/**
+ * @brief Checks if the value on the stack is a number type and can fit into the corresponding c++ numerical type..
+ */
+template <class T>
+inline bool is_floating_point_instance(lua_State* L, int index)
+{
+    if (lua_type(L, index) == LUA_TNUMBER)
+    {
+        const auto value = luaL_checknumber(L, index);
+        return value >= std::numeric_limits<T>::min()
+            && value <= std::numeric_limits<T>::max();
+    }
+
+    return false;
+}
+
+/**
  * @brief Helper to write a lua string error.
  */
 inline void writestringerror(const char* fmt, const char* text)
