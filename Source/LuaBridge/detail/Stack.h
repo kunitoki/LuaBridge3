@@ -465,11 +465,19 @@ struct Stack<long long>
 template <>
 struct Stack<unsigned long long>
 {
-    static bool push(lua_State* L, unsigned long long value, std::error_code&)
+    static_assert(sizeof(lua_Integer) == sizeof(unsigned long long));
+    
+    static bool push(lua_State* L, unsigned long long value, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
 #endif
+
+        if (value > static_cast<unsigned long long>(std::numeric_limits<lua_Integer>::max()))
+        {
+            ec = makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
+            return false;
+        }
 
         pushunsigned(L, value);
         return true;
@@ -549,11 +557,17 @@ struct Stack<double>
 template <>
 struct Stack<long double>
 {
-    static bool push(lua_State* L, long double value, std::error_code&)
+    static bool push(lua_State* L, long double value, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
 #endif
+
+        if (value > static_cast<long double>(std::numeric_limits<lua_Number>::max()))
+        {
+            ec = makeErrorCode(ErrorCode::FloatingPointDoesntFitIntoLuaNumber);
+            return false;
+        }
 
         lua_pushnumber(L, static_cast<lua_Number>(value));
         return true;
