@@ -210,7 +210,7 @@ void throw_or_assert(Args&&... args)
 template <class T>
 void pushunsigned(lua_State* L, T value)
 {
-#if LUA_VERSION_NUM == 501
+#if LUA_VERSION_NUM != 502
     lua_pushinteger(L, static_cast<lua_Unsigned>(value));
 #else
     lua_pushunsigned(L, static_cast<lua_Unsigned>(value));
