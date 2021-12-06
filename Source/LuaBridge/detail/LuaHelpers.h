@@ -11,9 +11,18 @@
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <type_traits>
 #include <utility>
 
 namespace luabridge {
+
+/**
+ * @brief Helper for unused vars.
+ */
+template <class... Args>
+constexpr void unused(Args&&...)
+{
+}
 
 // These functions and defines are for Luau.
 #if LUABRIDGE_ON_LUAU
@@ -25,12 +34,14 @@ inline int luaL_ref(lua_State* L, int idx)
     const int ref = lua_ref(L, -1);
 
     lua_pop(L, 1);
-    
+
     return ref;
 }
 
 inline void luaL_unref(lua_State* L, int idx, int ref)
 {
+    unused(idx);
+
     lua_unref(L, ref);
 }
 
@@ -80,7 +91,7 @@ inline void lua_pushcclosure_x(lua_State* L, lua_CFunction fn, int n)
 // These are for Lua versions prior to 5.2.0.
 #if LUA_VERSION_NUM < 502
 
-using lua_Unsigned = lua_Integer;
+using lua_Unsigned = std::make_unsigned_t<lua_Integer>;
 
 #if ! LUABRIDGE_ON_LUAU
 inline int lua_absindex(lua_State* L, int idx)
@@ -95,6 +106,7 @@ inline int lua_absindex(lua_State* L, int idx)
 inline void lua_rawgetp(lua_State* L, int idx, void const* p)
 {
     idx = lua_absindex(L, idx);
+    luaL_checkstack(L, 1, "not enough stack slots");
     lua_pushlightuserdata(L, const_cast<void*>(p));
     lua_rawget(L, idx);
 }
@@ -156,14 +168,6 @@ inline int get_length(lua_State* L, int idx)
 #endif
 
 /**
- * @brief Helper for unused vars.
- */
-template <class... Args>
-constexpr void unused(Args&&...)
-{
-}
-
-/**
  * @brief Helper to throw or return an error code.
  */
 template <class T, class ErrorType>
@@ -182,7 +186,7 @@ std::error_code throw_or_error_code(lua_State* L, ErrorType error)
 #if LUABRIDGE_HAS_EXCEPTIONS
     throw T(L, makeErrorCode(error));
 #else
-    return (void)L, makeErrorCode(error);
+    return unused(L), makeErrorCode(error);
 #endif
 }
 
@@ -331,12 +335,12 @@ template <class T>
 inline bool is_signed_instance(lua_State* L, int index)
 {
     static_assert(! std::is_unsigned_v<T>);
-    
+
     if (lua_type(L, index) == LUA_TNUMBER)
     {
-        const lua_Integer value = luaL_checkinteger(L, index);
-        return value >= std::numeric_limits<T>::min()
-            && value <= std::numeric_limits<T>::max();
+        const auto value = luaL_checkinteger(L, index);
+
+        return value >= std::numeric_limits<T>::min() && value <= std::numeric_limits<T>::max();
     }
 
     return false;
@@ -349,20 +353,18 @@ template <class T>
 inline bool is_unsigned_instance(lua_State* L, int index)
 {
     static_assert(std::is_unsigned_v<T>);
-    
-    using lua_Unsigned = std::make_unsigned_t<lua_Integer>;
 
     constexpr auto lua_unsigned_max = static_cast<lua_Unsigned>(std::numeric_limits<lua_Integer>::max());
 
     if (lua_type(L, index) == LUA_TNUMBER)
     {
-        const lua_Integer value = luaL_checkinteger(L, index);
+        const auto value = luaL_checkinteger(L, index);
         if (value < 0)
             return false;
-        
+
         if constexpr (lua_unsigned_max <= std::numeric_limits<T>::max())
             return static_cast<lua_Unsigned>(value) <= std::numeric_limits<T>::max();
-        
+
         return value <= static_cast<lua_Integer>(std::numeric_limits<T>::max());
     }
 
@@ -376,7 +378,7 @@ template <class T>
 inline bool is_floating_point_instance(lua_State* L, int index)
 {
     constexpr auto lua_number_max = std::numeric_limits<lua_Number>::max();
-    
+
     if (lua_type(L, index) == LUA_TNUMBER)
     {
         const auto value = luaL_checknumber(L, index);
