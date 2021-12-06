@@ -465,8 +465,6 @@ struct Stack<long long>
 template <>
 struct Stack<unsigned long long>
 {
-    static_assert(sizeof(lua_Integer) == sizeof(unsigned long long));
-    
     static bool push(lua_State* L, unsigned long long value, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
