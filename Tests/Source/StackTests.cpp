@@ -309,11 +309,8 @@ TEST_F(StackTests, Int32Type)
     }
 }
 
-TEST_F(StackTests, Int64Type)
+TEST_F(StackTests, DISABLED_Int64Type)
 {
-    if constexpr (std::is_same_v<lua_Integer, ptrdiff_t>)
-        return;
-    
     int64_t value = 4294967296ll;
 
     {
@@ -445,11 +442,8 @@ TEST_F(StackTests, Uint16Type)
     }
 }
 
-TEST_F(StackTests, Uint32Type)
+TEST_F(StackTests, DISABLED_Uint32Type)
 {
-    if constexpr (std::is_same_v<lua_Integer, ptrdiff_t>)
-        return;
-
     uint32_t value = 2147483648;
 
     {
