@@ -329,76 +329,51 @@ void* lua_newuserdata_aligned(lua_State* L, Args&&... args)
 }
 
 /**
- * @brief Checks if the value on the stack is a number type and can fit into the corresponding c++ numerical type..
+ * @brief Checks if the value on the stack is a number type and can fit into the corresponding c++ integral type..
  */
-template <class T>
-inline bool is_signed_instance(lua_State* L, int index)
+template <class U = lua_Integer, class T>
+constexpr bool is_integral_representable_by(T value)
 {
-    static_assert(! std::is_unsigned_v<T>);
+    constexpr bool same_signedness = (std::is_unsigned_v<T> && std::is_unsigned_v<U>)
+        || (!std::is_unsigned_v<T> && !std::is_unsigned_v<U>);
 
-    if (lua_type(L, index) == LUA_TNUMBER)
+    if constexpr (sizeof(T) == sizeof(U))
     {
-        const auto value = luaL_checkinteger(L, index);
+        if constexpr (same_signedness)
+            return true;
 
-        return value >= std::numeric_limits<T>::min() && value <= std::numeric_limits<T>::max();
+        if constexpr (std::is_unsigned_v<T>)
+            return value <= static_cast<T>(std::numeric_limits<U>::max());
+        
+        return value >= static_cast<T>(std::numeric_limits<U>::min())
+            && static_cast<U>(value) <= std::numeric_limits<U>::max();
     }
 
-    return false;
+    if constexpr (sizeof(T) < sizeof(U))
+    {
+        return static_cast<U>(value) >= std::numeric_limits<U>::min()
+            && static_cast<U>(value) <= std::numeric_limits<U>::max();
+    }
+
+    return value >= static_cast<T>(std::numeric_limits<U>::min())
+        && value <= static_cast<T>(std::numeric_limits<U>::max());
 }
 
 /**
  * @brief Checks if the value on the stack is a number type and can fit into the corresponding c++ numerical type..
  */
-template <class T>
-inline bool is_unsigned_instance(lua_State* L, int index)
+template <class U = lua_Number, class T>
+constexpr bool is_floating_point_representable_by(T value)
 {
-    static_assert(std::is_unsigned_v<T>);
+    if constexpr (sizeof(T) == sizeof(U))
+        return true;
 
-    constexpr auto lua_unsigned_max = static_cast<lua_Unsigned>(std::numeric_limits<lua_Integer>::max());
+    if constexpr (sizeof(T) < sizeof(U))
+        return static_cast<U>(value) >= -std::numeric_limits<U>::max()
+            && static_cast<U>(value) <= std::numeric_limits<U>::max();
 
-    if (lua_type(L, index) == LUA_TNUMBER)
-    {
-        const auto value = luaL_checkinteger(L, index);
-        if (value < 0)
-            return false;
-
-        if constexpr (lua_unsigned_max <= std::numeric_limits<T>::max())
-            return static_cast<lua_Unsigned>(value) <= std::numeric_limits<T>::max();
-
-        return value <= static_cast<lua_Integer>(std::numeric_limits<T>::max());
-    }
-
-    return false;
-}
-
-/**
- * @brief Checks if the value on the stack is a number type and can fit into the corresponding c++ numerical type..
- */
-template <class T>
-inline bool is_floating_point_instance(lua_State* L, int index)
-{
-    constexpr auto lua_number_max = std::numeric_limits<lua_Number>::max();
-
-    if (lua_type(L, index) == LUA_TNUMBER)
-    {
-        const auto value = luaL_checknumber(L, index);
-
-        if constexpr (lua_number_max <= std::numeric_limits<T>::max())
-            return static_cast<lua_Number>(value) <= std::numeric_limits<T>::max();
-
-        return value <= static_cast<lua_Number>(std::numeric_limits<T>::max());
-    }
-
-    return false;
-}
-
-/**
- * @brief Helper to write a lua string error.
- */
-inline void writestringerror(const char* fmt, const char* text)
-{
-    fprintf(stderr, fmt, text);
-    fflush(stderr);
+    return value >= static_cast<T>(-std::numeric_limits<U>::max())
+        && value <= static_cast<T>(std::numeric_limits<U>::max());
 }
 
 } // namespace luabridge

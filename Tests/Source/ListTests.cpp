@@ -11,11 +11,29 @@
 
 namespace {
 
-template<class T>
-
+template <class T>
 std::list<T> toList(const std::vector<T>& vector)
 {
     return {vector.begin(), vector.end()};
+}
+
+template <class T>
+void checkEquals(const std::list<T>& expected, const std::list<T>& actual)
+{
+    if constexpr (std::is_same_v<T, float>)
+    {
+        for (std::size_t i = 0; i < expected.size(); ++i)
+            ASSERT_FLOAT_EQ((*std::next(expected.begin(), i)), (*std::next(actual.begin(), i)));
+    }
+    else if constexpr (std::is_same_v<T, double> || std::is_same_v<T, long double>)
+    {
+        for (std::size_t i = 0; i < expected.size(); ++i)
+            ASSERT_DOUBLE_EQ((*std::next(expected.begin(), i)), (*std::next(actual.begin(), i)));
+    }
+    else
+    {
+        ASSERT_EQ(expected, actual);
+    }
 }
 
 } // namespace
@@ -35,7 +53,8 @@ TYPED_TEST_P(ListTest, LuaRef)
 
     std::list<TypeParam> expected = toList(Traits::values());
     std::list<TypeParam> actual = this->result();
-    ASSERT_EQ(expected, actual);
+
+    checkEquals(expected, actual);
 }
 
 REGISTER_TYPED_TEST_SUITE_P(ListTest, LuaRef);

@@ -10,6 +10,29 @@
 
 #include <array>
 
+namespace {
+
+template <class T, std::size_t N>
+void checkEquals(const std::array<T, N>& expected, const std::array<T, N>& actual)
+{
+    if constexpr (std::is_same_v<T, float>)
+    {
+        for (std::size_t i = 0; i < expected.size(); ++i)
+            ASSERT_FLOAT_EQ(expected[i], actual[i]);
+    }
+    else if constexpr (std::is_same_v<T, double> || std::is_same_v<T, long double>)
+    {
+        for (std::size_t i = 0; i < expected.size(); ++i)
+            ASSERT_DOUBLE_EQ(expected[i], actual[i]);
+    }
+    else
+    {
+        ASSERT_EQ(expected, actual);
+    }
+}
+
+} // namespace
+
 template<class T>
 struct ArrayTest : TestBase
 {
@@ -27,7 +50,8 @@ TYPED_TEST_P(ArrayTest, LuaRef)
     std::copy_n(Traits::values().begin(), 3, expected.begin());
 
     std::array<TypeParam, 3> actual = this->result();
-    ASSERT_EQ(expected, actual);
+    
+    checkEquals(expected, actual);
 }
 
 REGISTER_TYPED_TEST_SUITE_P(ArrayTest, LuaRef);

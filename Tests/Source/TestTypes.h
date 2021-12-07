@@ -6,10 +6,12 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
 using TestTypes = ::testing::Types<bool,
+                                   int8_t,
                                    char,
                                    unsigned char,
                                    short,
@@ -22,6 +24,7 @@ using TestTypes = ::testing::Types<bool,
                                    unsigned long long,
                                    float,
                                    double,
+                                   long double,
                                    std::string>;
 
 template<class T>
@@ -39,6 +42,13 @@ struct TypeTraits<char>
 {
     static std::vector<char> values() { return {'a', 'b', 'c'}; }
     static std::string list() { return "'a', 'b', 'c'"; }
+};
+
+template<>
+struct TypeTraits<int8_t>
+{
+    static std::vector<int8_t> values() { return {1, -2, 3}; }
+    static std::string list() { return "1, -2, 3"; }
 };
 
 template<>
@@ -115,6 +125,13 @@ template<>
 struct TypeTraits<double>
 {
     static std::vector<double> values() { return {1.2, -2.5, 3.14}; }
+    static std::string list() { return "1.2, -2.5, 3.14"; }
+};
+
+template<>
+struct TypeTraits<long double>
+{
+    static std::vector<long double> values() { return {1.2l, -2.5l, 3.14l}; }
     static std::string list() { return "1.2, -2.5, 3.14"; }
 };
 
