@@ -14,7 +14,7 @@ TEST_F(StackTests, NullptrType)
     {
         std::error_code ec;
         bool result = luabridge::push(L, nullptr, ec);
-        EXPECT_TRUE(result);
+        ASSERT_TRUE(result);
     }
 
     {
@@ -64,7 +64,7 @@ TEST_F(StackTests, LuaCFunctionType)
     {
         std::error_code ec;
         bool result = luabridge::push(L, value, ec);
-        EXPECT_TRUE(result);
+        ASSERT_TRUE(result);
     }
 
     EXPECT_FALSE(luabridge::isInstance<std::nullptr_t>(L, -1));
@@ -103,7 +103,7 @@ TEST_F(StackTests, BoolType)
     {
         std::error_code ec;
         bool result = luabridge::push(L, value, ec);
-        EXPECT_TRUE(result);
+        ASSERT_TRUE(result);
     }
 
     EXPECT_FALSE(luabridge::isInstance<std::nullptr_t>(L, -1));
@@ -142,7 +142,7 @@ TEST_F(StackTests, CharType)
     {
         std::error_code ec;
         bool result = luabridge::push(L, value, ec);
-        EXPECT_TRUE(result);
+        ASSERT_TRUE(result);
     }
 
     EXPECT_FALSE(luabridge::isInstance<std::nullptr_t>(L, -1));
@@ -184,7 +184,7 @@ TEST_F(StackTests, Int8Type)
     {
         std::error_code ec;
         bool result = luabridge::push(L, value, ec);
-        EXPECT_TRUE(result);
+        ASSERT_TRUE(result);
     }
 
     EXPECT_FALSE(luabridge::isInstance<std::nullptr_t>(L, -1));
@@ -233,7 +233,7 @@ TEST_F(StackTests, Int16Type)
     {
         std::error_code ec;
         bool result = luabridge::push(L, value, ec);
-        EXPECT_TRUE(result);
+        ASSERT_TRUE(result);
     }
 
     EXPECT_FALSE(luabridge::isInstance<std::nullptr_t>(L, -1));
@@ -275,7 +275,7 @@ TEST_F(StackTests, Int32Type)
     {
         std::error_code ec;
         bool result = luabridge::push(L, value, ec);
-        EXPECT_TRUE(result);
+        ASSERT_TRUE(result);
     }
 
     EXPECT_FALSE(luabridge::isInstance<std::nullptr_t>(L, -1));
@@ -309,25 +309,33 @@ TEST_F(StackTests, Int32Type)
     }
 }
 
-TEST_F(StackTests, DISABLED_Int64Type)
+TEST_F(StackTests, Int64Type)
 {
-    int64_t value = 4294967296ll;
+    constexpr int64_t max_integral = static_cast<int64_t>(std::numeric_limits<lua_Integer>::max());
+    
+    int64_t value = max_integral < 4294967296ll ? max_integral : 4294967296ll;
 
     {
         std::error_code ec;
         bool result = luabridge::push(L, value, ec);
-        EXPECT_TRUE(result);
+        ASSERT_TRUE(result);
     }
 
     EXPECT_FALSE(luabridge::isInstance<std::nullptr_t>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<lua_CFunction>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<int8_t>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<int16_t>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<int32_t>(L, -1));
+    if constexpr (sizeof(lua_Integer) == sizeof(int32_t))
+        EXPECT_TRUE(luabridge::isInstance<int32_t>(L, -1));
+    else
+        EXPECT_FALSE(luabridge::isInstance<int32_t>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<int64_t>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<uint8_t>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<uint16_t>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<uint32_t>(L, -1));
+    if constexpr (sizeof(lua_Integer) == sizeof(uint32_t))
+        EXPECT_TRUE(luabridge::isInstance<uint32_t>(L, -1));
+    else
+        EXPECT_FALSE(luabridge::isInstance<uint32_t>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<uint64_t>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<bool>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::byte>(L, -1));
@@ -338,14 +346,17 @@ TEST_F(StackTests, DISABLED_Int64Type)
     EXPECT_FALSE(luabridge::isInstance<const char*>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::string_view>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::string>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::tuple<int32_t>>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::vector<int32_t>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::tuple<int64_t>>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::vector<int64_t>>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::optional<int16_t>>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::optional<int32_t>>(L, -1));
+    if constexpr (sizeof(lua_Integer) == sizeof(int32_t))
+        EXPECT_TRUE(luabridge::isInstance<std::optional<int32_t>>(L, -1));
+    else
+        EXPECT_FALSE(luabridge::isInstance<std::optional<int32_t>>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<std::optional<int64_t>>(L, -1));
 
     {
-        auto result = luabridge::get<long>(L, -1);
+        auto result = luabridge::get<int64_t>(L, -1);
         EXPECT_EQ(value, result);
     }
 }
@@ -442,9 +453,11 @@ TEST_F(StackTests, Uint16Type)
     }
 }
 
-TEST_F(StackTests, DISABLED_Uint32Type)
+TEST_F(StackTests, Uint32Type)
 {
-    uint32_t value = 2147483648;
+    constexpr uint32_t max_integral = static_cast<uint32_t>(std::numeric_limits<lua_Integer>::max());
+    
+    uint32_t value = max_integral < 2147483648u ? max_integral : 2147483648u;
 
     {
         std::error_code ec;
@@ -456,7 +469,10 @@ TEST_F(StackTests, DISABLED_Uint32Type)
     EXPECT_FALSE(luabridge::isInstance<lua_CFunction>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<int8_t>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<int16_t>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<int32_t>(L, -1));
+    if constexpr (sizeof(lua_Integer) == sizeof(int32_t))
+        EXPECT_TRUE(luabridge::isInstance<int32_t>(L, -1));
+    else
+        EXPECT_FALSE(luabridge::isInstance<int32_t>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<int64_t>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<uint8_t>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<uint16_t>(L, -1));
@@ -477,7 +493,10 @@ TEST_F(StackTests, DISABLED_Uint32Type)
     EXPECT_FALSE(luabridge::isInstance<std::optional<uint8_t>>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::optional<int16_t>>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::optional<uint16_t>>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::optional<int32_t>>(L, -1));
+    if constexpr (sizeof(lua_Integer) == sizeof(int32_t))
+        EXPECT_TRUE(luabridge::isInstance<std::optional<int32_t>>(L, -1));
+    else
+        EXPECT_FALSE(luabridge::isInstance<std::optional<int32_t>>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<std::optional<uint32_t>>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<std::optional<int64_t>>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<std::optional<uint64_t>>(L, -1));
@@ -490,7 +509,9 @@ TEST_F(StackTests, DISABLED_Uint32Type)
 
 TEST_F(StackTests, DISABLED_Uint64Type) // FAIL: because lua_Integer is long long this is stored as -1
 {
-    uint64_t value = 9223372036854775808ul;
+    constexpr uint64_t max_integral = static_cast<uint64_t>(std::numeric_limits<lua_Integer>::max());
+    
+    uint64_t value = max_integral < 9223372036854775808ull ? max_integral : 9223372036854775808ull;
 
     {
         std::error_code ec;
@@ -502,11 +523,17 @@ TEST_F(StackTests, DISABLED_Uint64Type) // FAIL: because lua_Integer is long lon
     EXPECT_FALSE(luabridge::isInstance<lua_CFunction>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<int8_t>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<int16_t>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<int32_t>(L, -1));
+    if constexpr (sizeof(lua_Integer) == sizeof(int32_t))
+        EXPECT_TRUE(luabridge::isInstance<int32_t>(L, -1));
+    else
+        EXPECT_FALSE(luabridge::isInstance<int32_t>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<int64_t>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<uint8_t>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<uint16_t>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<uint32_t>(L, -1));
+    if constexpr (sizeof(lua_Integer) == sizeof(uint32_t))
+        EXPECT_TRUE(luabridge::isInstance<uint32_t>(L, -1));
+    else
+        EXPECT_FALSE(luabridge::isInstance<uint32_t>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<uint64_t>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<bool>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::byte>(L, -1));
@@ -523,9 +550,18 @@ TEST_F(StackTests, DISABLED_Uint64Type) // FAIL: because lua_Integer is long lon
     EXPECT_FALSE(luabridge::isInstance<std::optional<uint8_t>>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::optional<int16_t>>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::optional<uint16_t>>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::optional<int32_t>>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::optional<uint32_t>>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::optional<int64_t>>(L, -1));
+    if constexpr (sizeof(lua_Integer) == sizeof(uint32_t))
+    {
+        EXPECT_TRUE(luabridge::isInstance<std::optional<int32_t>>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<std::optional<uint32_t>>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<std::optional<int64_t>>(L, -1));
+    }
+    else
+    {
+        EXPECT_FALSE(luabridge::isInstance<std::optional<int32_t>>(L, -1));
+        EXPECT_FALSE(luabridge::isInstance<std::optional<uint32_t>>(L, -1));
+        EXPECT_FALSE(luabridge::isInstance<std::optional<int64_t>>(L, -1));
+    }
     EXPECT_TRUE(luabridge::isInstance<std::optional<uint64_t>>(L, -1));
 
     {

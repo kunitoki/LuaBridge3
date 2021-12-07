@@ -71,6 +71,11 @@ struct Stack<std::array<T, Size>>
 
         return array;
     }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        return lua_istable(L, index) && get_length(L, index) == Size;
+    }
 };
 
 } // namespace luabridge
