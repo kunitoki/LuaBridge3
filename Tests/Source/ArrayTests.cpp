@@ -128,7 +128,15 @@ TEST_F(ArrayTests, RaiseOnWrongSize)
 {
     runLua("result = { 1, 2, 3, 4 }");
     
-    std::array<lua_Integer, 3> output;
-    ASSERT_THROW((result<decltype(output)>()), std::exception);
+    ASSERT_THROW((result<std::array<lua_Integer, 3>>()), std::exception);
+
+    std::error_code ec;
+    auto result = luabridge::push(L, std::array<lua_Integer, 4>{ 5, 6, 7, 8 }, ec);
+    ASSERT_TRUE(result);
+
+    EXPECT_TRUE((luabridge::isInstance<std::array<lua_Integer, 4>>(L, -1)));
+    EXPECT_FALSE((luabridge::isInstance<std::array<lua_Integer, 3>>(L, -1)));
+    
+    lua_pop(L, -1);
 }
 #endif
