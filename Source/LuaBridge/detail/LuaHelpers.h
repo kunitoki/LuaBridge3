@@ -355,6 +355,9 @@ constexpr bool is_integral_representable_by(T value)
             && static_cast<U>(value) <= std::numeric_limits<U>::max();
     }
 
+    if constexpr (std::is_unsigned_v<T>)
+        return value <= static_cast<T>(std::numeric_limits<U>::max());
+
     return value >= static_cast<T>(std::numeric_limits<U>::min())
         && value <= static_cast<T>(std::numeric_limits<U>::max());
 }
