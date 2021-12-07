@@ -20,7 +20,7 @@ struct Stack<std::map<K, V>>
 {
     using Type = std::map<K, V>;
 
-    static bool push(lua_State* L, const Type& map, std::error_code& ec)
+    [[nodiscard]] static bool push(lua_State* L, const Type& map, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         luaL_checkstack(L, 3, detail::error_lua_stack_overflow);
@@ -54,7 +54,7 @@ struct Stack<std::map<K, V>>
         return true;
     }
 
-    static Type get(lua_State* L, int index)
+    [[nodiscard]] static Type get(lua_State* L, int index)
     {
         if (!lua_istable(L, index))
             luaL_error(L, "#%d argument must be a table", index);
@@ -73,7 +73,7 @@ struct Stack<std::map<K, V>>
         return map;
     }
 
-    static bool isInstance(lua_State* L, int index)
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
     {
         return lua_istable(L, index);
     }

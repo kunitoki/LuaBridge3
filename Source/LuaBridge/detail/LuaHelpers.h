@@ -50,7 +50,7 @@ inline void* lua_newuserdata_x(lua_State* L, size_t sz)
 {
     return lua_newuserdatadtor(L, sz, [](void* x)
     {
-        auto object = static_cast<T*>(x);
+        T* object = static_cast<T*>(x);
         object->~T();
     });
 }
@@ -147,14 +147,14 @@ inline int lua_compare(lua_State* L, int idx1, int idx2, int op)
 
 inline int get_length(lua_State* L, int idx)
 {
-    return int(lua_objlen(L, idx));
+    return static_cast<int>(lua_objlen(L, idx));
 }
 
 #else
 inline int get_length(lua_State* L, int idx)
 {
     lua_len(L, idx);
-    int len = int(luaL_checknumber(L, -1));
+    const int len = static_cast<int>(luaL_checknumber(L, -1));
     lua_pop(L, 1);
     return len;
 }
@@ -267,10 +267,10 @@ inline void rawsetfield(lua_State* L, int index, char const* key)
 template <class T>
 [[nodiscard]] T* align(void* ptr) noexcept
 {
-    auto address = reinterpret_cast<size_t>(ptr);
+    const auto address = reinterpret_cast<size_t>(ptr);
 
-    auto offset = address % alignof(T);
-    auto aligned_address = (offset == 0) ? address : (address + alignof(T) - offset);
+    const auto offset = address % alignof(T);
+    const auto aligned_address = (offset == 0) ? address : (address + alignof(T) - offset);
 
     return reinterpret_cast<T*>(aligned_address);
 }
@@ -279,7 +279,7 @@ template <class T>
  * @brief Return the space needed to align the type T on an unaligned address.
  */
 template <class T>
-[[nodiscard]] size_t maximum_space_needed_to_align() noexcept
+[[nodiscard]] constexpr size_t maximum_space_needed_to_align() noexcept
 {
     return sizeof(T) + alignof(T) - 1;
 }
@@ -306,7 +306,7 @@ int lua_deleteuserdata_aligned(lua_State* L)
 template <class T, class... Args>
 void* lua_newuserdata_aligned(lua_State* L, Args&&... args)
 {
-#if LUABRIDGE_USE_LUAU
+#if LUABRIDGE_ON_LUAU
     void* pointer = lua_newuserdatadtor(L, maximum_space_needed_to_align<T>(), [](void* x)
     {
         T* aligned = align<T>(x);

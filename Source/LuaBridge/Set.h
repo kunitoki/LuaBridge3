@@ -19,7 +19,7 @@ struct Stack<std::set<K, V>>
 {
     using Type = std::set<K, V>;
     
-    static bool push(lua_State* L, const Type& set, std::error_code& ec)
+    [[nodiscard]] static bool push(lua_State* L, const Type& set, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         luaL_checkstack(L, 3, detail::error_lua_stack_overflow);
@@ -53,7 +53,7 @@ struct Stack<std::set<K, V>>
         return true;
     }
 
-    static Type get(lua_State* L, int index)
+    [[nodiscard]] static Type get(lua_State* L, int index)
     {
         if (!lua_istable(L, index))
             luaL_error(L, "#%d argument must be a table", index);
@@ -72,7 +72,7 @@ struct Stack<std::set<K, V>>
         return set;
     }
 
-    static bool isInstance(lua_State* L, int index)
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
     {
         return lua_istable(L, index);
     }

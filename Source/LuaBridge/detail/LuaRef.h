@@ -47,7 +47,7 @@ struct LuaNil
 template <>
 struct Stack<LuaNil>
 {
-    static bool push(lua_State* L, const LuaNil&, std::error_code&)
+    [[nodiscard]] static bool push(lua_State* L, const LuaNil&, std::error_code&)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
@@ -57,7 +57,7 @@ struct Stack<LuaNil>
         return true;
     }
 
-    static bool isInstance(lua_State* L, int index)
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
     {
         return lua_type(L, index) == LUA_TNIL;
     }
@@ -1305,12 +1305,12 @@ private:
 template <>
 struct Stack<LuaRef>
 {
-    static bool push(lua_State* L, const LuaRef& v, std::error_code&)
+    [[nodiscard]] static bool push(lua_State* L, const LuaRef& v, std::error_code&)
     {
         return v.push(L), true;
     }
 
-    static LuaRef get(lua_State* L, int index)
+    [[nodiscard]] static LuaRef get(lua_State* L, int index)
     {
         return LuaRef::fromStack(L, index);
     }
@@ -1323,7 +1323,7 @@ struct Stack<LuaRef>
 template <>
 struct Stack<LuaRef::TableItem>
 {
-    static bool push(lua_State* L, const LuaRef::TableItem& v, std::error_code&)
+    [[nodiscard]] static bool push(lua_State* L, const LuaRef::TableItem& v, std::error_code&)
     {
         return v.push(L), true;
     }
@@ -1335,7 +1335,7 @@ struct Stack<LuaRef::TableItem>
  *
  * This is a syntactic abbreviation for LuaRef::newTable ().
  */
-inline LuaRef newTable(lua_State* L)
+[[nodiscard]] inline LuaRef newTable(lua_State* L)
 {
     return LuaRef::newTable(L);
 }
@@ -1346,7 +1346,7 @@ inline LuaRef newTable(lua_State* L)
  *
  * This is a syntactic abbreviation for LuaRef::getGlobal ().
  */
-inline LuaRef getGlobal(lua_State* L, const char* name)
+[[nodiscard]] inline LuaRef getGlobal(lua_State* L, const char* name)
 {
     return LuaRef::getGlobal(L, name);
 }
@@ -1356,7 +1356,7 @@ inline LuaRef getGlobal(lua_State* L, const char* name)
  * @brief C++ like cast syntax.
  */
 template <class T>
-T cast(const LuaRef& ref)
+[[nodiscard]] T cast(const LuaRef& ref)
 {
     return ref.cast<T>();
 }
