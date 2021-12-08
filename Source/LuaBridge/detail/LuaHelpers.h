@@ -26,7 +26,6 @@ constexpr void unused(Args&&...)
 
 // These functions and defines are for Luau.
 #if LUABRIDGE_ON_LUAU
-
 inline int luaL_ref(lua_State* L, int idx)
 {
     assert(idx == LUA_REGISTRYINDEX);
@@ -66,7 +65,6 @@ inline void lua_pushcclosure_x(lua_State* L, lua_CFunction fn, int n)
 }
 
 #else
-
 using ::luaL_ref;
 using ::luaL_unref;
 
@@ -88,9 +86,45 @@ inline void lua_pushcclosure_x(lua_State* L, lua_CFunction fn, int n)
 
 #endif // LUABRIDGE_ON_LUAU
 
+// These are for Lua versions prior to 5.3.0.
+#if LUA_VERSION_NUM < 503
+inline lua_Number to_numberx(lua_State* L, int idx, int* isnum)
+{
+    lua_Number n = lua_tonumber(L, idx);
+
+    if (isnum)
+        *isnum = (n != 0 || lua_isnumber(L, idx));
+
+    return n;
+}
+
+inline lua_Integer to_integerx(lua_State* L, int idx, int* isnum)
+{
+    int ok = 0;
+    lua_Number n = to_numberx(L, idx, &ok);
+
+    if (ok)
+    {
+        const auto int_n = static_cast<lua_Integer>(n);
+        if (n == int_n)
+        {
+            if (isnum)
+                *isnum = 1;
+            
+            return int_n;
+        }
+    }
+
+    if (isnum)
+        *isnum = 0;
+    
+    return 0;
+}
+
+#endif // LUA_VERSION_NUM < 503
+
 // These are for Lua versions prior to 5.2.0.
 #if LUA_VERSION_NUM < 502
-
 using lua_Unsigned = std::make_unsigned_t<lua_Integer>;
 
 #if ! LUABRIDGE_ON_LUAU
@@ -103,7 +137,7 @@ inline int lua_absindex(lua_State* L, int idx)
 }
 #endif
 
-inline void lua_rawgetp(lua_State* L, int idx, void const* p)
+inline void lua_rawgetp(lua_State* L, int idx, const void* p)
 {
     idx = lua_absindex(L, idx);
     luaL_checkstack(L, 1, "not enough stack slots");
@@ -111,7 +145,7 @@ inline void lua_rawgetp(lua_State* L, int idx, void const* p)
     lua_rawget(L, idx);
 }
 
-inline void lua_rawsetp(lua_State* L, int idx, void const* p)
+inline void lua_rawsetp(lua_State* L, int idx, const void* p)
 {
     idx = lua_absindex(L, idx);
     luaL_checkstack(L, 1, "not enough stack slots");
@@ -130,15 +164,12 @@ inline int lua_compare(lua_State* L, int idx1, int idx2, int op)
     {
     case LUA_OPEQ:
         return lua_equal(L, idx1, idx2);
-        break;
 
     case LUA_OPLT:
         return lua_lessthan(L, idx1, idx2);
-        break;
 
     case LUA_OPLE:
         return lua_equal(L, idx1, idx2) || lua_lessthan(L, idx1, idx2);
-        break;
 
     default:
         return 0;
@@ -150,7 +181,7 @@ inline int get_length(lua_State* L, int idx)
     return static_cast<int>(lua_objlen(L, idx));
 }
 
-#else
+#else // LUA_VERSION_NUM >= 502
 inline int get_length(lua_State* L, int idx)
 {
     lua_len(L, idx);
@@ -159,7 +190,7 @@ inline int get_length(lua_State* L, int idx)
     return len;
 }
 
-#endif
+#endif // LUA_VERSION_NUM < 502
 
 #ifndef LUA_OK
 #define LUABRIDGE_LUA_OK 0
@@ -211,9 +242,33 @@ template <class T>
 void pushunsigned(lua_State* L, T value)
 {
 #if LUA_VERSION_NUM != 502
-    lua_pushinteger(L, static_cast<lua_Unsigned>(value));
+    lua_pushinteger(L, static_cast<std::make_unsigned_t<lua_Integer>>(value));
 #else
-    lua_pushunsigned(L, static_cast<lua_Unsigned>(value));
+    lua_pushunsigned(L, static_cast<std::make_unsigned_t<lua_Integer>>(value));
+#endif
+}
+
+/**
+ * @brief Helper to convert to integer.
+ */
+inline lua_Number tonumber(lua_State* L, int idx, int* isnum)
+{
+#if ! LUABRIDGE_ON_LUAU && LUA_VERSION_NUM > 502
+    return lua_tonumberx(L, idx, isnum);
+#else
+    return to_numberx(L, idx, isnum);
+#endif
+}
+
+/**
+ * @brief Helper to convert to integer.
+ */
+inline lua_Integer tointeger(lua_State* L, int idx, int* isnum)
+{
+#if ! LUABRIDGE_ON_LUAU && LUA_VERSION_NUM > 502
+    return lua_tointegerx(L, idx, isnum);
+#else
+    return to_integerx(L, idx, isnum);
 #endif
 }
 
@@ -362,6 +417,16 @@ constexpr bool is_integral_representable_by(T value)
         && value <= static_cast<T>(std::numeric_limits<U>::max());
 }
 
+template <class U = lua_Integer>
+bool is_integral_representable_by(lua_State* L, int index)
+{
+    int isValid = 0;
+
+    const auto value = tointeger(L, index, &isValid);
+
+    return isValid ? is_integral_representable_by<U>(value) : false;
+}
+
 /**
  * @brief Checks if the value on the stack is a number type and can fit into the corresponding c++ numerical type..
  */
@@ -377,6 +442,16 @@ constexpr bool is_floating_point_representable_by(T value)
 
     return value >= static_cast<T>(-std::numeric_limits<U>::max())
         && value <= static_cast<T>(std::numeric_limits<U>::max());
+}
+
+template <class U = lua_Number>
+bool is_floating_point_representable_by(lua_State* L, int index)
+{
+    int isValid = 0;
+
+    const auto value = tonumber(L, index, &isValid);
+
+    return isValid ? is_floating_point_representable_by<U>(value) : false;
 }
 
 } // namespace luabridge

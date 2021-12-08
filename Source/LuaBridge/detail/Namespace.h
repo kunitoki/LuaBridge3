@@ -59,11 +59,8 @@ protected:
 
     Registrar& operator=(const Registrar& rhs)
     {
-        using std::swap;
-
-        Registrar tmp(rhs);
-
-        swap(m_stackSize, tmp.m_stackSize);
+        m_stackSize = rhs.m_stackSize;
+        m_skipStackPops = rhs.m_skipStackPops;
 
         return *this;
     }
