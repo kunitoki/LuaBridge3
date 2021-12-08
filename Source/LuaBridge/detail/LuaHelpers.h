@@ -241,11 +241,9 @@ void throw_or_assert(Args&&... args)
 template <class T>
 void pushunsigned(lua_State* L, T value)
 {
-#if LUA_VERSION_NUM != 502
-    lua_pushinteger(L, static_cast<std::make_unsigned_t<lua_Integer>>(value));
-#else
-    lua_pushunsigned(L, static_cast<std::make_unsigned_t<lua_Integer>>(value));
-#endif
+    static_assert(std::is_unsigned_v<T>);
+
+    lua_pushinteger(L, static_cast<lua_Integer>(value));
 }
 
 /**

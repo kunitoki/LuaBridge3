@@ -562,7 +562,7 @@ TEST_F(StackTests, Uint32Type)
     }
 }
 
-TEST_F(StackTests, DISABLED_Uint64Type)
+TEST_F(StackTests, Uint64Type)
 {
     uint64_t value = static_cast<uint64_t>(std::numeric_limits<lua_Integer>::max());
 
@@ -833,7 +833,7 @@ TEST_F(StackTests, FloatTypeNotFittingPush)
         EXPECT_STREQ("luabridge", ec.category().name());
     }
 
-    if constexpr (sizeof(long double) == sizeof(lua_Number))
+    if constexpr (sizeof(long double) > sizeof(double) && sizeof(long double) > sizeof(lua_Number))
     {
         long double value = std::numeric_limits<long double>::max();
 
@@ -846,25 +846,18 @@ TEST_F(StackTests, FloatTypeNotFittingIsInstance)
 {
     std::error_code ec;
 
+    const luabridge::StackRestore sr(L);
+
+    EXPECT_TRUE(luabridge::push(L, std::numeric_limits<lua_Number>::max(), ec));
+
+    EXPECT_FALSE(luabridge::isInstance<float>(L, 1));
+
     if constexpr (sizeof(double) == sizeof(lua_Number))
-    {
-        const luabridge::StackRestore sr(L);
-
-        EXPECT_TRUE(luabridge::push(L, std::numeric_limits<lua_Number>::max(), ec));
-        EXPECT_FALSE(luabridge::isInstance<float>(L, 1));
         EXPECT_TRUE(luabridge::isInstance<double>(L, 1));
-        EXPECT_TRUE(luabridge::isInstance<long double>(L, 1));
-    }
-    
-    if constexpr (sizeof(long double) == sizeof(lua_Number))
-    {
-        const luabridge::StackRestore sr(L);
-
-        EXPECT_TRUE(luabridge::push(L, std::numeric_limits<lua_Number>::max(), ec));
-        EXPECT_FALSE(luabridge::isInstance<float>(L, 1));
+    else if constexpr (sizeof(long double) > sizeof(double) && sizeof(long double) == sizeof(lua_Number))
         EXPECT_FALSE(luabridge::isInstance<double>(L, 1));
-        EXPECT_TRUE(luabridge::isInstance<long double>(L, 1));
-    }
+
+    EXPECT_TRUE(luabridge::isInstance<long double>(L, 1));
 }
 
 TEST_F(StackTests, CharArrayType)
