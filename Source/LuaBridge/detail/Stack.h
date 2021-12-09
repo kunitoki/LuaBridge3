@@ -53,10 +53,14 @@ struct Stack<void>
 template <>
 struct Stack<std::nullptr_t>
 {
-    [[nodiscard]] static bool push(lua_State* L, std::nullptr_t, std::error_code&)
+    [[nodiscard]] static bool push(lua_State* L, std::nullptr_t, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+        if (! lua_checkstack(L, 1))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
 #endif
         
         lua_pushnil(L);
@@ -94,10 +98,14 @@ struct Stack<lua_State*>
 template <>
 struct Stack<lua_CFunction>
 {
-    [[nodiscard]] static bool push(lua_State* L, lua_CFunction f, std::error_code&)
+    [[nodiscard]] static bool push(lua_State* L, lua_CFunction f, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+        if (! lua_checkstack(L, 1))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
 #endif
 
         lua_pushcfunction_x(L, f);
@@ -122,10 +130,14 @@ struct Stack<lua_CFunction>
 template <>
 struct Stack<bool>
 {
-    [[nodiscard]] static bool push(lua_State* L, bool value, std::error_code&)
+    [[nodiscard]] static bool push(lua_State* L, bool value, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+        if (! lua_checkstack(L, 1))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
 #endif
 
         lua_pushboolean(L, value ? 1 : 0);
@@ -155,7 +167,11 @@ struct Stack<std::byte>
     [[nodiscard]] static bool push(lua_State* L, std::byte value, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+        if (! lua_checkstack(L, 1))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
 #endif
 
         pushunsigned(L, std::to_integer<std::make_unsigned_t<lua_Integer>>(value));
@@ -183,10 +199,14 @@ struct Stack<std::byte>
 template <>
 struct Stack<char>
 {
-    [[nodiscard]] static bool push(lua_State* L, char value, std::error_code&)
+    [[nodiscard]] static bool push(lua_State* L, char value, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+        if (! lua_checkstack(L, 1))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
 #endif
 
         lua_pushlstring(L, &value, 1);
@@ -223,7 +243,11 @@ struct Stack<int8_t>
     [[nodiscard]] static bool push(lua_State* L, int8_t value, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+        if (! lua_checkstack(L, 1))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
 #endif
 
         lua_pushinteger(L, static_cast<lua_Integer>(value));
@@ -256,7 +280,11 @@ struct Stack<unsigned char>
     [[nodiscard]] static bool push(lua_State* L, unsigned char value, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+        if (! lua_checkstack(L, 1))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
 #endif
 
         pushunsigned(L, value);
@@ -289,7 +317,11 @@ struct Stack<short>
     [[nodiscard]] static bool push(lua_State* L, short value, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+        if (! lua_checkstack(L, 1))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
 #endif
 
         lua_pushinteger(L, static_cast<lua_Integer>(value));
@@ -322,7 +354,11 @@ struct Stack<unsigned short>
     [[nodiscard]] static bool push(lua_State* L, unsigned short value, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+        if (! lua_checkstack(L, 1))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
 #endif
 
         pushunsigned(L, value);
@@ -353,7 +389,11 @@ struct Stack<int>
     [[nodiscard]] static bool push(lua_State* L, int value, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+        if (! lua_checkstack(L, 1))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
 #endif
 
         if (! is_integral_representable_by(value))
@@ -390,7 +430,11 @@ struct Stack<unsigned int>
     [[nodiscard]] static bool push(lua_State* L, unsigned int value, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+        if (! lua_checkstack(L, 1))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
 #endif
 
         if (! is_integral_representable_by(value))
@@ -427,7 +471,11 @@ struct Stack<long>
     [[nodiscard]] static bool push(lua_State* L, long value, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+        if (! lua_checkstack(L, 1))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
 #endif
 
         if (! is_integral_representable_by(value))
@@ -464,7 +512,11 @@ struct Stack<unsigned long>
     [[nodiscard]] static bool push(lua_State* L, unsigned long value, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+        if (! lua_checkstack(L, 1))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
 #endif
 
         if (! is_integral_representable_by(value))
@@ -501,7 +553,11 @@ struct Stack<long long>
     [[nodiscard]] static bool push(lua_State* L, long long value, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+        if (! lua_checkstack(L, 1))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
 #endif
 
         if (! is_integral_representable_by(value))
@@ -538,7 +594,11 @@ struct Stack<unsigned long long>
     [[nodiscard]] static bool push(lua_State* L, unsigned long long value, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+        if (! lua_checkstack(L, 1))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
 #endif
 
         if (! is_integral_representable_by(value))
@@ -551,7 +611,7 @@ struct Stack<unsigned long long>
         return true;
     }
 
-    [[nodiscard]] static unsigned long get(lua_State* L, int index)
+    [[nodiscard]] static unsigned long long get(lua_State* L, int index)
     {
         return static_cast<unsigned long long>(luaL_checkinteger(L, index));
     }
@@ -575,7 +635,11 @@ struct Stack<float>
     [[nodiscard]] static bool push(lua_State* L, float value, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+        if (! lua_checkstack(L, 1))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
 #endif
 
         if (! is_floating_point_representable_by(value))
@@ -612,7 +676,11 @@ struct Stack<double>
     [[nodiscard]] static bool push(lua_State* L, double value, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+        if (! lua_checkstack(L, 1))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
 #endif
 
         if (! is_floating_point_representable_by(value))
@@ -649,7 +717,11 @@ struct Stack<long double>
     [[nodiscard]] static bool push(lua_State* L, long double value, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+        if (! lua_checkstack(L, 1))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
 #endif
 
         if (! is_floating_point_representable_by(value))
@@ -683,10 +755,14 @@ struct Stack<long double>
 template <>
 struct Stack<const char*>
 {
-    [[nodiscard]] static bool push(lua_State* L, const char* str, std::error_code&)
+    [[nodiscard]] static bool push(lua_State* L, const char* str, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+        if (! lua_checkstack(L, 1))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
 #endif
 
         if (str != nullptr)
@@ -715,10 +791,14 @@ struct Stack<const char*>
 template <>
 struct Stack<std::string_view>
 {
-    [[nodiscard]] static bool push(lua_State* L, std::string_view str, std::error_code&)
+    [[nodiscard]] static bool push(lua_State* L, std::string_view str, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+        if (! lua_checkstack(L, 1))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
 #endif
 
         lua_pushlstring(L, str.data(), str.size());
@@ -743,10 +823,14 @@ struct Stack<std::string_view>
 template <>
 struct Stack<std::string>
 {
-    [[nodiscard]] static bool push(lua_State* L, const std::string& str, std::error_code&)
+    [[nodiscard]] static bool push(lua_State* L, const std::string& str, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+        if (! lua_checkstack(L, 1))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
 #endif
 
         lua_pushlstring(L, str.data(), str.size());
@@ -794,7 +878,11 @@ struct Stack<std::optional<T>>
             return Stack<T>::push(L, *value, ec);
 
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+        if (! lua_checkstack(L, 1))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
 #endif
 
         lua_pushnil(L);
@@ -825,7 +913,11 @@ struct Stack<std::tuple<Types...>>
     [[nodiscard]] static bool push(lua_State* L, const std::tuple<Types...>& t, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(L, 2, detail::error_lua_stack_overflow);
+        if (! lua_checkstack(L, 2))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
 #endif
 
         lua_createtable(L, static_cast<int>(Size), 0);
@@ -925,7 +1017,11 @@ struct Stack<T[N]>
         if constexpr (std::is_same_v<T, char>)
         {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-            luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+            if (! lua_checkstack(L, 1))
+            {
+                ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+                return false;
+            }
 #endif
 
             lua_pushlstring(L, value, N - 1);
@@ -933,7 +1029,11 @@ struct Stack<T[N]>
         }
 
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(L, 2, detail::error_lua_stack_overflow);
+        if (! lua_checkstack(L, 2))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
 #endif
 
         const int initialStackSize = lua_gettop(L);

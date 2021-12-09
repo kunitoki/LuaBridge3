@@ -22,7 +22,11 @@ struct Stack<std::set<K, V>>
     [[nodiscard]] static bool push(lua_State* L, const Type& set, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(L, 3, detail::error_lua_stack_overflow);
+        if (! lua_checkstack(L, 3))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
 #endif
 
         const int initialStackSize = lua_gettop(L);

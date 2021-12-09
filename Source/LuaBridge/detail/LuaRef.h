@@ -47,10 +47,14 @@ struct LuaNil
 template <>
 struct Stack<LuaNil>
 {
-    [[nodiscard]] static bool push(lua_State* L, const LuaNil&, std::error_code&)
+    [[nodiscard]] static bool push(lua_State* L, const LuaNil&, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+        if (! lua_checkstack(L, 1))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
 #endif
 
         lua_pushnil(L);
@@ -170,7 +174,8 @@ public:
     std::string tostring() const
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(m_L, 2, detail::error_lua_stack_overflow);
+        if (! lua_checkstack(m_L, 2))
+            return {};
 #endif
 
         StackPop p(m_L, 1);
@@ -784,7 +789,8 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             : LuaRefBase(other.m_L)
         {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-            luaL_checkstack(m_L, 1, detail::error_lua_stack_overflow);
+            if (! lua_checkstack(m_L, 1))
+                return;
 #endif
 
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, other.m_tableRef);
@@ -825,7 +831,8 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         TableItem& operator=(const T& v)
         {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-            luaL_checkstack(m_L, 2, detail::error_lua_stack_overflow);
+            if (! lua_checkstack(m_L, 2))
+                return *this;
 #endif
 
             StackPop p(m_L, 1);
@@ -857,7 +864,8 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         TableItem& rawset(const T& v)
         {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-            luaL_checkstack(m_L, 2, detail::error_lua_stack_overflow);
+            if (! lua_checkstack(m_L, 2))
+                return *this;
 #endif
 
             StackPop p(m_L, 1);
@@ -882,7 +890,8 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         void push() const
         {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-            luaL_checkstack(m_L, 3, detail::error_lua_stack_overflow);
+            if (! lua_checkstack(m_L, 3))
+                return;
 #endif
 
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_tableRef);
@@ -967,7 +976,8 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         : LuaRefBase(L)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(m_L, 1, detail::error_lua_stack_overflow);
+        if (! lua_checkstack(m_L, 1))
+            return;
 #endif
 
         lua_pushvalue(m_L, index);
@@ -1100,7 +1110,8 @@ public:
     static LuaRef newTable(lua_State* L)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+        if (! lua_checkstack(L, 1))
+            return { L };
 #endif
 
         lua_newtable(L);
@@ -1121,7 +1132,8 @@ public:
     static LuaRef getGlobal(lua_State* L, const char* name)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
+        if (! lua_checkstack(L, 1))
+            return { L };
 #endif
 
         lua_getglobal(L, name);
@@ -1223,7 +1235,8 @@ public:
     void push() const
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(m_L, 1, detail::error_lua_stack_overflow);
+        if (! lua_checkstack(m_L, 1))
+            return;
 #endif
 
         lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_ref);

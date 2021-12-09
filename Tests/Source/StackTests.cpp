@@ -564,7 +564,7 @@ TEST_F(StackTests, Uint32Type)
 
 TEST_F(StackTests, Uint64Type)
 {
-    uint64_t value = static_cast<uint64_t>(std::numeric_limits<lua_Integer>::max());
+    uint64_t value = static_cast<uint64_t>(std::numeric_limits<uint32_t>::max()) + 1;
 
     {
         std::error_code ec;

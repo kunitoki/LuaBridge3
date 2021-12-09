@@ -106,7 +106,7 @@ inline lua_Integer to_integerx(lua_State* L, int idx, int* isnum)
     if (ok)
     {
         const auto int_n = static_cast<lua_Integer>(n);
-        if (n == int_n)
+        if (n == static_cast<lua_Number>(int_n))
         {
             if (isnum)
                 *isnum = 1;
