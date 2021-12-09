@@ -913,7 +913,7 @@ struct Stack<std::tuple<Types...>>
     [[nodiscard]] static bool push(lua_State* L, const std::tuple<Types...>& t, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        if (! lua_checkstack(L, 2))
+        if (! lua_checkstack(L, 3))
         {
             ec = makeErrorCode(ErrorCode::LuaStackOverflow);
             return false;
@@ -930,7 +930,7 @@ struct Stack<std::tuple<Types...>>
         if (!lua_istable(L, index))
             luaL_error(L, "#%d argment must be a table", index);
 
-        if (get_length(L, index) != Size)
+        if (get_length(L, index) != static_cast<int>(Size))
             luaL_error(L, "table size should be %d but is %d", static_cast<unsigned>(Size), get_length(L, index));
 
         std::tuple<Types...> value;
@@ -945,7 +945,7 @@ struct Stack<std::tuple<Types...>>
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
     {
-        return lua_type(L, index) == LUA_TTABLE;
+        return lua_type(L, index) == LUA_TTABLE && get_length(L, index) == static_cast<int>(Size);
     }
 
 private:
@@ -1057,6 +1057,11 @@ struct Stack<T[N]>
         }
 
         return true;
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        return lua_type(L, index) == LUA_TTABLE && get_length(L, index) == static_cast<int>(N);
     }
 };
 
