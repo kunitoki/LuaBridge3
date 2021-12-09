@@ -291,6 +291,22 @@ TEST_F(LuaRefTests, Callable)
     EXPECT_EQ(200, obj["i"].cast<int>());
 }
 
+TEST_F(LuaRefTests, Pop)
+{
+    lua_pushnumber(L, 42.0);
+    luabridge::LuaRef ref1 = luabridge::LuaRef::fromStack(L);
+
+    lua_pushnumber(L, 1337.0);
+    luabridge::LuaRef ref2 = luabridge::LuaRef::fromStack(L);
+
+    ref1.push();
+    ref2.pop();
+
+    EXPECT_DOUBLE_EQ(ref1.cast<double>(), ref2.cast<double>());
+    EXPECT_EQ("42.0", ref1.tostring());
+    EXPECT_EQ("42.0", ref2.tostring());
+}
+
 TEST_F(LuaRefTests, IsInstance)
 {
     struct Base

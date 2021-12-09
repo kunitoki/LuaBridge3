@@ -74,6 +74,7 @@ TEST_F(StackTests, NullptrStackOverflow)
     
     std::error_code ec;
     ASSERT_FALSE(luabridge::Stack<std::nullptr_t>::push(L, nullptr, ec));
+    EXPECT_FALSE(ec.message().empty());
 }
 
 TEST_F(StackTests, LuaStateType)
