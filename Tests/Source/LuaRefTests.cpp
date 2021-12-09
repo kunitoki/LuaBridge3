@@ -293,18 +293,18 @@ TEST_F(LuaRefTests, Callable)
 
 TEST_F(LuaRefTests, Pop)
 {
-    lua_pushnumber(L, 42.0);
+    lua_pushstring(L, "hello");
     luabridge::LuaRef ref1 = luabridge::LuaRef::fromStack(L);
 
-    lua_pushnumber(L, 1337.0);
+    lua_pushstring(L, "world!");
     luabridge::LuaRef ref2 = luabridge::LuaRef::fromStack(L);
 
     ref1.push();
     ref2.pop();
 
-    EXPECT_DOUBLE_EQ(ref1.cast<double>(), ref2.cast<double>());
-    EXPECT_EQ("42.0", ref1.tostring());
-    EXPECT_EQ("42.0", ref2.tostring());
+    EXPECT_EQ(ref1.cast<std::string>(), ref2.cast<std::string>());
+    EXPECT_EQ("hello", ref1.tostring());
+    EXPECT_EQ("hello", ref2.tostring());
 }
 
 TEST_F(LuaRefTests, IsInstance)

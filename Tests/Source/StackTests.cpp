@@ -5,19 +5,6 @@
 
 #include "TestBase.h"
 
-namespace {
-void exhaustStackSpace(lua_State* L)
-{
-    for (int i = 0; i < 2000000; ++i)
-    {
-        if (!lua_checkstack(L, 1))
-            break;
-
-        lua_pushnil(L);
-    }
-}
-} // namespace
-
 struct StackTests : TestBase
 {
 };
@@ -70,7 +57,7 @@ TEST_F(StackTests, NullptrType)
 
 TEST_F(StackTests, NullptrStackOverflow)
 {
-    exhaustStackSpace(L);
+    exhaustStackSpace();
     
     std::error_code ec;
     ASSERT_FALSE(luabridge::Stack<std::nullptr_t>::push(L, nullptr, ec));
@@ -127,7 +114,7 @@ TEST_F(StackTests, LuaCFunctionType)
 
 TEST_F(StackTests, LuaCFunctionStackOverflow)
 {
-    exhaustStackSpace(L);
+    exhaustStackSpace();
     
     lua_CFunction value = +[](lua_State*) { return 0; };
     
@@ -176,7 +163,7 @@ TEST_F(StackTests, BoolType)
 
 TEST_F(StackTests, BoolStackOverflow)
 {
-    exhaustStackSpace(L);
+    exhaustStackSpace();
     
     bool value = true;
     
@@ -228,7 +215,7 @@ TEST_F(StackTests, CharType)
 
 TEST_F(StackTests, CharStackOverflow)
 {
-    exhaustStackSpace(L);
+    exhaustStackSpace();
     
     char value = 'a';
     
@@ -286,7 +273,7 @@ TEST_F(StackTests, StdByteType)
 
 TEST_F(StackTests, StdByteStackOVerflow)
 {
-    exhaustStackSpace(L);
+    exhaustStackSpace();
     
     std::byte value { 128 };
     
@@ -344,7 +331,7 @@ TEST_F(StackTests, Int8Type)
 
 TEST_F(StackTests, Int8StackOverflow)
 {
-    exhaustStackSpace(L);
+    exhaustStackSpace();
 
     int8_t value = 127;
     
@@ -396,7 +383,7 @@ TEST_F(StackTests, Int16Type)
 
 TEST_F(StackTests, Int16StackOverflow)
 {
-    exhaustStackSpace(L);
+    exhaustStackSpace();
 
     int16_t value = 32767;
     
@@ -447,7 +434,7 @@ TEST_F(StackTests, Int32Type)
 
 TEST_F(StackTests, Int32StackOverflow)
 {
-    exhaustStackSpace(L);
+    exhaustStackSpace();
 
     int32_t value = 2147483647;
     
@@ -509,7 +496,7 @@ TEST_F(StackTests, Int64Type)
 
 TEST_F(StackTests, Int64StackOverflow)
 {
-    exhaustStackSpace(L);
+    exhaustStackSpace();
     
     int64_t value = 42;
     
@@ -566,7 +553,7 @@ TEST_F(StackTests, Uint8Type)
 
 TEST_F(StackTests, Uint8StackOverflow)
 {
-    exhaustStackSpace(L);
+    exhaustStackSpace();
     
     uint8_t value = 42;
     
@@ -621,7 +608,7 @@ TEST_F(StackTests, Uint16Type)
 
 TEST_F(StackTests, Uint16StackOverflow)
 {
-    exhaustStackSpace(L);
+    exhaustStackSpace();
     
     uint16_t value = 42;
     
@@ -685,7 +672,7 @@ TEST_F(StackTests, Uint32Type)
 
 TEST_F(StackTests, Uint32StackOverflow)
 {
-    exhaustStackSpace(L);
+    exhaustStackSpace();
     
     uint32_t value = 42;
     
@@ -755,7 +742,7 @@ TEST_F(StackTests, Uint64Type)
 
 TEST_F(StackTests, Uint64StackOverflow)
 {
-    exhaustStackSpace(L);
+    exhaustStackSpace();
     
     uint64_t value = 42;
     
@@ -866,7 +853,7 @@ TEST_F(StackTests, FloatType)
 
 TEST_F(StackTests, FloatStackOverflow)
 {
-    exhaustStackSpace(L);
+    exhaustStackSpace();
     
     float value = 42.0f;
     
@@ -925,7 +912,7 @@ TEST_F(StackTests, DoubleType)
 
 TEST_F(StackTests, DoubleStackOverflow)
 {
-    exhaustStackSpace(L);
+    exhaustStackSpace();
     
     double value = 42.0;
     
@@ -984,7 +971,7 @@ TEST_F(StackTests, LongDoubleType)
 
 TEST_F(StackTests, LongDoubleStackOverflow)
 {
-    exhaustStackSpace(L);
+    exhaustStackSpace();
     
     long double value = 42.0l;
     
@@ -1084,7 +1071,7 @@ TEST_F(StackTests, CharArrayType)
 
 TEST_F(StackTests, CharArrayStackOverflow)
 {
-    exhaustStackSpace(L);
+    exhaustStackSpace();
     
     char value[] = "xyz";
     
@@ -1145,7 +1132,7 @@ TEST_F(StackTests, ConstCharArrayType)
 
 TEST_F(StackTests, ConstCharArrayStackOverflow)
 {
-    exhaustStackSpace(L);
+    exhaustStackSpace();
     
     const char value[] = "xyz";
     
@@ -1202,7 +1189,7 @@ TEST_F(StackTests, ConstCharLiteralType)
 
 TEST_F(StackTests, ConstCharLiteralStackOverflow)
 {
-    exhaustStackSpace(L);
+    exhaustStackSpace();
     
     std::error_code ec;
     ASSERT_FALSE(luabridge::push(L, "xyz", ec));
@@ -1344,7 +1331,7 @@ TEST_F(StackTests, ConstCharPointerType)
 
 TEST_F(StackTests, ConstCharPointerStackOverflow)
 {
-    exhaustStackSpace(L);
+    exhaustStackSpace();
     
     const char* value = "xyz";
     
@@ -1439,7 +1426,7 @@ TEST_F(StackTests, StringViewType)
 
 TEST_F(StackTests, StringViewStackOverflow)
 {
-    exhaustStackSpace(L);
+    exhaustStackSpace();
     
     std::string_view value = "xyz";
     
@@ -1518,7 +1505,7 @@ TEST_F(StackTests, StringType)
 
 TEST_F(StackTests, StringStackOverflow)
 {
-    exhaustStackSpace(L);
+    exhaustStackSpace();
     
     std::string value = "xyz";
     
@@ -1575,7 +1562,7 @@ TEST_F(StackTests, IntArrayType)
 
 TEST_F(StackTests, IntArrayStackOverflow)
 {
-    exhaustStackSpace(L);
+    exhaustStackSpace();
     
     int value[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9 , 10 };
     
@@ -1585,7 +1572,7 @@ TEST_F(StackTests, IntArrayStackOverflow)
 
 TEST_F(StackTests, ConstIntArrayType)
 {
-    const int value[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9 , 10 };
+    const int value[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
 
     {
         std::error_code ec;
@@ -1632,9 +1619,9 @@ TEST_F(StackTests, ConstIntArrayType)
 
 TEST_F(StackTests, ConstIntArrayStackOverflow)
 {
-    exhaustStackSpace(L);
+    exhaustStackSpace();
     
-    const int value[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9 , 10 };
+    const int value[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
     
     std::error_code ec;
     ASSERT_FALSE(luabridge::push(L, value, ec));

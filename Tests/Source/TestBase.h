@@ -155,6 +155,17 @@ struct TestBase : public ::testing::Test
         luabridge::setGlobal(L, luabridge::LuaRef(L), "result");
     }
 
+    void exhaustStackSpace()
+    {
+        for (int i = 0; i < 2000000; ++i)
+        {
+            if (!lua_checkstack(L, 1))
+                break;
+
+            lua_pushnil(L);
+        }
+    }
+    
     void printStack() const
     {
         std::cerr << "===== Stack =====\n";

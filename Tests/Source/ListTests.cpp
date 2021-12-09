@@ -75,7 +75,7 @@ TEST_F(ListTests, PassToFunction)
 
     resetResult();
 
-    std::list<int> lvalue{10, 20, 30};
+    std::list<int> lvalue{ 10, 20, 30 };
     foo(lvalue);
     ASSERT_TRUE(result().isTable());
     ASSERT_EQ(lvalue, result<std::list<int>>());
@@ -86,4 +86,40 @@ TEST_F(ListTests, PassToFunction)
     foo(constLvalue);
     ASSERT_TRUE(result().isTable());
     ASSERT_EQ(lvalue, result<std::list<int>>());
+}
+
+TEST_F(ListTests, UnregisteredClass)
+{
+    struct Unregistered {};
+    
+    std::error_code ec;
+#if LUABRIDGE_HAS_EXCEPTIONS
+    bool result;
+    ASSERT_THROW((result = luabridge::push(L, std::list<Unregistered>{ Unregistered() }, ec)), std::exception);
+#else
+    ASSERT_FALSE((luabridge::push(L, std::list<Unregistered>{ Unregistered() }, ec)));
+#endif
+}
+
+TEST_F(ListTests, IsInstance)
+{
+    std::error_code ec;
+
+    ASSERT_TRUE((luabridge::push(L, std::list<int>{ 1, 2, 3 }, ec)));
+    EXPECT_TRUE(luabridge::isInstance<std::list<int>>(L, -1));
+    
+    lua_pop(L, 1);
+    
+    ASSERT_TRUE((luabridge::push(L, 1, ec)));
+    EXPECT_FALSE(luabridge::isInstance<std::list<int>>(L, -1));
+}
+
+TEST_F(ListTests, StackOverflow)
+{
+    exhaustStackSpace();
+    
+    std::list<int> value = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+    
+    std::error_code ec;
+    ASSERT_FALSE(luabridge::push(L, value, ec));
 }
