@@ -8,6 +8,63 @@
 
 #include <map>
 
+namespace {
+struct Unregistered {
+    bool operator<(const Unregistered& other) const {
+        return true;
+    }
+};
+
+struct Data
+{
+    /* explicit */ Data(int i) : i(i) {}
+
+    int i;
+};
+
+bool operator==(const Data& lhs, const Data& rhs)
+{
+    return lhs.i == rhs.i;
+}
+
+bool operator<(const Data& lhs, const Data& rhs)
+{
+    return lhs.i < rhs.i;
+}
+
+std::ostream& operator<<(std::ostream& lhs, const Data& rhs)
+{
+    lhs << "{" << rhs.i << "}";
+    return lhs;
+}
+
+std::map<Data, Data> processValues(const std::map<Data, Data>& data)
+{
+    return data;
+}
+
+std::map<Data, Data> processPointers(const std::map<Data, const Data*>& data)
+{
+    std::map<Data, Data> result;
+
+    for (const auto& item : data)
+        result.emplace(item.first, *item.second);
+
+    return result;
+}
+} // namespace
+
+namespace std {
+template <>
+struct hash<Unregistered>
+{
+    std::size_t operator()(const Unregistered& value) const
+    {
+        return 0;
+    }
+};
+} // namespace std
+
 struct MapTests : TestBase
 {
 };
@@ -100,48 +157,6 @@ TEST_F(MapTests, PassToFunction)
     ASSERT_EQ(constLvalue, result<Int2Bool>());
 }
 
-namespace {
-
-struct Data
-{
-    /* explicit */ Data(int i) : i(i) {}
-
-    int i;
-};
-
-bool operator==(const Data& lhs, const Data& rhs)
-{
-    return lhs.i == rhs.i;
-}
-
-bool operator<(const Data& lhs, const Data& rhs)
-{
-    return lhs.i < rhs.i;
-}
-
-std::ostream& operator<<(std::ostream& lhs, const Data& rhs)
-{
-    lhs << "{" << rhs.i << "}";
-    return lhs;
-}
-
-std::map<Data, Data> processValues(const std::map<Data, Data>& data)
-{
-    return data;
-}
-
-std::map<Data, Data> processPointers(const std::map<Data, const Data*>& data)
-{
-    std::map<Data, Data> result;
-    for (const auto& item : data)
-    {
-        result.emplace(item.first, *item.second);
-    }
-    return result;
-}
-
-} // namespace
-
 TEST_F(MapTests, PassFromLua)
 {
     luabridge::getGlobalNamespace(L)
@@ -166,4 +181,50 @@ TEST_F(MapTests, PassFromLua)
         const auto actual = result<std::map<Data, Data>>();
         ASSERT_EQ(expected, actual);
     }
+}
+
+TEST_F(MapTests, UnregisteredClass)
+{
+    std::error_code ec;
+
+    {
+#if LUABRIDGE_HAS_EXCEPTIONS
+        bool result;
+        ASSERT_THROW((result = luabridge::push(L, std::map<Unregistered, int>{ { Unregistered(), 1 } }, ec)), std::exception);
+#else
+        ASSERT_FALSE((luabridge::push(L, std::map<Unregistered, int>{ { Unregistered(), 1 } }, ec)));
+#endif
+    }
+
+    {
+#if LUABRIDGE_HAS_EXCEPTIONS
+        bool result;
+        ASSERT_THROW((result = luabridge::push(L, std::map<int, Unregistered>{ { 1, Unregistered() } }, ec)), std::exception);
+#else
+        ASSERT_FALSE((luabridge::push(L, std::map<int, Unregistered>{ { 1, Unregistered() } }, ec)));
+#endif
+    }
+}
+
+TEST_F(MapTests, IsInstance)
+{
+    std::error_code ec;
+
+    ASSERT_TRUE((luabridge::push(L, std::map<std::string, int>{ { "x", 1 }, { "y", 2 }, { "z", 3 } }, ec)));
+    EXPECT_TRUE((luabridge::isInstance<std::map<std::string, int>>(L, -1)));
+    
+    lua_pop(L, 1);
+    
+    ASSERT_TRUE((luabridge::push(L, 1, ec)));
+    EXPECT_FALSE((luabridge::isInstance<std::map<std::string, int>>(L, -1)));
+}
+
+TEST_F(MapTests, StackOverflow)
+{
+    exhaustStackSpace();
+    
+    std::map<std::string, int> value{ { "x", 1 }, { "y", 2 }, { "z", 3 } };
+    
+    std::error_code ec;
+    ASSERT_FALSE(luabridge::push(L, value, ec));
 }

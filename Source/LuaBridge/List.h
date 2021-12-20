@@ -20,10 +20,14 @@ struct Stack<std::list<T>>
 {
     using Type = std::list<T>;
     
-    static bool push(lua_State* L, const Type& list, std::error_code& ec)
+    [[nodiscard]] static bool push(lua_State* L, const Type& list, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        luaL_checkstack(L, 2, detail::error_lua_stack_overflow);
+        if (! lua_checkstack(L, 3))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
 #endif
 
         const int initialStackSize = lua_gettop(L);
@@ -49,7 +53,7 @@ struct Stack<std::list<T>>
         return true;
     }
 
-    static Type get(lua_State* L, int index)
+    [[nodiscard]] static Type get(lua_State* L, int index)
     {
         if (!lua_istable(L, index))
             luaL_error(L, "#%d argument must be a table", index);
@@ -68,7 +72,7 @@ struct Stack<std::list<T>>
         return list;
     }
 
-    static bool isInstance(lua_State* L, int index)
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
     {
         return lua_istable(L, index);
     }

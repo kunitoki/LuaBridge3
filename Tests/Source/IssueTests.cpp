@@ -61,8 +61,7 @@ template<class Arg, class... Args>
 void pushArgs(lua_State* L, Arg arg, Args... args)
 {
     std::error_code ec;
-
-    luabridge::Stack<Arg>::push(L, arg, ec);
+    [[maybe_unused]] auto result = luabridge::Stack<Arg>::push(L, arg, ec);
 
     pushArgs(L, args...);
 }

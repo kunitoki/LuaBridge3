@@ -8,12 +8,7 @@
 
 #include <optional>
 
-template<class T>
-struct OptionalTest : TestBase
-{
-};
-
-TYPED_TEST_SUITE_P(OptionalTest);
+namespace {
 
 template<typename T>
 std::string toLuaSrcString(T const& value)
@@ -46,6 +41,32 @@ std::optional<T> optCast(luabridge::LuaRef const& ref)
     return ref.cast<std::optional<T>>();
 }
 
+template <class T>
+void checkEquals(T expected, T actual)
+{
+    if constexpr (std::is_same_v<T, float>)
+    {
+        ASSERT_FLOAT_EQ(expected, actual);
+    }
+    else if constexpr (std::is_same_v<T, double> || std::is_same_v<T, long double>)
+    {
+        ASSERT_DOUBLE_EQ(expected, actual);
+    }
+    else
+    {
+        ASSERT_EQ(expected, actual);
+    }
+}
+
+} // namespace
+
+template<class T>
+struct OptionalTest : TestBase
+{
+};
+
+TYPED_TEST_SUITE_P(OptionalTest);
+
 TYPED_TEST_P(OptionalTest, LuaRefPresent)
 {
     using Traits = TypeTraits<TypeParam>;
@@ -59,7 +80,8 @@ TYPED_TEST_P(OptionalTest, LuaRefPresent)
 
         std::optional<TypeParam> const actual = optCast<TypeParam>(this->result());
         ASSERT_TRUE(actual.has_value());
-        ASSERT_EQ(value, actual.value());
+
+        checkEquals(value, actual.value());
     }
 }
 
@@ -86,8 +108,7 @@ TYPED_TEST_P(OptionalTest, LuaRefIsInstancePresent)
         ASSERT_TRUE(actualRef.isInstance<std::optional<TypeParam>>());
 
         // if isInstance returns true a cast without issues is possible
-        std::optional<TypeParam> const actual = optCast<TypeParam>(actualRef);
-        (void)actual;
+        [[maybe_unused]] std::optional<TypeParam> const actual = optCast<TypeParam>(actualRef);
     }
 }
 
@@ -107,8 +128,7 @@ TYPED_TEST_P(OptionalTest, LuaRefIsInstanceNotPresent)
     ASSERT_TRUE(actualRef.isInstance<std::optional<TypeParam>>());
 
     // if isInstance returns true a cast without issues is possible
-    std::optional<TypeParam> const actual = optCast<TypeParam>(actualRef);
-    (void)actual;
+    [[maybe_unused]] std::optional<TypeParam> const actual = optCast<TypeParam>(actualRef);
 }
 
 REGISTER_TYPED_TEST_SUITE_P(OptionalTest,
@@ -288,4 +308,3 @@ TEST_F(OptionalTests, FromCppApi)
     EXPECT_FALSE(result().isNil());
     EXPECT_EQ("abcdef", *result<std::optional<std::string>>());
 }
-

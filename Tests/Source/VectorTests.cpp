@@ -9,6 +9,29 @@
 
 #include <vector>
 
+namespace {
+
+template <class T>
+void checkEquals(const std::vector<T>& expected, const std::vector<T>& actual)
+{
+    if constexpr (std::is_same_v<T, float>)
+    {
+        for (std::size_t i = 0; i < expected.size(); ++i)
+            ASSERT_FLOAT_EQ(expected[i], actual[i]);
+    }
+    else if constexpr (std::is_same_v<T, double> || std::is_same_v<T, long double>)
+    {
+        for (std::size_t i = 0; i < expected.size(); ++i)
+            ASSERT_DOUBLE_EQ(expected[i], actual[i]);
+    }
+    else
+    {
+        ASSERT_EQ(expected, actual);
+    }
+}
+
+} // namespace
+
 template<class T>
 struct VectorTest : TestBase
 {
@@ -24,7 +47,8 @@ TYPED_TEST_P(VectorTest, LuaRef)
 
     std::vector<TypeParam> expected(Traits::values());
     std::vector<TypeParam> actual = this->result();
-    ASSERT_EQ(expected, actual);
+
+    checkEquals(expected, actual);
 }
 
 REGISTER_TYPED_TEST_SUITE_P(VectorTest, LuaRef);

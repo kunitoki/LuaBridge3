@@ -25,6 +25,8 @@ enum class ErrorCode
 {
     ClassNotRegistered = 1,
 
+    LuaStackOverflow,
+
     LuaFunctionCallFailed,
 
     IntegerDoesntFitIntoLuaInteger,
@@ -47,6 +49,9 @@ struct ErrorCategory : std::error_category
         {
         case ErrorCode::ClassNotRegistered:
             return "The class is not registered in LuaBridge";
+
+        case ErrorCode::LuaStackOverflow:
+            return "The lua stack has overflow";
 
         case ErrorCode::LuaFunctionCallFailed:
             return "The lua function invocation raised an error";

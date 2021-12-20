@@ -26,7 +26,6 @@ constexpr void unused(Args&&...)
 
 // These functions and defines are for Luau.
 #if LUABRIDGE_ON_LUAU
-
 inline int luaL_ref(lua_State* L, int idx)
 {
     assert(idx == LUA_REGISTRYINDEX);
@@ -50,7 +49,7 @@ inline void* lua_newuserdata_x(lua_State* L, size_t sz)
 {
     return lua_newuserdatadtor(L, sz, [](void* x)
     {
-        auto object = static_cast<T*>(x);
+        T* object = static_cast<T*>(x);
         object->~T();
     });
 }
@@ -66,7 +65,6 @@ inline void lua_pushcclosure_x(lua_State* L, lua_CFunction fn, int n)
 }
 
 #else
-
 using ::luaL_ref;
 using ::luaL_unref;
 
@@ -88,9 +86,45 @@ inline void lua_pushcclosure_x(lua_State* L, lua_CFunction fn, int n)
 
 #endif // LUABRIDGE_ON_LUAU
 
+// These are for Lua versions prior to 5.3.0.
+#if LUA_VERSION_NUM < 503
+inline lua_Number to_numberx(lua_State* L, int idx, int* isnum)
+{
+    lua_Number n = lua_tonumber(L, idx);
+
+    if (isnum)
+        *isnum = (n != 0 || lua_isnumber(L, idx));
+
+    return n;
+}
+
+inline lua_Integer to_integerx(lua_State* L, int idx, int* isnum)
+{
+    int ok = 0;
+    lua_Number n = to_numberx(L, idx, &ok);
+
+    if (ok)
+    {
+        const auto int_n = static_cast<lua_Integer>(n);
+        if (n == static_cast<lua_Number>(int_n))
+        {
+            if (isnum)
+                *isnum = 1;
+            
+            return int_n;
+        }
+    }
+
+    if (isnum)
+        *isnum = 0;
+    
+    return 0;
+}
+
+#endif // LUA_VERSION_NUM < 503
+
 // These are for Lua versions prior to 5.2.0.
 #if LUA_VERSION_NUM < 502
-
 using lua_Unsigned = std::make_unsigned_t<lua_Integer>;
 
 #if ! LUABRIDGE_ON_LUAU
@@ -103,7 +137,7 @@ inline int lua_absindex(lua_State* L, int idx)
 }
 #endif
 
-inline void lua_rawgetp(lua_State* L, int idx, void const* p)
+inline void lua_rawgetp(lua_State* L, int idx, const void* p)
 {
     idx = lua_absindex(L, idx);
     luaL_checkstack(L, 1, "not enough stack slots");
@@ -111,7 +145,7 @@ inline void lua_rawgetp(lua_State* L, int idx, void const* p)
     lua_rawget(L, idx);
 }
 
-inline void lua_rawsetp(lua_State* L, int idx, void const* p)
+inline void lua_rawsetp(lua_State* L, int idx, const void* p)
 {
     idx = lua_absindex(L, idx);
     luaL_checkstack(L, 1, "not enough stack slots");
@@ -130,15 +164,12 @@ inline int lua_compare(lua_State* L, int idx1, int idx2, int op)
     {
     case LUA_OPEQ:
         return lua_equal(L, idx1, idx2);
-        break;
 
     case LUA_OPLT:
         return lua_lessthan(L, idx1, idx2);
-        break;
 
     case LUA_OPLE:
         return lua_equal(L, idx1, idx2) || lua_lessthan(L, idx1, idx2);
-        break;
 
     default:
         return 0;
@@ -147,19 +178,19 @@ inline int lua_compare(lua_State* L, int idx1, int idx2, int op)
 
 inline int get_length(lua_State* L, int idx)
 {
-    return int(lua_objlen(L, idx));
+    return static_cast<int>(lua_objlen(L, idx));
 }
 
-#else
+#else // LUA_VERSION_NUM >= 502
 inline int get_length(lua_State* L, int idx)
 {
     lua_len(L, idx);
-    int len = int(luaL_checknumber(L, -1));
+    const int len = static_cast<int>(luaL_checknumber(L, -1));
     lua_pop(L, 1);
     return len;
 }
 
-#endif
+#endif // LUA_VERSION_NUM < 502
 
 #ifndef LUA_OK
 #define LUABRIDGE_LUA_OK 0
@@ -210,10 +241,32 @@ void throw_or_assert(Args&&... args)
 template <class T>
 void pushunsigned(lua_State* L, T value)
 {
-#if LUA_VERSION_NUM != 502
-    lua_pushinteger(L, static_cast<lua_Unsigned>(value));
+    static_assert(std::is_unsigned_v<T>);
+
+    lua_pushinteger(L, static_cast<lua_Integer>(value));
+}
+
+/**
+ * @brief Helper to convert to integer.
+ */
+inline lua_Number tonumber(lua_State* L, int idx, int* isnum)
+{
+#if ! LUABRIDGE_ON_LUAU && LUA_VERSION_NUM > 502
+    return lua_tonumberx(L, idx, isnum);
 #else
-    lua_pushunsigned(L, static_cast<lua_Unsigned>(value));
+    return to_numberx(L, idx, isnum);
+#endif
+}
+
+/**
+ * @brief Helper to convert to integer.
+ */
+inline lua_Integer tointeger(lua_State* L, int idx, int* isnum)
+{
+#if ! LUABRIDGE_ON_LUAU && LUA_VERSION_NUM > 502
+    return lua_tointegerx(L, idx, isnum);
+#else
+    return to_integerx(L, idx, isnum);
 #endif
 }
 
@@ -267,10 +320,10 @@ inline void rawsetfield(lua_State* L, int index, char const* key)
 template <class T>
 [[nodiscard]] T* align(void* ptr) noexcept
 {
-    auto address = reinterpret_cast<size_t>(ptr);
+    const auto address = reinterpret_cast<size_t>(ptr);
 
-    auto offset = address % alignof(T);
-    auto aligned_address = (offset == 0) ? address : (address + alignof(T) - offset);
+    const auto offset = address % alignof(T);
+    const auto aligned_address = (offset == 0) ? address : (address + alignof(T) - offset);
 
     return reinterpret_cast<T*>(aligned_address);
 }
@@ -279,7 +332,7 @@ template <class T>
  * @brief Return the space needed to align the type T on an unaligned address.
  */
 template <class T>
-[[nodiscard]] size_t maximum_space_needed_to_align() noexcept
+[[nodiscard]] constexpr size_t maximum_space_needed_to_align() noexcept
 {
     return sizeof(T) + alignof(T) - 1;
 }
@@ -306,7 +359,7 @@ int lua_deleteuserdata_aligned(lua_State* L)
 template <class T, class... Args>
 void* lua_newuserdata_aligned(lua_State* L, Args&&... args)
 {
-#if LUABRIDGE_USE_LUAU
+#if LUABRIDGE_ON_LUAU
     void* pointer = lua_newuserdatadtor(L, maximum_space_needed_to_align<T>(), [](void* x)
     {
         T* aligned = align<T>(x);
@@ -329,76 +382,74 @@ void* lua_newuserdata_aligned(lua_State* L, Args&&... args)
 }
 
 /**
- * @brief Checks if the value on the stack is a number type and can fit into the corresponding c++ numerical type..
+ * @brief Checks if the value on the stack is a number type and can fit into the corresponding c++ integral type..
  */
-template <class T>
-inline bool is_signed_instance(lua_State* L, int index)
+template <class U = lua_Integer, class T>
+constexpr bool is_integral_representable_by(T value)
 {
-    static_assert(! std::is_unsigned_v<T>);
+    constexpr bool same_signedness = (std::is_unsigned_v<T> && std::is_unsigned_v<U>)
+        || (!std::is_unsigned_v<T> && !std::is_unsigned_v<U>);
 
-    if (lua_type(L, index) == LUA_TNUMBER)
+    if constexpr (sizeof(T) == sizeof(U))
     {
-        const auto value = luaL_checkinteger(L, index);
+        if constexpr (same_signedness)
+            return true;
 
-        return value >= std::numeric_limits<T>::min() && value <= std::numeric_limits<T>::max();
+        if constexpr (std::is_unsigned_v<T>)
+            return value <= static_cast<T>(std::numeric_limits<U>::max());
+        
+        return value >= static_cast<T>(std::numeric_limits<U>::min())
+            && static_cast<U>(value) <= std::numeric_limits<U>::max();
     }
 
-    return false;
+    if constexpr (sizeof(T) < sizeof(U))
+    {
+        return static_cast<U>(value) >= std::numeric_limits<U>::min()
+            && static_cast<U>(value) <= std::numeric_limits<U>::max();
+    }
+
+    if constexpr (std::is_unsigned_v<T>)
+        return value <= static_cast<T>(std::numeric_limits<U>::max());
+
+    return value >= static_cast<T>(std::numeric_limits<U>::min())
+        && value <= static_cast<T>(std::numeric_limits<U>::max());
+}
+
+template <class U = lua_Integer>
+bool is_integral_representable_by(lua_State* L, int index)
+{
+    int isValid = 0;
+
+    const auto value = tointeger(L, index, &isValid);
+
+    return isValid ? is_integral_representable_by<U>(value) : false;
 }
 
 /**
  * @brief Checks if the value on the stack is a number type and can fit into the corresponding c++ numerical type..
  */
-template <class T>
-inline bool is_unsigned_instance(lua_State* L, int index)
+template <class U = lua_Number, class T>
+constexpr bool is_floating_point_representable_by(T value)
 {
-    static_assert(std::is_unsigned_v<T>);
+    if constexpr (sizeof(T) == sizeof(U))
+        return true;
 
-    constexpr auto lua_unsigned_max = static_cast<lua_Unsigned>(std::numeric_limits<lua_Integer>::max());
+    if constexpr (sizeof(T) < sizeof(U))
+        return static_cast<U>(value) >= -std::numeric_limits<U>::max()
+            && static_cast<U>(value) <= std::numeric_limits<U>::max();
 
-    if (lua_type(L, index) == LUA_TNUMBER)
-    {
-        const auto value = luaL_checkinteger(L, index);
-        if (value < 0)
-            return false;
-
-        if constexpr (lua_unsigned_max <= std::numeric_limits<T>::max())
-            return static_cast<lua_Unsigned>(value) <= std::numeric_limits<T>::max();
-
-        return value <= static_cast<lua_Integer>(std::numeric_limits<T>::max());
-    }
-
-    return false;
+    return value >= static_cast<T>(-std::numeric_limits<U>::max())
+        && value <= static_cast<T>(std::numeric_limits<U>::max());
 }
 
-/**
- * @brief Checks if the value on the stack is a number type and can fit into the corresponding c++ numerical type..
- */
-template <class T>
-inline bool is_floating_point_instance(lua_State* L, int index)
+template <class U = lua_Number>
+bool is_floating_point_representable_by(lua_State* L, int index)
 {
-    constexpr auto lua_number_max = std::numeric_limits<lua_Number>::max();
+    int isValid = 0;
 
-    if (lua_type(L, index) == LUA_TNUMBER)
-    {
-        const auto value = luaL_checknumber(L, index);
+    const auto value = tonumber(L, index, &isValid);
 
-        if constexpr (lua_number_max <= std::numeric_limits<T>::max())
-            return static_cast<lua_Number>(value) <= std::numeric_limits<T>::max();
-
-        return value <= static_cast<lua_Number>(std::numeric_limits<T>::max());
-    }
-
-    return false;
-}
-
-/**
- * @brief Helper to write a lua string error.
- */
-inline void writestringerror(const char* fmt, const char* text)
-{
-    fprintf(stderr, fmt, text);
-    fflush(stderr);
+    return isValid ? is_floating_point_representable_by<U>(value) : false;
 }
 
 } // namespace luabridge

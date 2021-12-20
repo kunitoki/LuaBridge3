@@ -117,15 +117,18 @@ TEST_F(ClassTests, IsInstance)
 
     BaseClass base;
     std::error_code ec1;
-    luabridge::push(L, base, ec1);
+    auto result1 = luabridge::push(L, base, ec1);
+    ASSERT_TRUE(result1);
 
     DerivedClass derived;
     std::error_code ec2;
-    luabridge::push(L, derived, ec2);
+    auto result2 = luabridge::push(L, derived, ec2);
+    ASSERT_TRUE(result2);
 
     OtherClass other;
     std::error_code ec3;
-    luabridge::push(L, other, ec3);
+    auto result3 = luabridge::push(L, other, ec3);
+    ASSERT_TRUE(result3);
 
     ASSERT_TRUE(luabridge::isInstance<BaseClass>(L, -3));
     ASSERT_FALSE(luabridge::isInstance<DerivedClass>(L, -3)); // BaseClass is not DerivedClass
@@ -479,7 +482,8 @@ int proxyCFunctionState(lua_State* L)
     }
     
     std::error_code ec;
-    luabridge::push(L, arg.cast<int>() + 1000, ec);
+    [[maybe_unused]] auto result = luabridge::push(L, arg.cast<int>() + 1000, ec);
+
     return 1;
 }
 
@@ -1023,8 +1027,10 @@ int getDataC(lua_State* L)
 {
     auto objectRef = luabridge::LuaRef::fromStack(L, 1);
     auto* object = objectRef.cast<const Class<T, BaseClass>*>();
+
     std::error_code ec;
-    luabridge::Stack<T>::push(L, object->data, ec);
+    [[maybe_unused]] auto result = luabridge::Stack<T>::push(L, object->data, ec);
+
     return 1;
 }
 

@@ -721,7 +721,7 @@ struct RefStackHelper
     using ReturnType = C;
     using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
 
-    static inline bool push(lua_State* L, const C& t, std::error_code& ec)
+    static bool push(lua_State* L, const C& t, std::error_code& ec)
     {
         return UserdataSharedHelper<C, std::is_const_v<typename ContainerTraits<C>::Type>>::push(L, t, ec);
     }
@@ -793,22 +793,22 @@ struct Stack
     using Getter = detail::UserdataGetter<T>;
     using ReturnType = typename Getter::ReturnType;
 
-    static bool push(lua_State* L, const T& value, std::error_code& ec)
+    [[nodiscard]] static bool push(lua_State* L, const T& value, std::error_code& ec)
     {
         return detail::StackHelper<T, detail::IsContainer<T>::value>::push(L, value, ec);
     }
 
-    static bool push(lua_State* L, T&& value, std::error_code& ec)
+    [[nodiscard]] static bool push(lua_State* L, T&& value, std::error_code& ec)
     {
         return detail::StackHelper<T, detail::IsContainer<T>::value>::push(L, std::move(value), ec);
     }
 
-    static ReturnType get(lua_State* L, int index)
+    [[nodiscard]] static ReturnType get(lua_State* L, int index)
     {
         return Getter::get(L, index);
     }
 
-    static bool isInstance(lua_State* L, int index)
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
     {
         return detail::Userdata::isInstance<T>(L, index);
     }

@@ -10,6 +10,29 @@
 
 #include <array>
 
+namespace {
+
+template <class T, std::size_t N>
+void checkEquals(const std::array<T, N>& expected, const std::array<T, N>& actual)
+{
+    if constexpr (std::is_same_v<T, float>)
+    {
+        for (std::size_t i = 0; i < expected.size(); ++i)
+            ASSERT_FLOAT_EQ(expected[i], actual[i]);
+    }
+    else if constexpr (std::is_same_v<T, double> || std::is_same_v<T, long double>)
+    {
+        for (std::size_t i = 0; i < expected.size(); ++i)
+            ASSERT_DOUBLE_EQ(expected[i], actual[i]);
+    }
+    else
+    {
+        ASSERT_EQ(expected, actual);
+    }
+}
+
+} // namespace
+
 template<class T>
 struct ArrayTest : TestBase
 {
@@ -27,7 +50,8 @@ TYPED_TEST_P(ArrayTest, LuaRef)
     std::copy_n(Traits::values().begin(), 3, expected.begin());
 
     std::array<TypeParam, 3> actual = this->result();
-    ASSERT_EQ(expected, actual);
+    
+    checkEquals(expected, actual);
 }
 
 REGISTER_TYPED_TEST_SUITE_P(ArrayTest, LuaRef);
@@ -104,7 +128,15 @@ TEST_F(ArrayTests, RaiseOnWrongSize)
 {
     runLua("result = { 1, 2, 3, 4 }");
     
-    std::array<lua_Integer, 3> output;
-    ASSERT_THROW((result<decltype(output)>()), std::exception);
+    ASSERT_THROW((result<std::array<lua_Integer, 3>>()), std::exception);
+
+    std::error_code ec;
+    auto result = luabridge::push(L, std::array<lua_Integer, 4>{ 5, 6, 7, 8 }, ec);
+    ASSERT_TRUE(result);
+
+    EXPECT_TRUE((luabridge::isInstance<std::array<lua_Integer, 4>>(L, -1)));
+    EXPECT_FALSE((luabridge::isInstance<std::array<lua_Integer, 3>>(L, -1)));
+    
+    lua_pop(L, -1);
 }
 #endif
