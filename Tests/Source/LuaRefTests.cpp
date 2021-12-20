@@ -79,28 +79,28 @@ TEST_F(LuaRefTests, DictionaryRead)
     EXPECT_TRUE(result()["bool"].cast<bool>());
 
     EXPECT_TRUE(result()["int"].isNumber());
-    ASSERT_EQ(5u, result()["int"].cast<unsigned char>());
-    ASSERT_EQ(5, result()["int"].cast<short>());
-    ASSERT_EQ(5u, result()["int"].cast<unsigned short>());
-    ASSERT_EQ(5, result()["int"].cast<int>());
-    ASSERT_EQ(5u, result()["int"].cast<unsigned int>());
-    ASSERT_EQ(5, result()["int"].cast<long>());
-    ASSERT_EQ(5u, result()["int"].cast<unsigned long>());
-    ASSERT_EQ(5, result()["int"].cast<long long>());
-    ASSERT_EQ(5u, result()["int"].cast<unsigned long long>());
+    ASSERT_EQ(5u, result()["int"].unsafe_cast<unsigned char>());
+    ASSERT_EQ(5, result()["int"].unsafe_cast<short>());
+    ASSERT_EQ(5u, result()["int"].unsafe_cast<unsigned short>());
+    ASSERT_EQ(5, result()["int"].unsafe_cast<int>());
+    ASSERT_EQ(5u, result()["int"].unsafe_cast<unsigned int>());
+    ASSERT_EQ(5, result()["int"].unsafe_cast<long>());
+    ASSERT_EQ(5u, result()["int"].unsafe_cast<unsigned long>());
+    ASSERT_EQ(5, result()["int"].unsafe_cast<long long>());
+    ASSERT_EQ(5u, result()["int"].unsafe_cast<unsigned long long>());
 
     EXPECT_TRUE(result()['c'].isNumber());
-    ASSERT_FLOAT_EQ(3.14f, result()['c'].cast<float>());
-    ASSERT_DOUBLE_EQ(3.14, result()['c'].cast<double>());
+    ASSERT_FLOAT_EQ(3.14f, result()['c'].unsafe_cast<float>());
+    ASSERT_DOUBLE_EQ(3.14, result()['c'].unsafe_cast<double>());
 
     EXPECT_TRUE(result()[true].isString());
-    ASSERT_EQ('D', result()[true].cast<char>());
-    ASSERT_EQ("D", result()[true].cast<std::string>());
-    ASSERT_STREQ("D", result()[true].cast<const char*>());
+    ASSERT_EQ('D', result()[true].unsafe_cast<char>());
+    ASSERT_EQ("D", result()[true].unsafe_cast<std::string>());
+    ASSERT_STREQ("D", result()[true].unsafe_cast<const char*>());
 
     EXPECT_TRUE(result()[8].isString());
-    ASSERT_EQ("abc", result()[8].cast<std::string>());
-    ASSERT_STREQ("abc", result()[8].cast<char const*>());
+    ASSERT_EQ("abc", result()[8].unsafe_cast<std::string>());
+    ASSERT_STREQ("abc", result()[8].unsafe_cast<char const*>());
 
     EXPECT_TRUE(result()["fn"].isFunction());
     auto fnResult = result()["fn"](41); // Replaces result variable
@@ -116,19 +116,19 @@ TEST_F(LuaRefTests, DictionaryWrite)
 {
     runLua("result = {a = 5}");
     EXPECT_TRUE(result()["a"].isNumber());
-    ASSERT_EQ(5, result()["a"].cast<int>());
+    ASSERT_EQ(5, result()["a"].unsafe_cast<int>());
 
     result()["a"] = 7;
-    ASSERT_EQ(7, result()["a"].cast<int>());
+    ASSERT_EQ(7, result()["a"].unsafe_cast<int>());
 
     runLua("result = result.a");
     ASSERT_EQ(7, result<int>());
 
     runLua("result = {a = {b = 1}}");
-    ASSERT_EQ(1, result()["a"]["b"].cast<int>());
+    ASSERT_EQ(1, result()["a"]["b"].unsafe_cast<int>());
 
     result()["a"]["b"] = 2;
-    ASSERT_EQ(2, result()["a"]["b"].cast<int>());
+    ASSERT_EQ(2, result()["a"]["b"].unsafe_cast<int>());
 }
 
 struct Class

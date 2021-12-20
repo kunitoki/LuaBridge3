@@ -12,6 +12,8 @@
 #include "Stack.h"
 #include "TypeTraits.h"
 
+#include <algorithm>
+#include <array>
 #include <functional>
 #include <tuple>
 
@@ -258,13 +260,23 @@ constexpr auto tupleize(Types&&... types)
 template <class ArgsPack, std::size_t Start, std::size_t... Indices>
 auto make_arguments_list_impl(lua_State* L, std::index_sequence<Indices...>)
 {
-    return tupleize(Stack<std::tuple_element_t<Indices, ArgsPack>>::get(L, Start + Indices)...);
+    std::array<std::error_code, std::tuple_size_v<ArgsPack>> error_codes;
+
+    return std::make_tuple(
+        tupleize(Stack<std::tuple_element_t<Indices, ArgsPack>>::get(L, Start + Indices, error_codes[Indices])...),
+        std::move(error_codes));
 }
 
 template <class ArgsPack, std::size_t Start>
 auto make_arguments_list(lua_State* L)
 {
-    return make_arguments_list_impl<ArgsPack, Start>(L, std::make_index_sequence<std::tuple_size_v<ArgsPack>>());
+    auto&& [args, error_codes] = make_arguments_list_impl<ArgsPack, Start>(L, std::make_index_sequence<std::tuple_size_v<ArgsPack>>());
+
+    auto it = std::find_if(std::begin(error_codes), std::end(error_codes), [](const auto& ec) { return ec; });
+    if (it != std::end(error_codes))
+        luaL_error(L, "%s", it->message().c_str());
+
+    return args;
 }
 
 //=================================================================================================

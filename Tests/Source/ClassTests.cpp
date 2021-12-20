@@ -482,7 +482,7 @@ int proxyCFunctionState(lua_State* L)
     }
     
     std::error_code ec;
-    [[maybe_unused]] auto result = luabridge::push(L, arg.cast<int>() + 1000, ec);
+    [[maybe_unused]] auto result = luabridge::push(L, arg.unsafe_cast<int>() + 1000, ec);
 
     return 1;
 }
@@ -1026,7 +1026,7 @@ template<class T, class BaseClass>
 int getDataC(lua_State* L)
 {
     auto objectRef = luabridge::LuaRef::fromStack(L, 1);
-    auto* object = objectRef.cast<const Class<T, BaseClass>*>();
+    auto* object = objectRef.unsafe_cast<const Class<T, BaseClass>*>();
 
     std::error_code ec;
     [[maybe_unused]] auto result = luabridge::Stack<T>::push(L, object->data, ec);
@@ -1038,9 +1038,9 @@ template<class T, class BaseClass>
 int setDataC(lua_State* L)
 {
     auto objectRef = luabridge::LuaRef::fromStack(L, 1);
-    auto* object = objectRef.cast<const Class<T, BaseClass>*>();
+    auto* object = objectRef.unsafe_cast<const Class<T, BaseClass>*>();
     auto valueRef = luabridge::LuaRef::fromStack(L, 2);
-    T value = valueRef.cast<T>();
+    T value = valueRef.unsafe_cast<T>();
     object->data = value;
     return 0;
 }

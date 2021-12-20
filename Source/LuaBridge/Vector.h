@@ -52,7 +52,7 @@ struct Stack<std::vector<T>>
         return true;
     }
 
-    [[nodiscard]] static Type get(lua_State* L, int index)
+    [[nodiscard]] static Type get(lua_State* L, int index, std::error_code& ec)
     {
         if (!lua_istable(L, index))
             luaL_error(L, "#%d argument must be a table", index);
@@ -65,7 +65,7 @@ struct Stack<std::vector<T>>
 
         while (lua_next(L, absIndex) != 0)
         {
-            vector.emplace_back(Stack<T>::get(L, -1));
+            vector.emplace_back(Stack<T>::get(L, -1, ec));
             lua_pop(L, 1);
         }
 

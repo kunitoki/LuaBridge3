@@ -50,7 +50,8 @@ TEST_F(StackTests, NullptrType)
     }
     
     {
-        auto result = luabridge::get<std::nullptr_t>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<std::nullptr_t>(L, -1, ec);
         EXPECT_EQ(nullptr, result);
     }
 }
@@ -67,7 +68,8 @@ TEST_F(StackTests, NullptrStackOverflow)
 TEST_F(StackTests, LuaStateType)
 {
     {
-        auto result = luabridge::get<lua_State*>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<lua_State*>(L, -1, ec);
         EXPECT_TRUE(result);
         EXPECT_EQ(L, result);
     }
@@ -107,7 +109,8 @@ TEST_F(StackTests, LuaCFunctionType)
     EXPECT_TRUE(luabridge::isInstance<std::optional<lua_CFunction>>(L, -1));
 
     {
-        auto result = luabridge::get<lua_CFunction>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<lua_CFunction>(L, -1, ec);
         EXPECT_EQ(value, result);
     }
 }
@@ -156,7 +159,8 @@ TEST_F(StackTests, BoolType)
     EXPECT_TRUE(luabridge::isInstance<std::optional<bool>>(L, -1));
 
     {
-        auto result = luabridge::get<bool>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<bool>(L, -1, ec);
         EXPECT_EQ(value, result);
     }
 }
@@ -208,7 +212,8 @@ TEST_F(StackTests, CharType)
     EXPECT_TRUE(luabridge::isInstance<std::optional<std::string>>(L, -1));
 
     {
-        auto result = luabridge::get<char>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<char>(L, -1, ec);
         EXPECT_EQ(value, result);
     }
 }
@@ -266,7 +271,8 @@ TEST_F(StackTests, StdByteType)
     EXPECT_TRUE(luabridge::isInstance<std::optional<uint64_t>>(L, -1));
 
     {
-        auto result = luabridge::get<std::byte>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<std::byte>(L, -1, ec);
         EXPECT_EQ(value, result);
     }
 }
@@ -324,7 +330,8 @@ TEST_F(StackTests, Int8Type)
     EXPECT_TRUE(luabridge::isInstance<std::optional<uint64_t>>(L, -1));
 
     {
-        auto result = luabridge::get<int8_t>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<int8_t>(L, -1, ec);
         EXPECT_EQ(value, result);
     }
 }
@@ -376,7 +383,8 @@ TEST_F(StackTests, Int16Type)
     EXPECT_TRUE(luabridge::isInstance<std::optional<int64_t>>(L, -1));
 
     {
-        auto result = luabridge::get<int16_t>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<int16_t>(L, -1, ec);
         EXPECT_EQ(value, result);
     }
 }
@@ -427,7 +435,8 @@ TEST_F(StackTests, Int32Type)
     EXPECT_TRUE(luabridge::isInstance<std::optional<int64_t>>(L, -1));
 
     {
-        auto result = luabridge::get<int32_t>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<int32_t>(L, -1, ec);
         EXPECT_EQ(value, result);
     }
 }
@@ -489,7 +498,8 @@ TEST_F(StackTests, Int64Type)
     EXPECT_TRUE(luabridge::isInstance<std::optional<int64_t>>(L, -1));
 
     {
-        auto result = luabridge::get<int64_t>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<int64_t>(L, -1, ec);
         EXPECT_EQ(value, result);
     }
 }
@@ -546,7 +556,8 @@ TEST_F(StackTests, Uint8Type)
     EXPECT_TRUE(luabridge::isInstance<std::optional<uint64_t>>(L, -1));
 
     {
-        auto result = luabridge::get<uint8_t>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<uint8_t>(L, -1, ec);
         EXPECT_EQ(value, result);
     }
 }
@@ -601,7 +612,8 @@ TEST_F(StackTests, Uint16Type)
     EXPECT_TRUE(luabridge::isInstance<std::optional<uint64_t>>(L, -1));
 
     {
-        auto result = luabridge::get<uint16_t>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<uint16_t>(L, -1, ec);
         EXPECT_EQ(value, result);
     }
 }
@@ -665,7 +677,8 @@ TEST_F(StackTests, Uint32Type)
     EXPECT_TRUE(luabridge::isInstance<std::optional<uint64_t>>(L, -1));
 
     {
-        auto result = luabridge::get<uint32_t>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<uint32_t>(L, -1, ec);
         EXPECT_EQ(value, result);
     }
 }
@@ -735,7 +748,8 @@ TEST_F(StackTests, Uint64Type)
     EXPECT_TRUE(luabridge::isInstance<std::optional<uint64_t>>(L, -1));
 
     {
-        auto result = luabridge::get<uint64_t>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<uint64_t>(L, -1, ec);
         EXPECT_EQ(value, result);
     }
 }
@@ -846,7 +860,8 @@ TEST_F(StackTests, FloatType)
     EXPECT_TRUE(luabridge::isInstance<std::optional<long double>>(L, -1));
 
     {
-        auto result = luabridge::get<float>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<float>(L, -1, ec);
         EXPECT_FLOAT_EQ(value, result);
     }
 }
@@ -905,7 +920,8 @@ TEST_F(StackTests, DoubleType)
     EXPECT_TRUE(luabridge::isInstance<std::optional<long double>>(L, -1));
 
     {
-        auto result = luabridge::get<double>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<double>(L, -1, ec);
         EXPECT_DOUBLE_EQ(value, result);
     }
 }
@@ -964,7 +980,8 @@ TEST_F(StackTests, LongDoubleType)
     EXPECT_TRUE(luabridge::isInstance<std::optional<long double>>(L, -1));
 
     {
-        auto result = luabridge::get<long double>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<long double>(L, -1, ec);
         EXPECT_DOUBLE_EQ(value, result);
     }
 }
@@ -1064,7 +1081,8 @@ TEST_F(StackTests, CharArrayType)
     EXPECT_TRUE(luabridge::isInstance<std::optional<std::string>>(L, -1));
 
     {
-        auto result = luabridge::get<const char*>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<const char*>(L, -1, ec);
         EXPECT_STREQ(value, result);
     }
 }
@@ -1125,7 +1143,8 @@ TEST_F(StackTests, ConstCharArrayType)
     EXPECT_TRUE(luabridge::isInstance<std::optional<std::string>>(L, -1));
 
     {
-        auto result = luabridge::get<const char*>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<const char*>(L, -1, ec);
         EXPECT_STREQ(value, result);
     }
 }
@@ -1182,7 +1201,8 @@ TEST_F(StackTests, ConstCharLiteralType)
     EXPECT_TRUE(luabridge::isInstance<std::optional<std::string>>(L, -1));
 
     {
-        auto result = luabridge::get<const char*>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<const char*>(L, -1, ec);
         EXPECT_STREQ("xyz", result);
     }
 }
@@ -1242,7 +1262,8 @@ TEST_F(StackTests, ConstCharPointerType)
     EXPECT_TRUE(luabridge::isInstance<std::optional<std::string>>(L, -1));
 
     {
-        auto result = luabridge::get<const char*>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<const char*>(L, -1, ec);
         EXPECT_STREQ(value, result);
     }
 
@@ -1291,39 +1312,46 @@ TEST_F(StackTests, ConstCharPointerType)
     EXPECT_TRUE(luabridge::isInstance<std::optional<std::string>>(L, -1));
 
     {
-        auto result = luabridge::get<char>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<char>(L, -1, ec);
         EXPECT_EQ('\0', result);
     }
 
     {
-        auto result = luabridge::get<const char*>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<const char*>(L, -1, ec);
         EXPECT_STREQ("", result);
     }
 
     {
-        auto result = luabridge::get<std::string_view>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<std::string_view>(L, -1, ec);
         EXPECT_EQ("", result);
     }
 
     {
-        auto result = luabridge::get<std::string>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<std::string>(L, -1, ec);
         EXPECT_EQ("", result);
     }
 
     {
-        auto result = luabridge::get<std::optional<const char*>>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<std::optional<const char*>>(L, -1, ec);
         ASSERT_TRUE(result);
         EXPECT_STREQ("", *result);
     }
 
     {
-        auto result = luabridge::get<std::optional<std::string_view>>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<std::optional<std::string_view>>(L, -1, ec);
         ASSERT_TRUE(result);
         EXPECT_EQ("", *result);
     }
 
     {
-        auto result = luabridge::get<std::optional<std::string>>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<std::optional<std::string>>(L, -1, ec);
         ASSERT_TRUE(result);
         EXPECT_EQ("", *result);
     }
@@ -1386,39 +1414,46 @@ TEST_F(StackTests, StringViewType)
     EXPECT_TRUE(luabridge::isInstance<std::optional<std::string>>(L, -1));
 
     {
-        auto result = luabridge::get<std::string_view>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<std::string_view>(L, -1, ec);
         EXPECT_EQ(value, result);
     }
 
     {
-        auto result = luabridge::get<char>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<char>(L, -1, ec);
         EXPECT_EQ(value[0], result);
     }
 
     {
-        auto result = luabridge::get<const char*>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<const char*>(L, -1, ec);
         EXPECT_EQ(value, result);
     }
 
     {
-        auto result = luabridge::get<std::string>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<std::string>(L, -1, ec);
         EXPECT_EQ(value, result);
     }
 
     {
-        auto result = luabridge::get<std::optional<const char*>>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<std::optional<const char*>>(L, -1, ec);
         ASSERT_TRUE(result);
         EXPECT_EQ(value, *result);
     }
 
     {
-        auto result = luabridge::get<std::optional<std::string_view>>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<std::optional<std::string_view>>(L, -1, ec);
         ASSERT_TRUE(result);
         EXPECT_EQ(value, *result);
     }
 
     {
-        auto result = luabridge::get<std::optional<std::string>>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<std::optional<std::string>>(L, -1, ec);
         ASSERT_TRUE(result);
         EXPECT_EQ(value, *result);
     }
@@ -1480,24 +1515,38 @@ TEST_F(StackTests, StringType)
     EXPECT_TRUE(luabridge::isInstance<std::optional<std::string_view>>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<std::optional<std::string>>(L, -1));
 
-    EXPECT_EQ(value, (luabridge::get<std::string>(L, -1)));
-    EXPECT_EQ(value[0], (luabridge::get<char>(L, -1)));
-    EXPECT_EQ(value, (luabridge::get<const char*>(L, -1)));
+    {
+        std::error_code ec;
+        EXPECT_EQ(value, (luabridge::get<std::string>(L, -1, ec)));
+    }
+    
+    {
+        std::error_code ec;
+        EXPECT_EQ(value[0], (luabridge::get<char>(L, -1, ec)));
+    }
+    
+    {
+        std::error_code ec;
+        EXPECT_EQ(value, (luabridge::get<const char*>(L, -1, ec)));
+    }
 
     {
-        auto result = luabridge::get<std::optional<const char*>>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<std::optional<const char*>>(L, -1, ec);
         ASSERT_TRUE(result);
         EXPECT_EQ(value, *result);
     }
 
     {
-        auto result = luabridge::get<std::optional<std::string_view>>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<std::optional<std::string_view>>(L, -1, ec);
         ASSERT_TRUE(result);
         EXPECT_EQ(value, *result);
     }
 
     {
-        auto result = luabridge::get<std::optional<std::string>>(L, -1);
+        std::error_code ec;
+        auto result = luabridge::get<std::optional<std::string>>(L, -1, ec);
         ASSERT_TRUE(result);
         EXPECT_EQ(value, *result);
     }

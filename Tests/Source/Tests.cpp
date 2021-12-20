@@ -379,7 +379,7 @@ TEST_F(LuaBridgeTest, CallReturnLuaResult)
         auto result = luabridge::call(f1, 1, 2);
         EXPECT_FALSE(result.hasFailed());
         EXPECT_TRUE(result.wasOk());
-        EXPECT_EQ(std::error_code(), result.errorCode());
+        EXPECT_EQ("", result.errorMessage());
     }
 
     {
@@ -387,7 +387,7 @@ TEST_F(LuaBridgeTest, CallReturnLuaResult)
         auto result = luabridge::call(f2, 1, 2);
         EXPECT_FALSE(result.hasFailed());
         EXPECT_TRUE(result.wasOk());
-        EXPECT_EQ(std::error_code(), result.errorCode());
+        EXPECT_EQ("", result.errorMessage());
         EXPECT_EQ(1u, result.size());
         EXPECT_EQ(result[0], 1);
     }
@@ -397,7 +397,7 @@ TEST_F(LuaBridgeTest, CallReturnLuaResult)
         auto result = luabridge::call(f3, 1, 2);
         EXPECT_FALSE(result.hasFailed());
         EXPECT_TRUE(result.wasOk());
-        EXPECT_EQ(std::error_code(), result.errorCode());
+        EXPECT_EQ("", result.errorMessage());
         EXPECT_EQ(2u, result.size());
         EXPECT_EQ(result[0], 1);
         EXPECT_EQ(result[1], 2);
@@ -410,7 +410,7 @@ TEST_F(LuaBridgeTest, CallReturnLuaResult)
         EXPECT_TRUE(result.hasFailed());
         EXPECT_FALSE(result.wasOk());
         EXPECT_EQ(0u, result.size());
-        EXPECT_NE(std::error_code(), result.errorCode());
+        EXPECT_NE("", result.errorMessage());
         EXPECT_NE(std::string::npos, result.errorMessage().find("Something bad happened"));
     }
 #endif
@@ -433,7 +433,6 @@ TEST_F(LuaBridgeTest, InvokePassingUnregisteredClassShouldThrowAndRestoreStack)
         auto result = luabridge::call(f1, unregistered);
         EXPECT_TRUE(result.hasFailed());
         EXPECT_FALSE(result.wasOk());
-        EXPECT_EQ(luabridge::makeErrorCode(luabridge::ErrorCode::ClassNotRegistered), result.errorCode());
 
         EXPECT_EQ(stackTop, lua_gettop(L));
 #endif
@@ -460,14 +459,15 @@ TEST_F(LuaBridgeTest, StdSharedPtr)
     std::shared_ptr<A> a = std::make_shared<A>(1);
     luabridge::setGlobal(L, a, "a");
     
-    std::shared_ptr<A> a2 = luabridge::getGlobal<std::shared_ptr<A>>(L, "a");
-    EXPECT_EQ(1, a2->x);
+    auto a2 = luabridge::getGlobal<std::shared_ptr<A>>(L, "a");
+    ASSERT_TRUE(a2.has_value());
+    EXPECT_EQ(1, (*a2)->x);
 
     EXPECT_TRUE(runLua("result = a"));
-    auto a3 = result().cast<std::shared_ptr<A>>();
+    auto a3 = result().unsafe_cast<std::shared_ptr<A>>();
     EXPECT_EQ(1, a3->x);
 
     EXPECT_TRUE(runLua("result = test.A(2)"));
-    auto a4 = result().cast<std::shared_ptr<A>>();
+    auto a4 = result().unsafe_cast<std::shared_ptr<A>>();
     EXPECT_EQ(2, a4->x);
 }

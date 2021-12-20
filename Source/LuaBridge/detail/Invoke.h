@@ -6,6 +6,7 @@
 
 #include "Config.h"
 #include "Errors.h"
+#include "Expected.h"
 #include "Stack.h"
 #include "LuaRef.h"
 #include "LuaException.h"
@@ -30,7 +31,7 @@ public:
      */
     explicit operator bool() const noexcept
     {
-        return !m_ec;
+        return m_data.has_value();
     }
 
     /**
@@ -38,7 +39,7 @@ public:
      */
     bool wasOk() const noexcept
     {
-        return !m_ec;
+        return m_data.has_value();
     }
 
     /**
@@ -46,18 +47,7 @@ public:
      */
     bool hasFailed() const noexcept
     {
-        return !!m_ec;
-    }
-
-    /**
-     * @brief Return the error code, if any.
-     *
-     * In case the invcation didn't raise any lua error, the value returned equals to a
-     * default constructed std::error_code.
-     */
-    std::error_code errorCode() const noexcept
-    {
-        return m_ec;
+        return !m_data.has_value();
     }
 
     /**
@@ -65,11 +55,8 @@ public:
      */
     std::string errorMessage() const noexcept
     {
-        if (std::holds_alternative<std::string>(m_data))
-        {
-            const auto& message = std::get<std::string>(m_data);
-            return message.empty() ? m_ec.message() : message;
-        }
+        if (!m_data.has_value())
+            return m_data.error();
 
         return {};
     }
@@ -79,8 +66,8 @@ public:
      */
     std::size_t size() const noexcept
     {
-        if (std::holds_alternative<std::vector<LuaRef>>(m_data))
-            return std::get<std::vector<LuaRef>>(m_data).size();
+        if (m_data)
+            return m_data->size();
 
         return 0;
     }
@@ -90,11 +77,10 @@ public:
      */
     LuaRef operator[](std::size_t index) const
     {
-        assert(m_ec == std::error_code());
-
-        if (std::holds_alternative<std::vector<LuaRef>>(m_data))
+        assert(m_data);
+        if (m_data)
         {
-            const auto& values = std::get<std::vector<LuaRef>>(m_data);
+            const auto& values = m_data.value();
 
             assert(index < values.size());
             return values[index];
@@ -109,10 +95,10 @@ private:
 
     static LuaResult errorFromStack(lua_State* L, std::error_code ec)
     {
-        auto errorString = lua_tostring(L, -1);
+        const auto errorString = lua_tostring(L, -1);
         lua_pop(L, 1);
 
-        return LuaResult(L, ec, errorString ? errorString : ec.message());
+        return LuaResult(L, errorString ? errorString : ec.message());
     }
 
     static LuaResult valuesFromStack(lua_State* L, int stackTop)
@@ -133,10 +119,9 @@ private:
         return LuaResult(L, std::move(values));
     }
 
-    LuaResult(lua_State* L, std::error_code ec, std::string_view errorString)
+    LuaResult(lua_State* L, std::string_view errorString)
         : m_L(L)
-        , m_ec(ec)
-        , m_data(std::string(errorString))
+        , m_data(make_unexpected(errorString))
     {
     }
 
@@ -147,8 +132,7 @@ private:
     }
 
     lua_State* m_L = nullptr;
-    std::error_code m_ec;
-    std::variant<std::vector<LuaRef>, std::string> m_data;
+    expected<std::vector<LuaRef>, std::string> m_data;
 };
 
 //=================================================================================================
@@ -182,7 +166,7 @@ LuaResult call(const LuaRef& object, Args&&... args)
         if (ec)
         {
             lua_pop(L, static_cast<int>(pushedArgs) + 1);
-            return LuaResult(L, ec, ec.message());
+            return LuaResult(L, ec.message());
         }
     }
 

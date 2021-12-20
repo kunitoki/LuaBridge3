@@ -98,11 +98,11 @@ TEST_F(IssueTests, Issue160)
 
     auto v = callFunction(f_isConnected, 2, "abc");
     ASSERT_EQ(5u, v.size());
-    ASSERT_EQ(1, v[0].cast<int>());
-    ASSERT_EQ("srvname", v[1].cast<std::string>());
-    ASSERT_EQ("ip:10.0.0.1", v[2].cast<std::string>());
-    ASSERT_EQ(2, v[3].cast<int>());
-    ASSERT_EQ("abc", v[4].cast<std::string>());
+    ASSERT_EQ(1, v[0].unsafe_cast<int>());
+    ASSERT_EQ("srvname", v[1].unsafe_cast<std::string>());
+    ASSERT_EQ("ip:10.0.0.1", v[2].unsafe_cast<std::string>());
+    ASSERT_EQ(2, v[3].unsafe_cast<int>());
+    ASSERT_EQ("abc", v[4].unsafe_cast<std::string>());
 }
 
 struct Vector
@@ -176,20 +176,23 @@ TEST_F(IssueTests, Issue8)
     {
         auto result = func("helloworld");
         ASSERT_EQ(1, result.size());
-        ASSERT_STREQ("helloworld", result[0].cast<const char*>());
+        ASSERT_STREQ("helloworld", result[0].unsafe_cast<const char*>());
+        ASSERT_STREQ("helloworld", result[0].cast<const char*>().value());
     }
 
     {
         const char* str = "helloworld";
         auto result = func(str);
         ASSERT_EQ(1, result.size());
-        ASSERT_STREQ("helloworld", result[0].cast<const char*>());
+        ASSERT_STREQ("helloworld", result[0].unsafe_cast<const char*>());
+        ASSERT_STREQ("helloworld", result[0].cast<const char*>().value());
     }
 
     {
         std::string str = "helloworld";
         auto result = func(std::move(str));
         ASSERT_EQ(1, result.size());
-        ASSERT_STREQ("helloworld", result[0].cast<const char*>());
+        ASSERT_STREQ("helloworld", result[0].unsafe_cast<const char*>());
+        ASSERT_STREQ("helloworld", result[0].cast<const char*>().value());
     }
 }

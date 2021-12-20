@@ -258,7 +258,11 @@ struct property_getter
 {
     static int call(lua_State* L)
     {
-        C* c = Userdata::get<C>(L, 1, true);
+        std::error_code ec;
+        C* c = Userdata::get<C>(L, 1, ec, true);
+
+        if (ec)
+            luaL_error(L, "%s", ec.message().c_str());
 
         T C::** mp = static_cast<T C::**>(lua_touserdata(L, lua_upvalueindex(1)));
 
@@ -266,7 +270,6 @@ struct property_getter
         try
         {
 #endif
-            std::error_code ec;
             if (! Stack<T&>::push(L, c->**mp, ec))
                 luaL_error(L, "%s", ec.message().c_str());
 
@@ -325,7 +328,11 @@ struct property_setter<T, void>
         T* ptr = static_cast<T*>(lua_touserdata(L, lua_upvalueindex(1)));
         assert(ptr != nullptr);
 
-        *ptr = Stack<T>::get(L, 1);
+        std::error_code ec;
+        *ptr = Stack<T>::get(L, 1, ec);
+
+        if (ec)
+            luaL_error(L, "%s", ec.message().c_str());
 
         return 0;
     }
@@ -342,7 +349,11 @@ struct property_setter<std::reference_wrapper<T>, void>
         std::reference_wrapper<T>* ptr = static_cast<std::reference_wrapper<T>*>(lua_touserdata(L, lua_upvalueindex(1)));
         assert(ptr != nullptr);
 
-        ptr->get() = Stack<T>::get(L, 1);
+        std::error_code ec;
+        ptr->get() = Stack<T>::get(L, 1, ec);
+
+        if (ec)
+            luaL_error(L, "%s", ec.message().c_str());
 
         return 0;
     }
@@ -359,7 +370,11 @@ struct property_setter
 {
     static int call(lua_State* L)
     {
-        C* c = Userdata::get<C>(L, 1, false);
+        std::error_code ec;
+        C* c = Userdata::get<C>(L, 1, ec, false);
+
+        if (ec)
+            luaL_error(L, "%s", ec.message().c_str());
 
         T C::** mp = static_cast<T C::**>(lua_touserdata(L, lua_upvalueindex(1)));
 
@@ -367,7 +382,10 @@ struct property_setter
         try
         {
 #endif
-            c->** mp = Stack<T>::get(L, 2);
+            c->** mp = Stack<T>::get(L, 2, ec);
+
+            if (ec)
+                luaL_error(L, "%s", ec.message().c_str());
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
@@ -417,7 +435,11 @@ int invoke_member_function(lua_State* L)
 
     assert(isfulluserdata(L, lua_upvalueindex(1)));
 
-    T* ptr = Userdata::get<T>(L, 1, false);
+    std::error_code ec;
+    T* ptr = Userdata::get<T>(L, 1, ec, false);
+
+    if (ec)
+        luaL_error(L, "%s", ec.message().c_str());
 
     const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
     assert(func != nullptr);
@@ -432,7 +454,11 @@ int invoke_const_member_function(lua_State* L)
 
     assert(isfulluserdata(L, lua_upvalueindex(1)));
 
-    const T* ptr = Userdata::get<T>(L, 1, true);
+    std::error_code ec;
+    const T* ptr = Userdata::get<T>(L, 1, ec, true);
+
+    if (ec)
+        luaL_error(L, "%s", ec.message().c_str());
 
     const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
     assert(func != nullptr);
@@ -453,7 +479,11 @@ int invoke_member_cfunction(lua_State* L)
 
     assert(isfulluserdata(L, lua_upvalueindex(1)));
 
-    T* t = Userdata::get<T>(L, 1, false);
+    std::error_code ec;
+    T* t = Userdata::get<T>(L, 1, ec, false);
+
+    if (ec)
+        luaL_error(L, "%s", ec.message().c_str());
 
     const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
     assert(func != nullptr);
@@ -468,7 +498,11 @@ int invoke_const_member_cfunction(lua_State* L)
 
     assert(isfulluserdata(L, lua_upvalueindex(1)));
 
-    const T* t = Userdata::get<T>(L, 1, true);
+    std::error_code ec;
+    const T* t = Userdata::get<T>(L, 1, ec, true);
+
+    if (ec)
+        luaL_error(L, "%s", ec.message().c_str());
 
     const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
     assert(func != nullptr);

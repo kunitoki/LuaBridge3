@@ -53,7 +53,7 @@ struct Stack<std::array<T, Size>>
         return true;
     }
 
-    [[nodiscard]] static Type get(lua_State* L, int index)
+    [[nodiscard]] static Type get(lua_State* L, int index, std::error_code& ec)
     {
         if (!lua_istable(L, index))
             luaL_error(L, "#%d argment must be a table", index);
@@ -69,7 +69,7 @@ struct Stack<std::array<T, Size>>
         int arrayIndex = 0;
         while (lua_next(L, absIndex) != 0)
         {
-            array[arrayIndex++] = Stack<T>::get(L, -1);
+            array[arrayIndex++] = Stack<T>::get(L, -1, ec);
             lua_pop(L, 1);
         }
 

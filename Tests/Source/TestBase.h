@@ -147,7 +147,7 @@ struct TestBase : public ::testing::Test
         if constexpr (std::is_same_v<T, luabridge::LuaRef>)
             return luabridge::getGlobal(L, "result");
 
-        return luabridge::getGlobal(L, "result").cast<T>();
+        return luabridge::getGlobal(L, "result").cast<T>().value();
     }
 
     void resetResult() const

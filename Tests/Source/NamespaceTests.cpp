@@ -245,7 +245,8 @@ int getDataC(lua_State* L)
 template<class T>
 int setDataC(lua_State* L)
 {
-    Storage<T>::value = luabridge::Stack<T>::get(L, -1);
+    std::error_code ec;
+    Storage<T>::value = luabridge::Stack<T>::get(L, -1, ec);
     return 0;
 }
 

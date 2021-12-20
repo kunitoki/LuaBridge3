@@ -235,7 +235,7 @@ public:
      * @return A pointer if the class and constness match.
      */
     template <class T>
-    static T* get(lua_State* L, int index, bool canBeConst)
+    static T* get(lua_State* L, int index, std::error_code& ec, bool canBeConst)
     {
         if (lua_isnil(L, index))
             return nullptr;
@@ -677,9 +677,9 @@ struct StackHelper
         return UserdataSharedHelper<T, std::is_const_v<typename ContainerTraits<T>::Type>>::push(L, t, ec);
     }
 
-    static T get(lua_State* L, int index)
+    static T get(lua_State* L, int index, std::error_code& ec)
     {
-        return ContainerTraits<T>::construct(Userdata::get<ReturnType>(L, index, true));
+        return ContainerTraits<T>::construct(Userdata::get<ReturnType>(L, index, ec, true));
     }
 };
 
@@ -702,9 +702,9 @@ struct StackHelper<T, false>
         return UserdataValue<T>::push(L, std::move(t), ec);
     }
 
-    static T const& get(lua_State* L, int index)
+    static T const& get(lua_State* L, int index, std::error_code& ec)
     {
-        return *Userdata::get<T>(L, index, true);
+        return *Userdata::get<T>(L, index, ec, true);
     }
 };
 
@@ -726,9 +726,9 @@ struct RefStackHelper
         return UserdataSharedHelper<C, std::is_const_v<typename ContainerTraits<C>::Type>>::push(L, t, ec);
     }
 
-    static ReturnType get(lua_State* L, int index)
+    static ReturnType get(lua_State* L, int index, std::error_code& ec)
     {
-        return ContainerTraits<C>::construct(Userdata::get<T>(L, index, true));
+        return ContainerTraits<C>::construct(Userdata::get<T>(L, index, ec, true));
     }
 };
 
@@ -742,9 +742,9 @@ struct RefStackHelper<T, false>
         return UserdataPtr::push(L, &t, ec);
     }
 
-    static ReturnType get(lua_State* L, int index)
+    static ReturnType get(lua_State* L, int index, std::error_code& ec)
     {
-        T* t = Userdata::get<T>(L, index, true);
+        T* t = Userdata::get<T>(L, index, ec, true);
 
         if (!t)
             luaL_error(L, "nil passed to reference");
@@ -762,9 +762,9 @@ struct UserdataGetter
 {
     using ReturnType = T*;
 
-    static ReturnType get(lua_State* L, int index)
+    static ReturnType get(lua_State* L, int index, std::error_code& ec)
     {
-        return Userdata::get<T>(L, index, false);
+        return Userdata::get<T>(L, index, ec, false);
     }
 };
 
@@ -773,9 +773,9 @@ struct UserdataGetter<T, std::void_t<T (*)()>>
 {
     using ReturnType = T;
 
-    static ReturnType get(lua_State* L, int index)
+    static ReturnType get(lua_State* L, int index, std::error_code& ec)
     {
-        return StackHelper<T, IsContainer<T>::value>::get(L, index);
+        return StackHelper<T, IsContainer<T>::value>::get(L, index, ec);
     }
 };
 
@@ -803,9 +803,9 @@ struct Stack
         return detail::StackHelper<T, detail::IsContainer<T>::value>::push(L, std::move(value), ec);
     }
 
-    [[nodiscard]] static ReturnType get(lua_State* L, int index)
+    [[nodiscard]] static ReturnType get(lua_State* L, int index, std::error_code& ec)
     {
-        return Getter::get(L, index);
+        return Getter::get(L, index, ec);
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -847,7 +847,7 @@ struct StackOpSelector<T*, true>
 
     static bool push(lua_State* L, T* value, std::error_code& ec) { return UserdataPtr::push(L, value, ec); }
 
-    static T* get(lua_State* L, int index) { return Userdata::get<T>(L, index, false); }
+    static T* get(lua_State* L, int index, std::error_code& ec) { return Userdata::get<T>(L, index, ec, false); }
 
     static bool isInstance(lua_State* L, int index) { return Userdata::isInstance<T>(L, index); }
 };
@@ -860,7 +860,7 @@ struct StackOpSelector<const T*, true>
 
     static bool push(lua_State* L, const T* value, std::error_code& ec) { return UserdataPtr::push(L, value, ec); }
 
-    static const T* get(lua_State* L, int index) { return Userdata::get<T>(L, index, true); }
+    static const T* get(lua_State* L, int index, std::error_code& ec) { return Userdata::get<T>(L, index, ec, true); }
 
     static bool isInstance(lua_State* L, int index) { return Userdata::isInstance<T>(L, index); }
 };
@@ -874,7 +874,7 @@ struct StackOpSelector<T&, true>
 
     static bool push(lua_State* L, T& value, std::error_code& ec) { return UserdataPtr::push(L, &value, ec); }
 
-    static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
+    static ReturnType get(lua_State* L, int index, std::error_code& ec) { return Helper::get(L, index, ec); }
 
     static bool isInstance(lua_State* L, int index) { return Userdata::isInstance<T>(L, index); }
 };
@@ -888,7 +888,7 @@ struct StackOpSelector<const T&, true>
 
     static bool push(lua_State* L, const T& value, std::error_code& ec) { return Helper::push(L, value, ec); }
 
-    static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
+    static ReturnType get(lua_State* L, int index, std::error_code& ec) { return Helper::get(L, index, ec); }
 
     static bool isInstance(lua_State* L, int index) { return Userdata::isInstance<T>(L, index); }
 };

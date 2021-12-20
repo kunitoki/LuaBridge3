@@ -1,4 +1,4 @@
-// https://github.com/vinniefalco/LuaBridge
+// https://github.com/kunitoki/LuaBridge3
 // Copyright 2021, Lucio Asnaghi
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // SPDX-License-Identifier: MIT
@@ -6,6 +6,10 @@
 #pragma once
 
 #include "Config.h"
+#include "Expected.h"
+#include "Stack.h"
+
+#include <string_view>
 
 namespace luabridge {
 
@@ -49,17 +53,41 @@ private:
  * @brief Get a global value from the lua_State.
  *
  * @note This works on any type specialized by `Stack`, including `LuaRef` and its table proxies.
-*/
+ *
+ * @see getGlobalRef for getting a LuaRef directly.
+ */
 template <class T>
-T getGlobal(lua_State* L, const char* name)
+expected<T, std::error_code> getGlobal(lua_State* L, const char* name)
 {
+    assert(name != nullptr);
+    
+    const StackRestore stackRestore(L);
+    
     lua_getglobal(L, name);
 
-    auto result = luabridge::Stack<T>::get(L, -1);
-    
-    lua_pop(L, 1);
-    
+    std::error_code ec;
+    auto result = get<T>(L, -1, ec);
+
+    if (ec)
+        return make_unexpected(ec);
+
     return result;
+}
+
+//=================================================================================================
+/**
+ * @brief Get a global value from the lua_State as LuaRef.
+ */
+inline LuaRef getGlobalRef(lua_State* L, const char* name)
+{
+    assert(name != nullptr);
+    
+    const StackRestore stackRestore(L);
+    
+    lua_getglobal(L, name);
+
+    std::error_code ec;
+    return get<LuaRef>(L, -1, ec);
 }
 
 //=================================================================================================
