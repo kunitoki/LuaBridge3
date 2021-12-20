@@ -10,6 +10,7 @@
 #include "Errors.h"
 #include "FuncTraits.h"
 #include "LuaHelpers.h"
+#include "Userdata.h"
 
 #include <string>
 
@@ -545,6 +546,65 @@ int invoke_proxy_functor(lua_State* L)
     auto& func = *align<F>(lua_touserdata(L, lua_upvalueindex(1)));
 
     return function<typename FnTraits::result_type, typename FnTraits::argument_types, 1>::call(L, func);
+}
+
+//=================================================================================================
+/**
+ * @brief lua_CFunction to construct a class object wrapped in a container.
+ */
+template <class Args, class C>
+int constructor_container_proxy(lua_State* L)
+{
+    using T = typename ContainerTraits<C>::Type;
+
+    T* object = detail::constructor<T, Args>::call(detail::make_arguments_list<Args, 2>(L));
+
+    std::error_code ec;
+    if (! detail::UserdataSharedHelper<C, false>::push(L, object, ec))
+        luaL_error(L, "%s", ec.message().c_str());
+
+    return 1;
+}
+
+//=========================================================================================
+/**
+ * @brief lua_CFunction to construct a class object in-place in the userdata.
+ */
+template <class Args, class T>
+int constructor_placement_proxy(lua_State* L)
+{
+    std::error_code ec;
+    detail::UserdataValue<T>* value = detail::UserdataValue<T>::place(L, ec);
+    if (! value)
+        luaL_error(L, "%s", ec.message().c_str());
+
+    detail::constructor<T, Args>::call(value->getObject(), detail::make_arguments_list<Args, 2>(L));
+
+    value->commit();
+
+    return 1;
+}
+
+//=========================================================================================
+/**
+ * @brief Factory proxy.
+ */
+template <class T, class Function>
+T* factory_object_proxy(lua_State* L, Function&& func)
+{
+    std::error_code ec;
+    detail::UserdataValue<T>* value = detail::UserdataValue<T>::place(L, ec);
+    if (! value)
+        luaL_error(L, "%s", ec.message().c_str());
+
+    using FnTraits = detail::function_traits<Function>;
+    using FnArgs = detail::remove_first_type_t<typename FnTraits::argument_types>;
+
+    T* obj = detail::factory<T>::call(value->getObject(), std::forward<Function>(func), detail::make_arguments_list<FnArgs, 2>(L));
+
+    value->commit();
+
+    return obj;
 }
 
 } // namespace detail

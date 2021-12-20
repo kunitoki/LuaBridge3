@@ -227,12 +227,6 @@ class Namespace : public detail::Registrar
             lua_insert(L, -2); // Stack: ns, co, cl, st, vst
             rawsetfield(L, -5, name); // ns [name] = vst. Stack: ns, co, cl, st
 
-#if 0
-            lua_pushlightuserdata(L, this);
-            lua_pushcclosure_x(L, &tostringMetaMethod, 1);
-            rawsetfield(L, -2, "__tostring");
-#endif
-
             lua_pushcfunction_x(L, &detail::index_metamethod);
             rawsetfield(L, -2, "__index");
 
@@ -253,43 +247,6 @@ class Namespace : public detail::Registrar
                 lua_pushnil(L);
                 rawsetfield(L, -2, "__metatable");
             }
-        }
-
-        //=========================================================================================
-        /**
-         * @brief lua_CFunction to construct a class object wrapped in a container.
-         */
-        template <class Args, class C>
-        static int ctorContainerProxy(lua_State* L)
-        {
-            using T = typename ContainerTraits<C>::Type;
-
-            T* object = detail::constructor<T, Args>::call(detail::make_arguments_list<Args, 2>(L));
-
-            std::error_code ec;
-            if (! detail::UserdataSharedHelper<C, false>::push(L, object, ec))
-                luaL_error(L, "%s", ec.message().c_str());
-
-            return 1;
-        }
-
-        //=========================================================================================
-        /**
-         * @brief lua_CFunction to construct a class object in-place in the userdata.
-         */
-        template <class Args, class T>
-        static int ctorPlacementProxy(lua_State* L)
-        {
-            std::error_code ec;
-            detail::UserdataValue<T>* value = detail::UserdataValue<T>::place(L, ec);
-            if (! value)
-                luaL_error(L, "%s", ec.message().c_str());
-
-            detail::constructor<T, Args>::call(value->getObject(), detail::make_arguments_list<Args, 2>(L));
-
-            value->commit();
-
-            return 1;
         }
 
         //=========================================================================================
@@ -1011,7 +968,7 @@ class Namespace : public detail::Registrar
         {
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            lua_pushcclosure_x(L, &ctorContainerProxy<detail::function_arguments_t<MemFn>, C>, 0);
+            lua_pushcclosure_x(L, &detail::constructor_container_proxy<detail::function_arguments_t<MemFn>, C>, 0);
             rawsetfield(L, -2, "__call");
 
             return *this;
@@ -1022,7 +979,7 @@ class Namespace : public detail::Registrar
         {
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            lua_pushcclosure_x(L, &ctorPlacementProxy<detail::function_arguments_t<MemFn>, T>, 0);
+            lua_pushcclosure_x(L, &detail::constructor_placement_proxy<detail::function_arguments_t<MemFn>, T>, 0);
             rawsetfield(L, -2, "__call");
 
             return *this;
@@ -1042,21 +999,9 @@ class Namespace : public detail::Registrar
         {
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            auto factory = [function = std::move(function)](lua_State* L) -> T*
+            auto factory = [function = std::move(function)](lua_State* L)
             {
-                std::error_code ec;
-                detail::UserdataValue<T>* value = detail::UserdataValue<T>::place(L, ec);
-                if (! value)
-                    luaL_error(L, "%s", ec.message().c_str());
-
-                using FnTraits = detail::function_traits<Function>;
-                using FnArgs = detail::remove_first_type_t<typename FnTraits::argument_types>;
-
-                T* obj = detail::factory<T>::call(value->getObject(), function, detail::make_arguments_list<FnArgs, 2>(L));
-
-                value->commit();
-
-                return obj;
+                return detail::factory_object_proxy<T>(L, std::move(function));
             };
 
             using FactoryFnType = decltype(factory);
@@ -1277,12 +1222,12 @@ public:
             using U = std::underlying_type_t<T>;
             
             if (! Stack<U>::push(L, static_cast<U>(value), ec))
-                luaL_error(L, "%s", ec.message().c_str());
+                luaL_error(L, "%s", ec.message().c_str()); // TODO - this is problematic without exceptions
         }
         else
         {
             if (! Stack<T>::push(L, value, ec))
-                luaL_error(L, "%s", ec.message().c_str());
+                luaL_error(L, "%s", ec.message().c_str()); // TODO - this is problematic without exceptions
         }
 
         rawsetfield(L, -2, name); // Stack: ns
