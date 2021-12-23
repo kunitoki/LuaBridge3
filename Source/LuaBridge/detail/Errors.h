@@ -81,7 +81,7 @@ struct ErrorCategory : std::error_category
  */
 inline std::error_code makeErrorCode(ErrorCode e)
 {
-  return { static_cast<int>(e), detail::ErrorCategory::getInstance() };
+    return { static_cast<int>(e), detail::ErrorCategory::getInstance() };
 }
 
 } // namespace luabridge
