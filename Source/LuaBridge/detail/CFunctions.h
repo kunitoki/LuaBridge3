@@ -543,9 +543,10 @@ int invoke_proxy_functor(lua_State* L)
 
     assert(isfulluserdata(L, lua_upvalueindex(1)));
 
-    auto& func = *align<F>(lua_touserdata(L, lua_upvalueindex(1)));
+    auto func = align<F>(lua_touserdata(L, lua_upvalueindex(1)));
+    assert(func != nullptr);
 
-    return function<typename FnTraits::result_type, typename FnTraits::argument_types, 1>::call(L, func);
+    return function<typename FnTraits::result_type, typename FnTraits::argument_types, 1>::call(L, *func);
 }
 
 //=================================================================================================

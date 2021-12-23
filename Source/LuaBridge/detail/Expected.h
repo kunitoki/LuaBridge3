@@ -853,6 +853,8 @@ class expected_base_non_trivial<T, E, false, false, IsMoveConstructible>
 protected:
     using storage_type = expected_storage<T, E>;
 
+    constexpr expected_base_non_trivial() = delete;
+    
     template <class... Args>
     constexpr expected_base_non_trivial(std::in_place_t, Args&&... args) noexcept(std::is_nothrow_constructible_v<storage_type, std::in_place_t, Args...>)
         : storage_(std::in_place, std::forward<Args>(args)...)
@@ -1092,6 +1094,8 @@ class expected_base_non_trivial<T, E, false, IsCopyConstructible, false>
 protected:
     using storage_type = expected_storage<T, E>;
 
+    constexpr expected_base_non_trivial() = delete;
+
     template <class... Args>
     constexpr expected_base_non_trivial(std::in_place_t, Args&&... args) noexcept(std::is_nothrow_constructible_v<storage_type, std::in_place_t, Args...>)
         : storage_(std::in_place, std::forward<Args>(args)...)
@@ -1320,6 +1324,8 @@ class expected_base_non_trivial<T, E, false, false, false>
 
 protected:
     using storage_type = expected_storage<T, E>;
+
+    constexpr expected_base_non_trivial() = delete;
 
     template <class... Args>
     constexpr expected_base_non_trivial(std::in_place_t, Args&&... args) noexcept(std::is_nothrow_constructible_v<storage_type, std::in_place_t, Args...>)
@@ -1799,20 +1805,14 @@ public:
      *
      * @param [in] other Expected object to copy from.
      */
-    constexpr expected(const expected& other) noexcept(std::is_nothrow_copy_constructible_v<base_type>)
-        : base_type(other)
-    {
-    }
+    constexpr expected(const expected& other) noexcept(std::is_nothrow_copy_constructible_v<base_type>) = default;
 
     /**
      * @brief Move constructor.
      *
      * @param [in] other Expected object to move from.
      */
-    constexpr expected(expected&& other) noexcept(std::is_nothrow_move_constructible_v<base_type>)
-        : base_type(std::move(other))
-    {
-    }
+    constexpr expected(expected&& other) noexcept(std::is_nothrow_move_constructible_v<base_type>) = default;
 
     /**
      * @brief Copy-convert constructor.
@@ -2195,16 +2195,13 @@ public:
      *
      * @return Returns a reference to the contained value.
      */
-#if LUABRIDGE_HAS_EXCEPTIONS
     constexpr const T& value() const&
-#else
-    constexpr const T& value() const&
-#endif
     {
 #if LUABRIDGE_HAS_EXCEPTIONS
         if (!has_value())
             throw bad_expected_access<E>(error());
 #endif
+
         return base_type::value();
     }
 
@@ -2219,6 +2216,7 @@ public:
         if (!has_value())
             throw bad_expected_access<E>(error());
 #endif
+
         return base_type::value();
     }
 
@@ -2227,16 +2225,13 @@ public:
      *
      * @return Returns a reference to the contained value.
      */
-#if LUABRIDGE_HAS_EXCEPTIONS
-    constexpr const T&& value() const&&
-#else
-    constexpr const T&& value() const&&
-#endif
+    constexpr const T&& value() const&& noexcept
     {
 #if LUABRIDGE_HAS_EXCEPTIONS
         if (!has_value())
             throw bad_expected_access<E>(error());
 #endif
+
         return std::move(base_type::value());
     }
 
@@ -2330,6 +2325,7 @@ private:
         -> decltype(std::declval<this_type>().construct(tag, std::forward<Args>(args)...))
     {
         this->destroy();
+
         return this->construct(tag, std::forward<Args>(args)...);
     }
 };
@@ -2381,10 +2377,7 @@ public:
      *
      * @return Reference to this.
      */
-    constexpr expected(const expected& other)
-        : base_type(other)
-    {
-    }
+    constexpr expected(const expected& other) = default;
 
     /**
      * @brief Move assignment operator.
@@ -2393,10 +2386,7 @@ public:
      *
      * @return Reference to this.
      */
-    constexpr expected(expected&& other)
-        : base_type(std::move(other))
-    {
-    }
+    constexpr expected(expected&& other) = default;
 
     /**
      * @brief Copy-convert constructor.

@@ -1840,9 +1840,9 @@ TEST_F(ClassTests, ConstructorWithReferences)
     runLua("x = InnerClass () result = OuterClass (x)");
 }
 
+#if LUABRIDGE_HAS_EXCEPTIONS
 TEST_F(ClassTests, DestructorIsNotCalledIfConstructorThrows)
 {
-#if LUABRIDGE_HAS_EXCEPTIONS
     luabridge::getGlobalNamespace(L)
         .beginClass<OuterClass>("OuterClass")
         .addConstructor<void (*)()>()
@@ -1858,8 +1858,8 @@ TEST_F(ClassTests, DestructorIsNotCalledIfConstructorThrows)
 
     ASSERT_EQ(1, InnerClass::destructorCallCount);
     ASSERT_EQ(0, OuterClass::destructorCallCount);
-#endif
 }
+#endif
 
 TEST_F(ClassTests, DestructorIsCalledOnce)
 {

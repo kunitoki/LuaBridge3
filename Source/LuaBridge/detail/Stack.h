@@ -1083,11 +1083,11 @@ struct StackOpSelector<T&, false>
 template <class T>
 struct StackOpSelector<const T&, false>
 {
-    using ReturnType = T;
+    using ReturnType = std::decay_t<T>;
 
     static bool push(lua_State* L, const T& value, std::error_code& ec) { return Stack<T>::push(L, value, ec); }
 
-    static auto get(lua_State* L, int index, std::error_code& ec) { return Stack<T>::get(L, index, ec); }
+    static ReturnType get(lua_State* L, int index, std::error_code& ec) { return Stack<T>::get(L, index, ec); }
 
     static bool isInstance(lua_State* L, int index) { return Stack<T>::isInstance(L, index); }
 };
@@ -1135,11 +1135,11 @@ template <class T>
 struct Stack<const T&, std::enable_if_t<!std::is_array_v<const T&>>>
 {
     using Helper = detail::StackOpSelector<const T&, detail::IsUserdata<T>::value>;
-    using ReturnType = typename Helper::ReturnType;
+    using ReturnType = std::decay_t<typename Helper::ReturnType>;
 
     [[nodiscard]] static bool push(lua_State* L, const T& value, std::error_code& ec) { return Helper::push(L, value, ec); }
 
-    [[nodiscard]] static auto get(lua_State* L, int index, std::error_code& ec) { return Helper::get(L, index, ec); }
+    [[nodiscard]] static ReturnType get(lua_State* L, int index, std::error_code& ec) { return Helper::get(L, index, ec); }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index) { return Helper::template isInstance<T>(L, index); }
 };
