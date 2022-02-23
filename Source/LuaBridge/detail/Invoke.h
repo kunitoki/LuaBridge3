@@ -193,7 +193,7 @@ LuaResult call(const LuaRef& object, Args&&... args)
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         if (LuaException::areExceptionsEnabled())
-            LuaException::raise(LuaException(L, ec));
+            LuaException::raise(L, ec);
 #else
         return LuaResult::errorFromStack(L, ec);
 #endif
@@ -212,7 +212,7 @@ inline int pcall(lua_State* L, int nargs = 0, int nresults = 0, int msgh = 0)
 
 #if LUABRIDGE_HAS_EXCEPTIONS
     if (code != LUABRIDGE_LUA_OK && LuaException::areExceptionsEnabled())
-        LuaException::raise(LuaException(L, makeErrorCode(ErrorCode::LuaFunctionCallFailed)));
+        LuaException::raise(L, makeErrorCode(ErrorCode::LuaFunctionCallFailed));
 #endif
 
     return code;
