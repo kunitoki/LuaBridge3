@@ -31,6 +31,7 @@ public:
         : m_L(L)
         , m_code(code)
     {
+        whatFromStack();
     }
 
     ~LuaException() noexcept override

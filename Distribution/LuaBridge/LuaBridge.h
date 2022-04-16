@@ -100,7 +100,7 @@ inline int luaL_ref(lua_State* L, int idx)
     const int ref = lua_ref(L, -1);
 
     lua_pop(L, 1);
-    
+
     return ref;
 }
 
@@ -511,6 +511,7 @@ public:
         : m_L(L)
         , m_code(code)
     {
+        whatFromStack();
     }
 
     ~LuaException() noexcept override
@@ -829,7 +830,7 @@ template <class T>
 struct ContainerTraits<std::shared_ptr<T>>
 {
     static_assert(std::is_base_of_v<std::enable_shared_from_this<T>, T>);
-    
+
     using Type = T;
 
     static std::shared_ptr<T> construct(T* t)
@@ -1807,7 +1808,7 @@ struct Stack<std::nullptr_t>
 #if LUABRIDGE_SAFE_STACK_CHECKS
         luaL_checkstack(L, 1, detail::error_lua_stack_overflow);
 #endif
-        
+
         lua_pushnil(L);
         return true;
     }
@@ -2708,7 +2709,7 @@ struct Stack<std::map<K, V>>
 
             lua_settable(L, -3);
         }
-        
+
         return true;
     }
 
@@ -2766,7 +2767,7 @@ struct Stack<std::unordered_map<K, V>>
 #endif
 
         const int initialStackSize = lua_gettop(L);
-        
+
         lua_createtable(L, 0, static_cast<int>(map.size()));
 
         for (auto it = map.begin(); it != map.end(); ++it)
@@ -2778,7 +2779,7 @@ struct Stack<std::unordered_map<K, V>>
                 lua_pop(L, lua_gettop(L) - initialStackSize);
                 return false;
             }
-            
+
             std::error_code errorCodeValue;
             if (! Stack<V>::push(L, it->second, errorCodeValue))
             {
@@ -2789,7 +2790,7 @@ struct Stack<std::unordered_map<K, V>>
 
             lua_settable(L, -3);
         }
-        
+
         return true;
     }
 
@@ -2838,7 +2839,7 @@ template <class T>
 struct Stack<std::optional<T>>
 {
     using Type = std::optional<T>;
-    
+
     static bool push(lua_State* L, const Type& value, std::error_code& ec)
     {
         if (value)
@@ -2856,7 +2857,7 @@ struct Stack<std::optional<T>>
     {
         if (lua_type(L, index) == LUA_TNIL)
             return std::nullopt;
-        
+
         return Stack<T>::get(L, index);
     }
 
@@ -4565,7 +4566,7 @@ public:
         luaL_ref(m_L, -2);
     }
 #endif
-    
+
     //=============================================================================================
     /**
      * @brief Return the length of a referred array.
@@ -5039,10 +5040,10 @@ public:
 
         m_L = rhs.m_L;
         m_ref = std::exchange(rhs.m_ref, LUA_NOREF);
-        
+
         return *this;
     }
-    
+
     //=============================================================================================
     /**
      * @brief Assign a table item reference.
@@ -5110,7 +5111,7 @@ public:
     {
         if (m_ref != LUA_NOREF)
             luaL_unref(m_L, LUA_REGISTRYINDEX, m_ref);
-        
+
         m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX);
     }
 
@@ -5714,9 +5715,9 @@ T getGlobal(lua_State* L, const char* name)
     lua_getglobal(L, name);
 
     auto result = luabridge::Stack<T>::get(L, -1);
-    
+
     lua_pop(L, 1);
-    
+
     return result;
 }
 
@@ -5858,7 +5859,7 @@ class Namespace : public detail::Registrar
         // Get information on the caller's caller to format the message,
         // so the error appears to originate from the Lua source.
         lua_Debug ar;
-    
+
         int result = lua_getstack(L, 2, &ar);
         if (result != 0)
         {
@@ -7363,7 +7364,7 @@ template <class T>
 struct Stack<std::list<T>>
 {
     using Type = std::list<T>;
-    
+
     static bool push(lua_State* L, const Type& list, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
@@ -7389,7 +7390,7 @@ struct Stack<std::list<T>>
 
             lua_settable(L, -3);
         }
-        
+
         return true;
     }
 
@@ -7447,7 +7448,7 @@ struct Stack<std::array<T, Size>>
 #endif
 
         const int initialStackSize = lua_gettop(L);
-        
+
         lua_createtable(L, static_cast<int>(Size), 0);
 
         for (std::size_t i = 0; i < Size; ++i)
@@ -7465,7 +7466,7 @@ struct Stack<std::array<T, Size>>
 
             lua_settable(L, -3);
         }
-        
+
         return true;
     }
 
@@ -7522,13 +7523,13 @@ struct Stack<std::vector<T>>
 #endif
 
         const int initialStackSize = lua_gettop(L);
-        
+
         lua_createtable(L, static_cast<int>(vector.size()), 0);
 
         for (std::size_t i = 0; i < vector.size(); ++i)
         {
             lua_pushinteger(L, static_cast<lua_Integer>(i + 1));
-            
+
             std::error_code errorCode;
             if (! Stack<T>::push(L, vector[i], errorCode))
             {
@@ -7536,10 +7537,10 @@ struct Stack<std::vector<T>>
                 lua_pop(L, lua_gettop(L) - initialStackSize);
                 return false;
             }
-            
+
             lua_settable(L, -3);
         }
-        
+
         return true;
     }
 
@@ -7589,7 +7590,7 @@ template <class K, class V>
 struct Stack<std::set<K, V>>
 {
     using Type = std::set<K, V>;
-    
+
     static bool push(lua_State* L, const Type& set, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
@@ -7597,7 +7598,7 @@ struct Stack<std::set<K, V>>
 #endif
 
         const int initialStackSize = lua_gettop(L);
-        
+
         lua_createtable(L, 0, static_cast<int>(set.size()));
 
         for (auto it = set.begin(); it != set.end(); ++it)
@@ -7620,7 +7621,7 @@ struct Stack<std::set<K, V>>
 
             lua_settable(L, -3);
         }
-        
+
         return true;
     }
 
