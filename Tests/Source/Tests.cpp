@@ -519,7 +519,6 @@ TEST_F(LuaBridgeTest, Exception)
     const auto error = call_callback_get_exception(cb2);
     EXPECT_NE(std::string::npos, error.find("The lua function invocation raised an error"));
     EXPECT_NE(std::string::npos, error.find("attempt to index"));
-    EXPECT_NE(std::string::npos, error.find("a nil value"));
-    EXPECT_NE(std::string::npos, error.find("global 'this'"));
+    EXPECT_NE(std::string::npos, error.find(" nil "));
 }
 #endif
