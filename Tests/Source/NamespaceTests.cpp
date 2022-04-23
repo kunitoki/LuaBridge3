@@ -16,6 +16,10 @@ struct NamespaceTests : TestBase
     }
 };
 
+namespace {
+enum class A { x, y };
+}
+
 TEST_F(NamespaceTests, Variables)
 {
     int int_ = -10;
@@ -36,6 +40,8 @@ TEST_F(NamespaceTests, Variables)
         .addProperty("any", &any)
         .addProperty("fnc_get", [stored] { return stored; })
         .addProperty("fnc_getset", [stored] { return stored; }, [&stored](int v) { stored = v; })
+        .addProperty("A_x", A::x)
+        .addProperty("A_y", A::y)
         .endNamespace();
 
     ASSERT_EQ(-10, variable<int>("ns.int"));
@@ -57,6 +63,12 @@ TEST_F(NamespaceTests, Variables)
 
     runLua("ns.fnc_getset = 1337");
     ASSERT_EQ(1337, stored);
+
+    runLua("result = ns.A_x");
+    ASSERT_EQ(A::x, static_cast<A>(result<int>()));
+
+    runLua("result = ns.A_y");
+    ASSERT_EQ(A::y, static_cast<A>(result<int>()));
 }
 
 TEST_F(NamespaceTests, ReadOnlyVariables)
