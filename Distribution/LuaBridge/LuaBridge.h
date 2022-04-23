@@ -35,11 +35,6 @@
 
 // Begin File: Source/LuaBridge/detail/Config.h
 
-// https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
-// Copyright 2020, Dmitry Tarakanov
-// Copyright 2019, George Tokmaji
-// SPDX-License-Identifier: MIT
 
 #if !(__cplusplus >= 201703L || (defined(_MSC_VER) && _HAS_CXX17))
 #error LuaBridge 3 requires a compliant C++17 compiler, or C++17 has not been enabled !
@@ -83,11 +78,6 @@
 
 // Begin File: Source/LuaBridge/detail/LuaHelpers.h
 
-// https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
-// Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
-// Copyright 2007, Nathan Reed
-// SPDX-License-Identifier: MIT
 
 namespace luabridge {
 
@@ -533,9 +523,6 @@ bool is_floating_point_representable_by(lua_State* L, int index)
 
 // Begin File: Source/LuaBridge/detail/Errors.h
 
-// https://github.com/vinniefalco/LuaBridge
-// Copyright 2021, Lucio Asnaghi
-// SPDX-License-Identifier: MIT
 
 namespace luabridge {
 
@@ -623,11 +610,6 @@ template <> struct is_error_code_enum<luabridge::ErrorCode> : true_type {};
 
 // Begin File: Source/LuaBridge/detail/LuaException.h
 
-// https://github.com/kunitoki/LuaBridge3
-// Copyright 2021, Lucio Asnaghi
-// Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
-// Copyright 2008, Nigel Atkinson <suprapilot+LuaCode@gmail.com>
-// SPDX-License-Identifier: MIT
 
 namespace luabridge {
 
@@ -783,11 +765,6 @@ inline void enableExceptions(lua_State* L) noexcept
 
 // Begin File: Source/LuaBridge/detail/ClassInfo.h
 
-// https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
-// Copyright 2020, Dmitry Tarakanov
-// Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
-// SPDX-License-Identifier: MIT
 
 namespace luabridge {
 namespace detail {
@@ -902,11 +879,6 @@ const void* getConstRegistryKey() noexcept
 
 // Begin File: Source/LuaBridge/detail/TypeTraits.h
 
-// https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
-// Copyright 2019, Dmitry Tarakanov
-// Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
-// SPDX-License-Identifier: MIT
 
 namespace luabridge {
 
@@ -1005,11 +977,6 @@ public:
 
 // Begin File: Source/LuaBridge/detail/Userdata.h
 
-// https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
-// Copyright 2019, Dmitry Tarakanov
-// Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
-// SPDX-License-Identifier: MIT
 
 namespace luabridge {
 namespace detail {
@@ -1894,12 +1861,6 @@ struct StackOpSelector<const T&, true>
 
 // Begin File: Source/LuaBridge/detail/Stack.h
 
-// https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
-// Copyright 2019, Dmitry Tarakanov
-// Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
-// Copyright 2007, Nathan Reed
-// SPDX-License-Identifier: MIT
 
 namespace luabridge {
 
@@ -3107,10 +3068,6 @@ private:
 
 // Begin File: Source/LuaBridge/Array.h
 
-// https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
-// Copyright 2020, Dmitry Tarakanov
-// SPDX-License-Identifier: MIT
 
 namespace luabridge {
 
@@ -3191,10 +3148,6 @@ struct Stack<std::array<T, Size>>
 
 // Begin File: Source/LuaBridge/List.h
 
-// https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
-// Copyright 2020, Dmitry Tarakanov
-// SPDX-License-Identifier: MIT
 
 namespace luabridge {
 
@@ -3271,12 +3224,6 @@ struct Stack<std::list<T>>
 
 // Begin File: Source/LuaBridge/detail/FuncTraits.h
 
-// https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
-// Copyright 2020, Dmitry Tarakanov
-// Copyright 2019, George Tokmaji
-// Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
-// SPDX-License-Identifier: MIT
 
 namespace luabridge {
 namespace detail {
@@ -3789,11 +3736,6 @@ struct factory
 
 // Begin File: Source/LuaBridge/detail/CFunctions.h
 
-// https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
-// Copyright 2019, Dmitry Tarakanov
-// Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
-// SPDX-License-Identifier: MIT
 
 namespace luabridge {
 namespace detail {
@@ -4302,13 +4244,6 @@ int invoke_proxy_functor(lua_State* L)
 
 // Begin File: Source/LuaBridge/detail/LuaRef.h
 
-// https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
-// Copyright 2019, George Tokmaji
-// Copyright 2018, Dmitry Tarakanov
-// Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
-// Copyright 2008, Nigel Atkinson <suprapilot+LuaCode@gmail.com>
-// SPDX-License-Identifier: MIT
 
 namespace luabridge {
 
@@ -5670,9 +5605,6 @@ template <class T>
 
 // Begin File: Source/LuaBridge/detail/Invoke.h
 
-// https://github.com/kunitoki/LuaBridge3
-// Copyright 2021, Lucio Asnaghi
-// SPDX-License-Identifier: MIT
 
 namespace luabridge {
 
@@ -5890,11 +5822,6 @@ LuaResult LuaRefBase<Impl, LuaRef>::operator()(Args&&... args) const
 
 // Begin File: Source/LuaBridge/detail/Iterator.h
 
-// https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
-// Copyright 2018, Dmitry Tarakanov
-// Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
-// SPDX-License-Identifier: MIT
 
 namespace luabridge {
 
@@ -6095,10 +6022,6 @@ inline Range pairs(const LuaRef& table)
 
 // Begin File: Source/LuaBridge/detail/Security.h
 
-// https://github.com/vinniefalco/LuaBridge
-// Copyright 2021, Lucio Asnaghi
-// Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
-// SPDX-License-Identifier: MIT
 
 namespace luabridge {
 
@@ -6189,12 +6112,6 @@ inline void setHideMetatables(bool shouldHide) noexcept
 
 // Begin File: Source/LuaBridge/detail/Namespace.h
 
-// https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
-// Copyright 2019, Dmitry Tarakanov
-// Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
-// Copyright 2007, Nathan Reed
-// SPDX-License-Identifier: MIT
 
 namespace luabridge {
 namespace detail {
@@ -7771,12 +7688,6 @@ inline Namespace getNamespaceFromStack(lua_State* L)
 
 // Begin File: Source/LuaBridge/LuaBridge.h
 
-// https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
-// Copyright 2020, Dmitry Tarakanov
-// Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
-// Copyright 2007, Nathan Reed
-// SPDX-License-Identifier: MIT
 
 // All #include dependencies are listed here
 // instead of in the individual header files.
@@ -7790,10 +7701,6 @@ inline Namespace getNamespaceFromStack(lua_State* L)
 
 // Begin File: Source/LuaBridge/Map.h
 
-// https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
-// Copyright 2018, Dmitry Tarakanov
-// SPDX-License-Identifier: MIT
 
 namespace luabridge {
 
@@ -7875,11 +7782,6 @@ struct Stack<std::map<K, V>>
 
 // Begin File: Source/LuaBridge/RefCountedObject.h
 
-// https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
-// Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
-// Copyright 2004-11 by Raw Material Software Ltd.
-// SPDX-License-Identifier: MIT
 
 //==============================================================================
 /*
@@ -8241,9 +8143,6 @@ struct ContainerTraits<RefCountedObjectPtr<T>>
 
 // Begin File: Source/LuaBridge/Set.h
 
-// https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
-// SPDX-License-Identifier: MIT
 
 namespace luabridge {
 
@@ -8325,10 +8224,6 @@ struct Stack<std::set<K, V>>
 
 // Begin File: Source/LuaBridge/UnorderedMap.h
 
-// https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
-// Copyright 2019, Dmitry Tarakanov
-// SPDX-License-Identifier: MIT
 
 namespace luabridge {
 
@@ -8410,10 +8305,6 @@ struct Stack<std::unordered_map<K, V>>
 
 // Begin File: Source/LuaBridge/Vector.h
 
-// https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
-// Copyright 2018, Dmitry Tarakanov
-// SPDX-License-Identifier: MIT
 
 namespace luabridge {
 
@@ -8490,12 +8381,6 @@ struct Stack<std::vector<T>>
 
 // Begin File: Source/LuaBridge/detail/Dump.h
 
-// https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
-// Copyright 2019, Dmitry Tarakanov
-// Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
-// Copyright 2007, Nathan Reed
-// SPDX-License-Identifier: MIT
 
 namespace luabridge {
 namespace debug {
