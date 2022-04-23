@@ -7483,13 +7483,26 @@ public:
     template <class Getter>
     Namespace& addProperty(const char* name, Getter get)
     {
-        using GetType = decltype(get);
-
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 
-        lua_newuserdata_aligned<GetType>(L, std::move(get)); // Stack: ns, function userdata (ud)
-        lua_pushcclosure_x(L, &detail::invoke_proxy_functor<GetType>, 1); // Stack: ns, ud, getter
+        if constexpr (std::is_enum_v<Getter>)
+        {
+            using U = std::underlying_type_t<Getter>;
+
+            auto enumGet = [get] { return static_cast<U>(get); };
+
+            using GetType = decltype(enumGet);
+            lua_newuserdata_aligned<GetType>(L, std::move(enumGet)); // Stack: ns, function userdata (ud)
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<GetType>, 1); // Stack: ns, ud, getter
+        }
+        else
+        {
+            using GetType = decltype(get);
+            lua_newuserdata_aligned<GetType>(L, std::move(get)); // Stack: ns, function userdata (ud)
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<GetType>, 1); // Stack: ns, ud, getter
+        }
+
         detail::add_property_getter(L, name, -2); // Stack: ns, ud, getter
 
         lua_pushstring(L, name); // Stack: ns, name
@@ -8011,7 +8024,10 @@ public:
      */
     RefCountedObjectPtr& operator=(RefCountedObjectPtr&& other)
     {
-        std::swap(referencedObject, other.referencedObject);
+        using std::swap;
+
+        swap(referencedObject, other.referencedObject);
+
         return *this;
     }
 
