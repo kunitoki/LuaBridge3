@@ -118,11 +118,16 @@ class SourceInfo:
 		return info
 
 	def ParseDirectories(self):
+		all_files = []
+
 		for sourceDirectory in 	self.includeDirs:
 			for root, _, files in os.walk(sourceDirectory):
 				for filename in files:
-					path =  os.path.join(root, filename)
-					self.ScanSourceFile(path, 0)
+					all_files.append(os.path.join(root, filename))
+
+		for path in sorted(all_files):
+			self.ScanSourceFile(path, 0)
+
 
 	def WriteBeginFileHeader(self, filename, stream):
 		stream.write(f"// Begin File: {filename}\n\n")
