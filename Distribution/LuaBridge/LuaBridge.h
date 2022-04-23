@@ -3105,6 +3105,91 @@ private:
 
 // End File: Source/LuaBridge/detail/Stack.h
 
+// Begin File: Source/LuaBridge/UnorderedMap.h
+
+// https://github.com/kunitoki/LuaBridge3
+// Copyright 2020, Lucio Asnaghi
+// Copyright 2019, Dmitry Tarakanov
+// SPDX-License-Identifier: MIT
+
+namespace luabridge {
+
+//=================================================================================================
+/**
+ * @brief Stack specialization for `std::unordered_map`.
+ */
+template <class K, class V>
+struct Stack<std::unordered_map<K, V>>
+{
+    using Type = std::unordered_map<K, V>;
+
+    [[nodiscard]] static bool push(lua_State* L, const Type& map, std::error_code& ec)
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 3))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
+#endif
+
+        const int initialStackSize = lua_gettop(L);
+        
+        lua_createtable(L, 0, static_cast<int>(map.size()));
+
+        for (auto it = map.begin(); it != map.end(); ++it)
+        {
+            std::error_code errorCodeKey;
+            if (! Stack<K>::push(L, it->first, errorCodeKey))
+            {
+                ec = errorCodeKey;
+                lua_pop(L, lua_gettop(L) - initialStackSize);
+                return false;
+            }
+            
+            std::error_code errorCodeValue;
+            if (! Stack<V>::push(L, it->second, errorCodeValue))
+            {
+                ec = errorCodeValue;
+                lua_pop(L, lua_gettop(L) - initialStackSize);
+                return false;
+            }
+
+            lua_settable(L, -3);
+        }
+        
+        return true;
+    }
+
+    [[nodiscard]] static Type get(lua_State* L, int index)
+    {
+        if (!lua_istable(L, index))
+            luaL_error(L, "#%d argument must be a table", index);
+
+        Type map;
+
+        int absIndex = lua_absindex(L, index);
+        lua_pushnil(L);
+
+        while (lua_next(L, absIndex) != 0)
+        {
+            map.emplace(Stack<K>::get(L, -2), Stack<V>::get(L, -1));
+            lua_pop(L, 1);
+        }
+
+        return map;
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        return lua_istable(L, index);
+    }
+};
+
+} // namespace luabridge
+
+// End File: Source/LuaBridge/UnorderedMap.h
+
 // Begin File: Source/LuaBridge/Map.h
 
 // https://github.com/kunitoki/LuaBridge3
@@ -3190,25 +3275,25 @@ struct Stack<std::map<K, V>>
 
 // End File: Source/LuaBridge/Map.h
 
-// Begin File: Source/LuaBridge/UnorderedMap.h
+// Begin File: Source/LuaBridge/Array.h
 
 // https://github.com/kunitoki/LuaBridge3
 // Copyright 2020, Lucio Asnaghi
-// Copyright 2019, Dmitry Tarakanov
+// Copyright 2020, Dmitry Tarakanov
 // SPDX-License-Identifier: MIT
 
 namespace luabridge {
 
 //=================================================================================================
 /**
- * @brief Stack specialization for `std::unordered_map`.
+ * @brief Stack specialization for `std::array`.
  */
-template <class K, class V>
-struct Stack<std::unordered_map<K, V>>
+template <class T, std::size_t Size>
+struct Stack<std::array<T, Size>>
 {
-    using Type = std::unordered_map<K, V>;
+    using Type = std::array<T, Size>;
 
-    [[nodiscard]] static bool push(lua_State* L, const Type& map, std::error_code& ec)
+    [[nodiscard]] static bool push(lua_State* L, const Type& array, std::error_code& ec)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 3))
@@ -3220,9 +3305,458 @@ struct Stack<std::unordered_map<K, V>>
 
         const int initialStackSize = lua_gettop(L);
         
-        lua_createtable(L, 0, static_cast<int>(map.size()));
+        lua_createtable(L, static_cast<int>(Size), 0);
 
-        for (auto it = map.begin(); it != map.end(); ++it)
+        for (std::size_t i = 0; i < Size; ++i)
+        {
+            lua_pushinteger(L, static_cast<lua_Integer>(i + 1));
+
+            std::error_code errorCode;
+            bool result = Stack<T>::push(L, array[i], errorCode);
+            if (!result)
+            {
+                ec = errorCode;
+                lua_pop(L, lua_gettop(L) - initialStackSize);
+                return false;
+            }
+
+            lua_settable(L, -3);
+        }
+        
+        return true;
+    }
+
+    [[nodiscard]] static Type get(lua_State* L, int index)
+    {
+        if (!lua_istable(L, index))
+            luaL_error(L, "#%d argment must be a table", index);
+
+        if (get_length(L, index) != Size)
+            luaL_error(L, "table size should be %d but is %d", static_cast<int>(Size), get_length(L, index));
+
+        Type array;
+
+        int absIndex = lua_absindex(L, index);
+        lua_pushnil(L);
+
+        int arrayIndex = 0;
+        while (lua_next(L, absIndex) != 0)
+        {
+            array[arrayIndex++] = Stack<T>::get(L, -1);
+            lua_pop(L, 1);
+        }
+
+        return array;
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        return lua_istable(L, index) && get_length(L, index) == Size;
+    }
+};
+
+} // namespace luabridge
+
+// End File: Source/LuaBridge/Array.h
+
+// Begin File: Source/LuaBridge/RefCountedObject.h
+
+// https://github.com/kunitoki/LuaBridge3
+// Copyright 2020, Lucio Asnaghi
+// Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
+// Copyright 2004-11 by Raw Material Software Ltd.
+// SPDX-License-Identifier: MIT
+
+//==============================================================================
+/*
+  This is a derivative work used by permission from part of
+  JUCE, available at http://www.rawaterialsoftware.com
+
+  License: The MIT License (http://www.opensource.org/licenses/mit-license.php)
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+
+  This file incorporates work covered by the following copyright and
+  permission notice:
+
+    This file is part of the JUCE library - "Jules' Utility Class Extensions"
+    Copyright 2004-11 by Raw Material Software Ltd.
+*/
+//==============================================================================
+
+namespace luabridge {
+
+//==============================================================================
+/**
+  Adds reference-counting to an object.
+
+  To add reference-counting to a class, derive it from this class, and
+  use the RefCountedObjectPtr class to point to it.
+
+  e.g. @code
+  class MyClass : public RefCountedObjectType
+  {
+      void foo();
+
+      // This is a neat way of declaring a typedef for a pointer class,
+      // rather than typing out the full templated name each time..
+      typedef RefCountedObjectPtr<MyClass> Ptr;
+  };
+
+  MyClass::Ptr p = new MyClass();
+  MyClass::Ptr p2 = p;
+  p = 0;
+  p2->foo();
+  @endcode
+
+  Once a new RefCountedObjectType has been assigned to a pointer, be
+  careful not to delete the object manually.
+*/
+template<class CounterType>
+class RefCountedObjectType
+{
+public:
+    //==============================================================================
+    /** Increments the object's reference count.
+
+        This is done automatically by the smart pointer, but is public just
+        in case it's needed for nefarious purposes.
+    */
+    inline void incReferenceCount() const { ++refCount; }
+
+    /** Decreases the object's reference count.
+
+        If the count gets to zero, the object will be deleted.
+    */
+    inline void decReferenceCount() const
+    {
+        assert(getReferenceCount() > 0);
+
+        if (--refCount == 0)
+            delete this;
+    }
+
+    /** Returns the object's current reference count.
+     * @returns The reference count.
+     */
+    inline int getReferenceCount() const { return static_cast<int>(refCount); }
+
+protected:
+    //==============================================================================
+    /** Creates the reference-counted object (with an initial ref count of zero). */
+    RefCountedObjectType() : refCount() {}
+
+    /** Destructor. */
+    virtual ~RefCountedObjectType()
+    {
+        // it's dangerous to delete an object that's still referenced by something else!
+        assert(getReferenceCount() == 0);
+    }
+
+private:
+    //==============================================================================
+    CounterType mutable refCount;
+};
+
+//==============================================================================
+
+/** Non thread-safe reference counted object.
+
+    This creates a RefCountedObjectType that uses a non-atomic integer
+    as the counter.
+*/
+typedef RefCountedObjectType<int> RefCountedObject;
+
+//==============================================================================
+/**
+    A smart-pointer class which points to a reference-counted object.
+
+    The template parameter specifies the class of the object you want to point
+    to - the easiest way to make a class reference-countable is to simply make
+    it inherit from RefCountedObjectType, but if you need to, you could roll
+    your own reference-countable class by implementing a pair of methods called
+    incReferenceCount() and decReferenceCount().
+
+    When using this class, you'll probably want to create a typedef to
+    abbreviate the full templated name - e.g.
+
+    @code
+
+    typedef RefCountedObjectPtr <MyClass> MyClassPtr;
+
+    @endcode
+*/
+template<class ReferenceCountedObjectClass>
+class RefCountedObjectPtr
+{
+public:
+    /** The class being referenced by this pointer. */
+    typedef ReferenceCountedObjectClass ReferencedType;
+
+    //==============================================================================
+    /** Creates a pointer to a null object. */
+    inline RefCountedObjectPtr() : referencedObject(0) {}
+
+    /** Creates a pointer to an object.
+        This will increment the object's reference-count if it is non-null.
+
+        @param refCountedObject A reference counted object to own.
+    */
+    inline RefCountedObjectPtr(ReferenceCountedObjectClass* const refCountedObject)
+        : referencedObject(refCountedObject)
+    {
+        if (refCountedObject != 0)
+            refCountedObject->incReferenceCount();
+    }
+
+    /** Copies another pointer.
+        This will increment the object's reference-count (if it is non-null).
+
+        @param other Another pointer.
+    */
+    inline RefCountedObjectPtr(const RefCountedObjectPtr& other)
+        : referencedObject(other.referencedObject)
+    {
+        if (referencedObject != 0)
+            referencedObject->incReferenceCount();
+    }
+
+    /**
+      Takes-over the object from another pointer.
+
+      @param other Another pointer.
+    */
+    inline RefCountedObjectPtr(RefCountedObjectPtr&& other)
+        : referencedObject(other.referencedObject)
+    {
+        other.referencedObject = 0;
+    }
+
+    /** Copies another pointer.
+        This will increment the object's reference-count (if it is non-null).
+
+        @param other Another pointer.
+    */
+    template<class DerivedClass>
+    inline RefCountedObjectPtr(const RefCountedObjectPtr<DerivedClass>& other)
+        : referencedObject(static_cast<ReferenceCountedObjectClass*>(other.getObject()))
+    {
+        if (referencedObject != 0)
+            referencedObject->incReferenceCount();
+    }
+
+    /** Changes this pointer to point at a different object.
+
+        The reference count of the old object is decremented, and it might be
+        deleted if it hits zero. The new object's count is incremented.
+
+        @param other A pointer to assign from.
+        @returns This pointer.
+    */
+    RefCountedObjectPtr& operator=(const RefCountedObjectPtr& other)
+    {
+        return operator=(other.referencedObject);
+    }
+
+    /** Changes this pointer to point at a different object.
+        The reference count of the old object is decremented, and it might be
+        deleted if it hits zero. The new object's count is incremented.
+
+        @param other A pointer to assign from.
+        @returns This pointer.
+    */
+    template<class DerivedClass>
+    RefCountedObjectPtr& operator=(const RefCountedObjectPtr<DerivedClass>& other)
+    {
+        return operator=(static_cast<ReferenceCountedObjectClass*>(other.getObject()));
+    }
+
+    /**
+      Takes-over the object from another pointer.
+
+      @param other A pointer to assign from.
+      @returns This pointer.
+     */
+    RefCountedObjectPtr& operator=(RefCountedObjectPtr&& other)
+    {
+        std::swap(referencedObject, other.referencedObject);
+        return *this;
+    }
+
+    /** Changes this pointer to point at a different object.
+        The reference count of the old object is decremented, and it might be
+        deleted if it hits zero. The new object's count is incremented.
+
+        @param newObject A reference counted object to own.
+        @returns This pointer.
+    */
+    RefCountedObjectPtr& operator=(ReferenceCountedObjectClass* const newObject)
+    {
+        if (referencedObject != newObject)
+        {
+            if (newObject != 0)
+                newObject->incReferenceCount();
+
+            ReferenceCountedObjectClass* const oldObject = referencedObject;
+            referencedObject = newObject;
+
+            if (oldObject != 0)
+                oldObject->decReferenceCount();
+        }
+
+        return *this;
+    }
+
+    /** Destructor.
+        This will decrement the object's reference-count, and may delete it if it
+        gets to zero.
+    */
+    ~RefCountedObjectPtr()
+    {
+        if (referencedObject != 0)
+            referencedObject->decReferenceCount();
+    }
+
+    /** Returns the object that this pointer references.
+        The returned pointer may be null.
+
+        @returns The pointee.
+    */
+    operator ReferenceCountedObjectClass*() const { return referencedObject; }
+
+    /** Returns the object that this pointer references.
+        The returned pointer may be null.
+
+        @returns The pointee.
+    */
+    ReferenceCountedObjectClass* operator->() const { return referencedObject; }
+
+    /** Returns the object that this pointer references.
+        The returned pointer may be null.
+
+        @returns The pointee.
+    */
+    ReferenceCountedObjectClass* getObject() const { return referencedObject; }
+
+private:
+    //==============================================================================
+    ReferenceCountedObjectClass* referencedObject;
+};
+
+/** Compares two ReferenceCountedObjectPointers. */
+template<class ReferenceCountedObjectClass>
+bool operator==(const RefCountedObjectPtr<ReferenceCountedObjectClass>& object1,
+                ReferenceCountedObjectClass* const object2)
+{
+    return object1.getObject() == object2;
+}
+
+/** Compares two ReferenceCountedObjectPointers. */
+template<class ReferenceCountedObjectClass>
+bool operator==(const RefCountedObjectPtr<ReferenceCountedObjectClass>& object1,
+                const RefCountedObjectPtr<ReferenceCountedObjectClass>& object2)
+{
+    return object1.getObject() == object2.getObject();
+}
+
+/** Compares two ReferenceCountedObjectPointers. */
+template<class ReferenceCountedObjectClass>
+bool operator==(ReferenceCountedObjectClass* object1,
+                RefCountedObjectPtr<ReferenceCountedObjectClass>& object2)
+{
+    return object1 == object2.getObject();
+}
+
+/** Compares two ReferenceCountedObjectPointers. */
+template<class ReferenceCountedObjectClass>
+bool operator!=(const RefCountedObjectPtr<ReferenceCountedObjectClass>& object1,
+                const ReferenceCountedObjectClass* object2)
+{
+    return object1.getObject() != object2;
+}
+
+/** Compares two ReferenceCountedObjectPointers. */
+template<class ReferenceCountedObjectClass>
+bool operator!=(const RefCountedObjectPtr<ReferenceCountedObjectClass>& object1,
+                RefCountedObjectPtr<ReferenceCountedObjectClass>& object2)
+{
+    return object1.getObject() != object2.getObject();
+}
+
+/** Compares two ReferenceCountedObjectPointers. */
+template<class ReferenceCountedObjectClass>
+bool operator!=(ReferenceCountedObjectClass* object1,
+                RefCountedObjectPtr<ReferenceCountedObjectClass>& object2)
+{
+    return object1 != object2.getObject();
+}
+
+//==============================================================================
+
+template<class T>
+struct ContainerTraits<RefCountedObjectPtr<T>>
+{
+    using Type = T;
+
+    static RefCountedObjectPtr<T> construct(T* c) { return c; }
+
+    static T* get(RefCountedObjectPtr<T> const& c) { return c.getObject(); }
+};
+
+//==============================================================================
+
+} // namespace luabridge
+
+// End File: Source/LuaBridge/RefCountedObject.h
+
+// Begin File: Source/LuaBridge/Set.h
+
+// https://github.com/kunitoki/LuaBridge3
+// Copyright 2020, Lucio Asnaghi
+// SPDX-License-Identifier: MIT
+
+namespace luabridge {
+
+//=================================================================================================
+/**
+ * @brief Stack specialization for `std::set`.
+ */
+template <class K, class V>
+struct Stack<std::set<K, V>>
+{
+    using Type = std::set<K, V>;
+    
+    [[nodiscard]] static bool push(lua_State* L, const Type& set, std::error_code& ec)
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 3))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
+#endif
+
+        const int initialStackSize = lua_gettop(L);
+        
+        lua_createtable(L, 0, static_cast<int>(set.size()));
+
+        for (auto it = set.begin(); it != set.end(); ++it)
         {
             std::error_code errorCodeKey;
             if (! Stack<K>::push(L, it->first, errorCodeKey))
@@ -3231,7 +3765,7 @@ struct Stack<std::unordered_map<K, V>>
                 lua_pop(L, lua_gettop(L) - initialStackSize);
                 return false;
             }
-            
+
             std::error_code errorCodeValue;
             if (! Stack<V>::push(L, it->second, errorCodeValue))
             {
@@ -3251,18 +3785,18 @@ struct Stack<std::unordered_map<K, V>>
         if (!lua_istable(L, index))
             luaL_error(L, "#%d argument must be a table", index);
 
-        Type map;
+        Type set;
 
         int absIndex = lua_absindex(L, index);
         lua_pushnil(L);
 
         while (lua_next(L, absIndex) != 0)
         {
-            map.emplace(Stack<K>::get(L, -2), Stack<V>::get(L, -1));
+            set.emplace(Stack<K>::get(L, -2), Stack<V>::get(L, -1));
             lua_pop(L, 1);
         }
 
-        return map;
+        return set;
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -3273,7 +3807,167 @@ struct Stack<std::unordered_map<K, V>>
 
 } // namespace luabridge
 
-// End File: Source/LuaBridge/UnorderedMap.h
+// End File: Source/LuaBridge/Set.h
+
+// Begin File: Source/LuaBridge/Vector.h
+
+// https://github.com/kunitoki/LuaBridge3
+// Copyright 2020, Lucio Asnaghi
+// Copyright 2018, Dmitry Tarakanov
+// SPDX-License-Identifier: MIT
+
+namespace luabridge {
+
+//=================================================================================================
+/**
+ * @brief Stack specialization for `std::vector`.
+ */
+template <class T>
+struct Stack<std::vector<T>>
+{
+    using Type = std::vector<T>;
+
+    [[nodiscard]] static bool push(lua_State* L, const Type& vector, std::error_code& ec)
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 3))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
+#endif
+
+        const int initialStackSize = lua_gettop(L);
+        
+        lua_createtable(L, static_cast<int>(vector.size()), 0);
+
+        for (std::size_t i = 0; i < vector.size(); ++i)
+        {
+            lua_pushinteger(L, static_cast<lua_Integer>(i + 1));
+            
+            std::error_code errorCode;
+            if (! Stack<T>::push(L, vector[i], errorCode))
+            {
+                ec = errorCode;
+                lua_pop(L, lua_gettop(L) - initialStackSize);
+                return false;
+            }
+            
+            lua_settable(L, -3);
+        }
+        
+        return true;
+    }
+
+    [[nodiscard]] static Type get(lua_State* L, int index)
+    {
+        if (!lua_istable(L, index))
+            luaL_error(L, "#%d argument must be a table", index);
+
+        Type vector;
+        vector.reserve(static_cast<std::size_t>(get_length(L, index)));
+
+        int absIndex = lua_absindex(L, index);
+        lua_pushnil(L);
+
+        while (lua_next(L, absIndex) != 0)
+        {
+            vector.emplace_back(Stack<T>::get(L, -1));
+            lua_pop(L, 1);
+        }
+
+        return vector;
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        return lua_istable(L, index);
+    }
+};
+
+} // namespace luabridge
+
+// End File: Source/LuaBridge/Vector.h
+
+// Begin File: Source/LuaBridge/List.h
+
+// https://github.com/kunitoki/LuaBridge3
+// Copyright 2020, Lucio Asnaghi
+// Copyright 2020, Dmitry Tarakanov
+// SPDX-License-Identifier: MIT
+
+namespace luabridge {
+
+//=================================================================================================
+/**
+ * @brief Stack specialization for `std::array`.
+ */
+template <class T>
+struct Stack<std::list<T>>
+{
+    using Type = std::list<T>;
+    
+    [[nodiscard]] static bool push(lua_State* L, const Type& list, std::error_code& ec)
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 3))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
+#endif
+
+        const int initialStackSize = lua_gettop(L);
+
+        lua_createtable(L, static_cast<int>(list.size()), 0);
+
+        auto it = list.cbegin();
+        for (lua_Integer tableIndex = 1; it != list.cend(); ++tableIndex, ++it)
+        {
+            lua_pushinteger(L, tableIndex);
+
+            std::error_code errorCode;
+            if (! Stack<T>::push(L, *it, errorCode))
+            {
+                ec = errorCode;
+                lua_pop(L, lua_gettop(L) - initialStackSize);
+                return false;
+            }
+
+            lua_settable(L, -3);
+        }
+        
+        return true;
+    }
+
+    [[nodiscard]] static Type get(lua_State* L, int index)
+    {
+        if (!lua_istable(L, index))
+            luaL_error(L, "#%d argument must be a table", index);
+
+        Type list;
+
+        int absIndex = lua_absindex(L, index);
+        lua_pushnil(L);
+
+        while (lua_next(L, absIndex) != 0)
+        {
+            list.emplace_back(Stack<T>::get(L, -1));
+            lua_pop(L, 1);
+        }
+
+        return list;
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        return lua_istable(L, index);
+    }
+};
+
+} // namespace luabridge
+
+// End File: Source/LuaBridge/List.h
 
 // Begin File: Source/LuaBridge/detail/FuncTraits.h
 
@@ -7251,65 +7945,6 @@ class Namespace : public detail::Registrar
         }
     };
 
-    class Table : public detail::Registrar
-    {
-    public:
-        explicit Table(const char* name, Namespace& parent)
-            : Registrar(parent)
-        {
-            lua_newtable(L); // Stack: ns, table (tb)
-            lua_pushvalue(L, -1); // Stack: ns, tb, tb
-            rawsetfield(L, -3, name);
-            ++m_stackSize;
-
-            lua_newtable(L); // Stack: ns, table (tb)
-            lua_pushvalue(L, -1); // Stack: ns, tb, tb
-            lua_setmetatable(L, -3); // tb.__metatable = tb. Stack: ns, tb
-            ++m_stackSize;
-        }
-
-        using Registrar::operator=;
-
-        template <class Function>
-        Table& addFunction(const char* name, Function function)
-        {
-            using FnType = decltype(function);
-
-            assert(name != nullptr);
-            assert(lua_istable(L, -1)); // Stack: namespace table (ns)
-
-            lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: ns, function userdata (ud)
-            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: ns, function
-            rawsetfield(L, -3, name); // Stack: ns
-
-            return *this;
-        }
-
-        template <class Function>
-        Table& addMetaFunction(const char* name, Function function)
-        {
-            using FnType = decltype(function);
-
-            assert(name != nullptr);
-            assert(lua_istable(L, -1)); // Stack: namespace table (ns)
-
-            lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: ns, function userdata (ud)
-            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: ns, function
-            rawsetfield(L, -2, name); // Stack: ns
-
-            return *this;
-        }
-
-        Namespace endTable()
-        {
-            assert(m_stackSize > 2);
-
-            m_stackSize -= 2;
-            lua_pop(L, 2);
-            return Namespace(*this);
-        }
-    };
-    
 private:
     struct FromStack {};
 
@@ -7416,11 +8051,6 @@ private:
      * @param child A child class registration object.
      */
     explicit Namespace(ClassBase& child)
-        : Registrar(child)
-    {
-    }
-
-    explicit Namespace(Table& child)
         : Registrar(child)
     {
     }
@@ -7772,13 +8402,6 @@ public:
     }
 
     //=============================================================================================
-    Table beginTable(const char* name)
-    {
-        assertIsActive();
-        return Table(name, *this);
-    }
-
-    //=============================================================================================
     /**
      * @brief Open a new or existing class for registrations.
      *
@@ -7864,700 +8487,6 @@ inline Namespace getNamespaceFromStack(lua_State* L)
 
 
 // End File: Source/LuaBridge/LuaBridge.h
-
-// Begin File: Source/LuaBridge/List.h
-
-// https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
-// Copyright 2020, Dmitry Tarakanov
-// SPDX-License-Identifier: MIT
-
-namespace luabridge {
-
-//=================================================================================================
-/**
- * @brief Stack specialization for `std::array`.
- */
-template <class T>
-struct Stack<std::list<T>>
-{
-    using Type = std::list<T>;
-    
-    [[nodiscard]] static bool push(lua_State* L, const Type& list, std::error_code& ec)
-    {
-#if LUABRIDGE_SAFE_STACK_CHECKS
-        if (! lua_checkstack(L, 3))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
-#endif
-
-        const int initialStackSize = lua_gettop(L);
-
-        lua_createtable(L, static_cast<int>(list.size()), 0);
-
-        auto it = list.cbegin();
-        for (lua_Integer tableIndex = 1; it != list.cend(); ++tableIndex, ++it)
-        {
-            lua_pushinteger(L, tableIndex);
-
-            std::error_code errorCode;
-            if (! Stack<T>::push(L, *it, errorCode))
-            {
-                ec = errorCode;
-                lua_pop(L, lua_gettop(L) - initialStackSize);
-                return false;
-            }
-
-            lua_settable(L, -3);
-        }
-        
-        return true;
-    }
-
-    [[nodiscard]] static Type get(lua_State* L, int index)
-    {
-        if (!lua_istable(L, index))
-            luaL_error(L, "#%d argument must be a table", index);
-
-        Type list;
-
-        int absIndex = lua_absindex(L, index);
-        lua_pushnil(L);
-
-        while (lua_next(L, absIndex) != 0)
-        {
-            list.emplace_back(Stack<T>::get(L, -1));
-            lua_pop(L, 1);
-        }
-
-        return list;
-    }
-
-    [[nodiscard]] static bool isInstance(lua_State* L, int index)
-    {
-        return lua_istable(L, index);
-    }
-};
-
-} // namespace luabridge
-
-// End File: Source/LuaBridge/List.h
-
-// Begin File: Source/LuaBridge/Array.h
-
-// https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
-// Copyright 2020, Dmitry Tarakanov
-// SPDX-License-Identifier: MIT
-
-namespace luabridge {
-
-//=================================================================================================
-/**
- * @brief Stack specialization for `std::array`.
- */
-template <class T, std::size_t Size>
-struct Stack<std::array<T, Size>>
-{
-    using Type = std::array<T, Size>;
-
-    [[nodiscard]] static bool push(lua_State* L, const Type& array, std::error_code& ec)
-    {
-#if LUABRIDGE_SAFE_STACK_CHECKS
-        if (! lua_checkstack(L, 3))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
-#endif
-
-        const int initialStackSize = lua_gettop(L);
-        
-        lua_createtable(L, static_cast<int>(Size), 0);
-
-        for (std::size_t i = 0; i < Size; ++i)
-        {
-            lua_pushinteger(L, static_cast<lua_Integer>(i + 1));
-
-            std::error_code errorCode;
-            bool result = Stack<T>::push(L, array[i], errorCode);
-            if (!result)
-            {
-                ec = errorCode;
-                lua_pop(L, lua_gettop(L) - initialStackSize);
-                return false;
-            }
-
-            lua_settable(L, -3);
-        }
-        
-        return true;
-    }
-
-    [[nodiscard]] static Type get(lua_State* L, int index)
-    {
-        if (!lua_istable(L, index))
-            luaL_error(L, "#%d argment must be a table", index);
-
-        if (get_length(L, index) != Size)
-            luaL_error(L, "table size should be %d but is %d", static_cast<int>(Size), get_length(L, index));
-
-        Type array;
-
-        int absIndex = lua_absindex(L, index);
-        lua_pushnil(L);
-
-        int arrayIndex = 0;
-        while (lua_next(L, absIndex) != 0)
-        {
-            array[arrayIndex++] = Stack<T>::get(L, -1);
-            lua_pop(L, 1);
-        }
-
-        return array;
-    }
-
-    [[nodiscard]] static bool isInstance(lua_State* L, int index)
-    {
-        return lua_istable(L, index) && get_length(L, index) == Size;
-    }
-};
-
-} // namespace luabridge
-
-// End File: Source/LuaBridge/Array.h
-
-// Begin File: Source/LuaBridge/Vector.h
-
-// https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
-// Copyright 2018, Dmitry Tarakanov
-// SPDX-License-Identifier: MIT
-
-namespace luabridge {
-
-//=================================================================================================
-/**
- * @brief Stack specialization for `std::vector`.
- */
-template <class T>
-struct Stack<std::vector<T>>
-{
-    using Type = std::vector<T>;
-
-    [[nodiscard]] static bool push(lua_State* L, const Type& vector, std::error_code& ec)
-    {
-#if LUABRIDGE_SAFE_STACK_CHECKS
-        if (! lua_checkstack(L, 3))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
-#endif
-
-        const int initialStackSize = lua_gettop(L);
-        
-        lua_createtable(L, static_cast<int>(vector.size()), 0);
-
-        for (std::size_t i = 0; i < vector.size(); ++i)
-        {
-            lua_pushinteger(L, static_cast<lua_Integer>(i + 1));
-            
-            std::error_code errorCode;
-            if (! Stack<T>::push(L, vector[i], errorCode))
-            {
-                ec = errorCode;
-                lua_pop(L, lua_gettop(L) - initialStackSize);
-                return false;
-            }
-            
-            lua_settable(L, -3);
-        }
-        
-        return true;
-    }
-
-    [[nodiscard]] static Type get(lua_State* L, int index)
-    {
-        if (!lua_istable(L, index))
-            luaL_error(L, "#%d argument must be a table", index);
-
-        Type vector;
-        vector.reserve(static_cast<std::size_t>(get_length(L, index)));
-
-        int absIndex = lua_absindex(L, index);
-        lua_pushnil(L);
-
-        while (lua_next(L, absIndex) != 0)
-        {
-            vector.emplace_back(Stack<T>::get(L, -1));
-            lua_pop(L, 1);
-        }
-
-        return vector;
-    }
-
-    [[nodiscard]] static bool isInstance(lua_State* L, int index)
-    {
-        return lua_istable(L, index);
-    }
-};
-
-} // namespace luabridge
-
-// End File: Source/LuaBridge/Vector.h
-
-// Begin File: Source/LuaBridge/Set.h
-
-// https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
-// SPDX-License-Identifier: MIT
-
-namespace luabridge {
-
-//=================================================================================================
-/**
- * @brief Stack specialization for `std::set`.
- */
-template <class K, class V>
-struct Stack<std::set<K, V>>
-{
-    using Type = std::set<K, V>;
-    
-    [[nodiscard]] static bool push(lua_State* L, const Type& set, std::error_code& ec)
-    {
-#if LUABRIDGE_SAFE_STACK_CHECKS
-        if (! lua_checkstack(L, 3))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
-#endif
-
-        const int initialStackSize = lua_gettop(L);
-        
-        lua_createtable(L, 0, static_cast<int>(set.size()));
-
-        for (auto it = set.begin(); it != set.end(); ++it)
-        {
-            std::error_code errorCodeKey;
-            if (! Stack<K>::push(L, it->first, errorCodeKey))
-            {
-                ec = errorCodeKey;
-                lua_pop(L, lua_gettop(L) - initialStackSize);
-                return false;
-            }
-
-            std::error_code errorCodeValue;
-            if (! Stack<V>::push(L, it->second, errorCodeValue))
-            {
-                ec = errorCodeValue;
-                lua_pop(L, lua_gettop(L) - initialStackSize);
-                return false;
-            }
-
-            lua_settable(L, -3);
-        }
-        
-        return true;
-    }
-
-    [[nodiscard]] static Type get(lua_State* L, int index)
-    {
-        if (!lua_istable(L, index))
-            luaL_error(L, "#%d argument must be a table", index);
-
-        Type set;
-
-        int absIndex = lua_absindex(L, index);
-        lua_pushnil(L);
-
-        while (lua_next(L, absIndex) != 0)
-        {
-            set.emplace(Stack<K>::get(L, -2), Stack<V>::get(L, -1));
-            lua_pop(L, 1);
-        }
-
-        return set;
-    }
-
-    [[nodiscard]] static bool isInstance(lua_State* L, int index)
-    {
-        return lua_istable(L, index);
-    }
-};
-
-} // namespace luabridge
-
-// End File: Source/LuaBridge/Set.h
-
-// Begin File: Source/LuaBridge/RefCountedObject.h
-
-// https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
-// Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
-// Copyright 2004-11 by Raw Material Software Ltd.
-// SPDX-License-Identifier: MIT
-
-//==============================================================================
-/*
-  This is a derivative work used by permission from part of
-  JUCE, available at http://www.rawaterialsoftware.com
-
-  License: The MIT License (http://www.opensource.org/licenses/mit-license.php)
-
-  Permission is hereby granted, free of charge, to any person obtaining a copy
-  of this software and associated documentation files (the "Software"), to deal
-  in the Software without restriction, including without limitation the rights
-  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-  copies of the Software, and to permit persons to whom the Software is
-  furnished to do so, subject to the following conditions:
-
-  The above copyright notice and this permission notice shall be included in all
-  copies or substantial portions of the Software.
-
-  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-  SOFTWARE.
-
-  This file incorporates work covered by the following copyright and
-  permission notice:
-
-    This file is part of the JUCE library - "Jules' Utility Class Extensions"
-    Copyright 2004-11 by Raw Material Software Ltd.
-*/
-//==============================================================================
-
-namespace luabridge {
-
-//==============================================================================
-/**
-  Adds reference-counting to an object.
-
-  To add reference-counting to a class, derive it from this class, and
-  use the RefCountedObjectPtr class to point to it.
-
-  e.g. @code
-  class MyClass : public RefCountedObjectType
-  {
-      void foo();
-
-      // This is a neat way of declaring a typedef for a pointer class,
-      // rather than typing out the full templated name each time..
-      typedef RefCountedObjectPtr<MyClass> Ptr;
-  };
-
-  MyClass::Ptr p = new MyClass();
-  MyClass::Ptr p2 = p;
-  p = 0;
-  p2->foo();
-  @endcode
-
-  Once a new RefCountedObjectType has been assigned to a pointer, be
-  careful not to delete the object manually.
-*/
-template<class CounterType>
-class RefCountedObjectType
-{
-public:
-    //==============================================================================
-    /** Increments the object's reference count.
-
-        This is done automatically by the smart pointer, but is public just
-        in case it's needed for nefarious purposes.
-    */
-    inline void incReferenceCount() const { ++refCount; }
-
-    /** Decreases the object's reference count.
-
-        If the count gets to zero, the object will be deleted.
-    */
-    inline void decReferenceCount() const
-    {
-        assert(getReferenceCount() > 0);
-
-        if (--refCount == 0)
-            delete this;
-    }
-
-    /** Returns the object's current reference count.
-     * @returns The reference count.
-     */
-    inline int getReferenceCount() const { return static_cast<int>(refCount); }
-
-protected:
-    //==============================================================================
-    /** Creates the reference-counted object (with an initial ref count of zero). */
-    RefCountedObjectType() : refCount() {}
-
-    /** Destructor. */
-    virtual ~RefCountedObjectType()
-    {
-        // it's dangerous to delete an object that's still referenced by something else!
-        assert(getReferenceCount() == 0);
-    }
-
-private:
-    //==============================================================================
-    CounterType mutable refCount;
-};
-
-//==============================================================================
-
-/** Non thread-safe reference counted object.
-
-    This creates a RefCountedObjectType that uses a non-atomic integer
-    as the counter.
-*/
-typedef RefCountedObjectType<int> RefCountedObject;
-
-//==============================================================================
-/**
-    A smart-pointer class which points to a reference-counted object.
-
-    The template parameter specifies the class of the object you want to point
-    to - the easiest way to make a class reference-countable is to simply make
-    it inherit from RefCountedObjectType, but if you need to, you could roll
-    your own reference-countable class by implementing a pair of methods called
-    incReferenceCount() and decReferenceCount().
-
-    When using this class, you'll probably want to create a typedef to
-    abbreviate the full templated name - e.g.
-
-    @code
-
-    typedef RefCountedObjectPtr <MyClass> MyClassPtr;
-
-    @endcode
-*/
-template<class ReferenceCountedObjectClass>
-class RefCountedObjectPtr
-{
-public:
-    /** The class being referenced by this pointer. */
-    typedef ReferenceCountedObjectClass ReferencedType;
-
-    //==============================================================================
-    /** Creates a pointer to a null object. */
-    inline RefCountedObjectPtr() : referencedObject(0) {}
-
-    /** Creates a pointer to an object.
-        This will increment the object's reference-count if it is non-null.
-
-        @param refCountedObject A reference counted object to own.
-    */
-    inline RefCountedObjectPtr(ReferenceCountedObjectClass* const refCountedObject)
-        : referencedObject(refCountedObject)
-    {
-        if (refCountedObject != 0)
-            refCountedObject->incReferenceCount();
-    }
-
-    /** Copies another pointer.
-        This will increment the object's reference-count (if it is non-null).
-
-        @param other Another pointer.
-    */
-    inline RefCountedObjectPtr(const RefCountedObjectPtr& other)
-        : referencedObject(other.referencedObject)
-    {
-        if (referencedObject != 0)
-            referencedObject->incReferenceCount();
-    }
-
-    /**
-      Takes-over the object from another pointer.
-
-      @param other Another pointer.
-    */
-    inline RefCountedObjectPtr(RefCountedObjectPtr&& other)
-        : referencedObject(other.referencedObject)
-    {
-        other.referencedObject = 0;
-    }
-
-    /** Copies another pointer.
-        This will increment the object's reference-count (if it is non-null).
-
-        @param other Another pointer.
-    */
-    template<class DerivedClass>
-    inline RefCountedObjectPtr(const RefCountedObjectPtr<DerivedClass>& other)
-        : referencedObject(static_cast<ReferenceCountedObjectClass*>(other.getObject()))
-    {
-        if (referencedObject != 0)
-            referencedObject->incReferenceCount();
-    }
-
-    /** Changes this pointer to point at a different object.
-
-        The reference count of the old object is decremented, and it might be
-        deleted if it hits zero. The new object's count is incremented.
-
-        @param other A pointer to assign from.
-        @returns This pointer.
-    */
-    RefCountedObjectPtr& operator=(const RefCountedObjectPtr& other)
-    {
-        return operator=(other.referencedObject);
-    }
-
-    /** Changes this pointer to point at a different object.
-        The reference count of the old object is decremented, and it might be
-        deleted if it hits zero. The new object's count is incremented.
-
-        @param other A pointer to assign from.
-        @returns This pointer.
-    */
-    template<class DerivedClass>
-    RefCountedObjectPtr& operator=(const RefCountedObjectPtr<DerivedClass>& other)
-    {
-        return operator=(static_cast<ReferenceCountedObjectClass*>(other.getObject()));
-    }
-
-    /**
-      Takes-over the object from another pointer.
-
-      @param other A pointer to assign from.
-      @returns This pointer.
-     */
-    RefCountedObjectPtr& operator=(RefCountedObjectPtr&& other)
-    {
-        std::swap(referencedObject, other.referencedObject);
-        return *this;
-    }
-
-    /** Changes this pointer to point at a different object.
-        The reference count of the old object is decremented, and it might be
-        deleted if it hits zero. The new object's count is incremented.
-
-        @param newObject A reference counted object to own.
-        @returns This pointer.
-    */
-    RefCountedObjectPtr& operator=(ReferenceCountedObjectClass* const newObject)
-    {
-        if (referencedObject != newObject)
-        {
-            if (newObject != 0)
-                newObject->incReferenceCount();
-
-            ReferenceCountedObjectClass* const oldObject = referencedObject;
-            referencedObject = newObject;
-
-            if (oldObject != 0)
-                oldObject->decReferenceCount();
-        }
-
-        return *this;
-    }
-
-    /** Destructor.
-        This will decrement the object's reference-count, and may delete it if it
-        gets to zero.
-    */
-    ~RefCountedObjectPtr()
-    {
-        if (referencedObject != 0)
-            referencedObject->decReferenceCount();
-    }
-
-    /** Returns the object that this pointer references.
-        The returned pointer may be null.
-
-        @returns The pointee.
-    */
-    operator ReferenceCountedObjectClass*() const { return referencedObject; }
-
-    /** Returns the object that this pointer references.
-        The returned pointer may be null.
-
-        @returns The pointee.
-    */
-    ReferenceCountedObjectClass* operator->() const { return referencedObject; }
-
-    /** Returns the object that this pointer references.
-        The returned pointer may be null.
-
-        @returns The pointee.
-    */
-    ReferenceCountedObjectClass* getObject() const { return referencedObject; }
-
-private:
-    //==============================================================================
-    ReferenceCountedObjectClass* referencedObject;
-};
-
-/** Compares two ReferenceCountedObjectPointers. */
-template<class ReferenceCountedObjectClass>
-bool operator==(const RefCountedObjectPtr<ReferenceCountedObjectClass>& object1,
-                ReferenceCountedObjectClass* const object2)
-{
-    return object1.getObject() == object2;
-}
-
-/** Compares two ReferenceCountedObjectPointers. */
-template<class ReferenceCountedObjectClass>
-bool operator==(const RefCountedObjectPtr<ReferenceCountedObjectClass>& object1,
-                const RefCountedObjectPtr<ReferenceCountedObjectClass>& object2)
-{
-    return object1.getObject() == object2.getObject();
-}
-
-/** Compares two ReferenceCountedObjectPointers. */
-template<class ReferenceCountedObjectClass>
-bool operator==(ReferenceCountedObjectClass* object1,
-                RefCountedObjectPtr<ReferenceCountedObjectClass>& object2)
-{
-    return object1 == object2.getObject();
-}
-
-/** Compares two ReferenceCountedObjectPointers. */
-template<class ReferenceCountedObjectClass>
-bool operator!=(const RefCountedObjectPtr<ReferenceCountedObjectClass>& object1,
-                const ReferenceCountedObjectClass* object2)
-{
-    return object1.getObject() != object2;
-}
-
-/** Compares two ReferenceCountedObjectPointers. */
-template<class ReferenceCountedObjectClass>
-bool operator!=(const RefCountedObjectPtr<ReferenceCountedObjectClass>& object1,
-                RefCountedObjectPtr<ReferenceCountedObjectClass>& object2)
-{
-    return object1.getObject() != object2.getObject();
-}
-
-/** Compares two ReferenceCountedObjectPointers. */
-template<class ReferenceCountedObjectClass>
-bool operator!=(ReferenceCountedObjectClass* object1,
-                RefCountedObjectPtr<ReferenceCountedObjectClass>& object2)
-{
-    return object1 != object2.getObject();
-}
-
-//==============================================================================
-
-template<class T>
-struct ContainerTraits<RefCountedObjectPtr<T>>
-{
-    using Type = T;
-
-    static RefCountedObjectPtr<T> construct(T* c) { return c; }
-
-    static T* get(RefCountedObjectPtr<T> const& c) { return c.getObject(); }
-};
-
-//==============================================================================
-
-} // namespace luabridge
-
-// End File: Source/LuaBridge/RefCountedObject.h
 
 // Begin File: Source/LuaBridge/detail/Dump.h
 
