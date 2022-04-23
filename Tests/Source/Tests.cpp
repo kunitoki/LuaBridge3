@@ -512,7 +512,7 @@ TEST_F(LuaBridgeTest, Exception)
         end
     )";
 
-    EXPECT_EQ(LUABRIDGE_LUA_OK, (luaL_dostring(L, text)));
+    EXPECT_TRUE(runLua(text));
 
     EXPECT_EQ("", call_callback_get_exception(cb1));
 
