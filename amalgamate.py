@@ -171,10 +171,12 @@ class SourceInfo:
 				if result:
 					continue
 
-				if line.strip() or not lastLineWasEmpty:
-					stream.write(line)
+				stripped_line = line.strip()
+				if stripped_line or not lastLineWasEmpty:
+					if not stripped_line.startswith("// clang-format"):
+						stream.write(line)
 
-				lastLineWasEmpty = not line.strip()
+				lastLineWasEmpty = not stripped_line
 
 			self.WriteEndFileHeader(path, stream)
 
