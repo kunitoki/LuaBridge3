@@ -94,8 +94,9 @@ class SourceInfo:
 		self.LogMessage(f"Scan file: {path}")
 		self.scannedFiles.add(path)
 
-		with open (path , 'r') as src:
+		with open (path , "r") as src:
 			lines = src.readlines()
+
 			for line in lines:
 				includeResult = INCLUDE_FILE_MATCHER.findall(line)
 				if not includeResult:
@@ -154,7 +155,14 @@ class SourceInfo:
 			lastLineWasEmpty = False
 
 			lines = source.readlines()
-			for line in lines:
+
+			first_non_comment_line_index = 0
+			for line_index, line in enumerate(lines):
+				if not line.strip().startswith("//"):
+					first_non_comment_line_index = line_index
+					break
+
+			for line in lines[first_non_comment_line_index:]:
 				result = INCLUDE_FILE_MATCHER.findall(line)
 				if result:
 					continue
