@@ -41,8 +41,8 @@
 * Fixed unaligned access in user allocated member pointers in 64bit machines reported by ASAN.
 * Included testing against Luau VM
 * Bumped lua 5.2.x in unit tests from lua 5.2.0 to 5.2.4.
-* Bumped lua 5.4.x in unit tests from lua 5.4.1 to 5.4.3.
-* Run against lua 5.3.6 and 5.4.3 in unit tests.
+* Bumped lua 5.4.x in unit tests from lua 5.4.1 to 5.4.4.
+* Run against lua 5.3.6 and 5.4.4 in unit tests.
 * Converted the manual from html to markdown.
 * Small improvements to code and doxygen comments readability.
 
