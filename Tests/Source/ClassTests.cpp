@@ -1772,7 +1772,7 @@ TEST_F(ClassMetaMethods, SimulateArray)
             .addFunction("a", +[] { return "abcdefg"; })
             .addMetaFunction("__index", [&data](luabridge::LuaRef, int index, lua_State* L)
             {
-                if (index < 0 || index >= data.size())
+                if (index < 0 || index >= static_cast<int>(data.size()))
                     luaL_error(L, "Invalid index access in table %d", index);
 
                 return data[index];
@@ -1785,7 +1785,7 @@ TEST_F(ClassMetaMethods, SimulateArray)
                 if (! ref.isString())
                     luaL_error(L, "Invalid value provided to set table at index %d", index);
 
-                if (index >= data.size())
+                if (index >= static_cast<int>(data.size()))
                     data.resize(index + 1);
                 
                 data[index] = ref.cast<std::string>();
