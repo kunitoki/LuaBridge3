@@ -1362,6 +1362,17 @@ TEST_F(StackTests, ConstCharPointerType)
     }
 }
 
+TEST_F(StackTests, ConstCharPointerWrongGet)
+{
+    std::error_code ec;
+    ASSERT_TRUE(luabridge::push(L, luabridge::LuaNil(), ec));
+
+    {
+        auto result = luabridge::get<const char*>(L, -1);
+        EXPECT_STREQ("", result);
+    }
+}
+
 TEST_F(StackTests, ConstCharPointerStackOverflow)
 {
     exhaustStackSpace();
@@ -1454,6 +1465,17 @@ TEST_F(StackTests, StringViewType)
         auto result = luabridge::get<std::optional<std::string>>(L, -1);
         ASSERT_TRUE(result);
         EXPECT_EQ(value, *result);
+    }
+}
+
+TEST_F(StackTests, StringViewWrongGet)
+{
+    std::error_code ec;
+    ASSERT_TRUE(luabridge::push(L, luabridge::LuaNil(), ec));
+
+    {
+        auto result = luabridge::get<std::string_view>(L, -1);
+        EXPECT_EQ("", result);
     }
 }
 
@@ -1656,6 +1678,56 @@ TEST_F(StackTests, ConstIntArrayStackOverflow)
     
     const int value[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
     
+    std::error_code ec;
+    ASSERT_FALSE(luabridge::push(L, value, ec));
+}
+
+TEST_F(StackTests, ConstLongArrayStackOverflow)
+{
+    exhaustStackSpace();
+
+    const long value[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+
+    std::error_code ec;
+    ASSERT_FALSE(luabridge::push(L, value, ec));
+}
+
+TEST_F(StackTests, ConstLongLongArrayStackOverflow)
+{
+    exhaustStackSpace();
+
+    const long long value[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+
+    std::error_code ec;
+    ASSERT_FALSE(luabridge::push(L, value, ec));
+}
+
+TEST_F(StackTests, ConstUnsignedLongLongArrayStackOverflow)
+{
+    exhaustStackSpace();
+
+    const unsigned long long value[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+
+    std::error_code ec;
+    ASSERT_FALSE(luabridge::push(L, value, ec));
+}
+
+TEST_F(StackTests, OptionalStackOverflow)
+{
+    exhaustStackSpace();
+
+    std::optional<int> value = 1;
+
+    std::error_code ec;
+    ASSERT_FALSE(luabridge::push(L, value, ec));
+}
+
+TEST_F(StackTests, TupleStackOverflow)
+{
+    exhaustStackSpace();
+
+    auto value = std::make_tuple(1, 1.0f, "one");
+
     std::error_code ec;
     ASSERT_FALSE(luabridge::push(L, value, ec));
 }
