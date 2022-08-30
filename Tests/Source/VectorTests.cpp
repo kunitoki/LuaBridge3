@@ -14,15 +14,22 @@ namespace {
 template <class T>
 void checkEquals(const std::vector<T>& expected, const std::vector<T>& actual)
 {
-    if constexpr (std::is_same_v<T, float>)
+    using U = std::decay_t<T>;
+
+    if constexpr (std::is_same_v<U, float>)
     {
         for (std::size_t i = 0; i < expected.size(); ++i)
             ASSERT_FLOAT_EQ(expected[i], actual[i]);
     }
-    else if constexpr (std::is_same_v<T, double> || std::is_same_v<T, long double>)
+    else if constexpr (std::is_same_v<U, double> || std::is_same_v<U, long double>)
     {
         for (std::size_t i = 0; i < expected.size(); ++i)
             ASSERT_DOUBLE_EQ(expected[i], actual[i]);
+    }
+    else if constexpr (std::is_same_v<U, const char*>)
+    {
+        for (std::size_t i = 0; i < expected.size(); ++i)
+            ASSERT_STREQ(expected[i], actual[i]);
     }
     else
     {
