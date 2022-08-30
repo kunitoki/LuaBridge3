@@ -2055,7 +2055,16 @@ struct Stack<char>
 
     [[nodiscard]] static char get(lua_State* L, int index)
     {
-        return luaL_checkstring(L, index)[0];
+        if (lua_type(L, index) == LUA_TSTRING)
+        {
+            std::size_t length = 0;
+            const char* str = lua_tolstring(L, index, &length);
+
+            if (str != nullptr && length >= 1)
+                return str[0];
+        }
+
+        return char(0);
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -2615,7 +2624,16 @@ struct Stack<const char*>
 
     [[nodiscard]] static const char* get(lua_State* L, int index)
     {
-        return luaL_checkstring(L, index);
+        if (lua_type(L, index) == LUA_TSTRING)
+        {
+            std::size_t length = 0;
+            const char* str = lua_tolstring(L, index, &length);
+
+            if (str != nullptr)
+                return str;
+        }
+
+        return "";
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -2647,7 +2665,16 @@ struct Stack<std::string_view>
 
     [[nodiscard]] static std::string_view get(lua_State* L, int index)
     {
-        return luaL_checkstring(L, index);
+        if (lua_type(L, index) == LUA_TSTRING)
+        {
+            std::size_t length = 0;
+            const char* str = lua_tolstring(L, index, &length);
+
+            if (str != nullptr)
+                return { str, length };
+        }
+
+        return {};
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -2679,22 +2706,28 @@ struct Stack<std::string>
 
     [[nodiscard]] static std::string get(lua_State* L, int index)
     {
-        std::size_t len;
+        std::size_t length = 0;
+
         if (lua_type(L, index) == LUA_TSTRING)
         {
-            const char* str = lua_tolstring(L, index, &len);
-            return std::string(str, len);
+            const char* str = lua_tolstring(L, index, &length);
+
+            if (str != nullptr)
+                return { str, length };
         }
 
         // Lua reference manual:
         // If the value is a number, then lua_tolstring also changes the actual value in the stack
         // to a string. (This change confuses lua_next when lua_tolstring is applied to keys during
-        // a table traversal.)
+        // a table traversal)
         lua_pushvalue(L, index);
-        const char* str = lua_tolstring(L, -1, &len);
-        std::string string(str, len);
-        lua_pop(L, 1); // Pop the temporary string
-        return string;
+        const char* str = lua_tolstring(L, -1, &length);
+        lua_pop(L, 1);
+
+        if (str != nullptr)
+            return { str, length };
+
+        return {};
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -7162,6 +7195,65 @@ class Namespace : public detail::Registrar
         }
     };
 
+    class Table : public detail::Registrar
+    {
+    public:
+        explicit Table(const char* name, Namespace& parent)
+            : Registrar(parent)
+        {
+            lua_newtable(L); // Stack: ns, table (tb)
+            lua_pushvalue(L, -1); // Stack: ns, tb, tb
+            rawsetfield(L, -3, name);
+            ++m_stackSize;
+
+            lua_newtable(L); // Stack: ns, table (tb)
+            lua_pushvalue(L, -1); // Stack: ns, tb, tb
+            lua_setmetatable(L, -3); // tb.__metatable = tb. Stack: ns, tb
+            ++m_stackSize;
+        }
+
+        using Registrar::operator=;
+
+        template <class Function>
+        Table& addFunction(const char* name, Function function)
+        {
+            using FnType = decltype(function);
+
+            assert(name != nullptr);
+            assert(lua_istable(L, -1)); // Stack: namespace table (ns)
+
+            lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: ns, function userdata (ud)
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: ns, function
+            rawsetfield(L, -3, name); // Stack: ns
+
+            return *this;
+        }
+
+        template <class Function>
+        Table& addMetaFunction(const char* name, Function function)
+        {
+            using FnType = decltype(function);
+
+            assert(name != nullptr);
+            assert(lua_istable(L, -1)); // Stack: namespace table (ns)
+
+            lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: ns, function userdata (ud)
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: ns, function
+            rawsetfield(L, -2, name); // Stack: ns
+
+            return *this;
+        }
+
+        Namespace endTable()
+        {
+            assert(m_stackSize > 2);
+
+            m_stackSize -= 2;
+            lua_pop(L, 2);
+            return Namespace(*this);
+        }
+    };
+    
 private:
     struct FromStack {};
 
@@ -7268,6 +7360,11 @@ private:
      * @param child A child class registration object.
      */
     explicit Namespace(ClassBase& child)
+        : Registrar(child)
+    {
+    }
+
+    explicit Namespace(Table& child)
         : Registrar(child)
     {
     }
@@ -7629,6 +7726,13 @@ public:
         rawsetfield(L, -2, name); // Stack: ns
 
         return *this;
+    }
+
+    //=============================================================================================
+    Table beginTable(const char* name)
+    {
+        assertIsActive();
+        return Table(name, *this);
     }
 
     //=============================================================================================
