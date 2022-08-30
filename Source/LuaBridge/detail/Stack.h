@@ -215,7 +215,16 @@ struct Stack<char>
 
     [[nodiscard]] static char get(lua_State* L, int index)
     {
-        return luaL_checkstring(L, index)[0];
+        if (lua_type(L, index) == LUA_TSTRING)
+        {
+            std::size_t length = 0;
+            const char* str = lua_tolstring(L, index, &length);
+
+            if (str != nullptr && length >= 1)
+                return str[0];
+        }
+
+        return char(0);
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -778,7 +787,10 @@ struct Stack<const char*>
         if (lua_type(L, index) == LUA_TSTRING)
         {
             std::size_t length = 0;
-            return lua_tolstring(L, index, &length);
+            const char* str = lua_tolstring(L, index, &length);
+
+            if (str != nullptr)
+                return str;
         }
 
         return "";
@@ -818,7 +830,8 @@ struct Stack<std::string_view>
             std::size_t length = 0;
             const char* str = lua_tolstring(L, index, &length);
 
-            return { str, length };
+            if (str != nullptr)
+                return { str, length };
         }
 
         return {};
@@ -858,7 +871,9 @@ struct Stack<std::string>
         if (lua_type(L, index) == LUA_TSTRING)
         {
             const char* str = lua_tolstring(L, index, &length);
-            return { str, length };
+
+            if (str != nullptr)
+                return { str, length };
         }
 
         // Lua reference manual:
@@ -869,7 +884,10 @@ struct Stack<std::string>
         const char* str = lua_tolstring(L, -1, &length);
         lua_pop(L, 1);
 
-        return { str, length };
+        if (str != nullptr)
+            return { str, length };
+
+        return {};
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
