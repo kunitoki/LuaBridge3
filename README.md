@@ -36,13 +36,14 @@ LuaBridge3 offers a set of improvements compared to vanilla LuaBridge:
 - Can work with both c++ exceptions and without (Works with `-fno-exceptions` and `/EHsc-`).
 - Supports conversion to and from `std::nullptr_t`, `std::byte`, `std::tuple` and `std::reference_wrapper`.
 - Transparent support of all signed and unsigned integer types up to `int64_t`.
+- Automatic handling of enum types by communicating with lua through `std::underlying_type_t`.
 - Support for converting to and from C style arrays of any supported type.
 - Full support for capturing lambdas in all namespace and class methods.
 - Allows creating class instances using non intrusive class factories instead of requiring public constructors.
 - Lightweight object creation: allow adding lua tables on the stack and register methods and metamethods in them.
 - Consistent numeric handling and conversions (signed, unsigned and floats) across all lua versions.
 - Opt-in handling of safe stack space checks (automatically avoids exhausting lua stack space when pushing values!).
-- Only binder that works with both LuaJIT and Luau, wonderful for game development !
+- The only binder library that works with both LuaJIT and Luau, wonderful for game development !
 
 ## Status
 
