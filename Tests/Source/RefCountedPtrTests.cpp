@@ -29,6 +29,19 @@ struct RefCounted : luabridge::RefCountedObject
     bool& deleted;
 };
 
+struct RefCountedStatic : luabridge::RefCountedObject
+{
+    explicit RefCountedStatic() { constructed = true; }
+
+    ~RefCountedStatic() { deleted = true; }
+
+    static bool constructed;
+    static bool deleted;
+};
+
+bool RefCountedStatic::constructed = false;
+bool RefCountedStatic::deleted = false;
+
 } // namespace
 
 TEST_F(RefCountedPtrTests, Operators)
@@ -95,4 +108,24 @@ TEST_F(RefCountedPtrTests, LastReferenceInCpp)
 
     object = nullptr;
     ASSERT_EQ(true, deleted);
+}
+
+TEST_F(RefCountedPtrTests, LastReferenceInstantiatedFromLua)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<RefCountedStatic>("Class")
+        .addConstructor<void()>()
+        .endClass();
+
+    EXPECT_FALSE(RefCountedStatic::constructed);
+    EXPECT_FALSE(RefCountedStatic::deleted);
+
+    runLua("local o = Class(); result = false");
+
+    EXPECT_TRUE(RefCountedStatic::constructed);
+    EXPECT_FALSE(RefCountedStatic::deleted);
+
+    lua_gc(L, LUA_GCCOLLECT, 1);
+
+    EXPECT_TRUE(RefCountedStatic::deleted);
 }
