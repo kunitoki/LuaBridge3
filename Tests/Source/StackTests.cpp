@@ -1732,6 +1732,14 @@ TEST_F(StackTests, TupleStackOverflow)
     ASSERT_FALSE(luabridge::push(L, value, ec));
 }
 
+TEST_F(StackTests, NilStackOverflow)
+{
+    exhaustStackSpace();
+
+    std::error_code ec;
+    ASSERT_FALSE(luabridge::push(L, luabridge::LuaNil(), ec));
+}
+
 TEST_F(StackTests, Nil)
 {
     std::error_code ec;

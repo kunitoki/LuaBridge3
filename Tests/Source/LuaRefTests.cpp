@@ -267,6 +267,12 @@ TEST_F(LuaRefTests, Assignment)
     luabridge::LuaRef b1 = entry["b"];
     luabridge::LuaRef b2 = table["a"]["b"];
     EXPECT_TRUE(b1 == b2);
+
+    runLua("c1 = 1");
+    auto c1 = luabridge::getGlobal(L, "c1");
+    ASSERT_EQ(1, c1.cast<int>());
+    c1 = 11;
+    ASSERT_EQ(11, c1.cast<int>());
 }
 
 TEST_F(LuaRefTests, Callable)
@@ -440,7 +446,6 @@ TEST_F(LuaRefTests, RegisterLambdaInTable)
     runLua("result = Entities.GetLocalHero().Health()");
     ASSERT_EQ(500, result().cast<int>());
 }
-
 
 TEST_F(LuaRefTests, HookTesting)
 {
