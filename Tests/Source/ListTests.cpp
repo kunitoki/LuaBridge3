@@ -101,7 +101,7 @@ TEST_F(ListTests, UnregisteredClass)
     
     std::error_code ec;
 #if LUABRIDGE_HAS_EXCEPTIONS
-    bool result;
+    [[maybe_unused]] bool result;
     ASSERT_THROW((result = luabridge::push(L, std::list<Unregistered>{ Unregistered() }, ec)), std::exception);
 #else
     ASSERT_FALSE((luabridge::push(L, std::list<Unregistered>{ Unregistered() }, ec)));

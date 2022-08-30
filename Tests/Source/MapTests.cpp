@@ -189,7 +189,7 @@ TEST_F(MapTests, UnregisteredClass)
 
     {
 #if LUABRIDGE_HAS_EXCEPTIONS
-        bool result;
+        [[maybe_unused]] bool result;
         ASSERT_THROW((result = luabridge::push(L, std::map<Unregistered, int>{ { Unregistered(), 1 } }, ec)), std::exception);
 #else
         ASSERT_FALSE((luabridge::push(L, std::map<Unregistered, int>{ { Unregistered(), 1 } }, ec)));
@@ -198,7 +198,7 @@ TEST_F(MapTests, UnregisteredClass)
 
     {
 #if LUABRIDGE_HAS_EXCEPTIONS
-        bool result;
+        [[maybe_unused]] bool result;
         ASSERT_THROW((result = luabridge::push(L, std::map<int, Unregistered>{ { 1, Unregistered() } }, ec)), std::exception);
 #else
         ASSERT_FALSE((luabridge::push(L, std::map<int, Unregistered>{ { 1, Unregistered() } }, ec)));
