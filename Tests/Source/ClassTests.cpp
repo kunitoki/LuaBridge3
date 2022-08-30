@@ -1760,6 +1760,42 @@ TEST_F(ClassMetaMethods, __gcForbidden)
 }
 #endif
 
+TEST_F(ClassMetaMethods, SimulateArray)
+{
+    using ContainerType = std::vector<std::string>;
+
+    ContainerType data(1);
+    data[0] = "abcdefg";
+
+    luabridge::getGlobalNamespace(L)
+        .beginTable("xyz")
+            .addFunction("a", +[] { return "abcdefg"; })
+            .addMetaFunction("__index", [&data](luabridge::LuaRef, int index, lua_State* L)
+            {
+                if (index < 0 || index >= data.size())
+                    luaL_error(L, "Invalid index access in table %d", index);
+
+                return data[index];
+            })
+            .addMetaFunction("__newindex", [&data](luabridge::LuaRef, int index, luabridge::LuaRef ref, lua_State* L)
+            {
+                if (index < 0)
+                    luaL_error(L, "Invalid index access in table %d", index);
+                
+                if (! ref.isString())
+                    luaL_error(L, "Invalid value provided to set table at index %d", index);
+
+                if (index >= data.size())
+                    data.resize(index + 1);
+                
+                data[index] = ref.cast<std::string>();
+            })
+        .endTable();
+
+    runLua("xyz[0] = '123'; result = xyz[0]");
+    ASSERT_EQ("123", result<std::string>());
+}
+
 TEST_F(ClassTests, EnclosedClassProperties)
 {
     typedef Class<int, EmptyBase> Inner;

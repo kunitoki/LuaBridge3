@@ -1069,6 +1069,65 @@ class Namespace : public detail::Registrar
         }
     };
 
+    class Table : public detail::Registrar
+    {
+    public:
+        explicit Table(const char* name, Namespace& parent)
+            : Registrar(parent)
+        {
+            lua_newtable(L); // Stack: ns, table (tb)
+            lua_pushvalue(L, -1); // Stack: ns, tb, tb
+            rawsetfield(L, -3, name);
+            ++m_stackSize;
+
+            lua_newtable(L); // Stack: ns, table (tb)
+            lua_pushvalue(L, -1); // Stack: ns, tb, tb
+            lua_setmetatable(L, -3); // tb.__metatable = tb. Stack: ns, tb
+            ++m_stackSize;
+        }
+
+        using Registrar::operator=;
+
+        template <class Function>
+        Table& addFunction(const char* name, Function function)
+        {
+            using FnType = decltype(function);
+
+            assert(name != nullptr);
+            assert(lua_istable(L, -1)); // Stack: namespace table (ns)
+
+            lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: ns, function userdata (ud)
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: ns, function
+            rawsetfield(L, -3, name); // Stack: ns
+
+            return *this;
+        }
+
+        template <class Function>
+        Table& addMetaFunction(const char* name, Function function)
+        {
+            using FnType = decltype(function);
+
+            assert(name != nullptr);
+            assert(lua_istable(L, -1)); // Stack: namespace table (ns)
+
+            lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: ns, function userdata (ud)
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: ns, function
+            rawsetfield(L, -2, name); // Stack: ns
+
+            return *this;
+        }
+
+        Namespace endTable()
+        {
+            assert(m_stackSize > 2);
+
+            m_stackSize -= 2;
+            lua_pop(L, 2);
+            return Namespace(*this);
+        }
+    };
+    
 private:
     struct FromStack {};
 
@@ -1175,6 +1234,11 @@ private:
      * @param child A child class registration object.
      */
     explicit Namespace(ClassBase& child)
+        : Registrar(child)
+    {
+    }
+
+    explicit Namespace(Table& child)
         : Registrar(child)
     {
     }
@@ -1536,6 +1600,13 @@ public:
         rawsetfield(L, -2, name); // Stack: ns
 
         return *this;
+    }
+
+    //=============================================================================================
+    Table beginTable(const char* name)
+    {
+        assertIsActive();
+        return Table(name, *this);
     }
 
     //=============================================================================================
