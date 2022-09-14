@@ -531,6 +531,46 @@ class Namespace : public detail::Registrar
 
             return *this;
         }
+        
+        //=========================================================================================
+        /**
+         * @brief Add or replace a static property, by constructible by std::function.
+         */
+        template <class Getter, typename = std::enable_if_t<!std::is_pointer_v<Getter>>>
+
+        Class<T> addStaticProperty(const char* name, Getter get)
+        {
+            assert(name != nullptr);
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            using GetType = decltype(get);
+
+            lua_newuserdata_aligned<GetType>(L, std::move(get)); // Stack: co, cl, st, function userdata (ud)
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<GetType>, 1); // Stack: co, cl, st, function
+            detail::add_property_getter(L, name, -2); // Stack: co, cl, st
+
+            return *this;
+        }
+
+        template <class Getter, class Setter, typename = std::enable_if_t<!std::is_pointer_v<Getter> && !std::is_pointer_v<Setter>>>
+        Class<T> addStaticProperty(const char* name, Getter get, Setter set)
+        {
+            assert(name != nullptr);
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            using GetType = decltype(get);
+            using SetType = decltype(set);
+
+            lua_newuserdata_aligned<GetType>(L, std::move(get)); // Stack: co, cl, st, function userdata (ud)
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<GetType>, 1); // Stack: co, cl, st, function
+            detail::add_property_getter(L, name, -2); // Stack: co, cl, st
+
+            lua_newuserdata_aligned<SetType>(L, std::move(set)); // Stack: co, cl, st, function userdata (ud)
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<SetType>, 1); // Stack: co, cl, st, function
+            detail::add_property_setter(L, name, -2); // Stack: co, cl, st
+
+            return *this;
+        }
 
         //=========================================================================================
         /**
