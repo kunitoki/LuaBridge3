@@ -127,7 +127,7 @@ The **master** branch contains published library versions. Release versions are 
 1.3 - License and Credits
 -------------------------
 
-LuaBridge is published under the terms of the [MIT License](http://www.opensource.org/licenses/mit-license.html):
+LuaBridge3 is published under the terms of the [MIT License](http://www.opensource.org/licenses/mit-license.html):
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
