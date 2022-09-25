@@ -447,6 +447,40 @@ void* lua_newuserdata_aligned(lua_State* L, Args&&... args)
 }
 
 /**
+ * @brief Safe error able to walk backwards for error reporting correctly.
+ */
+inline int raise_lua_error(lua_State *L, const char *fmt, ...)
+{
+    va_list argp;
+    va_start(argp, fmt);
+
+    bool pushed_error = false;
+    for (int level = 2; level > 0; --level)
+    {
+        lua_Debug ar;
+        if (lua_getstack(L, level, &ar) == 0)
+            continue;
+
+        lua_getinfo(L, "Sl", &ar);
+        if (ar.currentline <= 0)
+            continue;
+
+        lua_pushfstring(L, "%s:%d: ", ar.short_src, ar.currentline);
+        pushed_error = true;
+
+        break;
+    }
+
+    if (! pushed_error)
+        lua_pushliteral(L, "");
+
+    lua_pushvfstring(L, fmt, argp);
+    va_end(argp);
+    lua_concat(L, 2);
+    return lua_error(L);
+}
+
+/**
  * @brief Checks if the value on the stack is a number type and can fit into the corresponding c++ integral type..
  */
 template <class U = lua_Integer, class T>
@@ -3601,12 +3635,12 @@ struct function
         }
         catch (const std::exception& e)
         {
-            luaL_error(L, "%s", e.what());
+            raise_lua_error(L, "%s", e.what());
         }
 #endif
 
         if (! result)
-            luaL_error(L, "%s", ec.message().c_str());
+            raise_lua_error(L, "%s", ec.message().c_str());
 
         return 1;
     }
@@ -3629,12 +3663,12 @@ struct function
         }
         catch (const std::exception& e)
         {
-            luaL_error(L, "%s", e.what());
+            raise_lua_error(L, "%s", e.what());
         }
 #endif
 
         if (! result)
-            luaL_error(L, "%s", ec.message().c_str());
+            raise_lua_error(L, "%s", ec.message().c_str());
 
         return 1;
     }
@@ -3656,7 +3690,7 @@ struct function<void, ArgsPack, Start>
         }
         catch (const std::exception& e)
         {
-            luaL_error(L, "%s", e.what());
+            raise_lua_error(L, "%s", e.what());
         }
 #endif
 
@@ -3678,7 +3712,7 @@ struct function<void, ArgsPack, Start>
         }
         catch (const std::exception& e)
         {
-            luaL_error(L, "%s", e.what());
+            raise_lua_error(L, "%s", e.what());
         }
 #endif
 
@@ -3969,7 +4003,7 @@ struct property_getter<T, void>
 
         std::error_code ec;
         if (! Stack<T&>::push(L, *ptr, ec))
-            luaL_error(L, "%s", ec.message().c_str());
+            raise_lua_error(L, "%s", ec.message().c_str());
 
         return 1;
     }
@@ -4009,25 +4043,26 @@ struct property_getter
 
         T C::** mp = static_cast<T C::**>(lua_touserdata(L, lua_upvalueindex(1)));
 
+        std::error_code ec;
+        bool result = false;
+
 #if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
 #endif
             std::error_code ec;
-            if (! Stack<T&>::push(L, c->**mp, ec))
-                luaL_error(L, "%s", ec.message().c_str());
+            result = Stack<T&>::push(L, c->**mp, ec);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
         {
-            luaL_error(L, "%s", e.what());
-        }
-        catch (...)
-        {
-            luaL_error(L, "Error while getting property");
+            raise_lua_error(L, "%s", e.what());
         }
 #endif
+
+        if (!result)
+            raise_lua_error(L, "%s", ec.message().c_str());
 
         return 1;
     }
@@ -4120,11 +4155,7 @@ struct property_setter
         }
         catch (const std::exception& e)
         {
-            luaL_error(L, "%s", e.what());
-        }
-        catch (...)
-        {
-            luaL_error(L, "Error while setting property");
+            raise_lua_error(L, "%s", e.what());
         }
 #endif
 
@@ -6777,6 +6808,25 @@ class Namespace : public detail::Registrar
          * @brief Add or replace a property member.
          */
         template <class U, class V>
+        Class<T>& addProperty(const char* name, const U V::*mp)
+        {
+            static_assert(std::is_base_of_v<V, T>);
+
+            using MemberPtrType = decltype(mp);
+
+            assert(name != nullptr);
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            new (lua_newuserdata_x<MemberPtrType>(L, sizeof(MemberPtrType))) MemberPtrType(mp); // Stack: co, cl, st, field ptr
+            lua_pushcclosure_x(L, &detail::property_getter<U, T>::call, 1); // Stack: co, cl, st, getter
+            lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
+            detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
+            detail::add_property_getter(L, name, -3); // Stack: co, cl, st
+
+            return *this;
+        }
+
+        template <class U, class V>
         Class<T>& addProperty(const char* name, U V::*mp, bool isWritable = true)
         {
             static_assert(std::is_base_of_v<V, T>);
@@ -7645,7 +7695,7 @@ public:
         {
             using U = std::underlying_type_t<Getter>;
 
-            auto enumGet = [get] { return static_cast<U>(get); };
+            auto enumGet = [get = std::move(get)] { return static_cast<U>(get); };
 
             using GetType = decltype(enumGet);
             lua_newuserdata_aligned<GetType>(L, std::move(enumGet)); // Stack: ns, function userdata (ud)
