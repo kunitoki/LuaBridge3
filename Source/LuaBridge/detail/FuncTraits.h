@@ -358,12 +358,12 @@ struct function
         }
         catch (const std::exception& e)
         {
-            luaL_error(L, "%s", e.what());
+            raise_lua_error(L, "%s", e.what());
         }
 #endif
 
         if (! result)
-            luaL_error(L, "%s", ec.message().c_str());
+            raise_lua_error(L, "%s", ec.message().c_str());
 
         return 1;
     }
@@ -386,12 +386,12 @@ struct function
         }
         catch (const std::exception& e)
         {
-            luaL_error(L, "%s", e.what());
+            raise_lua_error(L, "%s", e.what());
         }
 #endif
 
         if (! result)
-            luaL_error(L, "%s", ec.message().c_str());
+            raise_lua_error(L, "%s", ec.message().c_str());
 
         return 1;
     }
@@ -413,7 +413,7 @@ struct function<void, ArgsPack, Start>
         }
         catch (const std::exception& e)
         {
-            luaL_error(L, "%s", e.what());
+            raise_lua_error(L, "%s", e.what());
         }
 #endif
 
@@ -435,7 +435,7 @@ struct function<void, ArgsPack, Start>
         }
         catch (const std::exception& e)
         {
-            luaL_error(L, "%s", e.what());
+            raise_lua_error(L, "%s", e.what());
         }
 #endif
 

@@ -383,6 +383,40 @@ void* lua_newuserdata_aligned(lua_State* L, Args&&... args)
 }
 
 /**
+ * @brief Safe error able to walk backwards for error reporting correctly.
+ */
+inline int raise_lua_error(lua_State *L, const char *fmt, ...)
+{
+    va_list argp;
+    va_start(argp, fmt);
+
+    bool pushed_error = false;
+    for (int level = 2; level > 0; --level)
+    {
+        lua_Debug ar;
+        if (lua_getstack(L, level, &ar) == 0)
+            continue;
+
+        lua_getinfo(L, "Sl", &ar);
+        if (ar.currentline <= 0)
+            continue;
+
+        lua_pushfstring(L, "%s:%d: ", ar.short_src, ar.currentline);
+        pushed_error = true;
+
+        break;
+    }
+
+    if (! pushed_error)
+        lua_pushliteral(L, "");
+
+    lua_pushvfstring(L, fmt, argp);
+    va_end(argp);
+    lua_concat(L, 2);
+    return lua_error(L);
+}
+
+/**
  * @brief Checks if the value on the stack is a number type and can fit into the corresponding c++ integral type..
  */
 template <class U = lua_Integer, class T>

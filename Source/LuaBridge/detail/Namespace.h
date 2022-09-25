@@ -661,6 +661,25 @@ class Namespace : public detail::Registrar
          * @brief Add or replace a property member.
          */
         template <class U, class V>
+        Class<T>& addProperty(const char* name, const U V::*mp)
+        {
+            static_assert(std::is_base_of_v<V, T>);
+
+            using MemberPtrType = decltype(mp);
+
+            assert(name != nullptr);
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            new (lua_newuserdata_x<MemberPtrType>(L, sizeof(MemberPtrType))) MemberPtrType(mp); // Stack: co, cl, st, field ptr
+            lua_pushcclosure_x(L, &detail::property_getter<U, T>::call, 1); // Stack: co, cl, st, getter
+            lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
+            detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
+            detail::add_property_getter(L, name, -3); // Stack: co, cl, st
+
+            return *this;
+        }
+
+        template <class U, class V>
         Class<T>& addProperty(const char* name, U V::*mp, bool isWritable = true)
         {
             static_assert(std::is_base_of_v<V, T>);
@@ -1529,7 +1548,7 @@ public:
         {
             using U = std::underlying_type_t<Getter>;
 
-            auto enumGet = [get] { return static_cast<U>(get); };
+            auto enumGet = [get = std::move(get)] { return static_cast<U>(get); };
 
             using GetType = decltype(enumGet);
             lua_newuserdata_aligned<GetType>(L, std::move(enumGet)); // Stack: ns, function userdata (ud)

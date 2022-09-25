@@ -106,6 +106,7 @@ struct TestBase : public ::testing::Test
     bool runLua(const std::string& script) const
     {
         lua_settop(L, 0);
+
         luabridge::lua_pushcfunction_x(L, &traceback);
 
         if (luaL_loadstring(L, script.c_str()) != LUABRIDGE_LUA_OK)
@@ -139,6 +140,37 @@ struct TestBase : public ::testing::Test
         }
 
         return true;
+    }
+
+    std::tuple<bool, std::string> runLuaCaptureError(const std::string& script) const
+    {
+        lua_settop(L, 0);
+
+        if (luaL_loadstring(L, script.c_str()) != LUABRIDGE_LUA_OK)
+        {
+            auto errorString = lua_tostring(L, -1);
+
+#if LUABRIDGE_TESTS_PRINT_ERRORS
+            std::cerr << "===== Lua Compile Error =====\n";
+            std::cerr << errorString ? errorString : "Unknown lua compilation error" << "\n";
+#endif // LUABRIDGE_TESTS_PRINT_ERRORS
+
+            return std::make_tuple(false, errorString);
+        }
+
+        if (lua_pcall(L, 0, 0, 0) != LUABRIDGE_LUA_OK)
+        {
+            auto errorString = lua_tostring(L, -1);
+
+#if LUABRIDGE_TESTS_PRINT_ERRORS
+            std::cerr << "===== Lua Call Error =====\n";
+            std::cerr << (errorString ? errorString : "Unknown lua runtime error") << "\n";
+#endif // LUABRIDGE_TESTS_PRINT_ERRORS
+
+            return std::make_tuple(false, errorString);
+        }
+
+        return std::make_tuple(true, "");
     }
 
     template <class T = luabridge::LuaRef>

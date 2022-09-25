@@ -222,7 +222,7 @@ struct property_getter<T, void>
 
         std::error_code ec;
         if (! Stack<T&>::push(L, *ptr, ec))
-            luaL_error(L, "%s", ec.message().c_str());
+            raise_lua_error(L, "%s", ec.message().c_str());
 
         return 1;
     }
@@ -262,25 +262,26 @@ struct property_getter
 
         T C::** mp = static_cast<T C::**>(lua_touserdata(L, lua_upvalueindex(1)));
 
+        std::error_code ec;
+        bool result = false;
+
 #if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
 #endif
             std::error_code ec;
-            if (! Stack<T&>::push(L, c->**mp, ec))
-                luaL_error(L, "%s", ec.message().c_str());
+            result = Stack<T&>::push(L, c->**mp, ec);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
         {
-            luaL_error(L, "%s", e.what());
-        }
-        catch (...)
-        {
-            luaL_error(L, "Error while getting property");
+            raise_lua_error(L, "%s", e.what());
         }
 #endif
+
+        if (!result)
+            raise_lua_error(L, "%s", ec.message().c_str());
 
         return 1;
     }
@@ -373,11 +374,7 @@ struct property_setter
         }
         catch (const std::exception& e)
         {
-            luaL_error(L, "%s", e.what());
-        }
-        catch (...)
-        {
-            luaL_error(L, "Error while setting property");
+            raise_lua_error(L, "%s", e.what());
         }
 #endif
 
