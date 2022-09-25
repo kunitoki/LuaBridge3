@@ -4050,7 +4050,6 @@ struct property_getter
         try
         {
 #endif
-            std::error_code ec;
             result = Stack<T&>::push(L, c->**mp, ec);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
