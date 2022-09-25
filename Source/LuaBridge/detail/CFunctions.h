@@ -267,7 +267,6 @@ struct property_getter
 
         T C::** mp = static_cast<T C::**>(lua_touserdata(L, lua_upvalueindex(1)));
 
-        std::error_code ec;
         bool result = false;
 
 #if LUABRIDGE_HAS_EXCEPTIONS
