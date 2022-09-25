@@ -10,6 +10,7 @@ set (LUABRIDGE_TEST_SOURCE_FILES
   Source/AmalgamateTests.cpp
   Source/ArrayTests.cpp
   Source/ClassTests.cpp
+  Source/ExceptionTests.cpp
   Source/IssueTests.cpp
   Source/IteratorTests.cpp
   Source/LegacyTests.cpp
@@ -61,7 +62,7 @@ file (GLOB_RECURSE LUABRIDGE_TEST_LUA53_FILES
 
 file (GLOB_RECURSE LUABRIDGE_TEST_LUA54_FILES
   Lua/LuaLibrary.h
-  Lua/LuaLibrary5.4.3.cpp
+  Lua/LuaLibrary5.4.4.cpp
 )
 
 # ====================================================== Luau
@@ -169,7 +170,7 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
   endif ()
 
   if (MSVC)
-    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++17 /W3")
+    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++17 /W3 /MP")
   else ()
     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
   endif (MSVC)

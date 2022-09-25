@@ -20,15 +20,22 @@ std::list<T> toList(const std::vector<T>& vector)
 template <class T>
 void checkEquals(const std::list<T>& expected, const std::list<T>& actual)
 {
-    if constexpr (std::is_same_v<T, float>)
+    using U = std::decay_t<T>;
+
+    if constexpr (std::is_same_v<U, float>)
     {
         for (std::size_t i = 0; i < expected.size(); ++i)
             ASSERT_FLOAT_EQ((*std::next(expected.begin(), i)), (*std::next(actual.begin(), i)));
     }
-    else if constexpr (std::is_same_v<T, double> || std::is_same_v<T, long double>)
+    else if constexpr (std::is_same_v<U, double> || std::is_same_v<U, long double>)
     {
         for (std::size_t i = 0; i < expected.size(); ++i)
             ASSERT_DOUBLE_EQ((*std::next(expected.begin(), i)), (*std::next(actual.begin(), i)));
+    }
+    else if constexpr (std::is_same_v<U, const char*>)
+    {
+        for (std::size_t i = 0; i < expected.size(); ++i)
+            ASSERT_STREQ((*std::next(expected.begin(), i)), (*std::next(actual.begin(), i)));
     }
     else
     {
@@ -94,7 +101,7 @@ TEST_F(ListTests, UnregisteredClass)
     
     std::error_code ec;
 #if LUABRIDGE_HAS_EXCEPTIONS
-    bool result;
+    [[maybe_unused]] bool result;
     ASSERT_THROW((result = luabridge::push(L, std::list<Unregistered>{ Unregistered() }, ec)), std::exception);
 #else
     ASSERT_FALSE((luabridge::push(L, std::list<Unregistered>{ Unregistered() }, ec)));

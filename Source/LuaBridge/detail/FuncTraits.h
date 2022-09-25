@@ -357,26 +357,25 @@ struct function
     template <class F>
     static int call(lua_State* L, F func)
     {
+        std::error_code ec;
+        bool result = false;
+
 #if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
 #endif
-            std::error_code ec;
-            bool result = Stack<ReturnType>::push(L, std::apply(func, make_arguments_list<ArgsPack, Start>(L)), ec);
-            if (! result)
-                luaL_error(L, "%s", ec.message().c_str());
+            result = Stack<ReturnType>::push(L, std::apply(func, make_arguments_list<ArgsPack, Start>(L)), ec);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
         {
-            luaL_error(L, "%s", e.what());
-        }
-        catch (...)
-        {
-            luaL_error(L, "Error while calling function");
+            raise_lua_error(L, "%s", e.what());
         }
 #endif
+
+        if (! result)
+            raise_lua_error(L, "%s", ec.message().c_str());
 
         return 1;
     }
@@ -384,28 +383,27 @@ struct function
     template <class T, class F>
     static int call(lua_State* L, T* ptr, F func)
     {
+        std::error_code ec;
+        bool result = false;
+
 #if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
 #endif
             auto f = [ptr, func](auto&&... args) -> ReturnType { return (ptr->*func)(std::forward<decltype(args)>(args)...); };
 
-            std::error_code ec;
-            bool result = Stack<ReturnType>::push(L, std::apply(f, make_arguments_list<ArgsPack, Start>(L)), ec);
-            if (! result)
-                luaL_error(L, "%s", ec.message().c_str());
+            result = Stack<ReturnType>::push(L, std::apply(f, make_arguments_list<ArgsPack, Start>(L)), ec);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
         {
-            luaL_error(L, "%s", e.what());
-        }
-        catch (...)
-        {
-            luaL_error(L, "Error while calling method");
+            raise_lua_error(L, "%s", e.what());
         }
 #endif
+
+        if (! result)
+            raise_lua_error(L, "%s", ec.message().c_str());
 
         return 1;
     }
@@ -427,11 +425,7 @@ struct function<void, ArgsPack, Start>
         }
         catch (const std::exception& e)
         {
-            luaL_error(L, "%s", e.what());
-        }
-        catch (...)
-        {
-            luaL_error(L, "Error while calling function");
+            raise_lua_error(L, "%s", e.what());
         }
 #endif
 
@@ -453,11 +447,7 @@ struct function<void, ArgsPack, Start>
         }
         catch (const std::exception& e)
         {
-            luaL_error(L, "%s", e.what());
-        }
-        catch (...)
-        {
-            luaL_error(L, "Error while calling method");
+            raise_lua_error(L, "%s", e.what());
         }
 #endif
 

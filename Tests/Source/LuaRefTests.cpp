@@ -267,6 +267,12 @@ TEST_F(LuaRefTests, Assignment)
     luabridge::LuaRef b1 = entry["b"];
     luabridge::LuaRef b2 = table["a"]["b"];
     EXPECT_TRUE(b1 == b2);
+
+    runLua("c1 = 1");
+    auto c1 = luabridge::getGlobal(L, "c1");
+    ASSERT_EQ(1, c1.cast<int>());
+    c1 = 11;
+    ASSERT_EQ(11, c1.cast<int>());
 }
 
 TEST_F(LuaRefTests, Callable)
@@ -417,5 +423,50 @@ TEST_F(LuaRefTests, Print)
         std::ostringstream stream;
         stream << result()["abc"];
         ASSERT_EQ("\"abc\"", stream.str());
+    }
+}
+
+TEST_F(LuaRefTests, RegisterLambdaInTable)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("Entities")
+        .addFunction("GetLocalHero", [&]() {
+            auto table = luabridge::newTable(L);
+            table.push(L);
+            
+            luabridge::getNamespaceFromStack(L)
+                .addProperty("index", [] { return 150; })
+                .addFunction("Health", [&] { return 500; });
+
+            table.pop();
+            return table;
+        })
+    .endNamespace();
+    
+    runLua("result = Entities.GetLocalHero().Health()");
+    ASSERT_EQ(500, result().cast<int>());
+}
+
+TEST_F(LuaRefTests, HookTesting)
+{
+    std::map<std::string, luabridge::LuaRef> hooklist;
+
+    auto hook = [&](const std::string& name, luabridge::LuaRef cb) {
+        hooklist.emplace(name, std::move(cb));
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .addFunction("Hook", hook);
+    
+    runLua(R"(
+        function hook1(type, packet)
+            print("lol")
+        end
+
+        Hook("hook1", hook1)
+    )");
+
+    for (auto& func : hooklist) {
+        func.second(0, "x");
     }
 }

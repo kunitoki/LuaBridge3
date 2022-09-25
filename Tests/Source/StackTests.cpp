@@ -468,16 +468,24 @@ TEST_F(StackTests, Int64Type)
     EXPECT_FALSE(luabridge::isInstance<int8_t>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<int16_t>(L, -1));
     if constexpr (sizeof(lua_Integer) == sizeof(int32_t))
+    {
         EXPECT_TRUE(luabridge::isInstance<int32_t>(L, -1));
+    }
     else
+    {
         EXPECT_FALSE(luabridge::isInstance<int32_t>(L, -1));
+    }
     EXPECT_TRUE(luabridge::isInstance<int64_t>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<uint8_t>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<uint16_t>(L, -1));
     if constexpr (sizeof(lua_Integer) == sizeof(uint32_t))
+    {
         EXPECT_TRUE(luabridge::isInstance<uint32_t>(L, -1));
+    }
     else
+    {
         EXPECT_FALSE(luabridge::isInstance<uint32_t>(L, -1));
+    }
     EXPECT_TRUE(luabridge::isInstance<uint64_t>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<bool>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::byte>(L, -1));
@@ -492,9 +500,13 @@ TEST_F(StackTests, Int64Type)
     EXPECT_FALSE(luabridge::isInstance<std::vector<int64_t>>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::optional<int16_t>>(L, -1));
     if constexpr (sizeof(lua_Integer) == sizeof(int32_t))
+    {
         EXPECT_TRUE(luabridge::isInstance<std::optional<int32_t>>(L, -1));
+    }
     else
+    {
         EXPECT_FALSE(luabridge::isInstance<std::optional<int32_t>>(L, -1));
+    }
     EXPECT_TRUE(luabridge::isInstance<std::optional<int64_t>>(L, -1));
 
     {
@@ -645,9 +657,13 @@ TEST_F(StackTests, Uint32Type)
     EXPECT_FALSE(luabridge::isInstance<int8_t>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<int16_t>(L, -1));
     if constexpr (sizeof(lua_Integer) == sizeof(int32_t))
+    {
         EXPECT_TRUE(luabridge::isInstance<int32_t>(L, -1));
+    }
     else
+    {
         EXPECT_FALSE(luabridge::isInstance<int32_t>(L, -1));
+    }
     EXPECT_TRUE(luabridge::isInstance<int64_t>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<uint8_t>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<uint16_t>(L, -1));
@@ -669,9 +685,13 @@ TEST_F(StackTests, Uint32Type)
     EXPECT_FALSE(luabridge::isInstance<std::optional<int16_t>>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::optional<uint16_t>>(L, -1));
     if constexpr (sizeof(lua_Integer) == sizeof(int32_t))
+    {
         EXPECT_TRUE(luabridge::isInstance<std::optional<int32_t>>(L, -1));
+    }
     else
+    {
         EXPECT_FALSE(luabridge::isInstance<std::optional<int32_t>>(L, -1));
+    }
     EXPECT_TRUE(luabridge::isInstance<std::optional<uint32_t>>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<std::optional<int64_t>>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<std::optional<uint64_t>>(L, -1));
@@ -708,16 +728,24 @@ TEST_F(StackTests, Uint64Type)
     EXPECT_FALSE(luabridge::isInstance<int8_t>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<int16_t>(L, -1));
     if constexpr (sizeof(lua_Integer) >= sizeof(int32_t))
+    {
         EXPECT_TRUE(luabridge::isInstance<int32_t>(L, -1));
+    }
     else
+    {
         EXPECT_FALSE(luabridge::isInstance<int32_t>(L, -1));
+    }
     EXPECT_TRUE(luabridge::isInstance<int64_t>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<uint8_t>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<uint16_t>(L, -1));
     if constexpr (sizeof(lua_Integer) >= sizeof(uint32_t))
+    {
         EXPECT_TRUE(luabridge::isInstance<uint32_t>(L, -1));
+    }
     else
+    {
         EXPECT_FALSE(luabridge::isInstance<uint32_t>(L, -1));
+    }
     EXPECT_TRUE(luabridge::isInstance<uint64_t>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<bool>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::byte>(L, -1));
@@ -1028,9 +1056,14 @@ TEST_F(StackTests, FloatTypeNotFittingIsInstance)
     EXPECT_FALSE(luabridge::isInstance<float>(L, 1));
 
     if constexpr (sizeof(double) == sizeof(lua_Number))
+    {
         EXPECT_TRUE(luabridge::isInstance<double>(L, 1));
-    else if constexpr (sizeof(long double) > sizeof(double) && sizeof(long double) == sizeof(lua_Number))
+    }
+
+    if constexpr (sizeof(long double) > sizeof(double) && sizeof(long double) == sizeof(lua_Number))
+    {
         EXPECT_FALSE(luabridge::isInstance<double>(L, 1));
+    }
 
     EXPECT_TRUE(luabridge::isInstance<long double>(L, 1));
 }
@@ -1357,6 +1390,17 @@ TEST_F(StackTests, ConstCharPointerType)
     }
 }
 
+TEST_F(StackTests, ConstCharPointerWrongGet)
+{
+    std::error_code ec;
+    ASSERT_TRUE(luabridge::push(L, luabridge::LuaNil(), ec));
+
+    {
+        auto result = luabridge::get<const char*>(L, -1);
+        EXPECT_STREQ("", result);
+    }
+}
+
 TEST_F(StackTests, ConstCharPointerStackOverflow)
 {
     exhaustStackSpace();
@@ -1456,6 +1500,17 @@ TEST_F(StackTests, StringViewType)
         auto result = luabridge::get<std::optional<std::string>>(L, -1, ec);
         ASSERT_TRUE(result);
         EXPECT_EQ(value, *result);
+    }
+}
+
+TEST_F(StackTests, StringViewWrongGet)
+{
+    std::error_code ec;
+    ASSERT_TRUE(luabridge::push(L, luabridge::LuaNil(), ec));
+
+    {
+        auto result = luabridge::get<std::string_view>(L, -1);
+        EXPECT_EQ("", result);
     }
 }
 
@@ -1674,4 +1729,195 @@ TEST_F(StackTests, ConstIntArrayStackOverflow)
     
     std::error_code ec;
     ASSERT_FALSE(luabridge::push(L, value, ec));
+}
+
+TEST_F(StackTests, ConstLongArrayStackOverflow)
+{
+    exhaustStackSpace();
+
+    const long value[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+
+    std::error_code ec;
+    ASSERT_FALSE(luabridge::push(L, value, ec));
+}
+
+TEST_F(StackTests, ConstLongLongArrayStackOverflow)
+{
+    exhaustStackSpace();
+
+    const long long value[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+
+    std::error_code ec;
+    ASSERT_FALSE(luabridge::push(L, value, ec));
+}
+
+TEST_F(StackTests, ConstUnsignedLongLongArrayStackOverflow)
+{
+    exhaustStackSpace();
+
+    const unsigned long long value[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+
+    std::error_code ec;
+    ASSERT_FALSE(luabridge::push(L, value, ec));
+}
+
+TEST_F(StackTests, OptionalStackOverflow)
+{
+    exhaustStackSpace();
+
+    std::optional<int> value = 1;
+
+    std::error_code ec;
+    ASSERT_FALSE(luabridge::push(L, value, ec));
+}
+
+TEST_F(StackTests, TupleStackOverflow)
+{
+    exhaustStackSpace();
+
+    auto value = std::make_tuple(1, 1.0f, "one");
+
+    std::error_code ec;
+    ASSERT_FALSE(luabridge::push(L, value, ec));
+}
+
+TEST_F(StackTests, NilStackOverflow)
+{
+    exhaustStackSpace();
+
+    std::error_code ec;
+    ASSERT_FALSE(luabridge::push(L, luabridge::LuaNil(), ec));
+}
+
+TEST_F(StackTests, Nil)
+{
+    std::error_code ec;
+    (void)luabridge::push(L, luabridge::LuaNil(), ec);
+
+    ASSERT_TRUE(luabridge::isInstance<luabridge::LuaNil>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<bool>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<int>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<unsigned>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<float>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<double>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<std::string>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<std::string_view>(L, -1));
+}
+
+TEST_F(StackTests, Bool)
+{
+    std::error_code ec;
+    (void)luabridge::push(L, true, ec);
+
+    ASSERT_FALSE(luabridge::isInstance<luabridge::LuaNil>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<luabridge::LuaNil>(L, -1));
+    ASSERT_TRUE(luabridge::isInstance<bool>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<int>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<unsigned>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<float>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<double>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<const char*>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<std::string>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<std::string_view>(L, -1));
+
+    ASSERT_EQ(true, luabridge::get<bool>(L, -1));
+}
+
+TEST_F(StackTests, Int)
+{
+    std::error_code ec;
+    (void)luabridge::push(L, 5, ec);
+
+    ASSERT_FALSE(luabridge::isInstance<luabridge::LuaNil>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<bool>(L, -1));
+    ASSERT_TRUE(luabridge::isInstance<int>(L, -1));
+    ASSERT_TRUE(luabridge::isInstance<unsigned>(L, -1));
+    ASSERT_TRUE(luabridge::isInstance<float>(L, -1));
+    ASSERT_TRUE(luabridge::isInstance<double>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<const char*>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<std::string>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<std::string_view>(L, -1));
+
+    ASSERT_EQ(5, luabridge::get<int>(L, -1));
+    ASSERT_NEAR(5.f, luabridge::get<float>(L, -1), 1e-5);
+    ASSERT_NEAR(5.0, luabridge::get<double>(L, -1), 1e-6);
+}
+
+TEST_F(StackTests, Float)
+{
+    std::error_code ec;
+    (void)luabridge::push(L, 3.14f, ec);
+
+    ASSERT_FALSE(luabridge::isInstance<luabridge::LuaNil>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<bool>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<int>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<unsigned>(L, -1));
+    ASSERT_TRUE(luabridge::isInstance<float>(L, -1));
+    ASSERT_TRUE(luabridge::isInstance<double>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<const char*>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<std::string>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<std::string_view>(L, -1));
+
+    ASSERT_NEAR(3.14f, luabridge::get<float>(L, -1), 1e-5);
+    ASSERT_NEAR(3.14, luabridge::get<double>(L, -1), 1e-6);
+}
+
+TEST_F(StackTests, CString)
+{
+    std::error_code ec;
+    (void)luabridge::push(L, "abc", ec);
+
+    ASSERT_FALSE(luabridge::isInstance<luabridge::LuaNil>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<bool>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<int>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<unsigned>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<float>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<double>(L, -1));
+    ASSERT_TRUE(luabridge::isInstance<const char*>(L, -1));
+    ASSERT_TRUE(luabridge::isInstance<std::string>(L, -1));
+    ASSERT_TRUE(luabridge::isInstance<std::string_view>(L, -1));
+
+    ASSERT_STREQ("abc", luabridge::get<const char*>(L, -1));
+    ASSERT_EQ("abc", luabridge::get<std::string>(L, -1));
+    ASSERT_EQ("abc", luabridge::get<std::string_view>(L, -1));
+}
+
+TEST_F(StackTests, StdString)
+{
+    std::error_code ec;
+    (void)luabridge::push(L, std::string("abc"), ec);
+
+    ASSERT_FALSE(luabridge::isInstance<luabridge::LuaNil>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<bool>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<int>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<unsigned>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<float>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<double>(L, -1));
+    ASSERT_TRUE(luabridge::isInstance<const char*>(L, -1));
+    ASSERT_TRUE(luabridge::isInstance<std::string>(L, -1));
+    ASSERT_TRUE(luabridge::isInstance<std::string_view>(L, -1));
+
+    ASSERT_STREQ("abc", luabridge::get<const char*>(L, -1));
+    ASSERT_EQ("abc", luabridge::get<std::string>(L, -1));
+    ASSERT_EQ("abc", luabridge::get<std::string_view>(L, -1));
+}
+
+TEST_F(StackTests, StdStringView)
+{
+    std::error_code ec;
+    (void)luabridge::push(L, std::string_view("abc"), ec);
+
+    ASSERT_FALSE(luabridge::isInstance<luabridge::LuaNil>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<bool>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<int>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<unsigned>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<float>(L, -1));
+    ASSERT_FALSE(luabridge::isInstance<double>(L, -1));
+    ASSERT_TRUE(luabridge::isInstance<const char*>(L, -1));
+    ASSERT_TRUE(luabridge::isInstance<std::string>(L, -1));
+    ASSERT_TRUE(luabridge::isInstance<std::string_view>(L, -1));
+
+    ASSERT_STREQ("abc", luabridge::get<const char*>(L, -1));
+    ASSERT_EQ("abc", luabridge::get<std::string>(L, -1));
+    ASSERT_EQ("abc", luabridge::get<std::string_view>(L, -1));
 }

@@ -1,4 +1,5 @@
 // https://github.com/kunitoki/LuaBridge3
+// Copyright 2022, Lucio Asnaghi
 // Copyright 2019, Dmitry Tarakanov
 // SPDX-License-Identifier: MIT
 
@@ -8,6 +9,7 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 
 using TestTypes = ::testing::Types<
@@ -26,7 +28,9 @@ using TestTypes = ::testing::Types<
     float,
     double,
     long double,
-    std::string>;
+    const char*,
+    std::string,
+    std::string_view>;
 
 template <class T>
 struct TypeTraits;
@@ -137,9 +141,22 @@ struct TypeTraits<long double>
 };
 
 template <>
+struct TypeTraits<const char*>
+{
+    static std::vector<const char*> values() { return {"", "a", "xyz"}; }
+    static std::string list() { return "'', 'a', 'xyz'"; }
+};
+
+template<>
 struct TypeTraits<std::string>
 {
     static std::vector<std::string> values() { return {"", "a", "xyz"}; }
     static std::string list() { return "'', 'a', 'xyz'"; }
 };
 
+template<>
+struct TypeTraits<std::string_view>
+{
+    static std::vector<std::string_view> values() { return {"", "a", "xyz"}; }
+    static std::string list() { return "'', 'a', 'xyz'"; }
+};

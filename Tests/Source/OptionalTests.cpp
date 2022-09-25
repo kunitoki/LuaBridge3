@@ -10,28 +10,40 @@
 
 namespace {
 
-template<typename T>
-std::string toLuaSrcString(T const& value)
+template <typename T>
+std::string toLuaSrcString(const T& value)
 {
     return std::to_string(value);
 }
 
 template<>
-std::string toLuaSrcString(bool const& value)
+std::string toLuaSrcString(const bool& value)
 {
     return value ? "true" : "false";
 }
 
 template<>
-std::string toLuaSrcString(char const& value)
+std::string toLuaSrcString(const char& value)
 {
     return "'" + std::string(&value, 1) + "'";
 }
 
 template<>
-std::string toLuaSrcString(std::string const& value)
+std::string toLuaSrcString(const char* const& value)
+{
+    return "'" + std::string(value) + "'";
+}
+
+template<>
+std::string toLuaSrcString(const std::string& value)
 {
     return "'" + value + "'";
+}
+
+template<>
+std::string toLuaSrcString(const std::string_view& value)
+{
+    return toLuaSrcString(std::string(value));
 }
 
 template<typename T>
@@ -44,13 +56,19 @@ std::optional<T> optCast(luabridge::LuaRef const& ref)
 template <class T>
 void checkEquals(T expected, T actual)
 {
-    if constexpr (std::is_same_v<T, float>)
+    using U = std::decay_t<T>;
+
+    if constexpr (std::is_same_v<U, float>)
     {
         ASSERT_FLOAT_EQ(expected, actual);
     }
-    else if constexpr (std::is_same_v<T, double> || std::is_same_v<T, long double>)
+    else if constexpr (std::is_same_v<U, double> || std::is_same_v<U, long double>)
     {
         ASSERT_DOUBLE_EQ(expected, actual);
+    }
+    else if constexpr (std::is_same_v<U, const char*>)
+    {
+        ASSERT_STREQ(expected, actual);
     }
     else
     {

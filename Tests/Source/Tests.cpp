@@ -471,3 +471,54 @@ TEST_F(LuaBridgeTest, StdSharedPtr)
     auto a4 = result().unsafe_cast<std::shared_ptr<A>>();
     EXPECT_EQ(2, a4->x);
 }
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+namespace {
+template <class... Args>
+std::string call_callback_get_exception(const luabridge::LuaRef& fn, Args&&... args)
+{
+    assert(fn.isCallable());
+
+    try {
+        fn(std::forward<Args>(args)...);
+        return {};
+    } catch (const std::exception& e) {
+        return e.what();
+    }
+}
+} // namespace
+
+TEST_F(LuaBridgeTest, Exception)
+{
+    luabridge::LuaRef cb1(L);
+    luabridge::LuaRef cb2(L);
+
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("ns")
+            .addProperty("cb1", &cb1)
+            .addProperty("cb2", &cb2)
+        .endNamespace();
+
+    auto text = R"(
+        function ns.cb1()
+            local x = 42
+            return x - 1337
+        end
+
+        function ns.cb2()
+            local y = 42
+            this.will.fail()
+            return y - 1337
+        end
+    )";
+
+    EXPECT_TRUE(runLua(text));
+
+    EXPECT_EQ("", call_callback_get_exception(cb1));
+
+    const auto error = call_callback_get_exception(cb2);
+    EXPECT_NE(std::string::npos, error.find("The lua function invocation raised an error"));
+    EXPECT_NE(std::string::npos, error.find("attempt to index"));
+    EXPECT_NE(std::string::npos, error.find(" nil "));
+}
+#endif

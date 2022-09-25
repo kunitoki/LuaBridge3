@@ -1,6 +1,6 @@
-[submodule "ThirdParty/googletest"]
-	path = ThirdParty/googletest
-	url = https://github.com/kunitoki/googletest.git
 [submodule "ThirdParty/luau"]
 	path = ThirdParty/luau
 	url = https://github.com/kunitoki/luau.git
+[submodule "ThirdParty/googletest"]
+	path = ThirdParty/googletest
+	url = https://github.com/kunitoki/googletest.git

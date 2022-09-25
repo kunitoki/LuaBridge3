@@ -426,6 +426,35 @@ class Namespace : public detail::Registrar
          * @returns This class registration object.
          */
         template <class U>
+        Class<T>& addStaticProperty(const char* name, const U* value)
+        {
+            assert(name != nullptr);
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            lua_pushlightuserdata(L, const_cast<U*>(value)); // Stack: co, cl, st, pointer
+            lua_pushcclosure_x(L, &detail::property_getter<U>::call, 1); // Stack: co, cl, st, getter
+            detail::add_property_getter(L, name, -2); // Stack: co, cl, st
+
+            lua_pushstring(L, name); // Stack: co, cl, st, name
+            lua_pushcclosure_x(L, &detail::read_only_error, 1); // Stack: co, cl, st, function
+
+            detail::add_property_setter(L, name, -2); // Stack: co, cl, st
+
+            return *this;
+        }
+
+        /**
+         * @brief Add or replace a static property.
+         *
+         * @tparam U The type of the property.
+         *
+         * @param name The property name.
+         * @param value A property value pointer.
+         * @param isWritable True for a read-write, false for read-only property.
+         *
+         * @returns This class registration object.
+         */
+        template <class U>
         Class<T>& addStaticProperty(const char* name, U* value, bool isWritable = true)
         {
             assert(name != nullptr);
@@ -491,6 +520,45 @@ class Namespace : public detail::Registrar
 
         //=========================================================================================
         /**
+         * @brief Add or replace a static property, by constructible by std::function.
+         */
+        template <class Getter, typename = std::enable_if_t<!std::is_pointer_v<Getter>>>
+        Class<T> addStaticProperty(const char* name, Getter get)
+        {
+            assert(name != nullptr);
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            using GetType = decltype(get);
+
+            lua_newuserdata_aligned<GetType>(L, std::move(get)); // Stack: co, cl, st, function userdata (ud)
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<GetType>, 1); // Stack: co, cl, st, function
+            detail::add_property_getter(L, name, -2); // Stack: co, cl, st
+
+            return *this;
+        }
+
+        template <class Getter, class Setter, typename = std::enable_if_t<!std::is_pointer_v<Getter> && !std::is_pointer_v<Setter>>>
+        Class<T> addStaticProperty(const char* name, Getter get, Setter set)
+        {
+            assert(name != nullptr);
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            using GetType = decltype(get);
+            using SetType = decltype(set);
+
+            lua_newuserdata_aligned<GetType>(L, std::move(get)); // Stack: co, cl, st, function userdata (ud)
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<GetType>, 1); // Stack: co, cl, st, function
+            detail::add_property_getter(L, name, -2); // Stack: co, cl, st
+
+            lua_newuserdata_aligned<SetType>(L, std::move(set)); // Stack: co, cl, st, function userdata (ud)
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<SetType>, 1); // Stack: co, cl, st, function
+            detail::add_property_setter(L, name, -2); // Stack: co, cl, st
+
+            return *this;
+        }
+
+        //=========================================================================================
+        /**
          * @brief Add or replace a static member function.
          */
         template <class Function, typename = std::enable_if_t<std::is_pointer_v<Function>>>
@@ -549,6 +617,25 @@ class Namespace : public detail::Registrar
         /**
          * @brief Add or replace a property member.
          */
+        template <class U, class V>
+        Class<T>& addProperty(const char* name, const U V::*mp)
+        {
+            static_assert(std::is_base_of_v<V, T>);
+
+            using MemberPtrType = decltype(mp);
+
+            assert(name != nullptr);
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            new (lua_newuserdata_x<MemberPtrType>(L, sizeof(MemberPtrType))) MemberPtrType(mp); // Stack: co, cl, st, field ptr
+            lua_pushcclosure_x(L, &detail::property_getter<U, T>::call, 1); // Stack: co, cl, st, getter
+            lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
+            detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
+            detail::add_property_getter(L, name, -3); // Stack: co, cl, st
+
+            return *this;
+        }
+
         template <class U, class V>
         Class<T>& addProperty(const char* name, U V::*mp, bool isWritable = true)
         {
@@ -1014,6 +1101,65 @@ class Namespace : public detail::Registrar
         }
     };
 
+    class Table : public detail::Registrar
+    {
+    public:
+        explicit Table(const char* name, Namespace& parent)
+            : Registrar(parent)
+        {
+            lua_newtable(L); // Stack: ns, table (tb)
+            lua_pushvalue(L, -1); // Stack: ns, tb, tb
+            rawsetfield(L, -3, name);
+            ++m_stackSize;
+
+            lua_newtable(L); // Stack: ns, table (tb)
+            lua_pushvalue(L, -1); // Stack: ns, tb, tb
+            lua_setmetatable(L, -3); // tb.__metatable = tb. Stack: ns, tb
+            ++m_stackSize;
+        }
+
+        using Registrar::operator=;
+
+        template <class Function>
+        Table& addFunction(const char* name, Function function)
+        {
+            using FnType = decltype(function);
+
+            assert(name != nullptr);
+            assert(lua_istable(L, -1)); // Stack: namespace table (ns)
+
+            lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: ns, function userdata (ud)
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: ns, function
+            rawsetfield(L, -3, name); // Stack: ns
+
+            return *this;
+        }
+
+        template <class Function>
+        Table& addMetaFunction(const char* name, Function function)
+        {
+            using FnType = decltype(function);
+
+            assert(name != nullptr);
+            assert(lua_istable(L, -1)); // Stack: namespace table (ns)
+
+            lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: ns, function userdata (ud)
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: ns, function
+            rawsetfield(L, -2, name); // Stack: ns
+
+            return *this;
+        }
+
+        Namespace endTable()
+        {
+            assert(m_stackSize > 2);
+
+            m_stackSize -= 2;
+            lua_pop(L, 2);
+            return Namespace(*this);
+        }
+    };
+    
 private:
     struct FromStack {};
 
@@ -1120,6 +1266,11 @@ private:
      * @param child A child class registration object.
      */
     explicit Namespace(ClassBase& child)
+        : Registrar(child)
+    {
+    }
+
+    explicit Namespace(Table& child)
         : Registrar(child)
     {
     }
@@ -1335,13 +1486,26 @@ public:
     template <class Getter>
     Namespace& addProperty(const char* name, Getter get)
     {
-        using GetType = decltype(get);
-
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 
-        lua_newuserdata_aligned<GetType>(L, std::move(get)); // Stack: ns, function userdata (ud)
-        lua_pushcclosure_x(L, &detail::invoke_proxy_functor<GetType>, 1); // Stack: ns, ud, getter
+        if constexpr (std::is_enum_v<Getter>)
+        {
+            using U = std::underlying_type_t<Getter>;
+
+            auto enumGet = [get = std::move(get)] { return static_cast<U>(get); };
+
+            using GetType = decltype(enumGet);
+            lua_newuserdata_aligned<GetType>(L, std::move(enumGet)); // Stack: ns, function userdata (ud)
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<GetType>, 1); // Stack: ns, ud, getter
+        }
+        else
+        {
+            using GetType = decltype(get);
+            lua_newuserdata_aligned<GetType>(L, std::move(get)); // Stack: ns, function userdata (ud)
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<GetType>, 1); // Stack: ns, ud, getter
+        }
+
         detail::add_property_getter(L, name, -2); // Stack: ns, ud, getter
 
         lua_pushstring(L, name); // Stack: ns, name
@@ -1468,6 +1632,13 @@ public:
         rawsetfield(L, -2, name); // Stack: ns
 
         return *this;
+    }
+
+    //=============================================================================================
+    Table beginTable(const char* name)
+    {
+        assertIsActive();
+        return Table(name, *this);
     }
 
     //=============================================================================================
