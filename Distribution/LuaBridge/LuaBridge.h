@@ -458,10 +458,15 @@ inline int raise_lua_error(lua_State *L, const char *fmt, ...)
     for (int level = 2; level > 0; --level)
     {
         lua_Debug ar;
-        if (lua_getstack(L, level, &ar) == 0)
-            continue;
 
-        lua_getinfo(L, "Sl", &ar);
+#if LUABRIDGE_ON_LUAU
+        if (lua_getinfo(L, level, "sl", &ar) == 0)
+            continue;
+#else
+        if (lua_getstack(L, level, &ar) == 0 || lua_getinfo(L, "Sl", &ar) == 0)
+            continue;
+#endif
+
         if (ar.currentline <= 0)
             continue;
 
@@ -478,7 +483,12 @@ inline int raise_lua_error(lua_State *L, const char *fmt, ...)
     va_end(argp);
     lua_concat(L, 2);
 
+#if LUABRIDGE_ON_LUAU
+    lua_error(L);
+    return 1;
+#else
     return lua_error(L);
+#endif
 }
 
 /**

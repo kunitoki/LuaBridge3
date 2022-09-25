@@ -58,7 +58,7 @@ TEST_F(ExceptionTests, PassFromLua)
         )");
 
         EXPECT_FALSE(std::get<0>(result));
-        EXPECT_TRUE(std::get<1>(result).find("...") != std::string::npos);
+        EXPECT_TRUE(std::get<1>(result).find("...") != std::string::npos || std::get<1>(result).find("code") != std::string::npos);
         EXPECT_TRUE(std::get<1>(result).find("4") != std::string::npos);
     }
 
@@ -71,7 +71,7 @@ TEST_F(ExceptionTests, PassFromLua)
         )");
 
         EXPECT_FALSE(std::get<0>(result));
-        EXPECT_TRUE(std::get<1>(result).find("...") != std::string::npos);
+        EXPECT_TRUE(std::get<1>(result).find("...") != std::string::npos || std::get<1>(result).find("code") != std::string::npos);
         EXPECT_TRUE(std::get<1>(result).find("4") != std::string::npos);
     }
 
@@ -84,7 +84,7 @@ TEST_F(ExceptionTests, PassFromLua)
         )");
 
         EXPECT_FALSE(std::get<0>(result));
-        EXPECT_TRUE(std::get<1>(result).find("...") != std::string::npos);
+        EXPECT_TRUE(std::get<1>(result).find("...") != std::string::npos || std::get<1>(result).find("code") != std::string::npos);
         EXPECT_TRUE(std::get<1>(result).find("4") != std::string::npos);
     }
 
@@ -97,7 +97,7 @@ TEST_F(ExceptionTests, PassFromLua)
         )");
 
         EXPECT_FALSE(std::get<0>(result));
-        EXPECT_TRUE(std::get<1>(result).find("...") != std::string::npos);
+        EXPECT_TRUE(std::get<1>(result).find("...") != std::string::npos || std::get<1>(result).find("code") != std::string::npos);
         EXPECT_TRUE(std::get<1>(result).find("4") != std::string::npos);
     }
 
@@ -110,7 +110,7 @@ TEST_F(ExceptionTests, PassFromLua)
         )");
 
         EXPECT_FALSE(std::get<0>(result));
-        EXPECT_TRUE(std::get<1>(result).find("...") != std::string::npos);
+        EXPECT_TRUE(std::get<1>(result).find("...") != std::string::npos || std::get<1>(result).find("code") != std::string::npos);
         EXPECT_TRUE(std::get<1>(result).find("4") != std::string::npos);
     }
 
@@ -123,7 +123,7 @@ TEST_F(ExceptionTests, PassFromLua)
         )");
 
         EXPECT_FALSE(std::get<0>(result));
-        EXPECT_TRUE(std::get<1>(result).find("...") != std::string::npos);
+        EXPECT_TRUE(std::get<1>(result).find("...") != std::string::npos || std::get<1>(result).find("code") != std::string::npos);
         EXPECT_TRUE(std::get<1>(result).find("4") != std::string::npos);
     }
 }
