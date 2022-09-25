@@ -94,10 +94,14 @@ struct Class : Base
 
     mutable T data;
     static T staticData;
+    static const T staticConstData;
 };
 
-template<class T, class Base>
+template <class T, class Base>
 T Class<T, Base>::staticData = {};
+
+template <class T, class Base>
+const T Class<T, Base>::staticConstData = {};
 
 } // namespace
 
@@ -1341,6 +1345,28 @@ TEST_F(ClassStaticProperties, FieldPointers)
     ASSERT_EQ(20, Int::staticData);
 }
 
+TEST_F(ClassStaticProperties, FieldPointers_Const)
+{
+    using Int = Class<int, EmptyBase>;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addStaticProperty("staticConstData", &Int::staticConstData)
+        .endClass();
+
+    runLua("result = Int.staticConstData");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(0, result<int>());
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    ASSERT_THROW(runLua("Int.staticConstData = 20"), std::exception);
+#else
+    ASSERT_FALSE(runLua("Int.staticConstData = 20"));
+#endif
+
+    ASSERT_EQ(0, Int::staticConstData);
+}
+
 TEST_F(ClassStaticProperties, FieldPointers_ReadOnly)
 {
     using Int = Class<int, EmptyBase>;
@@ -1363,6 +1389,57 @@ TEST_F(ClassStaticProperties, FieldPointers_ReadOnly)
 #endif
 
     ASSERT_EQ(10, Int::staticData);
+}
+
+TEST_F(ClassStaticProperties, FieldPointers_GetterOnly)
+{
+    using Int = Class<int, EmptyBase>;
+
+    int value = 10;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addStaticProperty("staticData", [&value] { return value; })
+        .endClass();
+
+    runLua("result = Int.staticData");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(10, result<int>());
+    ASSERT_EQ(10, value);
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    ASSERT_THROW(runLua("Int.staticData = 20"), std::exception);
+#else
+    ASSERT_FALSE(runLua("Int.staticData = 20"));
+#endif
+
+    runLua("result = Int.staticData");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(10, result<int>());
+    ASSERT_EQ(10, value);
+}
+
+TEST_F(ClassStaticProperties, FieldPointers_GetterSetter)
+{
+    using Int = Class<int, EmptyBase>;
+
+    int value = 10;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addStaticProperty("staticData", [&value] { return value; }, [&value](int x) { value = x; })
+        .endClass();
+
+    runLua("result = Int.staticData");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(10, result<int>());
+    ASSERT_EQ(10, value);
+
+    runLua("Int.staticData = 20");
+    runLua("result = Int.staticData");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(20, result<int>());
+    ASSERT_EQ(20, value);
 }
 
 TEST_F(ClassStaticProperties, FieldPointers_Derived)
