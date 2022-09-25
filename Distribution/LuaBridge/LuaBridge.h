@@ -6625,7 +6625,7 @@ class Namespace : public detail::Registrar
          *
          * @returns This class registration object.
          */
-        template <class U>
+        template <class U, typename = std::enable_if_t<!std::is_invocable_v<U>>>
         Class<T>& addStaticProperty(const char* name, const U* value)
         {
             assert(name != nullptr);
@@ -6654,7 +6654,7 @@ class Namespace : public detail::Registrar
          *
          * @returns This class registration object.
          */
-        template <class U>
+        template <class U, typename = std::enable_if_t<!std::is_invocable_v<U>>>
         Class<T>& addStaticProperty(const char* name, U* value, bool isWritable = true)
         {
             assert(name != nullptr);
@@ -6817,25 +6817,6 @@ class Namespace : public detail::Registrar
         /**
          * @brief Add or replace a property member.
          */
-        template <class U, class V>
-        Class<T>& addProperty(const char* name, const U V::*mp)
-        {
-            static_assert(std::is_base_of_v<V, T>);
-
-            using MemberPtrType = decltype(mp);
-
-            assert(name != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            new (lua_newuserdata_x<MemberPtrType>(L, sizeof(MemberPtrType))) MemberPtrType(mp); // Stack: co, cl, st, field ptr
-            lua_pushcclosure_x(L, &detail::property_getter<U, T>::call, 1); // Stack: co, cl, st, getter
-            lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
-            detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
-            detail::add_property_getter(L, name, -3); // Stack: co, cl, st
-
-            return *this;
-        }
-
         template <class U, class V>
         Class<T>& addProperty(const char* name, U V::*mp, bool isWritable = true)
         {
