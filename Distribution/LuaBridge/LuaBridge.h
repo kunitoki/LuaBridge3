@@ -477,6 +477,7 @@ inline int raise_lua_error(lua_State *L, const char *fmt, ...)
     lua_pushvfstring(L, fmt, argp);
     va_end(argp);
     lua_concat(L, 2);
+
     return lua_error(L);
 }
 
