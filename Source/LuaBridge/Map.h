@@ -18,24 +18,52 @@ namespace luabridge {
 template <class K, class V>
 struct Stack<std::map<K, V>>
 {
-    static void push(lua_State* L, const std::map<K, V>& map)
+    using Type = std::map<K, V>;
+
+    [[nodiscard]] static bool push(lua_State* L, const Type& map, std::error_code& ec)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 3))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
+#endif
+
+        const int initialStackSize = lua_gettop(L);
+
         lua_createtable(L, 0, static_cast<int>(map.size()));
 
         for (auto it = map.begin(); it != map.end(); ++it)
         {
-            Stack<K>::push(L, it->first);
-            Stack<V>::push(L, it->second);
+            std::error_code errorCodeKey;
+            if (! Stack<K>::push(L, it->first, errorCodeKey))
+            {
+                ec = errorCodeKey;
+                lua_pop(L, lua_gettop(L) - initialStackSize);
+                return false;
+            }
+
+            std::error_code errorCodeValue;
+            if (! Stack<V>::push(L, it->second, errorCodeValue))
+            {
+                ec = errorCodeValue;
+                lua_pop(L, lua_gettop(L) - initialStackSize);
+                return false;
+            }
+
             lua_settable(L, -3);
         }
+        
+        return true;
     }
 
-    static std::map<K, V> get(lua_State* L, int index)
+    [[nodiscard]] static Type get(lua_State* L, int index)
     {
         if (!lua_istable(L, index))
             luaL_error(L, "#%d argument must be a table", index);
 
-        std::map<K, V> map;
+        Type map;
 
         int absIndex = lua_absindex(L, index);
         lua_pushnil(L);
@@ -49,7 +77,7 @@ struct Stack<std::map<K, V>>
         return map;
     }
 
-    static bool isInstance(lua_State* L, int index)
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
     {
         return lua_istable(L, index);
     }

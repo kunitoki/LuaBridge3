@@ -8,6 +8,8 @@
 
 #include "Config.h"
 
+#include <memory>
+
 namespace luabridge {
 namespace detail {
 
@@ -15,98 +17,63 @@ namespace detail {
 /**
  * @brief A unique key for a type name in a metatable.
  */
-inline const void* getTypeKey()
+inline const void* getTypeKey() noexcept
 {
-#ifdef _NDEBUG
-    static char value;
-    return &value;
-#else
     return reinterpret_cast<void*>(0x71);
-#endif
 }
 
 //=================================================================================================
 /**
  * @brief The key of a const table in another metatable.
  */
-inline const void* getConstKey()
+inline const void* getConstKey() noexcept
 {
-#ifdef _NDEBUG
-    static char value;
-    return &value;
-#else
     return reinterpret_cast<void*>(0xc07);
-#endif
 }
 
 //=================================================================================================
 /**
  * @brief The key of a class table in another metatable.
  */
-inline const void* getClassKey()
+inline const void* getClassKey() noexcept
 {
-#ifdef _NDEBUG
-    static char value;
-    return &value;
-#else
     return reinterpret_cast<void*>(0xc1a);
-#endif
 }
 
 //=================================================================================================
 /**
  * @brief The key of a propget table in another metatable.
  */
-inline const void* getPropgetKey()
+inline const void* getPropgetKey() noexcept
 {
-#ifdef _NDEBUG
-    static char value;
-    return &value;
-#else
     return reinterpret_cast<void*>(0x6e7);
-#endif
 }
 
 //=================================================================================================
 /**
  * @brief The key of a propset table in another metatable.
  */
-inline const void* getPropsetKey()
+inline const void* getPropsetKey() noexcept
 {
-#ifdef _NDEBUG
-    static char value;
-    return &value;
-#else
     return reinterpret_cast<void*>(0x5e7);
-#endif
 }
 
 //=================================================================================================
 /**
  * @brief The key of a static table in another metatable.
  */
-inline const void* getStaticKey()
+inline const void* getStaticKey() noexcept
 {
-#ifdef _NDEBUG
-    static char value;
-    return &value;
-#else
     return reinterpret_cast<void*>(0x57a);
-#endif
 }
 
 //=================================================================================================
 /**
  * @brief The key of a parent table in another metatable.
  */
-inline const void* getParentKey()
+inline const void* getParentKey() noexcept
 {
-#ifdef _NDEBUG
-    static char value;
-    return &value;
-#else
     return reinterpret_cast<void*>(0xdad);
-#endif
 }
 
 //=================================================================================================
@@ -115,11 +82,11 @@ inline const void* getParentKey()
  *
  * The static table holds the static data members, static properties, and static member functions for a class.
  */
-template<class T>
-void const* getStaticRegistryKey()
+template <class T>
+const void* getStaticRegistryKey() noexcept
 {
     static char value;
-    return &value;
+    return std::addressof(value);
 }
 
 //=================================================================================================
@@ -129,11 +96,11 @@ void const* getStaticRegistryKey()
  * The class table holds the data members, properties, and member functions of a class. Read-only data and properties, and const
  * member functions are also placed here (to save a lookup in the const table).
  */
-template<class T>
-void const* getClassRegistryKey()
+template <class T>
+const void* getClassRegistryKey() noexcept
 {
     static char value;
-    return &value;
+    return std::addressof(value);
 }
 
 //=================================================================================================
@@ -142,11 +109,11 @@ void const* getClassRegistryKey()
  *
  * The const table holds read-only data members and properties, and const member functions of a class.
  */
-template<class T>
-void const* getConstRegistryKey()
+template <class T>
+const void* getConstRegistryKey() noexcept
 {
     static char value;
-    return &value;
+    return std::addressof(value);
 }
 
 } // namespace detail

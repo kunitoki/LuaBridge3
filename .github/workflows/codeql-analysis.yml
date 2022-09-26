@@ -5,8 +5,11 @@ on:
     branches: [ master ]
   pull_request:
     branches: [ master ]
-  schedule:
-    - cron: '27 16 * * 4'
+  #schedule:
+  #  - cron: '27 16 * * 4'
+
+env:
+  BUILD_TYPE: Release
 
 jobs:
   analyze:
@@ -31,7 +34,7 @@ jobs:
 
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
-    
+
     - name: Configure CMake
       shell: bash
       working-directory: ${{runner.workspace}}/build

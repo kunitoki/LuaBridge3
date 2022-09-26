@@ -18,24 +18,46 @@ namespace luabridge {
 template <class T>
 struct Stack<std::vector<T>>
 {
-    static void push(lua_State* L, const std::vector<T>& vector)
+    using Type = std::vector<T>;
+
+    [[nodiscard]] static bool push(lua_State* L, const Type& vector, std::error_code& ec)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 3))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
+#endif
+
+        const int initialStackSize = lua_gettop(L);
+        
         lua_createtable(L, static_cast<int>(vector.size()), 0);
 
         for (std::size_t i = 0; i < vector.size(); ++i)
         {
             lua_pushinteger(L, static_cast<lua_Integer>(i + 1));
-            Stack<T>::push(L, vector[i]);
+            
+            std::error_code errorCode;
+            if (! Stack<T>::push(L, vector[i], errorCode))
+            {
+                ec = errorCode;
+                lua_pop(L, lua_gettop(L) - initialStackSize);
+                return false;
+            }
+            
             lua_settable(L, -3);
         }
+        
+        return true;
     }
 
-    static std::vector<T> get(lua_State* L, int index)
+    [[nodiscard]] static Type get(lua_State* L, int index)
     {
         if (!lua_istable(L, index))
             luaL_error(L, "#%d argument must be a table", index);
 
-        std::vector<T> vector;
+        Type vector;
         vector.reserve(static_cast<std::size_t>(get_length(L, index)));
 
         int absIndex = lua_absindex(L, index);
@@ -50,7 +72,7 @@ struct Stack<std::vector<T>>
         return vector;
     }
 
-    static bool isInstance(lua_State* L, int index)
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
     {
         return lua_istable(L, index);
     }

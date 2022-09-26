@@ -104,11 +104,6 @@ bool operator==(const Data& lhs, const Data& rhs)
     return lhs.i == rhs.i;
 }
 
-bool operator<(const Data& lhs, const Data& rhs)
-{
-    return lhs.i < rhs.i;
-}
-
 std::ostream& operator<<(std::ostream& lhs, const Data& rhs)
 {
     lhs << "{" << rhs.i << "}";
@@ -151,7 +146,7 @@ TEST_F(UnorderedMapTests, PassFromLua)
 
     {
         resetResult();
-        runLua("result = processValues ({[Data (3)] = Data (-4)})");
+        runLua("result = processPointers ({[Data (3)] = Data (-4)})");
         std::unordered_map<Data, Data> expected{{Data(3), Data(-4)}};
         const auto actual = result<std::unordered_map<Data, Data>>();
         ASSERT_EQ(expected, actual);

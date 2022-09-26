@@ -16,14 +16,21 @@ struct NamespaceTests : TestBase
     }
 };
 
+namespace {
+enum class A { x, y };
+}
+
 TEST_F(NamespaceTests, Variables)
 {
     int int_ = -10;
+    int stored = 42;
     auto any = luabridge::newTable(L);
     any["a"] = 1;
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(luabridge::getGlobalNamespace(L).addProperty("int", &int_), std::logic_error);
-
+#endif
+    
     runLua("result = int");
     ASSERT_TRUE(result().isNil());
 
@@ -31,6 +38,10 @@ TEST_F(NamespaceTests, Variables)
         .beginNamespace("ns")
         .addProperty("int", &int_)
         .addProperty("any", &any)
+        .addProperty("fnc_get", [stored] { return stored; })
+        .addProperty("fnc_getset", [stored] { return stored; }, [&stored](int v) { stored = v; })
+        .addProperty("A_x", A::x)
+        .addProperty("A_y", A::y)
         .endNamespace();
 
     ASSERT_EQ(-10, variable<int>("ns.int"));
@@ -43,6 +54,21 @@ TEST_F(NamespaceTests, Variables)
     ASSERT_TRUE(any.isTable());
     ASSERT_TRUE(any["b"].isNumber());
     ASSERT_EQ(2, any["b"].cast<int>());
+
+    runLua("result = ns.fnc_get");
+    ASSERT_EQ(stored, result<int>());
+
+    runLua("result = ns.fnc_getset");
+    ASSERT_EQ(stored, result<int>());
+
+    runLua("ns.fnc_getset = 1337");
+    ASSERT_EQ(1337, stored);
+
+    runLua("result = ns.A_x");
+    ASSERT_EQ(A::x, static_cast<A>(result<int>()));
+
+    runLua("result = ns.A_y");
+    ASSERT_EQ(A::y, static_cast<A>(result<int>()));
 }
 
 TEST_F(NamespaceTests, ReadOnlyVariables)
@@ -51,8 +77,10 @@ TEST_F(NamespaceTests, ReadOnlyVariables)
     auto any = luabridge::newTable(L);
     any["a"] = 1;
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(luabridge::getGlobalNamespace(L).addProperty("int", &int_), std::logic_error);
-
+#endif
+    
     runLua("result = int");
     ASSERT_TRUE(result().isNil());
 
@@ -65,10 +93,20 @@ TEST_F(NamespaceTests, ReadOnlyVariables)
     ASSERT_EQ(-10, variable<int>("ns.int"));
     ASSERT_EQ(any, variable<luabridge::LuaRef>("ns.any"));
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("ns.int = -20"), std::runtime_error);
+#else
+    ASSERT_FALSE(runLua("ns.int = -20"));
+#endif
+    
     ASSERT_EQ(-10, variable<int>("ns.int"));
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("ns.any = {b = 2}"), std::runtime_error);
+#else
+    ASSERT_FALSE(runLua("ns.any = {b = 2}"));
+#endif
+
     ASSERT_EQ(any, variable<luabridge::LuaRef>("ns.any"));
 }
 
@@ -101,10 +139,12 @@ TEST_F(NamespaceTests, Properties)
 {
     setProperty<int>(-10);
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(
         luabridge::getGlobalNamespace(L).addProperty("int", &getProperty<int>, &setProperty<int>),
         std::logic_error);
-
+#endif
+    
     runLua("result = int");
     ASSERT_TRUE(result().isNil());
 
@@ -123,9 +163,11 @@ TEST_F(NamespaceTests, ReadOnlyProperties)
 {
     setProperty<int>(-10);
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(luabridge::getGlobalNamespace(L).addProperty("int", &getProperty<int>),
                  std::logic_error);
-
+#endif
+    
     runLua("result = int");
     ASSERT_TRUE(result().isNil());
 
@@ -136,8 +178,60 @@ TEST_F(NamespaceTests, ReadOnlyProperties)
 
     ASSERT_EQ(-10, variable<int>("ns.int"));
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("ns.int = -20"), std::runtime_error);
+#else
+    ASSERT_FALSE(runLua("ns.int = -20"));
+#endif
+
     ASSERT_EQ(-10, getProperty<int>());
+}
+
+TEST_F(NamespaceTests, AddVariable)
+{
+    int int_ = -10;
+    auto any = luabridge::newTable(L);
+    any["a"] = 1;
+
+    enum class A { a, b, c, d };
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    ASSERT_THROW(luabridge::getGlobalNamespace(L).addVariable("int", &int_), std::logic_error);
+#endif
+    
+    runLua("result = int");
+    ASSERT_TRUE(result().isNil());
+
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("ns")
+            .addVariable("int", int_)
+            .addVariable("any", any)
+            .beginNamespace("A")
+                .addVariable("a", A::a)
+                .addVariable("b", A::b)
+                .addVariable("c", A::c)
+                .addVariable("d", A::d)
+            .endNamespace()
+        .endNamespace();
+
+    ASSERT_EQ(-10, variable<int>("ns.int"));
+    ASSERT_EQ(any, variable<luabridge::LuaRef>("ns.any"));
+
+    runLua("ns.A.a = 2; result = ns.A.a");
+    ASSERT_EQ(A::c, static_cast<A>(result<int>()));
+
+    runLua("ns.int = -20");
+    ASSERT_EQ(-10, int_);
+
+    runLua("result = ns.int");
+    ASSERT_EQ(-20, result().cast<int>());
+
+    runLua("ns.any = {a = 42, b = 2}");
+    ASSERT_TRUE(any.isTable());
+    ASSERT_TRUE(any["b"].isNil());
+
+    runLua("result = ns.any.a");
+    ASSERT_EQ(42, result().cast<int>());
 }
 
 namespace {
@@ -154,7 +248,9 @@ T Storage<T>::value;
 template<class T>
 int getDataC(lua_State* L)
 {
-    luabridge::Stack<T>::push(L, Storage<T>::value);
+    std::error_code ec;
+    [[maybe_unused]] auto result = luabridge::Stack<T>::push(L, Storage<T>::value, ec);
+
     return 1;
 }
 
@@ -166,6 +262,49 @@ int setDataC(lua_State* L)
 }
 
 } // namespace
+
+TEST_F(NamespaceTests, NamespaceFromStack)
+{
+    // Create environment table
+    lua_newtable(L);
+
+    luabridge::getNamespaceFromStack(L)
+        .addFunction("Function", [](int x) { return x; });
+
+    int tableReference = luabridge::luaL_ref(L, LUA_REGISTRYINDEX);
+
+    // Load a script
+    std::string script = "result = Function (42)";
+    auto success = luaL_loadstring(L, script.c_str()) == LUABRIDGE_LUA_OK;
+    ASSERT_TRUE(success);
+    
+    // Register
+    lua_rawgeti(L, LUA_REGISTRYINDEX, tableReference);
+
+    // Set as up value
+#if LUA_VERSION_NUM < 502
+    ASSERT_EQ(1, lua_setfenv(L, -2));
+#else
+    auto newUpvalueName = lua_setupvalue(L, -2, 1);
+
+    ASSERT_TRUE(newUpvalueName);
+    ASSERT_STREQ("_ENV", newUpvalueName);
+
+    if (! newUpvalueName)
+        lua_pop(L, -1);
+#endif
+
+    success = lua_pcall(L, 0, 0, 0) == LUABRIDGE_LUA_OK;
+    ASSERT_TRUE(success);
+
+    lua_rawgeti(L, LUA_REGISTRYINDEX, tableReference);
+    auto resultTable = luabridge::LuaRef::fromStack(L);
+
+    ASSERT_TRUE(resultTable.isTable());
+    ASSERT_TRUE(resultTable["result"].cast<int>());
+    ASSERT_EQ(42, resultTable["result"].cast<int>());
+}
+
 
 TEST_F(NamespaceTests, Properties_ProxyCFunctions)
 {
@@ -192,7 +331,13 @@ TEST_F(NamespaceTests, Properties_ProxyCFunctions_ReadOnly)
         .endNamespace();
 
     Storage<int>::value = 1;
+
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("ns.value = 2"), std::exception);
+#else
+    ASSERT_FALSE(runLua("ns.value = 2"));
+#endif
+
     ASSERT_EQ(1, Storage<int>::value);
 
     Storage<int>::value = 3;
@@ -209,70 +354,81 @@ struct Class
 
 TEST_F(NamespaceTests, LuaStackIntegrity)
 {
-    ASSERT_EQ(1, lua_gettop(L)); // Stack: ...
+    const int initialStackIndex = 0;
+
+    EXPECT_EQ(initialStackIndex, lua_gettop(L)); // Stack: ...
 
     {
         auto ns2 =
             luabridge::getGlobalNamespace(L).beginNamespace("namespace").beginNamespace("ns2");
 
-        ASSERT_EQ(
-            4,
+        EXPECT_EQ(
+            initialStackIndex + 3,
             lua_gettop(L)); // Stack: ..., global namespace table (gns), namespace table (ns), ns2
 
         ns2.endNamespace(); // Stack: ...
-        ASSERT_EQ(1, lua_gettop(L)); // Stack: ...
+        EXPECT_EQ(initialStackIndex, lua_gettop(L)); // Stack: ...
     }
-    ASSERT_EQ(1, lua_gettop(L)); // Stack: ...
+
+    EXPECT_EQ(initialStackIndex, lua_gettop(L)); // Stack: ...
 
     {
         auto globalNs = luabridge::getGlobalNamespace(L);
-        ASSERT_EQ(2, lua_gettop(L)); // Stack: ..., gns
+        EXPECT_EQ(initialStackIndex + 1, lua_gettop(L)); // Stack: ..., gns
 
         {
             auto ns = luabridge::getGlobalNamespace(L).beginNamespace("namespace");
             // both globalNs an ns are active
-            ASSERT_EQ(4, lua_gettop(L)); // Stack: ..., gns, gns, ns
+            EXPECT_EQ(initialStackIndex + 3, lua_gettop(L)); // Stack: ..., gns, gns, ns
         }
-        ASSERT_EQ(2, lua_gettop(L)); // Stack: ..., gns
+
+        EXPECT_EQ(initialStackIndex + 1, lua_gettop(L)); // Stack: ..., gns
 
         {
             auto ns = globalNs.beginNamespace("namespace");
             // globalNs became inactive
-            ASSERT_EQ(3, lua_gettop(L)); // Stack: ..., gns, ns
+            EXPECT_EQ(initialStackIndex + 2, lua_gettop(L)); // Stack: ..., gns, ns
         }
-        ASSERT_EQ(1, lua_gettop(L)); // Stack: ...
 
-        ASSERT_THROW(globalNs.beginNamespace("namespace"), std::exception);
+        EXPECT_EQ(initialStackIndex, lua_gettop(L)); // Stack: ...
 
-        ASSERT_THROW(globalNs.beginClass<Class>("Class"), std::exception);
+#if LUABRIDGE_HAS_EXCEPTIONS
+        EXPECT_THROW(globalNs.beginNamespace("namespace"), std::exception);
+        EXPECT_THROW(globalNs.beginClass<Class>("Class"), std::exception);
+#endif
     }
 
     {
         auto globalNs = luabridge::getGlobalNamespace(L).beginNamespace("namespace").endNamespace();
         // globalNs is active
-        ASSERT_EQ(2, lua_gettop(L)); // Stack: ..., gns
+        EXPECT_EQ(initialStackIndex + 1, lua_gettop(L)); // Stack: ..., gns
     }
-    ASSERT_EQ(1, lua_gettop(L)); // StacK: ...
+
+    EXPECT_EQ(initialStackIndex, lua_gettop(L)); // StacK: ...
 
     {
         auto cls =
             luabridge::getGlobalNamespace(L).beginNamespace("namespace").beginClass<Class>("Class");
-        ASSERT_EQ(6, lua_gettop(L)); // Stack: ..., gns, ns, const table, class table, static table
+        EXPECT_EQ(initialStackIndex + 5, lua_gettop(L)); // Stack: ..., gns, ns, const table, class table, static table
+
         {
             auto ns = cls.endClass();
-            ASSERT_EQ(3, lua_gettop(L)); // Stack: ..., gns, ns
+            EXPECT_EQ(initialStackIndex + 2, lua_gettop(L)); // Stack: ..., gns, ns
         }
-        ASSERT_EQ(1, lua_gettop(L)); // Stack: ...
+
+        EXPECT_EQ(initialStackIndex, lua_gettop(L)); // Stack: ...
     }
-    ASSERT_EQ(1, lua_gettop(L)); // StacK: ...
+
+    EXPECT_EQ(initialStackIndex, lua_gettop(L)); // StacK: ...
 
     // Test class continuation
     {
         auto cls =
             luabridge::getGlobalNamespace(L).beginNamespace("namespace").beginClass<Class>("Class");
-        ASSERT_EQ(6, lua_gettop(L)); // Stack: ..., gns, ns, const table, class table, static table
+        EXPECT_EQ(initialStackIndex + 5, lua_gettop(L)); // Stack: ..., gns, ns, const table, class table, static table
     }
-    ASSERT_EQ(1, lua_gettop(L)); // Stack: ...
+
+    EXPECT_EQ(initialStackIndex, lua_gettop(L)); // Stack: ...
 }
 
 namespace {

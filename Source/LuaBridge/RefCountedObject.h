@@ -43,6 +43,7 @@
 #include "detail/TypeTraits.h"
 
 #include <cassert>
+#include <utility>
 
 namespace luabridge {
 
@@ -239,7 +240,10 @@ public:
      */
     RefCountedObjectPtr& operator=(RefCountedObjectPtr&& other)
     {
-        std::swap(referencedObject, other.referencedObject);
+        using std::swap;
+
+        swap(referencedObject, other.referencedObject);
+
         return *this;
     }
 
@@ -356,7 +360,9 @@ bool operator!=(ReferenceCountedObjectClass* object1,
 template<class T>
 struct ContainerTraits<RefCountedObjectPtr<T>>
 {
-    typedef T Type;
+    using Type = T;
+
+    static RefCountedObjectPtr<T> construct(T* c) { return c; }
 
     static T* get(RefCountedObjectPtr<T> const& c) { return c.getObject(); }
 };
