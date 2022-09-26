@@ -4,6 +4,3 @@
 [submodule "ThirdParty/googletest"]
 	path = ThirdParty/googletest
 	url = https://github.com/kunitoki/googletest.git
-[submodule "ThirdParty/LuaJIT-cmake"]
-	path = ThirdParty/LuaJIT-cmake
-	url = https://github.com/9chu/LuaJIT-cmake
