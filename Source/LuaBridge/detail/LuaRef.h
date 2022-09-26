@@ -147,7 +147,7 @@ protected:
     };
 
     LuaRefBase(lua_State* L)
-        : m_L(L)
+        : m_L(main_thread(L))
     {
     }
 
@@ -974,6 +974,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
      */
     LuaRef(lua_State* L, int index, FromStack)
         : LuaRefBase(L)
+        , m_ref(LUA_NOREF)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(m_L, 1))
@@ -995,6 +996,7 @@ public:
      */
     LuaRef(lua_State* L)
         : LuaRefBase(L)
+        , m_ref(LUA_NOREF)
     {
     }
 
@@ -1008,6 +1010,7 @@ public:
     template <class T>
     LuaRef(lua_State* L, const T& v)
         : LuaRefBase(L)
+        , m_ref(LUA_NOREF)
     {
         std::error_code ec;
         if (! Stack<T>::push(m_L, v, ec))
