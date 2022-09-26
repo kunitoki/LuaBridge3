@@ -4,6 +4,7 @@
 # Redistribution and use of this file is allowed according to the terms of the MIT license.
 # Debugged and (now seriously) modified by Ronan Collobert, for Torch7
 # Upgrade to luajit-2.1 by 9chu
+# Modified 2022 by kunitoki
 
 CMAKE_MINIMUM_REQUIRED(VERSION 3.6 FATAL_ERROR)
 
@@ -13,9 +14,9 @@ set ( CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH} )
 
 # If you want to include Lua in a main project,
 # you might want to define those variables yourself
-IF(NOT Lua_IS_SUBPROJECT)
-  INCLUDE(LuaPaths)
-ENDIF()
+#IF(NOT Lua_IS_SUBPROJECT)
+#  INCLUDE(LuaPaths)
+#ENDIF()
 
 INCLUDE(CheckLibraryExists)
 INCLUDE(CheckFunctionExists)
@@ -65,12 +66,13 @@ if ( LUA_USE_LIBM )
   list ( APPEND LIBS m )
 endif ()
 
-FIND_PACKAGE(Readline)
-IF(READLINE_FOUND)
-  INCLUDE_DIRECTORIES(${READLINE_INCLUDE_DIR})
-  list(APPEND LIBS ${READLINE_LIBRARIES})
-  SET(LUAJIT_USE_READLINE 1)
-ENDIF(READLINE_FOUND)
+#FIND_PACKAGE(Readline)
+#IF(READLINE_FOUND)
+#  INCLUDE_DIRECTORIES(${READLINE_INCLUDE_DIR})
+#  list(APPEND LIBS ${READLINE_LIBRARIES})
+#  SET(LUAJIT_USE_READLINE 1)
+#ENDIF(READLINE_FOUND)
+SET(LUAJIT_USE_READLINE 0)
 
 IF (CMAKE_SHARED_LIBRARY_SUFFIX STREQUAL CMAKE_SHARED_MODULE_SUFFIX)
   SET(LUA_USE_MODULE_AND_LIBRARY 0)
@@ -428,10 +430,10 @@ SET(LUA_INCLUDE_DIR
   ${CMAKE_CURRENT_SOURCE_DIR}/src
   ${CMAKE_CURRENT_BINARY_DIR}
   ${READLINE_INCLUDE_DIR})
-CONFIGURE_FILE(cmake/LuaConfig.cmake.in "${Lua_INSTALL_FINDLUA_DIR}/FindLua.cmake")
+#CONFIGURE_FILE(cmake/LuaConfig.cmake.in "${Lua_INSTALL_FINDLUA_DIR}/FindLua.cmake")
 
-INSTALL(FILES
-  src/jit/bc.lua src/jit/v.lua src/jit/dump.lua src/jit/dis_x86.lua src/jit/dis_x64.lua src/jit/dis_arm.lua
-  src/jit/dis_ppc.lua src/jit/dis_mips.lua src/jit/dis_mipsel.lua src/jit/bcsave.lua ${CMAKE_CURRENT_BINARY_DIR}/vmdef.lua
-  src/jit/p.lua src/jit/zone.lua src/jit/dis_arm64.lua src/jit/dis_arm64be.lua src/jit/dis_mips64.lua src/jit/dis_mips64el.lua
-  DESTINATION "${Lua_INSTALL_LUA_PATH_SUBDIR}/jit")
+#INSTALL(FILES
+#  src/jit/bc.lua src/jit/v.lua src/jit/dump.lua src/jit/dis_x86.lua src/jit/dis_x64.lua src/jit/dis_arm.lua
+#  src/jit/dis_ppc.lua src/jit/dis_mips.lua src/jit/dis_mipsel.lua src/jit/bcsave.lua ${CMAKE_CURRENT_BINARY_DIR}/vmdef.lua
+#  src/jit/p.lua src/jit/zone.lua src/jit/dis_arm64.lua src/jit/dis_arm64be.lua src/jit/dis_mips64.lua src/jit/dis_mips64el.lua
+#  DESTINATION "${Lua_INSTALL_LUA_PATH_SUBDIR}/jit")
