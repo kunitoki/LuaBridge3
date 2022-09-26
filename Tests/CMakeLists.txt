@@ -135,7 +135,7 @@ function (setup_coverage_single_target)
       -a "coverage/LuaBridgeTests54.info"
       -a "coverage/LuaBridgeTests54Noexcept.info"
       -a "coverage/LuaBridgeTestsLuaJIT.info"
-      -a "coverage/LuaBridgeTestsLuaJITNoExcept.info"
+      -a "coverage/LuaBridgeTestsLuaJITNoexcept.info"
       -a "coverage/LuaBridgeTestsLuau.info"
       -o "coverage/Merged.info"
     COMMAND ${GENHTML_EXECUTABLE}
@@ -151,7 +151,7 @@ function (setup_coverage_single_target)
       "coverage/LuaBridgeTests54.info"
       "coverage/LuaBridgeTests54Noexcept.info"
       "coverage/LuaBridgeTestsLuaJIT.info"
-      "coverage/LuaBridgeTestsLuaJITNoExcept.info"
+      "coverage/LuaBridgeTestsLuaJITNoexcept.info"
       "coverage/LuaBridgeTestsLuau.info"
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     VERBATIM)
@@ -230,7 +230,7 @@ add_test_app (LuaBridgeTests54 504 "${LUABRIDGE_TEST_LUA54_FILES}" 1 "")
 add_test_app (LuaBridgeTests54Noexcept 504 "${LUABRIDGE_TEST_LUA54_FILES}" 0 "")
 
 add_test_app (LuaBridgeTestsLuaJIT "LUAJIT" "${LUABRIDGE_TEST_LUAJIT_FILES}" 1 "liblua-static")
-add_test_app (LuaBridgeTestsLuaJITNoExcept "LUAJIT" "${LUABRIDGE_TEST_LUAJIT_FILES}" 0 "liblua-static")
+add_test_app (LuaBridgeTestsLuaJITNoexcept "LUAJIT" "${LUABRIDGE_TEST_LUAJIT_FILES}" 0 "liblua-static")
 
 add_test_app (LuaBridgeTestsLuau "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 1 "")
 #add_test_app (LuaBridgeTestsLuauNoexcept "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 0 "")
