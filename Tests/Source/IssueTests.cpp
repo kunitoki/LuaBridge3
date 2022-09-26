@@ -194,7 +194,7 @@ TEST_F(IssueTests, Issue8)
     }
 }
 
-#if LUA_VERSION_NUM >= 502
+namespace {
 struct SomeClass
 {
     luabridge::LuaRef override_;
@@ -210,6 +210,7 @@ struct SomeClass
             override_();
     }
 };
+} // namespace
 
 TEST_F(IssueTests, IssueMainThread)
 {
@@ -242,27 +243,21 @@ TEST_F(IssueTests, IssueMainThread)
 
     lua_State* thread = lua_newthread(L);
 
-    if (luaL_dostring(thread, threadSource))
+    if (!runLua(threadSource, thread))
     {
-        EXPECT_TRUE(false);
-        lua_pop(thread, 1);
+        FAIL();
         return;
     }
 
     lua_pop(L, 1);
     lua_gc(L, LUA_GCCOLLECT, 0);
 
-    if (luaL_dostring(L, source))
+    if (!runLua(source, L))
     {
-        EXPECT_TRUE(false);
-        lua_pop(L, 1);
+        FAIL();
         return;
     }
 
     luabridge::LuaRef test = luabridge::getGlobal(L, "test");
     test();
-
-    lua_close(L);
-    L = nullptr;
 }
-#endif

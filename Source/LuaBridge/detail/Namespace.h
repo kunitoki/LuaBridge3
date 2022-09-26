@@ -1741,4 +1741,19 @@ inline Namespace getNamespaceFromStack(lua_State* L)
     return Namespace::getNamespaceFromStack(L);
 }
 
+//=================================================================================================
+/**
+ * @brief Registers main thread.
+ *
+ * This is a backward compatibility mitigation for lua 5.1 not supporting LUA_RIDX_MAINTHREAD.
+ *
+ * @param L The main Lua state that will be regstered as main thread.
+ *
+ * @returns A namespace registration object.
+ */
+inline void registerMainThread(lua_State* L)
+{
+    register_main_thread(L);
+}
+
 } // namespace luabridge

@@ -89,6 +89,8 @@ struct TestBase : public ::testing::Test
 
         luaL_openlibs(L);
 
+        luabridge::registerMainThread(L);
+
 #if LUABRIDGE_HAS_EXCEPTIONS
         luabridge::enableExceptions(L);
 #endif
@@ -103,15 +105,17 @@ struct TestBase : public ::testing::Test
         }
     }
 
-    bool runLua(const std::string& script) const
+    bool runLua(const std::string& script, lua_State* overrideState = nullptr) const
     {
-        lua_settop(L, 0);
+        auto stateToUse = overrideState ? overrideState : L;
 
-        luabridge::lua_pushcfunction_x(L, &traceback);
+        lua_settop(stateToUse, 0);
 
-        if (luaL_loadstring(L, script.c_str()) != LUABRIDGE_LUA_OK)
+        luabridge::lua_pushcfunction_x(stateToUse, &traceback);
+
+        if (luaL_loadstring(stateToUse, script.c_str()) != LUABRIDGE_LUA_OK)
         {
-            [[maybe_unused]] auto errorString = lua_tostring(L, -1);
+            [[maybe_unused]] auto errorString = lua_tostring(stateToUse, -1);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
             throw std::runtime_error(errorString ? errorString : "Unknown lua compilation error");
@@ -124,9 +128,9 @@ struct TestBase : public ::testing::Test
 #endif // LUABRIDGE_HAS_EXCEPTIONS
         }
 
-        if (lua_pcall(L, 0, 0, -2) != LUABRIDGE_LUA_OK)
+        if (lua_pcall(stateToUse, 0, 0, -2) != LUABRIDGE_LUA_OK)
         {
-            [[maybe_unused]] auto errorString = lua_tostring(L, -1);
+            [[maybe_unused]] auto errorString = lua_tostring(stateToUse, -1);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
             throw std::runtime_error(errorString ? errorString : "Unknown lua runtime error");
