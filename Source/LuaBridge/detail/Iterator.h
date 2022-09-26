@@ -132,6 +132,15 @@ private:
 
     void next()
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(m_L, 2))
+        {
+            m_key = LuaNil();
+            m_value = LuaNil();
+            return;
+        }
+#endif
+
         m_table.push();
         m_key.push();
 

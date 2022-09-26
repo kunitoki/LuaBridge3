@@ -43,6 +43,7 @@
 #include "detail/TypeTraits.h"
 
 #include <cassert>
+#include <utility>
 
 namespace luabridge {
 
@@ -239,7 +240,10 @@ public:
      */
     RefCountedObjectPtr& operator=(RefCountedObjectPtr&& other)
     {
-        std::swap(referencedObject, other.referencedObject);
+        using std::swap;
+
+        swap(referencedObject, other.referencedObject);
+
         return *this;
     }
 

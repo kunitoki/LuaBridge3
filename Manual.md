@@ -65,7 +65,7 @@ Contents
 1 - Introduction
 ================
 
-[LuaBridge](https://github.com/kunitoki/LuaBridge3) is a lightweight and dependency-free library for mapping data, functions, and classes back and forth between C++ and [Lua](http://wwww.lua.org), a powerful, fast, lightweight, embeddable scripting language. LuaBridge has been tested and works with Lua revisions starting from 5.1.5, and also compatibility is provided with lua 5.2.4, 5.3.6 and 5.4.1. It also works transparently with [LuaJIT](http://luajit.org/).
+[LuaBridge](https://github.com/kunitoki/LuaBridge3) is a lightweight and dependency-free library for mapping data, functions, and classes back and forth between C++ and [Lua](http://wwww.lua.org), a powerful, fast, lightweight, embeddable scripting language. LuaBridge has been tested and works with Lua revisions starting from 5.1.5, and also compatibility is provided with lua 5.2.4, 5.3.6 and 5.4.4. It also works transparently with [LuaJIT](http://luajit.org/) and for the first time also with [Luau](https://luau-lang.org/).
 
 LuaBridge is usable from a compliant C++17 and offers the following features:
 
@@ -78,9 +78,22 @@ LuaBridge is usable from a compliant C++17 and offers the following features:
 *   Automatic function parameter type binding.
 *   Easy access to Lua objects like tables and functions.
 *   Interoperable with most common c++ standard library container types.
-*   Can work with both c++ exceptions and without (`-fno-exceptions`).
 *   Written in a clear and easy to debug style.
 
+It also offers a set of improvements compared to vanilla LuaBridge:
+
+* Can work with both c++ exceptions and without (Works with `-fno-exceptions` and `/EHsc-`).
+* Added `std::shared_ptr` support for types intrusively deriving from `std::enable_shared_from_this`.
+* Supports conversion to and from `std::nullptr_t`, `std::byte`, `std::tuple` and `std::reference_wrapper`.
+* Transparent support of all signed and unsigned integer types up to `int64_t`.
+* Automatic handling of enum types by communicating with lua through `std::underlying_type_t`.
+* Support for converting to and from C style arrays of any supported type.
+* Full support for capturing lambdas in all namespace and class methods.
+* Allows creating class instances using non intrusive class factories instead of requiring public constructors.
+* Lightweight object creation: allow adding lua tables on the stack and register methods and metamethods in them.
+* Consistent numeric handling and conversions (signed, unsigned and floats) across all lua versions.
+* Opt-in handling of safe stack space checks (automatically avoids exhausting lua stack space when pushing values!).
+* The only binder library that works with both LuaJIT and Luau, wonderful for game development !
 
 LuaBridge is distributed as a a collection of header files. You simply add one line, `#include <LuaBridge/LuaBridge.h>` where you want to pass functions, classes, and variables back and forth between C++ and Lua. There are no additional source files, no compilation settings, and no Makefiles or IDE-specific project files. LuaBridge is easy to integrate.
 
@@ -114,7 +127,7 @@ The **master** branch contains published library versions. Release versions are 
 1.3 - License and Credits
 -------------------------
 
-LuaBridge is published under the terms of the [MIT License](http://www.opensource.org/licenses/mit-license.html):
+LuaBridge3 is published under the terms of the [MIT License](http://www.opensource.org/licenses/mit-license.html):
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

@@ -227,13 +227,13 @@ struct to_std_function_type
 {
 };
 
-template <class ReturnType, typename... Args>
+template <class ReturnType, class... Args>
 struct to_std_function_type<ReturnType, std::tuple<Args...>>
 {
     using type = std::function<ReturnType(Args...)>;
 };
 
-template <class ReturnType, typename... Args>
+template <class ReturnType, class... Args>
 using to_std_function_type_t = typename to_std_function_type<ReturnType, Args...>::type;
 
 //=================================================================================================
@@ -271,15 +271,15 @@ auto make_arguments_list(lua_State* L)
 /**
  * @brief Helpers for iterating through tuple arguments, pushing each argument to the lua stack.
  */
-template <std::size_t Index = 0, typename... Types>
-auto push_arguments(lua_State*, const std::tuple<Types...>&, std::error_code&)
+template <std::size_t Index = 0, class... Types>
+auto push_arguments(lua_State*, std::tuple<Types...>, std::error_code&)
     -> std::enable_if_t<Index == sizeof...(Types), std::size_t>
 {
     return Index + 1;
 }
 
-template <std::size_t Index = 0, typename... Types>
-auto push_arguments(lua_State* L, const std::tuple<Types...>& t, std::error_code& ec)
+template <std::size_t Index = 0, class... Types>
+auto push_arguments(lua_State* L, std::tuple<Types...> t, std::error_code& ec)
     -> std::enable_if_t<Index < sizeof...(Types), std::size_t>
 {
     using T = std::tuple_element_t<Index, std::tuple<Types...>>;
@@ -292,21 +292,21 @@ auto push_arguments(lua_State* L, const std::tuple<Types...>& t, std::error_code
         return Index + 1;
     }
 
-    return push_arguments<Index + 1, Types...>(L, t, ec);
+    return push_arguments<Index + 1, Types...>(L, std::move(t), ec);
 }
 
 //=================================================================================================
 /**
  * @brief Helpers for iterating through tuple arguments, popping each argument from the lua stack.
  */
-template <std::ptrdiff_t Start, std::ptrdiff_t Index = 0, typename... Types>
+template <std::ptrdiff_t Start, std::ptrdiff_t Index = 0, class... Types>
 auto pop_arguments(lua_State*, std::tuple<Types...>&)
     -> std::enable_if_t<Index == sizeof...(Types), std::size_t>
 {
     return sizeof...(Types);
 }
 
-template <std::ptrdiff_t Start, std::ptrdiff_t Index = 0, typename... Types>
+template <std::ptrdiff_t Start, std::ptrdiff_t Index = 0, class... Types>
 auto pop_arguments(lua_State* L, std::tuple<Types...>& t)
     -> std::enable_if_t<Index < sizeof...(Types), std::size_t>
 {
@@ -345,57 +345,55 @@ struct function
     template <class F>
     static int call(lua_State* L, F func)
     {
+        std::error_code ec;
+        bool result = false;
+
 #if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
 #endif
-            std::error_code ec;
-            bool result = Stack<ReturnType>::push(L, std::apply(func, make_arguments_list<ArgsPack, Start>(L)), ec);
-            if (! result)
-                return luaL_error(L, ec.message().c_str());
-
-            return 1;
+            result = Stack<ReturnType>::push(L, std::apply(func, make_arguments_list<ArgsPack, Start>(L)), ec);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
         {
-            return luaL_error(L, e.what());
-        }
-        catch (...)
-        {
-            return luaL_error(L, "Error while calling function");
+            raise_lua_error(L, "%s", e.what());
         }
 #endif
+
+        if (! result)
+            raise_lua_error(L, "%s", ec.message().c_str());
+
+        return 1;
     }
 
     template <class T, class F>
     static int call(lua_State* L, T* ptr, F func)
     {
+        std::error_code ec;
+        bool result = false;
+
 #if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
 #endif
             auto f = [ptr, func](auto&&... args) -> ReturnType { return (ptr->*func)(std::forward<decltype(args)>(args)...); };
 
-            std::error_code ec;
-            bool result = Stack<ReturnType>::push(L, std::apply(f, make_arguments_list<ArgsPack, Start>(L)), ec);
-            if (! result)
-                return luaL_error(L, ec.message().c_str());
-
-            return 1;
+            result = Stack<ReturnType>::push(L, std::apply(f, make_arguments_list<ArgsPack, Start>(L)), ec);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
         {
-            return luaL_error(L, e.what());
-        }
-        catch (...)
-        {
-            return luaL_error(L, "Error while calling method");
+            raise_lua_error(L, "%s", e.what());
         }
 #endif
+
+        if (! result)
+            raise_lua_error(L, "%s", ec.message().c_str());
+
+        return 1;
     }
 };
 
@@ -411,19 +409,15 @@ struct function<void, ArgsPack, Start>
 #endif
             std::apply(func, make_arguments_list<ArgsPack, Start>(L));
 
-            return 0;
-
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
         {
-            return luaL_error(L, e.what());
-        }
-        catch (...)
-        {
-            return luaL_error(L, "Error while calling function");
+            raise_lua_error(L, "%s", e.what());
         }
 #endif
+
+        return 0;
     }
 
     template <class T, class F>
@@ -437,19 +431,15 @@ struct function<void, ArgsPack, Start>
 
             std::apply(f, make_arguments_list<ArgsPack, Start>(L));
 
-            return 0;
-
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
         {
-            return luaL_error(L, e.what());
-        }
-        catch (...)
-        {
-            return luaL_error(L, "Error while calling method");
+            raise_lua_error(L, "%s", e.what());
         }
 #endif
+
+        return 0;
     }
 };
 

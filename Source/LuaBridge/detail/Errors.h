@@ -11,6 +11,13 @@
 namespace luabridge {
 
 //=================================================================================================
+namespace detail {
+
+static inline constexpr char error_lua_stack_overflow[] = "stack overflow";
+
+} // namespace detail
+
+//=================================================================================================
 /**
  * @brief LuaBridge error codes.
  */
@@ -18,7 +25,13 @@ enum class ErrorCode
 {
     ClassNotRegistered = 1,
 
+    LuaStackOverflow,
+
     LuaFunctionCallFailed,
+
+    IntegerDoesntFitIntoLuaInteger,
+    
+    FloatingPointDoesntFitIntoLuaNumber,
 };
 
 //=================================================================================================
@@ -37,9 +50,18 @@ struct ErrorCategory : std::error_category
         case ErrorCode::ClassNotRegistered:
             return "The class is not registered in LuaBridge";
 
+        case ErrorCode::LuaStackOverflow:
+            return "The lua stack has overflow";
+
         case ErrorCode::LuaFunctionCallFailed:
             return "The lua function invocation raised an error";
 
+        case ErrorCode::IntegerDoesntFitIntoLuaInteger:
+            return "The native integer can't fit inside a lua integer";
+
+        case ErrorCode::FloatingPointDoesntFitIntoLuaNumber:
+            return "The native floating point can't fit inside a lua number";
+                
         default:
             return "Unknown error";
         }

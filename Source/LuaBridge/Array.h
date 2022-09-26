@@ -20,8 +20,16 @@ struct Stack<std::array<T, Size>>
 {
     using Type = std::array<T, Size>;
 
-    static bool push(lua_State* L, const Type& array, std::error_code& ec)
+    [[nodiscard]] static bool push(lua_State* L, const Type& array, std::error_code& ec)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 3))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
+#endif
+
         const int initialStackSize = lua_gettop(L);
         
         lua_createtable(L, static_cast<int>(Size), 0);
@@ -45,13 +53,13 @@ struct Stack<std::array<T, Size>>
         return true;
     }
 
-    static Type get(lua_State* L, int index)
+    [[nodiscard]] static Type get(lua_State* L, int index)
     {
         if (!lua_istable(L, index))
             luaL_error(L, "#%d argment must be a table", index);
 
         if (get_length(L, index) != Size)
-            luaL_error(L, "table size should be %d but is %d", Size, get_length(L, index));
+            luaL_error(L, "table size should be %d but is %d", static_cast<int>(Size), get_length(L, index));
 
         Type array;
 
@@ -66,6 +74,11 @@ struct Stack<std::array<T, Size>>
         }
 
         return array;
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        return lua_istable(L, index) && get_length(L, index) == Size;
     }
 };
 

@@ -12,9 +12,17 @@
 
 #include <gtest/gtest.h>
 
+#if LUABRIDGE_ON_LUAU
+#include "../../ThirdParty/luau/Compiler/include/luacode.h"
+#include "../../ThirdParty/luau/Ast/include/Luau/Common.h"
+LUAU_FASTFLAG(LuauActivateBeforeExec)
+#endif
+
 #if LUABRIDGE_HAS_EXCEPTIONS
 #include <stdexcept>
 #endif
+
+#include <cstring>
 
 // Uncomment this if you want errors to be printed when lua fails to compile or run
 //#define LUABRIDGE_TESTS_PRINT_ERRORS 1
@@ -37,11 +45,38 @@ inline int traceback(lua_State* L)
         return 1;
     }
 
-    lua_pushvalue(L, 1); /* pass error message */
-    lua_pushinteger(L, 2); /* skip this function and traceback */
-    lua_call(L, 2, 1); /* call debug.traceback */
+    lua_pushvalue(L, 1);
+    lua_pushinteger(L, 2);
+    lua_call(L, 2, 1);
+    
+    lua_getglobal(L, "print");
+    if (!lua_isfunction(L, -1))
+    {
+        lua_pop(L, 1);
+        return 1;
+    }
+
+    lua_pushvalue(L, 1);
+    lua_call(L, 1, 0);
+    
     return 1;
 }
+
+#if LUABRIDGE_ON_LUAU
+inline int luaL_loadstring(lua_State *L, const char *s)
+{
+    FFlag::LuauActivateBeforeExec.value = true;
+    
+    std::size_t bytecodeSize = 0;
+
+    auto bytecode = std::shared_ptr<char>(
+        luau_compile(s, std::strlen(s), nullptr, &bytecodeSize),
+        [](char* x) { std::free(x); }
+    );
+    
+    return luau_load(L, "code", bytecode.get(), bytecodeSize, 0);
+}
+#endif
 
 // Base test class. Introduces the global 'result' variable, used for checking of C++ - Lua interoperation.
 struct TestBase : public ::testing::Test
@@ -54,7 +89,11 @@ struct TestBase : public ::testing::Test
 
         luaL_openlibs(L);
 
-        lua_pushcfunction(L, &traceback);
+        luabridge::registerMainThread(L);
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        luabridge::enableExceptions(L);
+#endif
     }
 
     void TearDown() override
@@ -66,41 +105,84 @@ struct TestBase : public ::testing::Test
         }
     }
 
-    bool runLua(const std::string& script) const
+    bool runLua(const std::string& script, lua_State* overrideState = nullptr) const
     {
-        if (luaL_loadstring(L, script.c_str()) != LUABRIDGE_LUA_OK)
+        auto stateToUse = overrideState ? overrideState : L;
+
+        lua_settop(stateToUse, 0);
+
+        luabridge::lua_pushcfunction_x(stateToUse, &traceback);
+
+        if (luaL_loadstring(stateToUse, script.c_str()) != LUABRIDGE_LUA_OK)
         {
+            [[maybe_unused]] auto errorString = lua_tostring(stateToUse, -1);
+
 #if LUABRIDGE_HAS_EXCEPTIONS
-            throw std::runtime_error(lua_tostring(L, -1));
+            throw std::runtime_error(errorString ? errorString : "Unknown lua compilation error");
 #else
 #if LUABRIDGE_TESTS_PRINT_ERRORS
             std::cerr << "===== Lua Compile Error =====\n";
-            std::cerr << lua_tostring(L, -1) << "\n";
-#endif
+            std::cerr << errorString ? errorString : "Unknown lua compilation error" << "\n";
+#endif // LUABRIDGE_TESTS_PRINT_ERRORS
             return false;
-#endif
+#endif // LUABRIDGE_HAS_EXCEPTIONS
         }
 
-        if (lua_pcall(L, 0, 0, -2) != LUABRIDGE_LUA_OK)
+        if (lua_pcall(stateToUse, 0, 0, -2) != LUABRIDGE_LUA_OK)
         {
+            [[maybe_unused]] auto errorString = lua_tostring(stateToUse, -1);
+
 #if LUABRIDGE_HAS_EXCEPTIONS
-            auto errorString = lua_tostring(L, -1);
-            throw std::runtime_error(errorString ? errorString : "Unknown lua error");
+            throw std::runtime_error(errorString ? errorString : "Unknown lua runtime error");
 #else
 #if LUABRIDGE_TESTS_PRINT_ERRORS
             std::cerr << "===== Lua Call Error =====\n";
-            std::cerr << lua_tostring(L, -1) << "\n";
-#endif
+            std::cerr << (errorString ? errorString : "Unknown lua runtime error") << "\n";
+#endif // LUABRIDGE_TESTS_PRINT_ERRORS
             return false;
-#endif
+#endif // LUABRIDGE_HAS_EXCEPTIONS
         }
-        
+
         return true;
+    }
+
+    std::tuple<bool, std::string> runLuaCaptureError(const std::string& script) const
+    {
+        lua_settop(L, 0);
+
+        if (luaL_loadstring(L, script.c_str()) != LUABRIDGE_LUA_OK)
+        {
+            auto errorString = lua_tostring(L, -1);
+
+#if LUABRIDGE_TESTS_PRINT_ERRORS
+            std::cerr << "===== Lua Compile Error =====\n";
+            std::cerr << errorString ? errorString : "Unknown lua compilation error" << "\n";
+#endif // LUABRIDGE_TESTS_PRINT_ERRORS
+
+            return std::make_tuple(false, errorString);
+        }
+
+        if (lua_pcall(L, 0, 0, 0) != LUABRIDGE_LUA_OK)
+        {
+            auto errorString = lua_tostring(L, -1);
+
+#if LUABRIDGE_TESTS_PRINT_ERRORS
+            std::cerr << "===== Lua Call Error =====\n";
+            std::cerr << (errorString ? errorString : "Unknown lua runtime error") << "\n";
+#endif // LUABRIDGE_TESTS_PRINT_ERRORS
+
+            return std::make_tuple(false, errorString);
+        }
+
+        return std::make_tuple(true, "");
     }
 
     template <class T = luabridge::LuaRef>
     T result() const
     {
+        if constexpr (std::is_same_v<T, luabridge::LuaRef>)
+            return luabridge::getGlobal(L, "result");
+
         return luabridge::getGlobal(L, "result").cast<T>();
     }
 
@@ -109,6 +191,17 @@ struct TestBase : public ::testing::Test
         luabridge::setGlobal(L, luabridge::LuaRef(L), "result");
     }
 
+    void exhaustStackSpace()
+    {
+        for (int i = 0; i < 2000000; ++i)
+        {
+            if (!lua_checkstack(L, 1))
+                break;
+
+            lua_pushnil(L);
+        }
+    }
+    
     void printStack() const
     {
         std::cerr << "===== Stack =====\n";

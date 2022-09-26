@@ -11,6 +11,7 @@
 #include "LuaException.h"
 #include "ClassInfo.h"
 #include "TypeTraits.h"
+#include "Stack.h"
 
 #include <cassert>
 #include <stdexcept>
@@ -194,7 +195,7 @@ private:
         }
 
         luaL_argerror(L, index, lua_pushfstring(L, "%s expected, got %s", expected, got));
-        return 0;
+        return nullptr;
     }
 
 public:
@@ -277,6 +278,17 @@ template <class T>
 class UserdataValue : public Userdata
 {
 public:
+    UserdataValue(const UserdataValue&) = delete;
+    UserdataValue operator=(const UserdataValue&) = delete;
+
+    ~UserdataValue()
+    {
+        if (getPointer() != nullptr)
+        {
+            getObject()->~T();
+        }
+    }
+
     /**
      * @brief Push a T via placement new.
      *
@@ -288,7 +300,7 @@ public:
      */
     static UserdataValue<T>* place(lua_State* L, std::error_code& ec)
     {
-        auto* ud = new (lua_newuserdata(L, sizeof(UserdataValue<T>))) UserdataValue<T>();
+        auto* ud = new (lua_newuserdata_x<UserdataValue<T>>(L, sizeof(UserdataValue<T>))) UserdataValue<T>();
 
         lua_rawgetp(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>());
 
@@ -314,7 +326,7 @@ public:
      * @tparam U A container type.
      *
      * @param L A Lua state.
-     * @param u A container object reference.
+     * @param u A container object l-value reference.
      * @param ec Error code that will be set in case of failure to push on the lua stack.
      */
     template <class U>
@@ -326,6 +338,30 @@ public:
             return false;
 
         new (ud->getObject()) U(u);
+
+        ud->commit();
+
+        return true;
+    }
+
+    /**
+     * @brief Push T via move construction from U.
+     *
+     * @tparam U A container type.
+     *
+     * @param L A Lua state.
+     * @param u A container object r-value reference.
+     * @param ec Error code that will be set in case of failure to push on the lua stack.
+     */
+    template <class U>
+    static bool push(lua_State* L, U&& u, std::error_code& ec)
+    {
+        auto* ud = place(L, ec);
+
+        if (!ud)
+            return false;
+
+        new (ud->getObject()) U(std::move(u));
 
         ud->commit();
 
@@ -352,20 +388,9 @@ private:
      * @brief Used for placement construction.
      */
     UserdataValue() noexcept
+        : Userdata()
     {
-        m_p = nullptr;
     }
-
-    ~UserdataValue()
-    {
-        if (getPointer() != nullptr)
-        {
-            getObject()->~T();
-        }
-    }
-
-    UserdataValue<T>(const UserdataValue<T>&);
-    UserdataValue<T> operator=(const UserdataValue<T>&);
 
     std::aligned_storage_t<sizeof(T), alignof(T)> m_storage;
 };
@@ -379,6 +404,9 @@ private:
 class UserdataPtr : public Userdata
 {
 public:
+    UserdataPtr(const UserdataPtr&) = delete;
+    UserdataPtr operator=(const UserdataPtr&) = delete;
+
     /**
      * @brief Push non-const pointer to object.
      *
@@ -423,7 +451,7 @@ private:
      */
     static bool push(lua_State* L, const void* p, const void* key, std::error_code& ec)
     {
-        auto* ptr = new (lua_newuserdata(L, sizeof(UserdataPtr))) UserdataPtr(const_cast<void*>(p));
+        auto* ptr = new (lua_newuserdata_x<UserdataPtr>(L, sizeof(UserdataPtr))) UserdataPtr(const_cast<void*>(p));
 
         lua_rawgetp(L, LUA_REGISTRYINDEX, key);
 
@@ -450,9 +478,6 @@ private:
 
         m_p = p;
     }
-
-    UserdataPtr(const UserdataPtr&);
-    UserdataPtr operator=(const UserdataPtr&);
 };
 
 //============================================================================
@@ -465,6 +490,9 @@ template <class C>
 class UserdataShared : public Userdata
 {
 public:
+    UserdataShared(const UserdataShared&) = delete;
+    UserdataShared& operator=(const UserdataShared&) = delete;
+
     ~UserdataShared() = default;
 
     /**
@@ -494,9 +522,6 @@ public:
     }
 
 private:
-    UserdataShared(const UserdataShared<C>&);
-    UserdataShared<C>& operator=(const UserdataShared<C>&);
-
     C m_c;
 };
 
@@ -513,7 +538,7 @@ struct UserdataSharedHelper
     {
         if (ContainerTraits<C>::get(c) != nullptr)
         {
-            auto* us = new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(c);
+            auto* us = new (lua_newuserdata_x<UserdataShared<C>>(L, sizeof(UserdataShared<C>))) UserdataShared<C>(c);
 
             lua_rawgetp(L, LUA_REGISTRYINDEX, getClassRegistryKey<T>());
 
@@ -542,7 +567,7 @@ struct UserdataSharedHelper
     {
         if (t)
         {
-            auto* us = new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(t);
+            auto* us = new (lua_newuserdata_x<UserdataShared<C>>(L, sizeof(UserdataShared<C>))) UserdataShared<C>(t);
 
             lua_rawgetp(L, LUA_REGISTRYINDEX, getClassRegistryKey<T>());
 
@@ -580,7 +605,7 @@ struct UserdataSharedHelper<C, true>
     {
         if (ContainerTraits<C>::get(c) != nullptr)
         {
-            auto* us = new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(c);
+            auto* us = new (lua_newuserdata_x<UserdataShared<C>>(L, sizeof(UserdataShared<C>))) UserdataShared<C>(c);
 
             lua_rawgetp(L, LUA_REGISTRYINDEX, getConstRegistryKey<T>());
 
@@ -609,7 +634,7 @@ struct UserdataSharedHelper<C, true>
     {
         if (t)
         {
-            auto* us = new (lua_newuserdata(L, sizeof(UserdataShared<C>))) UserdataShared<C>(t);
+            auto* us = new (lua_newuserdata_x<UserdataShared<C>>(L, sizeof(UserdataShared<C>))) UserdataShared<C>(t);
 
             lua_rawgetp(L, LUA_REGISTRYINDEX, getConstRegistryKey<T>());
 
@@ -672,6 +697,11 @@ struct StackHelper<T, false>
         return UserdataValue<T>::push(L, t, ec);
     }
 
+    static bool push(lua_State* L, T&& t, std::error_code& ec)
+    {
+        return UserdataValue<T>::push(L, std::move(t), ec);
+    }
+
     static T const& get(lua_State* L, int index)
     {
         return *Userdata::get<T>(L, index, true);
@@ -691,7 +721,7 @@ struct RefStackHelper
     using ReturnType = C;
     using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
 
-    static inline bool push(lua_State* L, const C& t, std::error_code& ec)
+    static bool push(lua_State* L, const C& t, std::error_code& ec)
     {
         return UserdataSharedHelper<C, std::is_const_v<typename ContainerTraits<C>::Type>>::push(L, t, ec);
     }
@@ -755,7 +785,7 @@ struct UserdataGetter<T, std::void_t<T (*)()>>
 /**
  * @brief Lua stack conversions for class objects passed by value.
  */
-template <class T>
+template <class T, class = void>
 struct Stack
 {
     using IsUserdata = void;
@@ -763,17 +793,22 @@ struct Stack
     using Getter = detail::UserdataGetter<T>;
     using ReturnType = typename Getter::ReturnType;
 
-    static bool push(lua_State* L, const T& value, std::error_code& ec)
+    [[nodiscard]] static bool push(lua_State* L, const T& value, std::error_code& ec)
     {
         return detail::StackHelper<T, detail::IsContainer<T>::value>::push(L, value, ec);
     }
 
-    static ReturnType get(lua_State* L, int index)
+    [[nodiscard]] static bool push(lua_State* L, T&& value, std::error_code& ec)
+    {
+        return detail::StackHelper<T, detail::IsContainer<T>::value>::push(L, std::move(value), ec);
+    }
+
+    [[nodiscard]] static ReturnType get(lua_State* L, int index)
     {
         return Getter::get(L, index);
     }
 
-    static bool isInstance(lua_State* L, int index)
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
     {
         return detail::Userdata::isInstance<T>(L, index);
     }
@@ -799,7 +834,7 @@ struct IsUserdata<T, std::void_t<typename Stack<T>::IsUserdata>> : std::true_typ
 
 //=================================================================================================
 /**
- * @brief Trait class that selects a specific push/get implemenation.
+ * @brief Trait class that selects a specific push/get implementation for userdata.
  */
 template <class T, bool IsUserdata>
 struct StackOpSelector;

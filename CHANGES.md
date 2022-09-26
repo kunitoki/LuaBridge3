@@ -17,14 +17,16 @@
 * Allow using capturing lambdas in `Namespace::addFunction` and `Class<T>::addFunction`.
 * Added support for specifying factory functor in `Class<T>::addConstructor` to do placement new of the object instance.
 * Allow using capturing lambdas in `Namespace::addProperty`.
+* Added `Namespace::addVariable` to allow adding a modifiable value by copy into the namespace without incurring in function calls or metatables generation.
 * Added `getNamespaceFromStack` function to construct a namespace object from a table on the stack.
 * Added `std::shared_ptr` support for types intrusively deriving from `std::enable_shared_from_this`.
 * Added `Class<T>::addFunction` overload taking a `lua_CFunction` as if it were a member.
 * Added `LuaRef::isValid` to check when the reference is a LUA_NOREF.
+* Added `LuaException::state` to return the `lua_State` associated with the exception.
 * Added support for `std::byte` as stack value type.
 * Added support for `std::string_view` as stack value type.
 * Added support for `std::tuple` as stack value type.
-* Added support for `std::optional` as stack value type by using `LuaBridge/Optional.h`.
+* Added support for `std::optional` as stack value type.
 * Added support for `std::set` as stack value type by using `LuaBridge/Set.h`.
 * Added single header amalgamated distribution file, to simplify including in projects.
 * Added more asserts for functions and property names.
@@ -34,11 +36,13 @@
 * Removed `Class<T>::addData`, it was just an alias for `Class<T>::addProperty`.
 * Removed `TypeList` from loki, using parameter packs and `std::tuple` with `std::apply`.
 * Removed juce traces from unit tests, simplified unit tests runs.
+* Changed all generic functions in `LuaRef` and `TableItem` to accept arguments by const reference instead of by copy.
 * Fixed issue when `LuaRef::cast<>` fails with exceptions enabled, popping from the now empty stack could trigger the panic handler twice.
 * Fixed unaligned access in user allocated member pointers in 64bit machines reported by ASAN.
+* Included testing against Luau VM
 * Bumped lua 5.2.x in unit tests from lua 5.2.0 to 5.2.4.
-* Bumped lua 5.4.x in unit tests from lua 5.4.1 to 5.4.3.
-* Run against lua 5.3.6 and 5.4.3 in unit tests.
+* Bumped lua 5.4.x in unit tests from lua 5.4.1 to 5.4.4.
+* Run against lua 5.3.6 and 5.4.4 in unit tests.
 * Converted the manual from html to markdown.
 * Small improvements to code and doxygen comments readability.
 

@@ -294,15 +294,5 @@ TEST_F(LegacyTests, AllTests)
     LuaBridgeTests::addToState(L);
 
     // Execute lua files in order
-    if (luaL_loadstring(L, BinaryData::Tests_lua) != 0)
-    {
-        // compile-time error
-        FAIL() << lua_tostring(L, -1);
-    }
-
-    if (lua_pcall(L, 0, 0, -2) != 0)
-    {
-        // runtime error
-        FAIL() << lua_tostring(L, -1);
-    }
+    runLua(BinaryData::Tests_lua);
 }

@@ -36,10 +36,15 @@
 #define LUABRIDGEDEMO_LUA_VERSION 504 // By default use 5.4
 #endif
 
-#ifndef LUALIBRARY_SOURCE
+#if !defined(LUALIBRARY_SOURCE)
 
-#if LUABRIDGEDEMO_LUA_VERSION >= 504
-#include "Lua.5.4.3/src/lua.hpp"
+#if LUABRIDGEDEMO_LUAU
+#include "../../ThirdParty/luau/VM/include/lua.h"
+#include "../../ThirdParty/luau/VM/include/luaconf.h"
+#include "../../ThirdParty/luau/VM/include/lualib.h"
+
+#elif LUABRIDGEDEMO_LUA_VERSION >= 504
+#include "Lua.5.4.4/src/lua.hpp"
 
 #elif LUABRIDGEDEMO_LUA_VERSION >= 503
 #include "Lua.5.3.6/src/lua.hpp"
@@ -57,6 +62,6 @@ extern "C" {
 #else
 #error "Unknown LUA_VERSION_NUM"
 
-#endif // LUABRIDGEDEMO_LUA_VERSION
+#endif // LUABRIDGEDEMO_*
 
 #endif // LUALIBRARY_SOURCE

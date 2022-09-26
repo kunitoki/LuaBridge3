@@ -20,8 +20,16 @@ struct Stack<std::vector<T>>
 {
     using Type = std::vector<T>;
 
-    static bool push(lua_State* L, const Type& vector, std::error_code& ec)
+    [[nodiscard]] static bool push(lua_State* L, const Type& vector, std::error_code& ec)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 3))
+        {
+            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
+            return false;
+        }
+#endif
+
         const int initialStackSize = lua_gettop(L);
         
         lua_createtable(L, static_cast<int>(vector.size()), 0);
@@ -44,7 +52,7 @@ struct Stack<std::vector<T>>
         return true;
     }
 
-    static Type get(lua_State* L, int index)
+    [[nodiscard]] static Type get(lua_State* L, int index)
     {
         if (!lua_istable(L, index))
             luaL_error(L, "#%d argument must be a table", index);
@@ -64,7 +72,7 @@ struct Stack<std::vector<T>>
         return vector;
     }
 
-    static bool isInstance(lua_State* L, int index)
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
     {
         return lua_istable(L, index);
     }

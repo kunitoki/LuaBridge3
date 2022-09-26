@@ -61,8 +61,7 @@ template<class Arg, class... Args>
 void pushArgs(lua_State* L, Arg arg, Args... args)
 {
     std::error_code ec;
-
-    luabridge::Stack<Arg>::push(L, arg, ec);
+    [[maybe_unused]] auto result = luabridge::Stack<Arg>::push(L, arg, ec);
 
     pushArgs(L, args...);
 }
@@ -166,4 +165,99 @@ TEST_F(IssueTests, Issue127)
 {
     runLua("result = 1");
     ASSERT_EQ(MyEnum::VALUE1, result<MyEnum>());
+}
+
+TEST_F(IssueTests, Issue8)
+{
+    runLua(R"(function HelloWorld(args) return args end)");
+            
+    luabridge::LuaRef func = luabridge::getGlobal(L, "HelloWorld");
+
+    {
+        auto result = func("helloworld");
+        ASSERT_EQ(1, result.size());
+        ASSERT_STREQ("helloworld", result[0].cast<const char*>());
+    }
+
+    {
+        const char* str = "helloworld";
+        auto result = func(str);
+        ASSERT_EQ(1, result.size());
+        ASSERT_STREQ("helloworld", result[0].cast<const char*>());
+    }
+
+    {
+        std::string str = "helloworld";
+        auto result = func(std::move(str));
+        ASSERT_EQ(1, result.size());
+        ASSERT_STREQ("helloworld", result[0].cast<const char*>());
+    }
+}
+
+namespace {
+struct SomeClass
+{
+    luabridge::LuaRef override_;
+
+    SomeClass(lua_State* L)
+        : override_(L)
+    {
+    }
+
+    void SomeMember()
+    {
+        if (override_.isFunction())
+            override_();
+    }
+};
+} // namespace
+
+TEST_F(IssueTests, IssueMainThread)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<SomeClass>("SomeClass")
+        .addConstructor<void (*)(lua_State*)>()
+        .addFunction("SomeMember", &SomeClass::SomeMember)
+        .addProperty("SomeMemberOveride", &SomeClass::override_)
+        .endClass();
+
+    const char* source = R"(
+        function test()
+            c:SomeMember()
+            c.SomeMemberOveride = MyHandler
+            c:SomeMember()
+            --This is pretty cool too!
+            c:SomeMemberOveride()
+            --Revert to C++ version
+            c.SomeMemberOveride = nil
+            c:SomeMember()
+            return
+        end
+        
+        function MyHandler()
+            print 'SomeMember Overidden by Lua'
+        end
+    )";
+
+    const char* threadSource = "c = SomeClass()";
+
+    lua_State* thread = lua_newthread(L);
+
+    if (!runLua(threadSource, thread))
+    {
+        FAIL();
+        return;
+    }
+
+    lua_pop(L, 1);
+    lua_gc(L, LUA_GCCOLLECT, 0);
+
+    if (!runLua(source, L))
+    {
+        FAIL();
+        return;
+    }
+
+    luabridge::LuaRef test = luabridge::getGlobal(L, "test");
+    test();
 }

@@ -1,4 +1,5 @@
 // https://github.com/kunitoki/LuaBridge3
+// Copyright 2022, Lucio Asnaghi
 // Copyright 2019, Dmitry Tarakanov
 // SPDX-License-Identifier: MIT
 
@@ -6,10 +7,13 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 
 using TestTypes = ::testing::Types<bool,
+                                   int8_t,
                                    char,
                                    unsigned char,
                                    short,
@@ -21,7 +25,11 @@ using TestTypes = ::testing::Types<bool,
                                    long long,
                                    unsigned long long,
                                    float,
-                                   double>;
+                                   double,
+                                   long double,
+                                   const char*,
+                                   std::string,
+                                   std::string_view>;
 
 template<class T>
 struct TypeTraits;
@@ -38,6 +46,13 @@ struct TypeTraits<char>
 {
     static std::vector<char> values() { return {'a', 'b', 'c'}; }
     static std::string list() { return "'a', 'b', 'c'"; }
+};
+
+template<>
+struct TypeTraits<int8_t>
+{
+    static std::vector<int8_t> values() { return {1, -2, 3}; }
+    static std::string list() { return "1, -2, 3"; }
 };
 
 template<>
@@ -115,4 +130,32 @@ struct TypeTraits<double>
 {
     static std::vector<double> values() { return {1.2, -2.5, 3.14}; }
     static std::string list() { return "1.2, -2.5, 3.14"; }
+};
+
+template<>
+struct TypeTraits<long double>
+{
+    static std::vector<long double> values() { return {1.2l, -2.5l, 3.14l}; }
+    static std::string list() { return "1.2, -2.5, 3.14"; }
+};
+
+template<>
+struct TypeTraits<const char*>
+{
+    static std::vector<const char*> values() { return {"", "a", "xyz"}; }
+    static std::string list() { return "'', 'a', 'xyz'"; }
+};
+
+template<>
+struct TypeTraits<std::string>
+{
+    static std::vector<std::string> values() { return {"", "a", "xyz"}; }
+    static std::string list() { return "'', 'a', 'xyz'"; }
+};
+
+template<>
+struct TypeTraits<std::string_view>
+{
+    static std::vector<std::string_view> values() { return {"", "a", "xyz"}; }
+    static std::string list() { return "'', 'a', 'xyz'"; }
 };

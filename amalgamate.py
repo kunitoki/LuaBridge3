@@ -94,8 +94,9 @@ class SourceInfo:
 		self.LogMessage(f"Scan file: {path}")
 		self.scannedFiles.add(path)
 
-		with open (path , 'r') as src:
+		with open (path , "r") as src:
 			lines = src.readlines()
+
 			for line in lines:
 				includeResult = INCLUDE_FILE_MATCHER.findall(line)
 				if not includeResult:
@@ -118,11 +119,16 @@ class SourceInfo:
 		return info
 
 	def ParseDirectories(self):
+		all_files = []
+
 		for sourceDirectory in 	self.includeDirs:
 			for root, _, files in os.walk(sourceDirectory):
 				for filename in files:
-					path =  os.path.join(root, filename)
-					self.ScanSourceFile(path, 0)
+					all_files.append(os.path.join(root, filename))
+
+		for path in sorted(all_files):
+			self.ScanSourceFile(path, 0)
+
 
 	def WriteBeginFileHeader(self, filename, stream):
 		stream.write(f"// Begin File: {filename}\n\n")
@@ -149,7 +155,14 @@ class SourceInfo:
 			lastLineWasEmpty = False
 
 			lines = source.readlines()
-			for line in lines:
+
+			first_non_comment_line_index = 0
+			for line_index, line in enumerate(lines):
+				if not line.strip().startswith("//"):
+					first_non_comment_line_index = line_index
+					break
+
+			for line in lines[first_non_comment_line_index:]:
 				result = INCLUDE_FILE_MATCHER.findall(line)
 				if result:
 					continue
@@ -158,10 +171,12 @@ class SourceInfo:
 				if result:
 					continue
 
-				if line.strip() or not lastLineWasEmpty:
-					stream.write(line)
+				stripped_line = line.strip()
+				if stripped_line or not lastLineWasEmpty:
+					if not stripped_line.startswith("// clang-format"):
+						stream.write(line)
 
-				lastLineWasEmpty = not line.strip()
+				lastLineWasEmpty = not stripped_line
 
 			self.WriteEndFileHeader(path, stream)
 

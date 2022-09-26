@@ -203,7 +203,7 @@ TEST_F(LuaRefTests, Comparison)
     EXPECT_TRUE(t2 == t2);
     EXPECT_FALSE(t2 == t3);
 
-#if LUABRIDGEDEMO_LUA_VERSION >= 503
+#if LUABRIDGEDEMO_LUA_VERSION >= 503 && !LUABRIDGE_ON_LUAU
     // This has changed in lua 5.3 and is quite a behaviour change
     EXPECT_TRUE(t2 == t4);
 #else
@@ -246,7 +246,17 @@ TEST_F(LuaRefTests, Assignment)
     EXPECT_TRUE(value.isNumber());
     ASSERT_EQ(5, value.cast<int>());
 
+#if __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wself-assign-overloaded"
+#endif
+    
     value = value;
+
+#if __clang__
+#pragma clang diagnostic pop
+#endif
+
     ASSERT_EQ(LUA_TNUMBER, value.type());
     EXPECT_TRUE(value.isNumber());
     ASSERT_EQ(5, value.cast<int>());
@@ -257,6 +267,12 @@ TEST_F(LuaRefTests, Assignment)
     luabridge::LuaRef b1 = entry["b"];
     luabridge::LuaRef b2 = table["a"]["b"];
     EXPECT_TRUE(b1 == b2);
+
+    runLua("c1 = 1");
+    auto c1 = luabridge::getGlobal(L, "c1");
+    ASSERT_EQ(1, c1.cast<int>());
+    c1 = 11;
+    ASSERT_EQ(11, c1.cast<int>());
 }
 
 TEST_F(LuaRefTests, Callable)
@@ -279,6 +295,22 @@ TEST_F(LuaRefTests, Callable)
     EXPECT_EQ(100, obj["i"].cast<int>());
     obj();
     EXPECT_EQ(200, obj["i"].cast<int>());
+}
+
+TEST_F(LuaRefTests, Pop)
+{
+    lua_pushstring(L, "hello");
+    luabridge::LuaRef ref1 = luabridge::LuaRef::fromStack(L);
+
+    lua_pushstring(L, "world!");
+    luabridge::LuaRef ref2 = luabridge::LuaRef::fromStack(L);
+
+    ref1.push();
+    ref2.pop();
+
+    EXPECT_EQ(ref1.cast<std::string>(), ref2.cast<std::string>());
+    EXPECT_EQ("hello", ref1.tostring());
+    EXPECT_EQ("hello", ref2.tostring());
 }
 
 TEST_F(LuaRefTests, IsInstance)
@@ -391,5 +423,50 @@ TEST_F(LuaRefTests, Print)
         std::ostringstream stream;
         stream << result()["abc"];
         ASSERT_EQ("\"abc\"", stream.str());
+    }
+}
+
+TEST_F(LuaRefTests, RegisterLambdaInTable)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("Entities")
+        .addFunction("GetLocalHero", [&]() {
+            auto table = luabridge::newTable(L);
+            table.push(L);
+            
+            luabridge::getNamespaceFromStack(L)
+                .addProperty("index", [] { return 150; })
+                .addFunction("Health", [&] { return 500; });
+
+            table.pop();
+            return table;
+        })
+    .endNamespace();
+    
+    runLua("result = Entities.GetLocalHero().Health()");
+    ASSERT_EQ(500, result().cast<int>());
+}
+
+TEST_F(LuaRefTests, HookTesting)
+{
+    std::map<std::string, luabridge::LuaRef> hooklist;
+
+    auto hook = [&](const std::string& name, luabridge::LuaRef cb) {
+        hooklist.emplace(name, std::move(cb));
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .addFunction("Hook", hook);
+    
+    runLua(R"(
+        function hook1(type, packet)
+            print("lol")
+        end
+
+        Hook("hook1", hook1)
+    )");
+
+    for (auto& func : hooklist) {
+        func.second(0, "x");
     }
 }

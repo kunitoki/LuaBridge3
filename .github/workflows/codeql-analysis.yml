@@ -3,10 +3,17 @@ name: "CodeQL"
 on:
   push:
     branches: [ master ]
+    paths:
+      - "**/Source/*"
+      - "**/Source/**/*"
   pull_request:
     branches: [ master ]
-  schedule:
-    - cron: '27 16 * * 4'
+    paths:
+      - "**/Source/*"
+      - "**/Source/**/*"
+
+env:
+  BUILD_TYPE: Release
 
 jobs:
   analyze:
@@ -22,16 +29,16 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v2
       with:
-        submodules: true
+        submodules: false
 
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v1
       with:
         languages: ${{ matrix.language }}
-
+  
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
-    
+
     - name: Configure CMake
       shell: bash
       working-directory: ${{runner.workspace}}/build

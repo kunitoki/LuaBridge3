@@ -49,19 +49,15 @@ public:
     //=============================================================================================
     /**
      * @brief Throw an exception or raises a luaerror when exceptions are disabled.
-     *
-     * This centralizes all the exceptions thrown, so that we can set breakpoints before the stack is
-     * unwound, or otherwise customize the behavior.
      */
-    template <class Exception>
-    static void raise(const Exception& e)
+    static void raise(lua_State* L, std::error_code code)
     {
         assert(areExceptionsEnabled());
 
 #if LUABRIDGE_HAS_EXCEPTIONS
-        throw e;
+        throw LuaException(L, code, FromLua{});
 #else
-        unused(e);
+        unused(L, code);
 
         std::abort();
 #endif
@@ -85,8 +81,21 @@ public:
     {
         exceptionsEnabled() = true;
 
+#if LUABRIDGE_ON_LUAU
+        auto callbacks = lua_callbacks(L);
+        callbacks->panic = +[](lua_State* L, int) { panicHandlerCallback(L); };
+#else
         lua_atpanic(L, panicHandlerCallback);
+#endif
     }
+
+    //=============================================================================================
+    /**
+     * @brief Retrieve the lua_State associated with the exception.
+     *
+     * @return A Lua state.
+     */
+    lua_State* state() const { return m_L; }
 
 private:
     struct FromLua {};
