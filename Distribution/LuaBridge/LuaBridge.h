@@ -336,6 +336,49 @@ inline lua_Integer tointeger(lua_State* L, int idx, int* isnum)
 }
 
 /**
+ * @brief Register main thread, only supported on 5.1.
+ */
+inline constexpr char main_thread_name[] = "__luabridge_main_thread";
+
+inline void register_main_thread(lua_State* threadL)
+{
+#if LUA_VERSION_NUM < 502
+    if (threadL == nullptr)
+        lua_pushnil(threadL);
+    else
+        lua_pushthread(threadL);
+
+    lua_setglobal(threadL, main_thread_name);
+#else
+    unused(threadL);
+#endif
+}
+
+/**
+ * @brief Get main thread, not supported on 5.1.
+ */
+inline lua_State* main_thread(lua_State* threadL)
+{
+#if LUA_VERSION_NUM < 502
+    lua_getglobal(threadL, main_thread_name);
+    if (lua_isthread(threadL, -1))
+    {
+        auto L = lua_tothread(threadL, -1);
+        lua_pop(threadL, 1);
+        return L;
+    }
+    assert(false); // Have you forgot to call luabridge::registerMainThread ?
+    lua_pop(threadL, 1);
+    return threadL;
+#else
+    lua_rawgeti(threadL, LUA_REGISTRYINDEX, LUA_RIDX_MAINTHREAD);
+    lua_State* L = lua_tothread(threadL, -1);
+    lua_pop(threadL, 1);
+    return L;
+#endif
+}
+
+/**
  * @brief Get a table value, bypassing metamethods.
  */
 inline void rawgetfield(lua_State* L, int index, char const* key)
@@ -4436,7 +4479,7 @@ protected:
     };
 
     LuaRefBase(lua_State* L)
-        : m_L(L)
+        : m_L(main_thread(L))
     {
     }
 
@@ -5263,6 +5306,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
      */
     LuaRef(lua_State* L, int index, FromStack)
         : LuaRefBase(L)
+        , m_ref(LUA_NOREF)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(m_L, 1))
@@ -5284,6 +5328,7 @@ public:
      */
     LuaRef(lua_State* L)
         : LuaRefBase(L)
+        , m_ref(LUA_NOREF)
     {
     }
 
@@ -5297,6 +5342,7 @@ public:
     template <class T>
     LuaRef(lua_State* L, const T& v)
         : LuaRefBase(L)
+        , m_ref(LUA_NOREF)
     {
         std::error_code ec;
         if (! Stack<T>::push(m_L, v, ec))
@@ -7896,6 +7942,21 @@ inline Namespace getGlobalNamespace(lua_State* L)
 inline Namespace getNamespaceFromStack(lua_State* L)
 {
     return Namespace::getNamespaceFromStack(L);
+}
+
+//=================================================================================================
+/**
+ * @brief Registers main thread.
+ *
+ * This is a backward compatibility mitigation for lua 5.1 not supporting LUA_RIDX_MAINTHREAD.
+ *
+ * @param L The main Lua state that will be regstered as main thread.
+ *
+ * @returns A namespace registration object.
+ */
+inline void registerMainThread(lua_State* L)
+{
+    register_main_thread(L);
 }
 
 } // namespace luabridge
