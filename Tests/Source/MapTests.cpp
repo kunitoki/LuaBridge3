@@ -127,7 +127,7 @@ TEST_F(MapTests, CastToMap)
     runLua("result = {[1] = 2, a = 3}");
 
 #if LUABRIDGE_HAS_EXCEPTIONS
-    ASSERT_THROW((result().cast<IntToInt>()), std::exception);
+    ASSERT_ANY_THROW((result().cast<IntToInt>()));
 #else
     ASSERT_DEATH((result().cast<IntToInt>()), "");
 #endif

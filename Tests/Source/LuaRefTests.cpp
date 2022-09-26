@@ -203,7 +203,7 @@ TEST_F(LuaRefTests, Comparison)
     EXPECT_TRUE(t2 == t2);
     EXPECT_FALSE(t2 == t3);
 
-#if LUABRIDGEDEMO_LUA_VERSION >= 503 && !LUABRIDGE_ON_LUAU
+#if LUABRIDGEDEMO_LUA_VERSION >= 503 && !LUABRIDGE_ON_LUAU && !LUABRIDGE_ON_LUAJIT
     // This has changed in lua 5.3 and is quite a behaviour change
     EXPECT_TRUE(t2 == t4);
 #else
