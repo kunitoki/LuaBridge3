@@ -36,7 +36,7 @@ set (LUABRIDGE_TEST_SOURCE_FILES
 
 if (APPLE)
   list(APPEND LUABRIDGE_TEST_SOURCE_FILES Source/ObjCTests.mm)
-endif (APPLE)
+endif ()
 
 source_group ("Source" FILES ${LUABRIDGE_TEST_SOURCE_FILES})
 
@@ -92,7 +92,7 @@ function (setup_target_for_coverage TARGET_NAME SOURCE_LOCATION SOURCE_PACKAGE)
   else ()
     target_compile_options (${TARGET_NAME} PRIVATE -fprofile-arcs -ftest-coverage)
     target_link_options (${TARGET_NAME} PRIVATE -fprofile-arcs)
-  endif()
+  endif ()
 
   add_custom_command(TARGET ${TARGET_NAME} PRE_BUILD
   COMMAND ${FIND_EXECUTABLE} . -path "*/Tests/*/${TARGET_NAME}.*/*/*.gcda" -delete
@@ -134,6 +134,8 @@ function (setup_coverage_single_target)
       -a "coverage/LuaBridgeTests53Noexcept.info"
       -a "coverage/LuaBridgeTests54.info"
       -a "coverage/LuaBridgeTests54Noexcept.info"
+      -a "coverage/LuaBridgeTestsLuaJIT.info"
+      -a "coverage/LuaBridgeTestsLuaJITNoExcept.info"
       -a "coverage/LuaBridgeTestsLuau.info"
       -o "coverage/Merged.info"
     COMMAND ${GENHTML_EXECUTABLE}
@@ -148,6 +150,8 @@ function (setup_coverage_single_target)
       "coverage/LuaBridgeTests53Noexcept.info"
       "coverage/LuaBridgeTests54.info"
       "coverage/LuaBridgeTests54Noexcept.info"
+      "coverage/LuaBridgeTestsLuaJIT.info"
+      "coverage/LuaBridgeTestsLuaJITNoExcept.info"
       "coverage/LuaBridgeTestsLuau.info"
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     VERBATIM)
@@ -184,7 +188,7 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++17 /W3 /MP")
   else ()
     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
-  endif (MSVC)
+  endif ()
 
   if (NOT ${LUABRIDGE_EXCEPTIONS})
     target_compile_definitions (${LUABRIDGE_TEST_NAME} PUBLIC LUA_USE_LONGJMP=1)
@@ -205,9 +209,9 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
   )
 
   if ("${LUABRIDGE_LIBS}" STREQUAL "")
-  else()
+  else ()
     target_link_libraries (${LUABRIDGE_TEST_NAME} PUBLIC ${LUABRIDGE_LIBS})
-  endif()
+  endif ()
 
 endmacro (add_test_app)
 
