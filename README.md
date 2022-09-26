@@ -67,7 +67,7 @@ Plase read the [LuaBridge Release Notes][7] for more details
 
 Unit test build requires a CMake and C++17 compliant compiler.
 
-There are 9 unit test flavors:
+There are 11 unit test flavors:
 * `LuaBridgeTests51` - uses Lua 5.1
 * `LuaBridgeTests51Noexcept` - uses Lua 5.1 without exceptions enabled
 * `LuaBridgeTests52` - uses Lua 5.2
@@ -76,6 +76,8 @@ There are 9 unit test flavors:
 * `LuaBridgeTests53Noexcept` - uses Lua 5.3 without exceptions enabled
 * `LuaBridgeTests54` - uses Lua 5.4
 * `LuaBridgeTests54Noexcept` - uses Lua 5.4 without exceptions enabled
+* `LuaBridgeTestsLuaJIT` - uses LuaJIT 2.1.0-beta3
+* `LuaBridgeTestsLuaJITNoexcept` - uses LuaJIT 2.1.0-beta3 without exceptions enabled
 * `LuaBridgeTestsLuau` - uses Luau
 
 (Luau compiler needs exceptions, so there is no tests that runs on Luau without exceptions)
