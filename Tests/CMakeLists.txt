@@ -2,7 +2,10 @@ cmake_minimum_required (VERSION 3.5)
 
 # ====================================================== Locations
 
+set (LUABRIDGE_LUAJIT_LOCATION "${CMAKE_CURRENT_LIST_DIR}/Lua/LuaJIT.2.1.0-beta3")
 set (LUABRIDGE_LUAU_LOCATION "${CMAKE_CURRENT_LIST_DIR}/../ThirdParty/luau")
+
+add_subdirectory(${LUABRIDGE_LUAJIT_LOCATION})
 
 # ====================================================== Unit Tests Files
 
@@ -71,6 +74,12 @@ file (GLOB_RECURSE LUABRIDGE_TEST_LUAU_FILES
   Lua/LuaLibrary.h
   Lua/Luau.cpp
   Lua/LuauSplit.cpp
+)
+
+# ====================================================== Luau
+
+file (GLOB_RECURSE LUABRIDGE_TEST_LUAJIT_FILES
+  Lua/LuaLibrary.h
 )
 
 # ====================================================== Coverage
@@ -147,7 +156,7 @@ endfunction ()
 
 # ====================================================== Macro
 
-macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_FILES LUABRIDGE_EXCEPTIONS)
+macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_FILES LUABRIDGE_EXCEPTIONS LUABRIDGE_LIBS)
 
   add_executable (${LUABRIDGE_TEST_NAME}
     ${LUABRIDGE_TEST_SOURCE_FILES}
@@ -165,6 +174,8 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
     target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/Ast/include")
     target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/Compiler/include")
     target_compile_options (${LUABRIDGE_TEST_NAME} PUBLIC -DLUABRIDGEDEMO_LUAU=1)
+  elseif (${LUA_VERSION} STREQUAL "LUAJIT")
+    target_compile_options (${LUABRIDGE_TEST_NAME} PUBLIC -DLUABRIDGEDEMO_LUAJIT=1)
   else () # if(${LUA_VERSION} MATCHES "^[0-9]*")
     target_compile_options (${LUABRIDGE_TEST_NAME} PUBLIC -DLUABRIDGEDEMO_LUA_VERSION=${LUA_VERSION})
   endif ()
@@ -188,29 +199,35 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
     endif ()
   endif ()
 
-  target_link_libraries (${LUABRIDGE_TEST_NAME}
+  target_link_libraries (${LUABRIDGE_TEST_NAME} PUBLIC
     LuaBridge
     gtest
   )
+
+  if ("${LUABRIDGE_LIBS}" STREQUAL "liblua-static")
+    target_link_libraries (${LUABRIDGE_TEST_NAME} PUBLIC ${LUABRIDGE_LIBS})
+  endif()
 
 endmacro (add_test_app)
 
 # ====================================================== Real Unit Tests
 
-add_test_app (LuaBridgeTests51 501 "${LUABRIDGE_TEST_LUA51_FILES}" 1)
-add_test_app (LuaBridgeTests51Noexcept 501 "${LUABRIDGE_TEST_LUA51_FILES}" 0)
+add_test_app (LuaBridgeTests51 501 "${LUABRIDGE_TEST_LUA51_FILES}" 1 "")
+add_test_app (LuaBridgeTests51Noexcept 501 "${LUABRIDGE_TEST_LUA51_FILES}" 0 "")
 
-add_test_app (LuaBridgeTests52 502 "${LUABRIDGE_TEST_LUA52_FILES}" 1)
-add_test_app (LuaBridgeTests52Noexcept 502 "${LUABRIDGE_TEST_LUA52_FILES}" 0)
+add_test_app (LuaBridgeTests52 502 "${LUABRIDGE_TEST_LUA52_FILES}" 1 "")
+add_test_app (LuaBridgeTests52Noexcept 502 "${LUABRIDGE_TEST_LUA52_FILES}" 0 "")
 
-add_test_app (LuaBridgeTests53 503 "${LUABRIDGE_TEST_LUA53_FILES}" 1)
-add_test_app (LuaBridgeTests53Noexcept 503 "${LUABRIDGE_TEST_LUA53_FILES}" 0)
+add_test_app (LuaBridgeTests53 503 "${LUABRIDGE_TEST_LUA53_FILES}" 1 "")
+add_test_app (LuaBridgeTests53Noexcept 503 "${LUABRIDGE_TEST_LUA53_FILES}" 0 "")
 
-add_test_app (LuaBridgeTests54 504 "${LUABRIDGE_TEST_LUA54_FILES}" 1)
-add_test_app (LuaBridgeTests54Noexcept 504 "${LUABRIDGE_TEST_LUA54_FILES}" 0)
+add_test_app (LuaBridgeTests54 504 "${LUABRIDGE_TEST_LUA54_FILES}" 1 "")
+add_test_app (LuaBridgeTests54Noexcept 504 "${LUABRIDGE_TEST_LUA54_FILES}" 0 "")
 
-add_test_app (LuaBridgeTestsLuau "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 1)
-#add_test_app (LuaBridgeTestsLuauNoexcept "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 0)
+add_test_app (LuaBridgeTestsLuau "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 1 "")
+#add_test_app (LuaBridgeTestsLuauNoexcept "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 0 "")
+
+add_test_app (LuaBridgeTestsLuaJIT "LUAJIT" "${LUABRIDGE_TEST_LUAJIT_FILES}" 1 "liblua-static")
 
 if (LUABRIDGE_COVERAGE)
   setup_coverage_single_target ()

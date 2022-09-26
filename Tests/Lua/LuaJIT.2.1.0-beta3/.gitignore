@@ -1,0 +1,17 @@
+*.[oa]
+*.so
+*.obj
+*.lib
+*.exp
+*.dll
+*.exe
+*.manifest
+*.dmp
+*.swp
+.tags
+*~
+tags
+*.swo
+.idea/
+build/
+cmake-*-build/
