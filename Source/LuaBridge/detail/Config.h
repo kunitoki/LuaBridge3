@@ -32,7 +32,7 @@
 
 #if defined(LUAU_FASTMATH_BEGIN)
 #define LUABRIDGE_ON_LUAU 1
-#elif defined(LUA_JROOT)
+#elif defined(LUAJIT_VERSION)
 #define LUABRIDGE_ON_LUAJIT 1
 #elif defined(LUA_VERSION_NUM)
 #define LUABRIDGE_ON_LUA 1
