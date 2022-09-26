@@ -14,9 +14,9 @@ set ( CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH} )
 
 # If you want to include Lua in a main project,
 # you might want to define those variables yourself
-#IF(NOT Lua_IS_SUBPROJECT)
-#  INCLUDE(LuaPaths)
-#ENDIF()
+IF(NOT Lua_IS_SUBPROJECT)
+  INCLUDE(LuaPaths)
+ENDIF()
 
 INCLUDE(CheckLibraryExists)
 INCLUDE(CheckFunctionExists)
