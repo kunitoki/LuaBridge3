@@ -41,7 +41,7 @@
 #endif
 
 #if defined(__OBJC__)
-#define LUABRIDGE_ON_OBJECTIVE_C
+#define LUABRIDGE_ON_OBJECTIVE_C 1
 #endif
 
 #if !defined(LUABRIDGE_SAFE_STACK_CHECKS)
