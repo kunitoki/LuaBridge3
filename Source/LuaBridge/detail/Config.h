@@ -40,6 +40,10 @@
 #error "Lua headers must be included prior to LuaBridge ones"
 #endif
 
+#if defined(__OBJC__)
+#define LUABRIDGE_ON_OBJECTIVE_C
+#endif
+
 #if !defined(LUABRIDGE_SAFE_STACK_CHECKS)
 #define LUABRIDGE_SAFE_STACK_CHECKS 1
 #endif
