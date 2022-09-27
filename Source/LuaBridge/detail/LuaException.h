@@ -81,6 +81,12 @@ public:
     {
         exceptionsEnabled() = true;
 
+#if LUABRIDGE_HAS_EXCEPTIONS && LUABRIDGE_ON_LUAJIT
+        lua_pushlightuserdata(L, (void*)luajitWrapperCallback);
+        luaJIT_setmode(L, -1, LUAJIT_MODE_WRAPCFUNC | LUAJIT_MODE_ON);
+        lua_pop(L, 1);
+#endif
+
 #if LUABRIDGE_ON_LUAU
         auto callbacks = lua_callbacks(L);
         callbacks->panic = +[](lua_State* L, int) { panicHandlerCallback(L); };
@@ -134,6 +140,21 @@ private:
         std::abort();
 #endif
     }
+
+#if LUABRIDGE_HAS_EXCEPTIONS && LUABRIDGE_ON_LUAJIT
+    static int luajitWrapperCallback(lua_State* L, lua_CFunction f)
+    {
+        try
+        {
+            return f(L);
+        }
+        catch (const std::exception& e)
+        {
+            lua_pushstring(L, e.what());
+            return lua_error(L);
+        }
+    }
+#endif
 
     static bool& exceptionsEnabled()
     {

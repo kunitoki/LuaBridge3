@@ -43,6 +43,9 @@
 #include "../../ThirdParty/luau/VM/include/luaconf.h"
 #include "../../ThirdParty/luau/VM/include/lualib.h"
 
+#elif LUABRIDGEDEMO_LUAJIT
+#include "LuaJIT.2.1.0-beta3/src/lua.hpp"
+
 #elif LUABRIDGEDEMO_LUA_VERSION >= 504
 #include "Lua.5.4.4/src/lua.hpp"
 
