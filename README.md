@@ -76,11 +76,11 @@ There are 11 unit test flavors:
 * `LuaBridgeTests53Noexcept` - uses Lua 5.3 without exceptions enabled
 * `LuaBridgeTests54` - uses Lua 5.4
 * `LuaBridgeTests54Noexcept` - uses Lua 5.4 without exceptions enabled
-* `LuaBridgeTestsLuaJIT` - uses LuaJIT 2.1.0-beta3
-* `LuaBridgeTestsLuaJITNoexcept` - uses LuaJIT 2.1.0-beta3 without exceptions enabled
+* `LuaBridgeTestsLuaJIT` - uses LuaJIT 2.1.0
+* `LuaBridgeTestsLuaJITNoexcept` - uses LuaJIT 2.1.0 without exceptions enabled
 * `LuaBridgeTestsLuau` - uses Luau
 
-(Luau compiler needs exceptions, so there is no tests that runs on Luau without exceptions)
+(Luau compiler needs exceptions, so there are no test targets on Luau without exceptions)
 
 Generate Unix Makefiles and build on Linux:
 ```bash
