@@ -169,8 +169,7 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
       ${LUABRIDGE_TEST_LUA_LIBRARY_FILES})
 
     target_compile_definitions (${LUABRIDGE_TEST_NAME}_DynamicLibrary PUBLIC LUABRIDGEDEMO_LUA_VERSION=${LUA_VERSION})
-    target_include_directories (${LUABRIDGE_TEST_NAME}_DynamicLibrary PRIVATE "${CMAKE_CURRENT_LIST_DIR}")
-    target_include_directories (${LUABRIDGE_TEST_NAME}_DynamicLibrary PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../Source")
+    target_include_directories (${LUABRIDGE_TEST_NAME}_DynamicLibrary PRIVATE . "${CMAKE_CURRENT_LIST_DIR}/../Source")
 
     list(APPEND LUABRIDGE_TEST_SOURCE_FILES Source/DynamicLibraryTests.cpp)
   endif()
@@ -187,6 +186,7 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
   else ()
     set(LUABRIDGEDEMO_DYNAMIC_LIBRARY "lib${LUABRIDGE_TEST_NAME}_DynamicLibrary.so")
   endif ()
+  target_compile_definitions (${LUABRIDGE_TEST_NAME} PUBLIC LUABRIDGEDEMO_DYNAMIC_LIBRARY="${LUABRIDGEDEMO_DYNAMIC_LIBRARY}")
 
   if (LUABRIDGE_COVERAGE)
     get_filename_component (SOURCE_LOCATION "${CMAKE_CURRENT_LIST_DIR}/../Source" ABSOLUTE)
@@ -203,7 +203,6 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
     target_compile_definitions (${LUABRIDGE_TEST_NAME} PUBLIC LUABRIDGEDEMO_LUAJIT=1)
   else () # if(${LUA_VERSION} MATCHES "^[0-9]*")
     target_compile_definitions (${LUABRIDGE_TEST_NAME} PUBLIC LUABRIDGEDEMO_LUA_VERSION=${LUA_VERSION})
-    target_compile_definitions (${LUABRIDGE_TEST_NAME} PUBLIC LUABRIDGEDEMO_DYNAMIC_LIBRARY="${LUABRIDGEDEMO_DYNAMIC_LIBRARY}")
   endif ()
 
   if (MSVC)
