@@ -3,7 +3,7 @@
 
 #include "SharedCode.h"
 
-void registerClasses(lua_State* L)
+extern "C" void registerClasses(lua_State* L)
 {
     luabridge::getGlobalNamespace(L)
         .beginClass<xyz::SharedClass>("SharedClass")
