@@ -163,7 +163,8 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
 
             lua_pop(L, 1); // Stack: mt
             lua_pop(L, 1); // Stack: -
-            return luaL_error (L, "No writable member '%s'", lua_tostring (L, 2));
+            luaL_error(L, "No writable member '%s'", lua_tostring(L, 2));
+            return 0;
         }
 
         assert(lua_istable(L, -1)); // Stack: mt, parent mt
