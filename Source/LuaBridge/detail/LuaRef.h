@@ -1302,6 +1302,46 @@ public:
         return LuaRef(m_L, FromStack());
     }
 
+    //=============================================================================================
+    /**
+     * @brief Get the unique hash of a LuaRef.
+     */
+    std::size_t hash() const
+    {
+        std::size_t value;
+        switch (type())
+        {
+        case LUA_TNONE:
+            value = std::hash<std::nullptr_t>{}(nullptr);
+            break;
+
+        case LUA_TBOOLEAN:
+            value = std::hash<bool>{}(cast<bool>());
+            break;
+
+        case LUA_TNUMBER:
+            value = std::hash<lua_Number>{}(cast<lua_Number>());
+            break;
+
+        case LUA_TSTRING:
+            value = std::hash<const char*>{}(cast<const char*>());
+            break;
+
+        case LUA_TNIL:
+        case LUA_TTABLE:
+        case LUA_TFUNCTION:
+        case LUA_TTHREAD:
+        case LUA_TUSERDATA:
+        case LUA_TLIGHTUSERDATA:
+        default:
+            value = static_cast<std::size_t>(m_ref);
+            break;
+        }
+
+        const std::size_t seed = std::hash<int>{}(type());
+        return value + 0x9e3779b9u + (seed << 6) + (seed >> 2);
+    }
+
 private:
     void swap(LuaRef& other)
     {
@@ -1376,5 +1416,15 @@ template <class T>
 {
     return ref.cast<T>();
 }
-
 } // namespace luabridge
+
+namespace std {
+template <>
+struct hash<luabridge::LuaRef>
+{
+    std::size_t operator()(const luabridge::LuaRef& x) const
+    {
+        return x.hash();
+    }
+};
+} // namespace std

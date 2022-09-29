@@ -116,5 +116,22 @@ const void* getConstRegistryKey() noexcept
     return std::addressof(value);
 }
 
+//=================================================================================================
+/**
+ * The key of the index fall back in another metatable.
+ */
+inline const void* getIndexFallbackKey()
+{
+  return reinterpret_cast<void*>(0x81ca);
+}
+
+//=================================================================================================
+/**
+ * The key of the new index fall back in another metatable.
+ */
+inline const void* getNewIndexFallbackKey()
+{
+  return reinterpret_cast<void*>(0x8107);
+}
 } // namespace detail
 } // namespace luabridge

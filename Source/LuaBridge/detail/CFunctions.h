@@ -74,11 +74,25 @@ inline int index_metamethod(lua_State* L)
 
         if (lua_isnil(L, -1)) // Stack: mt, nil
         {
-            lua_remove(L, -2); // Stack: nil
+            lua_pop(L, 1); // Stack: mt
+            lua_rawgetp(L, -1, getIndexFallbackKey()); // Stack: mt, ifb (may be nil)
+            lua_remove(L, -2); // Stack: ifb
+            if (lua_iscfunction(L, -1))
+            {
+                lua_pushvalue(L, 1); // Stack: ifb, arg1
+                lua_pushvalue(L, 2); // Stack: ifb, arg2
+                lua_call(L, 2, 1); // Stack: ifbresult
+            }
+            else
+            {
+                lua_pop(L, 1);
+                lua_pushnil(L);
+            }
+
             return 1;
         }
 
-        // Removethe  metatable and repeat the search in the parent one.
+        // Remove the metatable and repeat the search in the parent one.
         assert(lua_istable(L, -1)); // Stack: mt, parent mt
         lua_remove(L, -2); // Stack: parent mt
     }
@@ -136,12 +150,26 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
 
         if (lua_isnil(L, -1)) // Stack: mt, nil
         {
+            lua_pop(L, 1); // Stack: mt
+            lua_rawgetp(L, -1, getNewIndexFallbackKey()); // Stack: mt, nifb (may be nil)
+            if (lua_iscfunction(L, -1))
+            {
+                lua_pushvalue(L, 1); // stack: nifb, arg1
+                lua_pushvalue(L, 2); // stack: nifb, arg2
+                lua_pushvalue(L, 3); // stack: nifb, arg3
+                lua_call(L, 3, 1); // stack: nifbresult
+                return 0;
+            }
+
+            lua_pop(L, 1); // Stack: mt
             lua_pop(L, 1); // Stack: -
             luaL_error(L, "No writable member '%s'", lua_tostring(L, 2));
+            return 0;
         }
 
         assert(lua_istable(L, -1)); // Stack: mt, parent mt
         lua_remove(L, -2); // Stack: parent mt
+
         // Repeat the search in the parent
     }
 

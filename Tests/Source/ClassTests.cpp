@@ -8,6 +8,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <unordered_map>
 
 struct ClassTests : TestBase
 {
@@ -2240,4 +2241,171 @@ TEST_F(ClassTests, NilCanBeConvertedToNullptrButNotToReference)
     EXPECT_FALSE(runLua("TakeReference(nil)"));
 #endif
     EXPECT_FALSE(called);
+}
+
+namespace {
+struct OverridableX
+{
+    luabridge::LuaRef indexMetaMethod(const luabridge::LuaRef& key, lua_State* L);
+    luabridge::LuaRef newIndexMetaMethod(const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State* L);
+
+    std::unordered_map<luabridge::LuaRef, luabridge::LuaRef> data;
+};
+
+luabridge::LuaRef indexMetaMethodFunction(OverridableX& x, const luabridge::LuaRef& key, lua_State* L)
+{
+    std::error_code ec;
+
+    if (key.tostring() == "xyz")
+    {
+        if (!luabridge::push(L, "123", ec))
+            lua_pushnil(L);
+    }
+    else
+    {
+        auto it = x.data.find(key);
+        if (it != x.data.end())
+            return it->second;
+
+        lua_pushnil(L);
+    }
+
+    return luabridge::LuaRef::fromStack(L);
+}
+
+luabridge::LuaRef OverridableX::indexMetaMethod(const luabridge::LuaRef& key, lua_State* L)
+{
+    return indexMetaMethodFunction(*this, key, L);
+}
+
+luabridge::LuaRef newIndexMetaMethodFunction(OverridableX& x, const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State* L)
+{
+    x.data.emplace(std::make_pair(key, value));
+    return value;
+}
+
+luabridge::LuaRef OverridableX::newIndexMetaMethod(const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State* L)
+{
+    return newIndexMetaMethodFunction(*this, key, value, L);
+}
+} // namespace
+
+TEST_F(ClassTests, IndexFallbackMetaMethodMemberFptr)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<OverridableX>("X")
+            .addIndexMetaMethod(&OverridableX::indexMetaMethod)
+        .endClass();
+
+    OverridableX x;
+    luabridge::setGlobal(L, &x, "x");
+
+    runLua("result = x.xyz");
+    ASSERT_EQ("123", result().cast<std::string_view>());
+}
+
+TEST_F(ClassTests, IndexFallbackMetaMethodFunctionPtr)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<OverridableX>("X")
+            .addIndexMetaMethod(&indexMetaMethodFunction)
+        .endClass();
+
+    OverridableX x;
+    luabridge::setGlobal(L, &x, "x");
+
+    runLua("result = x.xyz");
+    ASSERT_EQ("123", result().cast<std::string_view>());
+}
+
+TEST_F(ClassTests, IndexFallbackMetaMethodFreeFunctor)
+{
+    std::string capture = "123";
+
+    auto indexMetaMethod = [&capture](OverridableX&, luabridge::LuaRef key, lua_State* L) -> luabridge::LuaRef
+    {
+        std::error_code ec;
+
+        if (key.tostring() == "xyz")
+        {
+            if (!luabridge::push(L, capture + "123", ec))
+                lua_pushnil(L);
+        }
+        else
+        {
+            if (!luabridge::push(L, 456, ec))
+                lua_pushnil(L);
+        }
+
+        return luabridge::LuaRef::fromStack(L);
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<OverridableX>("X")
+            .addIndexMetaMethod(indexMetaMethod)
+        .endClass();
+
+    OverridableX x;
+    luabridge::setGlobal(L, &x, "x");
+
+    runLua("result = x.xyz");
+    ASSERT_EQ("123123", result().cast<std::string_view>());
+}
+
+TEST_F(ClassTests, NewIndexFallbackMetaMethodMemberFptr)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<OverridableX>("X")
+            .addIndexMetaMethod(&OverridableX::indexMetaMethod)
+            .addNewIndexMetaMethod(&OverridableX::newIndexMetaMethod)
+        .endClass();
+
+    OverridableX x;
+    luabridge::setGlobal(L, &x, "x");
+
+    runLua("x.qwertyuiop = 123; result = x.qwertyuiop");
+    ASSERT_EQ(123, result().cast<int>());
+}
+
+TEST_F(ClassTests, NewIndexFallbackMetaMethodFunctionPtr)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<OverridableX>("X")
+            .addIndexMetaMethod(&indexMetaMethodFunction)
+            .addNewIndexMetaMethod(&newIndexMetaMethodFunction)
+        .endClass();
+
+    OverridableX x;
+    luabridge::setGlobal(L, &x, "x");
+
+    runLua("x.qwertyuiop = 123; result = x.qwertyuiop");
+    ASSERT_EQ(123, result().cast<int>());
+}
+
+TEST_F(ClassTests, NewIndexFallbackMetaMethodFreeFunctor)
+{
+    int capture = 123;
+
+    auto newIndexMetaMethod = [&capture](OverridableX& x, const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State* L) -> luabridge::LuaRef
+    {
+        std::error_code ec;
+        if (!luabridge::push(L, capture + value.cast<int>(), ec))
+            lua_pushnil(L);
+
+        auto v = luabridge::LuaRef::fromStack(L);
+        x.data.emplace(std::make_pair(key, v));
+        return v;
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<OverridableX>("X")
+            .addIndexMetaMethod(&indexMetaMethodFunction)
+            .addNewIndexMetaMethod(newIndexMetaMethod)
+        .endClass();
+
+    OverridableX x;
+    luabridge::setGlobal(L, &x, "x");
+
+    runLua("x.qwertyuiop = 123; result = x.qwertyuiop");
+    ASSERT_EQ(246, result().cast<int>());
 }

@@ -1,4 +1,5 @@
 // https://github.com/kunitoki/LuaBridge3
+// Copyright 2022, Lucio Asnaghi
 // Copyright 2019, Dmitry Tarakanov
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // Copyright 2007, Nathan Reed
@@ -48,7 +49,7 @@ inline int traceback(lua_State* L)
     lua_pushvalue(L, 1);
     lua_pushinteger(L, 2);
     lua_call(L, 2, 1);
-    
+
     lua_getglobal(L, "print");
     if (!lua_isfunction(L, -1))
     {
@@ -58,7 +59,7 @@ inline int traceback(lua_State* L)
 
     lua_pushvalue(L, 1);
     lua_call(L, 1, 0);
-    
+
     return 1;
 }
 
@@ -66,14 +67,14 @@ inline int traceback(lua_State* L)
 inline int luaL_loadstring(lua_State *L, const char *s)
 {
     FFlag::LuauActivateBeforeExec.value = true;
-    
+
     std::size_t bytecodeSize = 0;
 
     auto bytecode = std::shared_ptr<char>(
         luau_compile(s, std::strlen(s), nullptr, &bytecodeSize),
         [](char* x) { std::free(x); }
     );
-    
+
     return luau_load(L, "code", bytecode.get(), bytecodeSize, 0);
 }
 #endif
@@ -201,7 +202,7 @@ struct TestBase : public ::testing::Test
             lua_pushnil(L);
         }
     }
-    
+
     void printStack() const
     {
         std::cerr << "===== Stack =====\n";
