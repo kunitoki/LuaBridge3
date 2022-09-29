@@ -13,6 +13,7 @@ set (LUABRIDGE_TEST_SOURCE_FILES
   Source/AmalgamateTests.cpp
   Source/ArrayTests.cpp
   Source/ClassTests.cpp
+  Source/DynamicLibraryTests.cpp
   Source/ExceptionTests.cpp
   Source/IssueTests.cpp
   Source/IteratorTests.cpp
@@ -43,7 +44,7 @@ source_group ("Source" FILES ${LUABRIDGE_TEST_SOURCE_FILES})
 # ====================================================== Lua 5.1
 
 file (GLOB_RECURSE LUABRIDGE_TEST_LUA51_FILES
-  LuaLibrary.h
+  Lua/LuaLibrary.h
   Lua/LuaLibrary5.1.5.cpp
 )
 
@@ -161,6 +162,13 @@ endfunction ()
 # ====================================================== Macro
 
 macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_FILES LUABRIDGE_EXCEPTIONS LUABRIDGE_LIBS)
+  add_library (${LUABRIDGE_TEST_NAME}_DynamicLibrary SHARED
+    Lua/LuaLibrary.h
+    Source/DynamicLibrary.cpp
+    Source/SharedCode.cpp
+    ${LUABRIDGE_TEST_LUA_LIBRARY_FILES})
+  target_include_directories (${LUABRIDGE_TEST_NAME}_DynamicLibrary PRIVATE "${CMAKE_CURRENT_LIST_DIR}")
+  target_include_directories (${LUABRIDGE_TEST_NAME}_DynamicLibrary PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../Source")
 
   add_executable (${LUABRIDGE_TEST_NAME}
     ${LUABRIDGE_TEST_SOURCE_FILES}
@@ -206,11 +214,13 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
   target_link_libraries (${LUABRIDGE_TEST_NAME} PUBLIC
     LuaBridge
     gtest
+    ${LUABRIDGE_TEST_NAME}_DynamicLibrary
   )
 
   if ("${LUABRIDGE_LIBS}" STREQUAL "")
   else ()
     target_link_libraries (${LUABRIDGE_TEST_NAME} PUBLIC ${LUABRIDGE_LIBS})
+    target_link_libraries (${LUABRIDGE_TEST_NAME}_DynamicLibrary PUBLIC ${LUABRIDGE_LIBS})
   endif ()
 
 endmacro (add_test_app)
