@@ -32,8 +32,9 @@ Contents
     *   [2.4 - Property Member Proxies](#24---property-member-proxies)
     *   [2.5 - Function Member Proxies](#25---function-member-proxies)
     *   [2.6 - Constructors](#26---constructors)
-    *   [2.7 - Lua Stack](#27---lua-stack)
-    *   [2.8 - lua_State](#28---lua_state)
+    *   [2.7 - Index and New Index Metamethods Fallback](#27---index-and-new-index-metamethods-fallback)
+    *   [2.8 - Lua Stack](#28---lua-stack)
+    *   [2.9 - lua_State](#29---lua_state)
 
 *   [3 - Passing Objects](#3---passing-objects)
 
@@ -606,8 +607,94 @@ luabridge::getGlobalNamespace (L)
   .endNamespace ();
 ```
 
+2.7 - Index and New Index Metamethods Fallback
+----------------------------------------------
 
-2.7 - Lua Stack
+In general LuaBridge for each class will add a `__index` and `__newindex` metamethods in order to be able to handle member function, properties and inheritance resolution. This will make it impossible for a user to override them because in doing so, we'll make the exposed classes non functioning.
+
+If a LuaBridge exposed class still need to handle the case of handling `__index` and `__newindex` metamethods calls, it's possible to use the `addIndexMetaMethod` and `addNewIndexMetaMethod` registration functions that will be executed as fallback in case an already existing function/property is not exposed in the class itself or any of its parent.
+
+```cpp
+struct FlexibleClass
+{
+  int propertyOne = 42;
+};
+
+luabridge::getGlobalNamespace (L)
+  .beginNamespace ("test")
+    .beginClass <FlexibleClass> ("FlexibleClass")
+      .addProperty ("propertyOne", &FlexibleClass::propertyOne)
+      .addIndexMetaMethod ([](FlexibleClass& self, const luabridge::LuaRef& key, lua_State* L)
+      {
+        if (key.tostring () == "existingProperty")
+          return luabridge::LuaRef (L, 1337);
+
+        return luabridge::LuaRef (L, luabridge::LuaNil ()); // or luaL_error("Failed lookup of key !")
+      })
+    .endClass ()
+  .endNamespace ();
+
+FlexibleClass flexi;
+luabridge::pushGlobal (L, &flexi, "flexi");
+```
+
+Then in lua:
+
+```lua
+propertyOne = flexi.propertyOne
+assert (propertyOne == 42, "Getting value from LuaBridge exposed property")
+
+propertyTwo = flexi.existingProperty
+assert (propertyTwo == 1337, "Getting value from non exposed LuaBridge property via __index fallback")
+
+propertyThree = flexi.nonExistingProperty
+assert (propertyThree == nil, "Getting value from non exposed LuaBridge property via __index fallback")
+```
+
+The same can be done for the `__newindex` metamethod fallback:
+
+```cpp
+struct FlexibleClass
+{
+  std::unordered_map<luabridge::LuaRef, luabridge::LuaRef> properties;
+};
+
+luabridge::getGlobalNamespace (L)
+  .beginNamespace ("test")
+    .beginClass <FlexibleClass> ("FlexibleClass")
+      .addIndexMetaMethod ([](FlexibleClass& self, const luabridge::LuaRef& key, lua_State* L)
+      {
+        auto it = self.properties.find(key);
+        if (it != self.properties.end())
+          return it->second;
+
+        return luabridge::LuaRef (L, luabridge::LuaNil ()); // or luaL_error("Failed lookup of key !")
+      })
+      .addNewIndexMetaMethod ([](FlexibleClass& self, const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State* L)
+      {
+        self.properties.emplace (std::make_pair (eyk, value))
+        return luabridge::LuaRef (L, luabridge::LuaNil ());
+      })
+    .endClass ()
+  .endNamespace ();
+
+FlexibleClass flexi;
+luabridge::pushGlobal (L, &flexi, "flexi");
+```
+
+Then in lua:
+
+```lua
+propertyOne = flexi.propertyOne
+assert (propertyOne == nil, "Value is not existing")
+
+flexi.propertyOne = 1337
+
+propertyOne = flexi.propertyOne
+assert (propertyOne == 1337, "Value is now present !")
+```
+
+2.8 - Lua Stack
 ---------------
 
 In the Lua C API, all operations on the `lua_State` are performed through the Lua stack. In order to pass values back and forth between C++ and Lua, LuaBridge uses specializations of this template class concept:
@@ -703,8 +790,8 @@ struct Stack<Array<T>>
 } // namespace luabridge
 ```
 
-2.8 - lua_State
-----------------
+2.9 - lua_State
+---------------
 
 Sometimes it is convenient from within a bound function or member function to gain access to the `lua_State*` normally available to a lua_CFunction. With LuaBridge, all you need to do is add a `lua_State*` as the last parameter of your bound function:
 

@@ -2280,7 +2280,7 @@ luabridge::LuaRef OverridableX::indexMetaMethod(const luabridge::LuaRef& key, lu
 
 luabridge::LuaRef newIndexMetaMethodFunction(OverridableX& x, const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State* L)
 {
-    x.data.try_emplace(key, value);
+    x.data.emplace(std::make_pair(key, value));
     return value;
 }
 
@@ -2393,7 +2393,7 @@ TEST_F(ClassTests, NewIndexFallbackMetaMethodFreeFunctor)
             lua_pushnil(L);
 
         auto v = luabridge::LuaRef::fromStack(L);
-        x.data.try_emplace(key, v);
+        x.data.emplace(std::make_pair(key, v));
         return v;
     };
 
