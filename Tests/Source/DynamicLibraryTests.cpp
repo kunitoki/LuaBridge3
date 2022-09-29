@@ -20,7 +20,7 @@ int callSharedClassMethod(xyz::SharedClass* s)
 
 TEST_F(DynamicLibraryTests, ExampleUsageFromLibrary)
 {
-    auto dll = dlopen("libLuaBridgeTests54_DynamicLibrary.dylib", RTLD_NOW);
+    auto dll = dlopen(LUABRIDGEDEMO_DYNAMIC_LIBRARY, RTLD_NOW);
     ASSERT_NE(nullptr, dll);
 
     auto registerClasses = reinterpret_cast<void (*)(lua_State*)>(dlsym(dll, "registerClasses"));

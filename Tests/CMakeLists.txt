@@ -13,7 +13,6 @@ set (LUABRIDGE_TEST_SOURCE_FILES
   Source/AmalgamateTests.cpp
   Source/ArrayTests.cpp
   Source/ClassTests.cpp
-  Source/DynamicLibraryTests.cpp
   Source/ExceptionTests.cpp
   Source/IssueTests.cpp
   Source/IteratorTests.cpp
@@ -161,19 +160,33 @@ endfunction ()
 
 # ====================================================== Macro
 
-macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_FILES LUABRIDGE_EXCEPTIONS LUABRIDGE_LIBS)
-  add_library (${LUABRIDGE_TEST_NAME}_DynamicLibrary SHARED
-    Lua/LuaLibrary.h
-    Source/DynamicLibrary.cpp
-    Source/SharedCode.cpp
-    ${LUABRIDGE_TEST_LUA_LIBRARY_FILES})
-  target_include_directories (${LUABRIDGE_TEST_NAME}_DynamicLibrary PRIVATE "${CMAKE_CURRENT_LIST_DIR}")
-  target_include_directories (${LUABRIDGE_TEST_NAME}_DynamicLibrary PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../Source")
+macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_FILES LUABRIDGE_EXCEPTIONS LUABRIDGE_LIBS DYNAMIC_LIBRARY_TESTS)
+  if (${DYNAMIC_LIBRARY_TESTS})
+    add_library (${LUABRIDGE_TEST_NAME}_DynamicLibrary SHARED
+      Lua/LuaLibrary.h
+      Source/DynamicLibrary.cpp
+      Source/SharedCode.cpp
+      ${LUABRIDGE_TEST_LUA_LIBRARY_FILES})
+
+    target_compile_definitions (${LUABRIDGE_TEST_NAME}_DynamicLibrary PUBLIC LUABRIDGEDEMO_LUA_VERSION=${LUA_VERSION})
+    target_include_directories (${LUABRIDGE_TEST_NAME}_DynamicLibrary PRIVATE "${CMAKE_CURRENT_LIST_DIR}")
+    target_include_directories (${LUABRIDGE_TEST_NAME}_DynamicLibrary PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../Source")
+
+    list(APPEND LUABRIDGE_TEST_SOURCE_FILES Source/DynamicLibraryTests.cpp)
+  endif()
 
   add_executable (${LUABRIDGE_TEST_NAME}
     ${LUABRIDGE_TEST_SOURCE_FILES}
     ${LUABRIDGE_TEST_LUA_LIBRARY_FILES}
   )
+
+  if (APPLE)
+    set(LUABRIDGEDEMO_DYNAMIC_LIBRARY "lib${LUABRIDGE_TEST_NAME}_DynamicLibrary.dylib")
+  elseif (WIN32)
+    set(LUABRIDGEDEMO_DYNAMIC_LIBRARY "lib${LUABRIDGE_TEST_NAME}_DynamicLibrary.dll")
+  else ()
+    set(LUABRIDGEDEMO_DYNAMIC_LIBRARY "lib${LUABRIDGE_TEST_NAME}_DynamicLibrary.so")
+  endif ()
 
   if (LUABRIDGE_COVERAGE)
     get_filename_component (SOURCE_LOCATION "${CMAKE_CURRENT_LIST_DIR}/../Source" ABSOLUTE)
@@ -185,11 +198,12 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
     target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/VM/include")
     target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/Ast/include")
     target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/Compiler/include")
-    target_compile_options (${LUABRIDGE_TEST_NAME} PUBLIC -DLUABRIDGEDEMO_LUAU=1)
+    target_compile_definitions (${LUABRIDGE_TEST_NAME} PUBLIC LUABRIDGEDEMO_LUAU=1)
   elseif (${LUA_VERSION} STREQUAL "LUAJIT")
-    target_compile_options (${LUABRIDGE_TEST_NAME} PUBLIC -DLUABRIDGEDEMO_LUAJIT=1)
+    target_compile_definitions (${LUABRIDGE_TEST_NAME} PUBLIC LUABRIDGEDEMO_LUAJIT=1)
   else () # if(${LUA_VERSION} MATCHES "^[0-9]*")
-    target_compile_options (${LUABRIDGE_TEST_NAME} PUBLIC -DLUABRIDGEDEMO_LUA_VERSION=${LUA_VERSION})
+    target_compile_definitions (${LUABRIDGE_TEST_NAME} PUBLIC LUABRIDGEDEMO_LUA_VERSION=${LUA_VERSION})
+    target_compile_definitions (${LUABRIDGE_TEST_NAME} PUBLIC LUABRIDGEDEMO_DYNAMIC_LIBRARY="${LUABRIDGEDEMO_DYNAMIC_LIBRARY}")
   endif ()
 
   if (MSVC)
@@ -211,39 +225,45 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
     endif ()
   endif ()
 
-  target_link_libraries (${LUABRIDGE_TEST_NAME} PUBLIC
-    LuaBridge
-    gtest
-    ${LUABRIDGE_TEST_NAME}_DynamicLibrary
-  )
+  target_link_libraries (${LUABRIDGE_TEST_NAME} PUBLIC LuaBridge gtest)
+  if (${DYNAMIC_LIBRARY_TESTS})
+    target_link_libraries (${LUABRIDGE_TEST_NAME} PUBLIC ${LUABRIDGE_TEST_NAME}_DynamicLibrary)
+  endif()
 
   if ("${LUABRIDGE_LIBS}" STREQUAL "")
   else ()
     target_link_libraries (${LUABRIDGE_TEST_NAME} PUBLIC ${LUABRIDGE_LIBS})
-    target_link_libraries (${LUABRIDGE_TEST_NAME}_DynamicLibrary PUBLIC ${LUABRIDGE_LIBS})
+    if (${DYNAMIC_LIBRARY_TESTS})
+      target_link_libraries (${LUABRIDGE_TEST_NAME}_DynamicLibrary PUBLIC ${LUABRIDGE_LIBS})
+    endif()
   endif ()
 
 endmacro (add_test_app)
 
 # ====================================================== Real Unit Tests
 
-add_test_app (LuaBridgeTests51 501 "${LUABRIDGE_TEST_LUA51_FILES}" 1 "")
-add_test_app (LuaBridgeTests51Noexcept 501 "${LUABRIDGE_TEST_LUA51_FILES}" 0 "")
+set(ENABLE_DYNAMIC_LIBRARY_TESTS 0)
+if (APPLE)
+  set(ENABLE_DYNAMIC_LIBRARY_TESTS 1)
+endif()
 
-add_test_app (LuaBridgeTests52 502 "${LUABRIDGE_TEST_LUA52_FILES}" 1 "")
-add_test_app (LuaBridgeTests52Noexcept 502 "${LUABRIDGE_TEST_LUA52_FILES}" 0 "")
+add_test_app (LuaBridgeTests51 501 "${LUABRIDGE_TEST_LUA51_FILES}" 1 "" ${ENABLE_DYNAMIC_LIBRARY_TESTS})
+add_test_app (LuaBridgeTests51Noexcept 501 "${LUABRIDGE_TEST_LUA51_FILES}" 0 "" ${ENABLE_DYNAMIC_LIBRARY_TESTS})
 
-add_test_app (LuaBridgeTests53 503 "${LUABRIDGE_TEST_LUA53_FILES}" 1 "")
-add_test_app (LuaBridgeTests53Noexcept 503 "${LUABRIDGE_TEST_LUA53_FILES}" 0 "")
+add_test_app (LuaBridgeTests52 502 "${LUABRIDGE_TEST_LUA52_FILES}" 1 "" ${ENABLE_DYNAMIC_LIBRARY_TESTS})
+add_test_app (LuaBridgeTests52Noexcept 502 "${LUABRIDGE_TEST_LUA52_FILES}" 0 "" ${ENABLE_DYNAMIC_LIBRARY_TESTS})
 
-add_test_app (LuaBridgeTests54 504 "${LUABRIDGE_TEST_LUA54_FILES}" 1 "")
-add_test_app (LuaBridgeTests54Noexcept 504 "${LUABRIDGE_TEST_LUA54_FILES}" 0 "")
+add_test_app (LuaBridgeTests53 503 "${LUABRIDGE_TEST_LUA53_FILES}" 1 "" ${ENABLE_DYNAMIC_LIBRARY_TESTS})
+add_test_app (LuaBridgeTests53Noexcept 503 "${LUABRIDGE_TEST_LUA53_FILES}" 0 "" ${ENABLE_DYNAMIC_LIBRARY_TESTS})
 
-add_test_app (LuaBridgeTestsLuaJIT "LUAJIT" "${LUABRIDGE_TEST_LUAJIT_FILES}" 1 "liblua-static")
-add_test_app (LuaBridgeTestsLuaJITNoexcept "LUAJIT" "${LUABRIDGE_TEST_LUAJIT_FILES}" 0 "liblua-static")
+add_test_app (LuaBridgeTests54 504 "${LUABRIDGE_TEST_LUA54_FILES}" 1 "" ${ENABLE_DYNAMIC_LIBRARY_TESTS})
+add_test_app (LuaBridgeTests54Noexcept 504 "${LUABRIDGE_TEST_LUA54_FILES}" 0 "" ${ENABLE_DYNAMIC_LIBRARY_TESTS})
 
-add_test_app (LuaBridgeTestsLuau "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 1 "")
-#add_test_app (LuaBridgeTestsLuauNoexcept "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 0 "")
+add_test_app (LuaBridgeTestsLuaJIT "LUAJIT" "${LUABRIDGE_TEST_LUAJIT_FILES}" 1 "liblua-static" 0)
+add_test_app (LuaBridgeTestsLuaJITNoexcept "LUAJIT" "${LUABRIDGE_TEST_LUAJIT_FILES}" 0 "liblua-static" 0)
+
+add_test_app (LuaBridgeTestsLuau "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 1 "" 0)
+#add_test_app (LuaBridgeTestsLuauNoexcept "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 0 "" 0)
 
 if (LUABRIDGE_COVERAGE)
   setup_coverage_single_target ()

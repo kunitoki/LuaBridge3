@@ -3,7 +3,13 @@
 
 #include "SharedCode.h"
 
-extern "C" void registerClasses(lua_State* L)
+#if _WIN32
+#define EXPORT_API __declspec(dllexport)
+#else
+#define EXPORT_API
+#endif
+
+extern "C" EXPORT_API void registerClasses(lua_State* L)
 {
     luabridge::getGlobalNamespace(L)
         .beginClass<xyz::SharedClass>("SharedClass")
