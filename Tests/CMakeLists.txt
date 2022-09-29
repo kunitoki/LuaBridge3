@@ -161,15 +161,16 @@ endfunction ()
 # ====================================================== Macro
 
 macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_FILES LUABRIDGE_EXCEPTIONS LUABRIDGE_LIBS DYNAMIC_LIBRARY_TESTS)
+  set(LUABRIDGE_TESTLIB_NAME ${LUABRIDGE_TEST_NAME}_DynamicLibrary)
   if (${DYNAMIC_LIBRARY_TESTS})
-    add_library (${LUABRIDGE_TEST_NAME}_DynamicLibrary SHARED
+    add_library (${LUABRIDGE_TESTLIB_NAME} SHARED
       Lua/LuaLibrary.h
       Source/DynamicLibrary.cpp
       Source/SharedCode.cpp
       ${LUABRIDGE_TEST_LUA_LIBRARY_FILES})
 
-    target_compile_definitions (${LUABRIDGE_TEST_NAME}_DynamicLibrary PUBLIC LUABRIDGEDEMO_LUA_VERSION=${LUA_VERSION})
-    target_include_directories (${LUABRIDGE_TEST_NAME}_DynamicLibrary PRIVATE . "${CMAKE_CURRENT_LIST_DIR}/../Source")
+    target_compile_definitions (${LUABRIDGE_TESTLIB_NAME} PUBLIC LUABRIDGEDEMO_LUA_VERSION=${LUA_VERSION})
+    target_include_directories (${LUABRIDGE_TESTLIB_NAME} PRIVATE . "${CMAKE_CURRENT_LIST_DIR}/../Source")
 
     list(APPEND LUABRIDGE_TEST_SOURCE_FILES Source/DynamicLibraryTests.cpp)
   endif()
@@ -180,11 +181,11 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
   )
 
   if (APPLE)
-    set(LUABRIDGEDEMO_DYNAMIC_LIBRARY "lib${LUABRIDGE_TEST_NAME}_DynamicLibrary.dylib")
+    set(LUABRIDGEDEMO_DYNAMIC_LIBRARY "lib${LUABRIDGE_TESTLIB_NAME}.dylib")
   elseif (WIN32)
-    set(LUABRIDGEDEMO_DYNAMIC_LIBRARY "lib${LUABRIDGE_TEST_NAME}_DynamicLibrary.dll")
+    set(LUABRIDGEDEMO_DYNAMIC_LIBRARY "lib${LUABRIDGE_TESTLIB_NAME}.dll")
   else ()
-    set(LUABRIDGEDEMO_DYNAMIC_LIBRARY "lib${LUABRIDGE_TEST_NAME}_DynamicLibrary.so")
+    set(LUABRIDGEDEMO_DYNAMIC_LIBRARY "lib${LUABRIDGE_TESTLIB_NAME}.so")
   endif ()
   target_compile_definitions (${LUABRIDGE_TEST_NAME} PUBLIC LUABRIDGEDEMO_DYNAMIC_LIBRARY="${LUABRIDGEDEMO_DYNAMIC_LIBRARY}")
 
@@ -226,14 +227,14 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
 
   target_link_libraries (${LUABRIDGE_TEST_NAME} PUBLIC LuaBridge gtest)
   if (${DYNAMIC_LIBRARY_TESTS})
-    target_link_libraries (${LUABRIDGE_TEST_NAME} PUBLIC ${LUABRIDGE_TEST_NAME}_DynamicLibrary)
+    target_link_libraries (${LUABRIDGE_TEST_NAME} PUBLIC ${LUABRIDGE_TESTLIB_NAME})
   endif()
 
   if ("${LUABRIDGE_LIBS}" STREQUAL "")
   else ()
     target_link_libraries (${LUABRIDGE_TEST_NAME} PUBLIC ${LUABRIDGE_LIBS})
     if (${DYNAMIC_LIBRARY_TESTS})
-      target_link_libraries (${LUABRIDGE_TEST_NAME}_DynamicLibrary PUBLIC ${LUABRIDGE_LIBS})
+      target_link_libraries (${LUABRIDGE_TESTLIB_NAME} PUBLIC ${LUABRIDGE_LIBS})
     endif()
   endif ()
 
