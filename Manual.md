@@ -672,7 +672,7 @@ luabridge::getGlobalNamespace (L)
       })
       .addNewIndexMetaMethod ([](FlexibleClass& self, const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State* L)
       {
-        self.properties.emplace (std::make_pair (eyk, value))
+        self.properties.emplace (std::make_pair (key, value))
         return luabridge::LuaRef (L, luabridge::LuaNil ());
       })
     .endClass ()
