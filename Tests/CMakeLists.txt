@@ -180,6 +180,10 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
 
     target_include_directories (${LUABRIDGE_TESTLIB_NAME} PRIVATE Source)
 
+    if (UNIX)
+      target_link_libraries (${LUABRIDGE_TESTLIB_NAME} PRIVATE dl)
+    endif()
+
     list(APPEND LUABRIDGE_TEST_SOURCE_FILES Source/DynamicLibraryTests.cpp)
   endif()
 
@@ -255,10 +259,10 @@ endmacro (add_test_app)
 
 # ====================================================== Real Unit Tests
 
-set(ENABLE_SHARED_LIBRARY_TESTS 0)
-if (APPLE OR UNIX)
-  set(ENABLE_SHARED_LIBRARY_TESTS 1)
-endif()
+set(ENABLE_SHARED_LIBRARY_TESTS 1)
+#if (APPLE OR UNIX)
+#  set(ENABLE_SHARED_LIBRARY_TESTS 1)
+#endif()
 
 add_test_app (LuaBridgeTests51 501 "${LUABRIDGE_TEST_LUA51_FILES}" 1 "" ${ENABLE_SHARED_LIBRARY_TESTS})
 add_test_app (LuaBridgeTests51Noexcept 501 "${LUABRIDGE_TEST_LUA51_FILES}" 0 "" ${ENABLE_SHARED_LIBRARY_TESTS})
