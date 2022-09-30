@@ -439,6 +439,12 @@ T Function(T param)
     return param;
 }
 
+int LuaFunction(lua_State* L)
+{
+    lua_pushnumber(L, 42);
+    return 1;
+}
+
 } // namespace
 
 TEST_F(NamespaceTests, Functions)
@@ -448,6 +454,15 @@ TEST_F(NamespaceTests, Functions)
     runLua("result = Function (3.14)");
     ASSERT_TRUE(result().isNumber());
     ASSERT_EQ(3.14, result<double>());
+}
+
+TEST_F(NamespaceTests, LuaFunctions)
+{
+    luabridge::getGlobalNamespace(L).addFunction("Function", &LuaFunction);
+
+    runLua("result = Function ()");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(42, result<int>());
 }
 
 TEST_F(NamespaceTests, StdFunctions)

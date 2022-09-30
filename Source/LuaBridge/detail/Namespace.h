@@ -468,7 +468,7 @@ class Namespace : public detail::Registrar
          *
          * @returns This class registration object.
          */
-        template <class U, typename = std::enable_if_t<!std::is_invocable_v<U>>>
+        template <class U, class = std::enable_if_t<!std::is_invocable_v<U>>>
         Class<T>& addStaticProperty(const char* name, const U* value)
         {
             assert(name != nullptr);
@@ -497,7 +497,7 @@ class Namespace : public detail::Registrar
          *
          * @returns This class registration object.
          */
-        template <class U, typename = std::enable_if_t<!std::is_invocable_v<U>>>
+        template <class U, class = std::enable_if_t<!std::is_invocable_v<U>>>
         Class<T>& addStaticProperty(const char* name, U* value, bool isWritable = true)
         {
             assert(name != nullptr);
@@ -565,7 +565,7 @@ class Namespace : public detail::Registrar
         /**
          * @brief Add or replace a static property, by constructible by std::function.
          */
-        template <class Getter, typename = std::enable_if_t<!std::is_pointer_v<Getter>>>
+        template <class Getter, class = std::enable_if_t<!std::is_pointer_v<Getter>>>
         Class<T> addStaticProperty(const char* name, Getter get)
         {
             assert(name != nullptr);
@@ -580,7 +580,7 @@ class Namespace : public detail::Registrar
             return *this;
         }
 
-        template <class Getter, class Setter, typename = std::enable_if_t<!std::is_pointer_v<Getter> && !std::is_pointer_v<Setter>>>
+        template <class Getter, class Setter, class = std::enable_if_t<!std::is_pointer_v<Getter> && !std::is_pointer_v<Setter>>>
         Class<T> addStaticProperty(const char* name, Getter get, Setter set)
         {
             assert(name != nullptr);
@@ -604,7 +604,7 @@ class Namespace : public detail::Registrar
         /**
          * @brief Add or replace a static member function.
          */
-        template <class Function, typename = std::enable_if_t<std::is_pointer_v<Function>>>
+        template <class Function, class = std::enable_if_t<std::is_pointer_v<Function>>>
         Class<T>& addStaticFunction(const char* name, Function fp)
         {
             assert(name != nullptr);
@@ -621,7 +621,7 @@ class Namespace : public detail::Registrar
         /**
          * @brief Add or replace a static member function for constructible by std::function.
          */
-        template <class Function, typename = std::enable_if_t<!std::is_pointer_v<Function>>>
+        template <class Function, class = std::enable_if_t<!std::is_pointer_v<Function>>>
         Class<T> addStaticFunction(const char* name, Function function)
         {
             using FnType = decltype(function);
@@ -808,7 +808,7 @@ class Namespace : public detail::Registrar
         /**
          * @brief Add or replace a property member, by constructible by std::function.
          */
-        template <class Getter, typename = std::enable_if_t<!std::is_pointer_v<Getter>>>
+        template <class Getter, class = std::enable_if_t<!std::is_pointer_v<Getter>>>
         Class<T>& addProperty(const char* name, Getter get)
         {
             using FirstArg = detail::function_argument_t<0, Getter>;
@@ -828,7 +828,7 @@ class Namespace : public detail::Registrar
             return *this;
         }
 
-        template <class Getter, class Setter, typename = std::enable_if_t<!std::is_pointer_v<Getter> && !std::is_pointer_v<Setter>>>
+        template <class Getter, class Setter, class = std::enable_if_t<!std::is_pointer_v<Getter> && !std::is_pointer_v<Setter>>>
         Class<T>& addProperty(const char* name, Getter get, Setter set)
         {
             addProperty<Getter>(name, std::move(get));
@@ -852,7 +852,7 @@ class Namespace : public detail::Registrar
         /**
          * @brief Add or replace a namespace function by convertible to std::function (capturing lambdas).
          */
-        template <class Function, typename = std::enable_if_t<detail::function_arity_v<Function> != 0>>
+        template <class Function, class = std::enable_if_t<detail::function_arity_v<Function> != 0>>
         Class<T> addFunction(const char* name, Function function)
         {
             using FnType = decltype(function);
@@ -1180,13 +1180,12 @@ class Namespace : public detail::Registrar
          *
          * Let the user define a fallback index (__index) metamethod at its level.
          */
-        template <class Function, typename = std::enable_if_t<!std::is_pointer_v<Function> && detail::function_arity_v<Function> != 0>>
-        Class<T> addIndexMetaMethod(Function function)
+        template <class Function>
+        auto addIndexMetaMethod(Function function)
+            -> std::enable_if_t<!std::is_pointer_v<Function>
+                && std::is_invocable_v<Function, T&, const LuaRef&, lua_State*>, Class<T>>
         {
             using FnType = decltype(function);
-
-            using FirstArg = detail::function_argument_t<0, Function>;
-            static_assert(std::is_same_v<std::decay_t<std::remove_pointer_t<FirstArg>>, T>);
 
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
@@ -1229,13 +1228,12 @@ class Namespace : public detail::Registrar
          *
          * Let the user define a fallback insert index (___newindex) metamethod at its level.
          */
-        template <class Function, typename = std::enable_if_t<!std::is_pointer_v<Function> && detail::function_arity_v<Function> != 0>>
-        Class<T> addNewIndexMetaMethod(Function function)
+        template <class Function>
+        auto addNewIndexMetaMethod(Function function)
+            -> std::enable_if_t<!std::is_pointer_v<Function>
+                && std::is_invocable_v<Function, T&, const LuaRef&, const LuaRef&, lua_State*>, Class<T>>
         {
             using FnType = decltype(function);
-
-            using FirstArg = detail::function_argument_t<0, Function>;
-            static_assert(std::is_same_v<std::decay_t<std::remove_pointer_t<FirstArg>>, T>);
 
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
@@ -1519,10 +1517,10 @@ public:
 
     //=============================================================================================
     /**
-     * @brief Add or replace a variable.
+     * @brief Add or replace a variable, a variable will be added in the namespace by copy of the passed value.
      *
      * @param name The property name.
-     * @param value A value pointer.
+     * @param value A value object.
      *
      * @returns This namespace registration object.
      */
@@ -1655,7 +1653,7 @@ public:
      *
      * @returns This namespace registration object.
      */
-    template <class Getter>
+    template <class Getter, class = std::enable_if_t<!std::is_pointer_v<Getter>>>
     Namespace& addProperty(const char* name, Getter get)
     {
         assert(name != nullptr);
@@ -1696,7 +1694,7 @@ public:
      *
      * @returns This namespace registration object.
      */
-    template <class Getter, class Setter>
+    template <class Getter, class Setter, class = std::enable_if_t<!std::is_pointer_v<Getter> && !std::is_pointer_v<Setter>>>
     Namespace& addProperty(const char* name, Getter get, Setter set)
     {
         assert(name != nullptr);
@@ -1752,7 +1750,7 @@ public:
     /**
      * @brief Add or replace a namespace function by convertible to std::function.
      */
-    template <class Function>
+    template <class Function, class = std::enable_if<!std::is_pointer_v<Function>>>
     Namespace& addFunction(const char* name, Function function)
     {
         using FnType = decltype(function);
