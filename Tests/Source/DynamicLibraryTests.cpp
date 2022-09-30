@@ -109,7 +109,7 @@ TEST_F(DynamicLibraryTests, ExampleUsageFromLibrary)
     auto libraryPath = executablePath->remove_filename() / LUABRIDGEDEMO_SHARED_LIBRARY;
     ASSERT_TRUE(std::filesystem::exists(libraryPath));
 
-    auto dll = openSharedLibrary(LUABRIDGEDEMO_SHARED_LIBRARY);
+    auto dll = openSharedLibrary(libraryPath.string().c_str());
     ASSERT_NE(nullptr, dll);
 
     auto unloadDll = ScopedGuard([dll] { closeSharedLibrary(dll); });
