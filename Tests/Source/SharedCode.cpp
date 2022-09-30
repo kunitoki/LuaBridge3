@@ -5,10 +5,30 @@
 #include "SharedCode.h"
 
 namespace xyz {
+ISharedClass::ISharedClass() = default;
+ISharedClass::~ISharedClass() = default;
 
-int SharedClass::publicMethod(const std::string& s) const
+class SharedClass : public ISharedClass
 {
-    return std::stoi(s) + value;
+public:
+    virtual int publicMethod(const std::string& s) const override
+    {
+        return std::stoi(s) + value;
+    }
+
+private:
+    int value = 42;
+};
+} // namespace xyz
+
+extern "C" {
+LUABRIDGEDEMO_SHARED_API xyz::ISharedClass* allocator()
+{
+    return new xyz::SharedClass();
 }
 
-} // namespace xyz
+LUABRIDGEDEMO_SHARED_API void deleter(xyz::ISharedClass* ptr)
+{
+    delete ptr;
+}
+} // extern "C"

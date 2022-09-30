@@ -4,19 +4,27 @@
 
 #pragma once
 
+#if _WIN32
+#if LUABRIDGEDEMO_SHARED_EXPORT
+#define LUABRIDGEDEMO_SHARED_API __declspec(dllexport)
+#else
+#define LUABRIDGEDEMO_SHARED_API __declspec(dllimport)
+#endif
+#else
+#define LUABRIDGEDEMO_SHARED_API
+#endif
+
 #include <string>
 
 namespace xyz {
 
-class SharedClass
+class LUABRIDGEDEMO_SHARED_API ISharedClass
 {
 public:
-    SharedClass() = default;
+    ISharedClass();
+    virtual ~ISharedClass();
 
-    int publicMethod(const std::string& s) const;
-
-private:
-    int value = 42;
+    virtual int publicMethod(const std::string& s) const = 0;
 };
 
 } // namespace xyz

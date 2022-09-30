@@ -12,7 +12,27 @@ struct DynamicLibraryTests : TestBase
 };
 
 namespace {
-int callSharedClassMethod(xyz::SharedClass* s)
+template <class F>
+struct ScopedGuard
+{
+    ScopedGuard(F func)
+        : func_(std::move(func))
+    {
+    }
+
+    ~ScopedGuard()
+    {
+        func_();
+    }
+
+private:
+    F func_;
+};
+
+template <class F>
+ScopedGuard(F) -> ScopedGuard<F>;
+
+int callSharedClassMethod(xyz::ISharedClass* s)
 {
     return s->publicMethod("1337");
 }
@@ -23,16 +43,26 @@ TEST_F(DynamicLibraryTests, ExampleUsageFromLibrary)
     auto dll = dlopen(LUABRIDGEDEMO_DYNAMIC_LIBRARY, RTLD_NOW);
     ASSERT_NE(nullptr, dll);
 
-    auto registerClasses = reinterpret_cast<void (*)(lua_State*)>(dlsym(dll, "registerClasses"));
-    ASSERT_NE(nullptr, registerClasses);
+    auto unloadDll = ScopedGuard([dll] { dlclose(dll); });
 
-    registerClasses(L);
+    auto allocator = reinterpret_cast<xyz::ISharedClass* (*)()>(dlsym(dll, "allocator"));
+    ASSERT_NE(nullptr, allocator);
+
+    auto deleter = reinterpret_cast<void (*)(xyz::ISharedClass*)>(dlsym(dll, "deleter"));
+    ASSERT_NE(nullptr, deleter);
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<xyz::ISharedClass>("SharedClass")
+            .addFactory(allocator, deleter)
+            .addFunction("publicMethod", &xyz::ISharedClass::publicMethod)
+        .endClass();
 
     luabridge::getGlobalNamespace(L)
         .addFunction("callSharedClassMethod", &callSharedClassMethod);
 
-    xyz::SharedClass shared;
-    luabridge::setGlobal(L, &shared, "shared");
+    xyz::ISharedClass* shared = allocator();
+    auto unloadSharedClass = ScopedGuard([shared, deleter] { deleter(shared); });
+    luabridge::setGlobal(L, shared, "shared");
 
     runLua("result = shared:publicMethod('42')");
     EXPECT_EQ(84, result<int>());
@@ -43,6 +73,9 @@ TEST_F(DynamicLibraryTests, ExampleUsageFromLibrary)
     runLua("a = SharedClass(); result = callSharedClassMethod(a)");
     EXPECT_EQ(1379, result<int>());
 
-    dlclose(dll);
+    runLua("b = SharedClass(); result = b");
+    auto ptr = result<xyz::ISharedClass*>();
+    ASSERT_NE(nullptr, ptr);
+    EXPECT_EQ(1379, callSharedClassMethod(ptr));
 }
 

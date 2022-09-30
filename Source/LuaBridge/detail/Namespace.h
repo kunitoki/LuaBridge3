@@ -1098,19 +1098,19 @@ class Namespace : public detail::Registrar
 
         //=========================================================================================
         /**
-         * @brief Add or replace a factory.
+         * @brief Add or replace a placement constructor.
          *
-         * The primary Constructor is invoked when calling the class type table like a function.
+         * The primary placement constructor is invoked when calling the class type table like a function.
          *
-         * The template parameter should be a function pointer type that matches the desired Constructor (since you can't take the
-         * address of a Constructor and pass it as an argument).
+         * The provider of the Function argument is responsible of doing placement new of the type T over the void* pointer provided to
+         * the method as first argument.
          */
         template <class Function>
         Class<T> addConstructor(Function function)
         {
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            auto factory = [function = std::move(function)](lua_State* L) -> T*
+            auto create = [function = std::move(function)](lua_State* L) -> T*
             {
                 std::error_code ec;
                 detail::UserdataValue<T>* value = detail::UserdataValue<T>::place(L, ec);
@@ -1120,17 +1120,55 @@ class Namespace : public detail::Registrar
                 using FnTraits = detail::function_traits<Function>;
                 using FnArgs = detail::remove_first_type_t<typename FnTraits::argument_types>;
 
-                T* obj = detail::factory<T>::call(value->getObject(), function, detail::make_arguments_list<FnArgs, 2>(L));
+                T* obj = detail::placement_constructor<T>::construct(value->getObject(), function, detail::make_arguments_list<FnArgs, 2>(L));
 
                 value->commit();
 
                 return obj;
             };
 
-            using FactoryFnType = decltype(factory);
+            using AllocatorFnType = decltype(create);
 
-            lua_newuserdata_aligned<FactoryFnType>(L, std::move(factory)); // Stack: co, cl, st, function userdata (ud)
-            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FactoryFnType>, 1); // Stack: co, cl, st, function
+            lua_newuserdata_aligned<AllocatorFnType>(L, std::move(create)); // Stack: co, cl, st, function userdata (ud)
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<AllocatorFnType>, 1); // Stack: co, cl, st, function
+            rawsetfield(L, -2, "__call"); // Stack: co, cl, st
+
+            return *this;
+        }
+
+        //=========================================================================================
+        /**
+         * @brief Add or replace a factory.
+         *
+         * The primary Constructor is invoked when calling the class type table like a function.
+         *
+         * The template parameter should be a function pointer type that matches the desired Constructor (since you can't take the
+         * address of a Constructor and pass it as an argument).
+         */
+        template <class Allocator, class Deallocator>
+        Class<T> addFactory(Allocator allocator, Deallocator deallocator)
+        {
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            auto create = [allocator = std::move(allocator), deallocator = std::move(deallocator)](lua_State* L) -> T*
+            {
+                using FnTraits = detail::function_traits<Allocator>;
+                using FnArgs = typename FnTraits::argument_types;
+
+                std::unique_ptr<T> obj { detail::external_constructor<T>::construct(allocator, detail::make_arguments_list<FnArgs, 0>(L)) };
+
+                std::error_code ec;
+                auto* value = detail::UserdataValueExternal<T>::place(L, obj.get(), deallocator, ec);
+                if (! value)
+                    luaL_error(L, "%s", ec.message().c_str());
+
+                return obj.release();
+            };
+
+            using AllocatorFnType = decltype(create);
+
+            lua_newuserdata_aligned<AllocatorFnType>(L, std::move(create)); // Stack: co, cl, st, function userdata (ud)
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<AllocatorFnType>, 1); // Stack: co, cl, st, function
             rawsetfield(L, -2, "__call"); // Stack: co, cl, st
 
             return *this;
