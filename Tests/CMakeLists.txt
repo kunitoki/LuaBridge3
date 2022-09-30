@@ -180,10 +180,6 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
 
     target_include_directories (${LUABRIDGE_TESTLIB_NAME} PRIVATE Source)
 
-    if (UNIX)
-      target_link_libraries (${LUABRIDGE_TESTLIB_NAME} PRIVATE dl)
-    endif()
-
     list(APPEND LUABRIDGE_TEST_SOURCE_FILES Source/DynamicLibraryTests.cpp)
   endif()
 
@@ -245,6 +241,9 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
   target_link_libraries (${LUABRIDGE_TEST_NAME} PRIVATE LuaBridge gtest)
   if (${SHARED_LIBRARY_TESTS})
     target_link_libraries (${LUABRIDGE_TEST_NAME} PRIVATE ${LUABRIDGE_TESTLIB_NAME})
+    if (UNIX)
+      target_link_libraries (${LUABRIDGE_TESTLIB_NAME} PRIVATE dl)
+    endif()
   endif()
 
   if ("${LUABRIDGE_LIBS}" STREQUAL "")
