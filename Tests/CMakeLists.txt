@@ -253,28 +253,23 @@ endmacro (add_test_app)
 
 # ====================================================== Real Unit Tests
 
-set(ENABLE_SHARED_LIBRARY_TESTS 1)
-#if (APPLE OR UNIX)
-#  set(ENABLE_SHARED_LIBRARY_TESTS 1)
-#endif()
+add_test_app (LuaBridgeTests51 501 "${LUABRIDGE_TEST_LUA51_FILES}" 1 "" 1)
+add_test_app (LuaBridgeTests51Noexcept 501 "${LUABRIDGE_TEST_LUA51_FILES}" 0 "" 1)
 
-add_test_app (LuaBridgeTests51 501 "${LUABRIDGE_TEST_LUA51_FILES}" 1 "" ${ENABLE_SHARED_LIBRARY_TESTS})
-add_test_app (LuaBridgeTests51Noexcept 501 "${LUABRIDGE_TEST_LUA51_FILES}" 0 "" ${ENABLE_SHARED_LIBRARY_TESTS})
+add_test_app (LuaBridgeTests52 502 "${LUABRIDGE_TEST_LUA52_FILES}" 1 "" 1)
+add_test_app (LuaBridgeTests52Noexcept 502 "${LUABRIDGE_TEST_LUA52_FILES}" 0 "" 1)
 
-add_test_app (LuaBridgeTests52 502 "${LUABRIDGE_TEST_LUA52_FILES}" 1 "" ${ENABLE_SHARED_LIBRARY_TESTS})
-add_test_app (LuaBridgeTests52Noexcept 502 "${LUABRIDGE_TEST_LUA52_FILES}" 0 "" ${ENABLE_SHARED_LIBRARY_TESTS})
+add_test_app (LuaBridgeTests53 503 "${LUABRIDGE_TEST_LUA53_FILES}" 1 "" 1)
+add_test_app (LuaBridgeTests53Noexcept 503 "${LUABRIDGE_TEST_LUA53_FILES}" 0 "" 1)
 
-add_test_app (LuaBridgeTests53 503 "${LUABRIDGE_TEST_LUA53_FILES}" 1 "" ${ENABLE_SHARED_LIBRARY_TESTS})
-add_test_app (LuaBridgeTests53Noexcept 503 "${LUABRIDGE_TEST_LUA53_FILES}" 0 "" ${ENABLE_SHARED_LIBRARY_TESTS})
+add_test_app (LuaBridgeTests54 504 "${LUABRIDGE_TEST_LUA54_FILES}" 1 "" 1)
+add_test_app (LuaBridgeTests54Noexcept 504 "${LUABRIDGE_TEST_LUA54_FILES}" 0 "" 1)
 
-add_test_app (LuaBridgeTests54 504 "${LUABRIDGE_TEST_LUA54_FILES}" 1 "" ${ENABLE_SHARED_LIBRARY_TESTS})
-add_test_app (LuaBridgeTests54Noexcept 504 "${LUABRIDGE_TEST_LUA54_FILES}" 0 "" ${ENABLE_SHARED_LIBRARY_TESTS})
+add_test_app (LuaBridgeTestsLuaJIT "LUAJIT" "${LUABRIDGE_TEST_LUAJIT_FILES}" 1 "liblua-static" 1)
+add_test_app (LuaBridgeTestsLuaJITNoexcept "LUAJIT" "${LUABRIDGE_TEST_LUAJIT_FILES}" 0 "liblua-static" 1)
 
-add_test_app (LuaBridgeTestsLuaJIT "LUAJIT" "${LUABRIDGE_TEST_LUAJIT_FILES}" 1 "liblua-static" ${ENABLE_SHARED_LIBRARY_TESTS})
-add_test_app (LuaBridgeTestsLuaJITNoexcept "LUAJIT" "${LUABRIDGE_TEST_LUAJIT_FILES}" 0 "liblua-static" ${ENABLE_SHARED_LIBRARY_TESTS})
-
-add_test_app (LuaBridgeTestsLuau "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 1 "" ${ENABLE_SHARED_LIBRARY_TESTS})
-#add_test_app (LuaBridgeTestsLuauNoexcept "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 0 "" ${ENABLE_SHARED_LIBRARY_TESTS})
+add_test_app (LuaBridgeTestsLuau "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 1 "" 1)
+#add_test_app (LuaBridgeTestsLuauNoexcept "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 0 "" 1)
 
 if (LUABRIDGE_COVERAGE)
   setup_coverage_single_target ()
