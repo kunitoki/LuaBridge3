@@ -38,12 +38,12 @@ if (APPLE)
   list(APPEND LUABRIDGE_TEST_SOURCE_FILES Source/ObjCTests.mm)
 endif ()
 
-source_group ("Source" FILES ${LUABRIDGE_TEST_SOURCE_FILES})
+source_group ("Source Files" FILES ${LUABRIDGE_TEST_SOURCE_FILES})
 
 # ====================================================== Lua 5.1
 
 file (GLOB_RECURSE LUABRIDGE_TEST_LUA51_FILES
-  LuaLibrary.h
+  Lua/LuaLibrary.h
   Lua/LuaLibrary5.1.5.cpp
 )
 
@@ -76,10 +76,17 @@ file (GLOB_RECURSE LUABRIDGE_TEST_LUAU_FILES
   Lua/LuauSplit.cpp
 )
 
-# ====================================================== Luau
+# ====================================================== LuaJIT
 
 file (GLOB_RECURSE LUABRIDGE_TEST_LUAJIT_FILES
   Lua/LuaLibrary.h
+)
+
+# ====================================================== Shared Library
+
+file (GLOB_RECURSE LUABRIDGE_TEST_SHARED_LIBRARY_FILES
+  Source/SharedCode.ch
+  Source/SharedCode.cpp
 )
 
 # ====================================================== Coverage
@@ -161,28 +168,7 @@ endfunction ()
 # ====================================================== Macro
 
 macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_FILES LUABRIDGE_EXCEPTIONS LUABRIDGE_LIBS)
-
-  add_executable (${LUABRIDGE_TEST_NAME}
-    ${LUABRIDGE_TEST_SOURCE_FILES}
-    ${LUABRIDGE_TEST_LUA_LIBRARY_FILES}
-  )
-
-  if (LUABRIDGE_COVERAGE)
-    get_filename_component (SOURCE_LOCATION "${CMAKE_CURRENT_LIST_DIR}/../Source" ABSOLUTE)
-    setup_target_for_coverage (${LUABRIDGE_TEST_NAME} ${SOURCE_LOCATION} LuaBridge)
-  endif ()
-
-  target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE . Source)
-  if (${LUA_VERSION} STREQUAL "LUAU")
-    target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/VM/include")
-    target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/Ast/include")
-    target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/Compiler/include")
-    target_compile_options (${LUABRIDGE_TEST_NAME} PUBLIC -DLUABRIDGEDEMO_LUAU=1)
-  elseif (${LUA_VERSION} STREQUAL "LUAJIT")
-    target_compile_options (${LUABRIDGE_TEST_NAME} PUBLIC -DLUABRIDGEDEMO_LUAJIT=1)
-  else () # if(${LUA_VERSION} MATCHES "^[0-9]*")
-    target_compile_options (${LUABRIDGE_TEST_NAME} PUBLIC -DLUABRIDGEDEMO_LUA_VERSION=${LUA_VERSION})
-  endif ()
+  get_filename_component (SOURCE_LOCATION "${CMAKE_CURRENT_LIST_DIR}/../Source" ABSOLUTE)
 
   if (MSVC)
     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++17 /W3 /MP")
@@ -190,27 +176,86 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
   endif ()
 
+  # Dynamic library test
+  set(LUABRIDGE_TESTLIB_NAME ${LUABRIDGE_TEST_NAME}_DynamicLibrary)
+  add_library (${LUABRIDGE_TESTLIB_NAME} SHARED
+    ${LUABRIDGE_TEST_SHARED_LIBRARY_FILES}
+    ${LUABRIDGE_TEST_LUA_LIBRARY_FILES})
+
+  target_compile_definitions (${LUABRIDGE_TESTLIB_NAME} PRIVATE
+    LUABRIDGEDEMO_SHARED_EXPORT=1)
+
+  target_include_directories (${LUABRIDGE_TESTLIB_NAME} PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}
+    ${SOURCE_LOCATION}
+    Source)
+
+  list(APPEND LUABRIDGE_TEST_SOURCE_FILES Source/DynamicLibraryTests.cpp)
+
+  # Main binary test
+  add_executable (${LUABRIDGE_TEST_NAME}
+    ${LUABRIDGE_TEST_SOURCE_FILES}
+    ${LUABRIDGE_TEST_LUA_LIBRARY_FILES}
+  )
+
+  if (LUABRIDGE_COVERAGE)
+    setup_target_for_coverage (${LUABRIDGE_TEST_NAME} ${SOURCE_LOCATION} LuaBridge)
+  endif ()
+
+  target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}
+    ${SOURCE_LOCATION}
+    Source)
+
+  if (${LUA_VERSION} STREQUAL "LUAU")
+    target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/VM/include")
+    target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/Ast/include")
+    target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/Compiler/include")
+    target_compile_definitions (${LUABRIDGE_TEST_NAME} PRIVATE LUABRIDGEDEMO_LUAU=1)
+
+    target_include_directories (${LUABRIDGE_TESTLIB_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/VM/include")
+    target_include_directories (${LUABRIDGE_TESTLIB_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/Ast/include")
+    target_include_directories (${LUABRIDGE_TESTLIB_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/Compiler/include")
+    target_compile_definitions (${LUABRIDGE_TESTLIB_NAME} PRIVATE LUABRIDGEDEMO_LUAU=1)
+  elseif (${LUA_VERSION} STREQUAL "LUAJIT")
+    target_compile_definitions (${LUABRIDGE_TEST_NAME} PRIVATE LUABRIDGEDEMO_LUAJIT=1)
+    target_compile_definitions (${LUABRIDGE_TESTLIB_NAME} PRIVATE LUABRIDGEDEMO_LUAJIT=1)
+  else () # if(${LUA_VERSION} MATCHES "^[0-9]*")
+    target_compile_definitions (${LUABRIDGE_TEST_NAME} PRIVATE LUABRIDGEDEMO_LUA_VERSION=${LUA_VERSION})
+    target_compile_definitions (${LUABRIDGE_TESTLIB_NAME} PRIVATE LUABRIDGEDEMO_LUA_VERSION=${LUA_VERSION})
+  endif ()
+
+  if (WIN32)
+    set(LUABRIDGEDEMO_SHARED_LIBRARY "${LUABRIDGE_TESTLIB_NAME}.dll")
+  elseif (APPLE)
+    set(LUABRIDGEDEMO_SHARED_LIBRARY "lib${LUABRIDGE_TESTLIB_NAME}.dylib")
+  else ()
+    set(LUABRIDGEDEMO_SHARED_LIBRARY "lib${LUABRIDGE_TESTLIB_NAME}.so")
+  endif ()
+  target_compile_definitions (${LUABRIDGE_TEST_NAME} PRIVATE
+    LUABRIDGEDEMO_SHARED_LIBRARY="${LUABRIDGEDEMO_SHARED_LIBRARY}"
+    LUABRIDGEDEMO_SHARED_EXPORT=0)
+
   if (NOT ${LUABRIDGE_EXCEPTIONS})
-    target_compile_definitions (${LUABRIDGE_TEST_NAME} PUBLIC LUA_USE_LONGJMP=1)
+    target_compile_definitions (${LUABRIDGE_TEST_NAME} PRIVATE LUA_USE_LONGJMP=1)
     if (APPLE)
-      target_compile_options (${LUABRIDGE_TEST_NAME} PUBLIC -fno-exceptions)
+      target_compile_options (${LUABRIDGE_TEST_NAME} PRIVATE -fno-exceptions)
       set_target_properties (${LUABRIDGE_TEST_NAME} PROPERTIES XCODE_ATTRIBUTE_GCC_ENABLE_CPP_EXCEPTIONS "NO")
     elseif (WIN32)
-      target_compile_options (${LUABRIDGE_TEST_NAME} PUBLIC /EHs-c-)
-      target_compile_definitions (${LUABRIDGE_TEST_NAME} PUBLIC _HAS_EXCEPTIONS=0)
+      target_compile_options (${LUABRIDGE_TEST_NAME} PRIVATE /EHs-c-)
+      target_compile_definitions (${LUABRIDGE_TEST_NAME} PRIVATE _HAS_EXCEPTIONS=0)
     else ()
-      target_compile_options (${LUABRIDGE_TEST_NAME} PUBLIC -fno-exceptions)
+      target_compile_options (${LUABRIDGE_TEST_NAME} PRIVATE -fno-exceptions)
     endif ()
   endif ()
 
-  target_link_libraries (${LUABRIDGE_TEST_NAME} PUBLIC
-    LuaBridge
-    gtest
-  )
+  target_link_libraries (${LUABRIDGE_TEST_NAME} PRIVATE LuaBridge gtest ${CMAKE_DL_LIBS})
+  add_dependencies (${LUABRIDGE_TEST_NAME} ${LUABRIDGE_TESTLIB_NAME})
 
   if ("${LUABRIDGE_LIBS}" STREQUAL "")
   else ()
-    target_link_libraries (${LUABRIDGE_TEST_NAME} PUBLIC ${LUABRIDGE_LIBS})
+    target_link_libraries (${LUABRIDGE_TEST_NAME} PRIVATE ${LUABRIDGE_LIBS})
+    target_link_libraries (${LUABRIDGE_TESTLIB_NAME} PRIVATE ${LUABRIDGE_LIBS})
   endif ()
 
 endmacro (add_test_app)

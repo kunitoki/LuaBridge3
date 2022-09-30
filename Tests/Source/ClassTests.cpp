@@ -2115,7 +2115,7 @@ TEST_F(ClassTests, ConstructorFactory)
     {
         luabridge::getGlobalNamespace(L)
             .beginClass<FactoryConstructibleClass>("FactoryConstructibleClass3")
-            .addConstructor([](void* ptr, lua_State* L) { return new(ptr) FactoryConstructibleClass(luaL_checkinteger(L, 2)); })
+            .addConstructor([](void* ptr, lua_State* L) { return new(ptr) FactoryConstructibleClass(static_cast<int>(luaL_checkinteger(L, 2))); })
             .addProperty("x", &FactoryConstructibleClass::x_)
             .endClass();
 

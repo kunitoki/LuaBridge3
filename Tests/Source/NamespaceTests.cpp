@@ -439,6 +439,12 @@ T Function(T param)
     return param;
 }
 
+int LuaFunction(lua_State* L)
+{
+    lua_pushnumber(L, 42);
+    return 1;
+}
+
 } // namespace
 
 TEST_F(NamespaceTests, Functions)
@@ -450,14 +456,33 @@ TEST_F(NamespaceTests, Functions)
     ASSERT_EQ(3.14, result<double>());
 }
 
+TEST_F(NamespaceTests, LuaFunctions)
+{
+    luabridge::getGlobalNamespace(L).addFunction("Function", &LuaFunction);
+
+    runLua("result = Function ()");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(42, result<int>());
+}
+
 TEST_F(NamespaceTests, StdFunctions)
 {
-    luabridge::getGlobalNamespace(L).addFunction("Function",
-                                                 std::function<int(int)>(&Function<int>));
+    luabridge::getGlobalNamespace(L).addFunction("Function", std::function<int(int)>(&Function<int>));
 
     runLua("result = Function (12)");
     ASSERT_TRUE(result().isNumber());
     ASSERT_EQ(12, result<int>());
+}
+
+TEST_F(NamespaceTests, CapturingLambdas)
+{
+    int x = 30;
+
+    luabridge::getGlobalNamespace(L).addFunction("Function", [x](int v) -> int { return x + Function(v); });
+
+    runLua("result = Function (12)");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(42, result<int>());
 }
 
 #ifdef _M_IX86 // Windows 32bit only

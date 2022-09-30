@@ -489,13 +489,13 @@ struct constructor
 
 //=================================================================================================
 /**
- * @brief Factory generators.
+ * @brief Placement constructor generators.
  */
 template <class T>
-struct factory
+struct placement_constructor
 {
     template <class F, class Args>
-    static T* call(void* ptr, const F& func, const Args& args)
+    static T* construct(void* ptr, const F& func, const Args& args)
     {
         auto alloc = [ptr, &func](auto&&... args) { return func(ptr, std::forward<decltype(args)>(args)...); };
 
@@ -503,9 +503,31 @@ struct factory
     }
 
     template <class F>
-    static T* call(void* ptr, const F& func)
+    static T* construct(void* ptr, const F& func)
     {
         return func(ptr);
+    }
+};
+
+//=================================================================================================
+/**
+ * @brief External allocator generators.
+ */
+template <class T>
+struct external_constructor
+{
+    template <class F, class Args>
+    static T* construct(const F& func, const Args& args)
+    {
+        auto alloc = [&func](auto&&... args) { return func(std::forward<decltype(args)>(args)...); };
+
+        return std::apply(alloc, args);
+    }
+
+    template <class F>
+    static T* construct(const F& func)
+    {
+        return func();
     }
 };
 
