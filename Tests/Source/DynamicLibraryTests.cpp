@@ -110,4 +110,7 @@ TEST_F(DynamicLibraryTests, ExampleUsageFromLibrary)
     auto ptr = result<xyz::ISharedClass*>();
     ASSERT_NE(nullptr, ptr);
     EXPECT_EQ(1379, callSharedClassMethod(ptr));
+
+    lua_close(L); // Force garbage collection before we unload the deleter
+    L = nullptr;
 }
