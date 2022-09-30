@@ -63,6 +63,9 @@ extern "C"
 #elif __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmisleading-indentation"
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#pragma GCC diagnostic ignored "-Wempty-body"
+#pragma GCC diagnostic ignored "-Wstring-plus-int"
 #endif
 
 /* Include this early to prevent the conflict with luai_hashnum

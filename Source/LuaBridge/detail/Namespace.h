@@ -1173,6 +1173,104 @@ class Namespace : public detail::Registrar
 
             return *this;
         }
+
+        //=========================================================================================
+        /**
+         * @brief Add an index metamethod function fallback that is triggered when no result is found in functions, properties or any other members.
+         *
+         * Let the user define a fallback index (__index) metamethod at its level.
+         */
+        template <class Function, typename = std::enable_if_t<!std::is_pointer_v<Function> && detail::function_arity_v<Function> != 0>>
+        Class<T> addIndexMetaMethod(Function function)
+        {
+            using FnType = decltype(function);
+
+            using FirstArg = detail::function_argument_t<0, Function>;
+            static_assert(std::is_same_v<std::decay_t<std::remove_pointer_t<FirstArg>>, T>);
+
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: co, cl, st, function userdata (ud)
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: co, cl, st, function
+            lua_rawsetp(L, -3, detail::getIndexFallbackKey());
+
+            return *this;
+        }
+
+        Class<T>& addIndexMetaMethod(LuaRef (*idxf)(T&, const LuaRef&, lua_State*))
+        {
+            using FnType = decltype(idxf);
+
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            lua_pushlightuserdata(L, reinterpret_cast<void*>(idxf)); // Stack: co, cl, st, function ptr
+            lua_pushcclosure_x(L, &detail::invoke_proxy_function<FnType>, 1); // Stack: co, cl, st, function
+            lua_rawsetp(L, -3, detail::getIndexFallbackKey());
+
+            return *this;
+        }
+
+        Class<T>& addIndexMetaMethod(LuaRef (T::* idxf)(const LuaRef&, lua_State*))
+        {
+            using MemFnPtr = decltype(idxf);
+
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            new (lua_newuserdata_x<MemFnPtr>(L, sizeof(MemFnPtr))) MemFnPtr(idxf);
+            lua_pushcclosure_x(L, &detail::invoke_member_function<MemFnPtr, T>, 1);
+            lua_rawsetp(L, -3, detail::getIndexFallbackKey());
+
+            return *this;
+        }
+
+        //=========================================================================================
+        /**
+         * @brief Add an insert index metamethod function fallback that is triggered when no result is found in functions, properties or any other members.
+         *
+         * Let the user define a fallback insert index (___newindex) metamethod at its level.
+         */
+        template <class Function, typename = std::enable_if_t<!std::is_pointer_v<Function> && detail::function_arity_v<Function> != 0>>
+        Class<T> addNewIndexMetaMethod(Function function)
+        {
+            using FnType = decltype(function);
+
+            using FirstArg = detail::function_argument_t<0, Function>;
+            static_assert(std::is_same_v<std::decay_t<std::remove_pointer_t<FirstArg>>, T>);
+
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: co, cl, st, function userdata (ud)
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: co, cl, st, function
+            lua_rawsetp(L, -3, detail::getNewIndexFallbackKey());
+
+            return *this;
+        }
+
+        Class<T>& addNewIndexMetaMethod(LuaRef (*idxf)(T&, const LuaRef&, const LuaRef&, lua_State*))
+        {
+            using FnType = decltype(idxf);
+
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            lua_pushlightuserdata(L, reinterpret_cast<void*>(idxf)); // Stack: co, cl, st, function ptr
+            lua_pushcclosure_x(L, &detail::invoke_proxy_function<FnType>, 1); // Stack: co, cl, st, function
+            lua_rawsetp(L, -3, detail::getNewIndexFallbackKey());
+
+            return *this;
+        }
+
+        Class<T>& addNewIndexMetaMethod(LuaRef (T::* idxf)(const LuaRef&, const LuaRef&, lua_State*))
+        {
+            using MemFnPtr = decltype(idxf);
+
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            new (lua_newuserdata_x<MemFnPtr>(L, sizeof(MemFnPtr))) MemFnPtr(idxf);
+            lua_pushcclosure_x(L, &detail::invoke_member_function<MemFnPtr, T>, 1);
+            lua_rawsetp(L, -3, detail::getNewIndexFallbackKey());
+
+            return *this;
+        }
     };
 
     class Table : public detail::Registrar
