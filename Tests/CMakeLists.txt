@@ -238,12 +238,7 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
     endif ()
   endif ()
 
-  target_link_libraries (${LUABRIDGE_TEST_NAME} PRIVATE LuaBridge gtest)
-  if (${SHARED_LIBRARY_TESTS})
-    if (UNIX)
-      target_link_libraries (${LUABRIDGE_TESTLIB_NAME} PRIVATE dl)
-    endif()
-  endif()
+  target_link_libraries (${LUABRIDGE_TEST_NAME} PRIVATE LuaBridge gtest ${CMAKE_DL_LIBS})
 
   if ("${LUABRIDGE_LIBS}" STREQUAL "")
   else ()
