@@ -130,61 +130,6 @@ inline const void* getParentKey() noexcept
 
 //=================================================================================================
 /**
- * @brief Get the key for the static table in the Lua registry.
- *
- * The static table holds the static data members, static properties, and static member functions for a class.
- */
-template <class T>
-const void* getStaticRegistryKey() noexcept
-{
-#if LUABRIDGE_ON_OBJECTIVE_C
-    static char value;
-#else
-    static auto value = typeHash<T>();
-#endif
-
-    return reinterpret_cast<void*>(value);
-}
-
-//=================================================================================================
-/**
- * @brief Get the key for the class table in the Lua registry.
- *
- * The class table holds the data members, properties, and member functions of a class. Read-only data and properties, and const
- * member functions are also placed here (to save a lookup in the const table).
- */
-template <class T>
-const void* getClassRegistryKey() noexcept
-{
-#if LUABRIDGE_ON_OBJECTIVE_C
-    static char value;
-#else
-    static auto value = typeHash<T>() ^ 1;
-#endif
-
-    return reinterpret_cast<void*>(value);
-}
-
-//=================================================================================================
-/**
- * @brief Get the key for the const table in the Lua registry.
- *
- * The const table holds read-only data members and properties, and const member functions of a class.
- */
-template <class T>
-const void* getConstRegistryKey() noexcept
-{
-#if LUABRIDGE_ON_OBJECTIVE_C
-    static char value;
-#else
-    static auto value = typeHash<T>() ^ 2;
-#endif
-
-    return reinterpret_cast<void*>(value);
-}
-
-//=================================================================================================
-/**
  * The key of the index fall back in another metatable.
  */
 inline const void* getIndexFallbackKey()
@@ -199,6 +144,49 @@ inline const void* getIndexFallbackKey()
 inline const void* getNewIndexFallbackKey()
 {
   return reinterpret_cast<void*>(0x8107);
+}
+
+//=================================================================================================
+/**
+ * @brief Get the key for the static table in the Lua registry.
+ *
+ * The static table holds the static data members, static properties, and static member functions for a class.
+ */
+template <class T>
+const void* getStaticRegistryKey() noexcept
+{
+    static auto value = typeHash<T>();
+
+    return reinterpret_cast<void*>(value);
+}
+
+//=================================================================================================
+/**
+ * @brief Get the key for the class table in the Lua registry.
+ *
+ * The class table holds the data members, properties, and member functions of a class. Read-only data and properties, and const
+ * member functions are also placed here (to save a lookup in the const table).
+ */
+template <class T>
+const void* getClassRegistryKey() noexcept
+{
+    static auto value = typeHash<T>() ^ 1;
+
+    return reinterpret_cast<void*>(value);
+}
+
+//=================================================================================================
+/**
+ * @brief Get the key for the const table in the Lua registry.
+ *
+ * The const table holds read-only data members and properties, and const member functions of a class.
+ */
+template <class T>
+const void* getConstRegistryKey() noexcept
+{
+    static auto value = typeHash<T>() ^ 2;
+
+    return reinterpret_cast<void*>(value);
 }
 } // namespace detail
 } // namespace luabridge
