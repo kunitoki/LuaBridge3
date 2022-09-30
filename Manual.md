@@ -70,31 +70,35 @@ Contents
 
 LuaBridge is usable from a compliant C++17 and offers the following features:
 
-*   [MIT Licensed](http://www.opensource.org/licenses/mit-license.html), no usage restrictions!
-*   Headers-only: No Makefile, no .cpp files, just one `#include`!
-*   Simple, light, and nothing else needed (like Boost).
-*   No macros, settings, or configuration scripts needed.
-*   Supports different object lifetime management models.
-*   Convenient, type-safe access to the Lua stack.
-*   Automatic function parameter type binding.
-*   Easy access to Lua objects like tables and functions.
-*   Interoperable with most common c++ standard library container types.
-*   Written in a clear and easy to debug style.
+* [MIT Licensed](http://www.opensource.org/licenses/mit-license.html), no usage restrictions!
+* Headers-only: No Makefile, no .cpp files, just one `#include` and one header file (optional) !
+* Works with ANY lua version out there (PUC-Lua, LuaJIT, Luau, you name it).
+* Simple, light, and nothing else needed.
+* No macros, settings, or configuration scripts needed.
+* Supports different object lifetime management models.
+* Convenient, type-safe access to the Lua stack.
+* Automatic function parameter type binding.
+* Easy access to Lua objects like tables and functions.
+* Expose C++ classes allowing them to use the flexibility of lua property lookup.
+* Interoperable with most common c++ standard library container types.
+* Written in a clear and easy to debug style.
 
 It also offers a set of improvements compared to vanilla LuaBridge:
 
+* The only binder library that works with both LuaJIT and Luau, wonderful for game development !
 * Can work with both c++ exceptions and without (Works with `-fno-exceptions` and `/EHsc-`).
+* Can safely register and use classes exposed across shared library boundaries.
+* Full support for capturing lambdas in all namespace and class methods.
+* Supports placement allocation or custom allocations/deallocations of C++ classes exposed to lua.
+* Lightweight object creation: allow adding lua tables on the stack and register methods and metamethods in them.
+* Allows for fallback `__index` and `__newindex` metamethods in exposed C++ classes, truly dynamic C++ classes !
 * Added `std::shared_ptr` support for types intrusively deriving from `std::enable_shared_from_this`.
 * Supports conversion to and from `std::nullptr_t`, `std::byte`, `std::tuple` and `std::reference_wrapper`.
+* Supports conversion to and from C style arrays of any supported type.
 * Transparent support of all signed and unsigned integer types up to `int64_t`.
-* Automatic handling of enum types by communicating with lua through `std::underlying_type_t`.
-* Support for converting to and from C style arrays of any supported type.
-* Full support for capturing lambdas in all namespace and class methods.
-* Allows creating class instances using non intrusive class factories instead of requiring public constructors.
-* Lightweight object creation: allow adding lua tables on the stack and register methods and metamethods in them.
 * Consistent numeric handling and conversions (signed, unsigned and floats) across all lua versions.
+* Automatic handling of enum types by communicating with lua through `std::underlying_type_t`.
 * Opt-in handling of safe stack space checks (automatically avoids exhausting lua stack space when pushing values!).
-* The only binder library that works with both LuaJIT and Luau, wonderful for game development !
 
 LuaBridge is distributed as a a collection of header files. You simply add one line, `#include <LuaBridge/LuaBridge.h>` where you want to pass functions, classes, and variables back and forth between C++ and Lua. There are no additional source files, no compilation settings, and no Makefiles or IDE-specific project files. LuaBridge is easy to integrate.
 
