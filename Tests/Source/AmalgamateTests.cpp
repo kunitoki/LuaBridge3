@@ -8,6 +8,11 @@
 #include "../../Distribution/LuaBridge/LuaBridge.h"
 #undef luabridge
 
+#if _MSC_VER
+#pragma warning (push)
+#pragma warning (disable: 4099) /* Type name first seen using 'class' now seen using 'struct' */
+#endif
+
 #include <gtest/gtest.h>
 
 TEST(AmalgamateTests, CompilationWorks)
@@ -21,3 +26,7 @@ TEST(AmalgamateTests, CompilationWorks)
 
     lua_close(L);
 }
+
+#if _MSC_VER
+#pragma warning (pop)
+#endif
