@@ -5,7 +5,11 @@
 #include "TestBase.h"
 #include "SharedCode.h"
 
+#if _MSC_VER
+#include <windows.h>
+#else
 #include <dlfcn.h>
+#endif
 
 struct DynamicLibraryTests : TestBase
 {
@@ -32,6 +36,35 @@ private:
 template <class F>
 ScopedGuard(F) -> ScopedGuard<F>;
 
+auto lb_dlopen(const char* library_path)
+{
+#if _MSC_VER
+    return LoadLibrary("MyPuts.dll");
+#else
+    return dlopen(library_path, RTLD_NOW | RTLD_LAZY);
+#endif
+}
+
+template <class T>
+void lb_dlclose(T handle)
+{
+#if _MSC_VER
+    FreeLibrary(handle);
+#else
+    dlclose(handle);
+#endif
+}
+
+template <class T>
+auto lb_dlsym(T handle, const char* procedure_name)
+{
+#if _MSC_VER
+    return GetProcAddress(handle, procedure_name);
+#else
+    return dlsym(handle, procedure_name);
+#endif
+}
+
 int callSharedClassMethod(xyz::ISharedClass* s)
 {
     return s->publicMethod("1337");
@@ -40,15 +73,15 @@ int callSharedClassMethod(xyz::ISharedClass* s)
 
 TEST_F(DynamicLibraryTests, ExampleUsageFromLibrary)
 {
-    auto dll = dlopen(LUABRIDGEDEMO_SHARED_LIBRARY, RTLD_NOW);
+    auto dll = lb_dlopen(LUABRIDGEDEMO_SHARED_LIBRARY);
     ASSERT_NE(nullptr, dll);
 
-    auto unloadDll = ScopedGuard([dll] { dlclose(dll); });
+    auto unloadDll = ScopedGuard([dll] { lb_dlclose(dll); });
 
-    auto allocator = reinterpret_cast<xyz::ISharedClass* (*)()>(dlsym(dll, "allocator"));
+    auto allocator = reinterpret_cast<xyz::ISharedClass* (*)()>(lb_dlsym(dll, "allocator"));
     ASSERT_NE(nullptr, allocator);
 
-    auto deleter = reinterpret_cast<void (*)(xyz::ISharedClass*)>(dlsym(dll, "deleter"));
+    auto deleter = reinterpret_cast<void (*)(xyz::ISharedClass*)>(lb_dlsym(dll, "deleter"));
     ASSERT_NE(nullptr, deleter);
 
     luabridge::getGlobalNamespace(L)
