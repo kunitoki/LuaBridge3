@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include "Lua/LuaLibrary.h"
+
 #if _WIN32
 #if LUABRIDGEDEMO_SHARED_EXPORT
 #define LUABRIDGEDEMO_SHARED_API __declspec(dllexport)
