@@ -68,7 +68,7 @@ std::optional<std::filesystem::path> getExecutablePath()
 
 auto openSharedLibrary(const char* library_path)
 {
-#if _MSC_VER
+#if _WIN32
     return LoadLibrary(library_path);
 #else
     return dlopen(library_path, RTLD_NOW | RTLD_LAZY);
@@ -78,7 +78,7 @@ auto openSharedLibrary(const char* library_path)
 template <class T>
 void closeSharedLibrary(T handle)
 {
-#if _MSC_VER
+#if _WIN32
     FreeLibrary(handle);
 #else
     dlclose(handle);
@@ -88,7 +88,7 @@ void closeSharedLibrary(T handle)
 template <class S, class T>
 auto lookupSharedLibrarySymbol(T handle, const char* procedure_name)
 {
-#if _MSC_VER
+#if _WIN32
     return reinterpret_cast<S>(GetProcAddress(handle, procedure_name));
 #else
     return reinterpret_cast<S>(dlsym(handle, procedure_name));
