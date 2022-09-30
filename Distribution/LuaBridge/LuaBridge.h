@@ -70,6 +70,10 @@
 #error "Lua headers must be included prior to LuaBridge ones"
 #endif
 
+#if defined(__OBJC__)
+#define LUABRIDGE_ON_OBJECTIVE_C 1
+#endif
+
 #if !defined(LUABRIDGE_SAFE_STACK_CHECKS)
 #define LUABRIDGE_SAFE_STACK_CHECKS 1
 #endif
@@ -875,8 +879,58 @@ inline void enableExceptions(lua_State* L) noexcept
 // Begin File: Source/LuaBridge/detail/ClassInfo.h
 
 
+#if defined __clang__ || defined __GNUC__
+#define LUABRIDGE_PRETTY_FUNCTION __PRETTY_FUNCTION__
+#define LUABRIDGE_PRETTY_FUNCTION_PREFIX '='
+#define LUABRIDGE_PRETTY_FUNCTION_SUFFIX ']'
+#elif defined _MSC_VER
+#define LUABRIDGE_PRETTY_FUNCTION __FUNCSIG__
+#define LUABRIDGE_PRETTY_FUNCTION_PREFIX '<'
+#define LUABRIDGE_PRETTY_FUNCTION_SUFFIX '>'
+#endif
+
 namespace luabridge {
 namespace detail {
+
+[[nodiscard]] static constexpr auto fnv1a(const char* s, std::size_t count) noexcept
+{
+    if constexpr (sizeof(void*) == 4)
+    {
+        uint32_t seed = 2166136261u;
+
+        for (std::size_t i = 0; i < count; ++i)
+            seed ^= static_cast<uint32_t>(*s++) * 16777619u;
+
+        return seed;
+    }
+    else
+    {
+        uint64_t seed = 14695981039346656037ull;
+
+        for (std::size_t i = 0; i < count; ++i)
+            seed ^= static_cast<uint64_t>(*s++) * 1099511628211ull;
+
+        return seed;
+    }
+}
+
+template <class T>
+[[nodiscard]] static constexpr auto typeName() noexcept
+{
+    constexpr std::string_view prettyName{ LUABRIDGE_PRETTY_FUNCTION };
+
+    constexpr auto first = prettyName.find_first_not_of(' ', prettyName.find_first_of(LUABRIDGE_PRETTY_FUNCTION_PREFIX) + 1);
+
+    return prettyName.substr(first, prettyName.find_last_of(LUABRIDGE_PRETTY_FUNCTION_SUFFIX) - first);
+}
+
+template <class T, auto = typeName<T>().find_first_of('.')>
+[[nodiscard]] static constexpr auto typeHash() noexcept
+{
+    constexpr auto stripped = typeName<T>();
+
+    return fnv1a(stripped.data(), stripped.size());
+}
 
 //=================================================================================================
 /**
@@ -943,46 +997,6 @@ inline const void* getParentKey() noexcept
 
 //=================================================================================================
 /**
- * @brief Get the key for the static table in the Lua registry.
- *
- * The static table holds the static data members, static properties, and static member functions for a class.
- */
-template <class T>
-const void* getStaticRegistryKey() noexcept
-{
-    static char value;
-    return std::addressof(value);
-}
-
-//=================================================================================================
-/**
- * @brief Get the key for the class table in the Lua registry.
- *
- * The class table holds the data members, properties, and member functions of a class. Read-only data and properties, and const
- * member functions are also placed here (to save a lookup in the const table).
- */
-template <class T>
-const void* getClassRegistryKey() noexcept
-{
-    static char value;
-    return std::addressof(value);
-}
-
-//=================================================================================================
-/**
- * @brief Get the key for the const table in the Lua registry.
- *
- * The const table holds read-only data members and properties, and const member functions of a class.
- */
-template <class T>
-const void* getConstRegistryKey() noexcept
-{
-    static char value;
-    return std::addressof(value);
-}
-
-//=================================================================================================
-/**
  * The key of the index fall back in another metatable.
  */
 inline const void* getIndexFallbackKey()
@@ -997,6 +1011,49 @@ inline const void* getIndexFallbackKey()
 inline const void* getNewIndexFallbackKey()
 {
   return reinterpret_cast<void*>(0x8107);
+}
+
+//=================================================================================================
+/**
+ * @brief Get the key for the static table in the Lua registry.
+ *
+ * The static table holds the static data members, static properties, and static member functions for a class.
+ */
+template <class T>
+const void* getStaticRegistryKey() noexcept
+{
+    static auto value = typeHash<T>();
+
+    return reinterpret_cast<void*>(value);
+}
+
+//=================================================================================================
+/**
+ * @brief Get the key for the class table in the Lua registry.
+ *
+ * The class table holds the data members, properties, and member functions of a class. Read-only data and properties, and const
+ * member functions are also placed here (to save a lookup in the const table).
+ */
+template <class T>
+const void* getClassRegistryKey() noexcept
+{
+    static auto value = typeHash<T>() ^ 1;
+
+    return reinterpret_cast<void*>(value);
+}
+
+//=================================================================================================
+/**
+ * @brief Get the key for the const table in the Lua registry.
+ *
+ * The const table holds read-only data members and properties, and const member functions of a class.
+ */
+template <class T>
+const void* getConstRegistryKey() noexcept
+{
+    static auto value = typeHash<T>() ^ 2;
+
+    return reinterpret_cast<void*>(value);
 }
 } // namespace detail
 } // namespace luabridge
@@ -1417,7 +1474,7 @@ public:
      * @param ec Error code that will be set in case of failure to push on the lua stack.
      */
     template <class U>
-    static bool push(lua_State* L, const U& u, std::error_code& ec)
+    static auto push(lua_State* L, const U& u, std::error_code& ec) -> std::enable_if_t<std::is_copy_constructible_v<U>, bool>
     {
         auto* ud = place(L, ec);
 
@@ -1441,7 +1498,7 @@ public:
      * @param ec Error code that will be set in case of failure to push on the lua stack.
      */
     template <class U>
-    static bool push(lua_State* L, U&& u, std::error_code& ec)
+    static auto push(lua_State* L, U&& u, std::error_code& ec) -> std::enable_if_t<std::is_move_constructible_v<U>, bool>
     {
         auto* ud = place(L, ec);
 
@@ -1504,10 +1561,10 @@ public:
      * @param ec Error code that will be set in case of failure to push on the lua stack.
      */
     template <class T>
-    static bool push(lua_State* L, T* p, std::error_code& ec)
+    static bool push(lua_State* L, T* ptr, std::error_code& ec)
     {
-        if (p)
-            return push(L, p, getClassRegistryKey<T>(), ec);
+        if (ptr)
+            return push(L, ptr, getClassRegistryKey<T>(), ec);
 
         lua_pushnil(L);
         return true;
@@ -1523,10 +1580,10 @@ public:
      * @param ec Error code that will be set in case of failure to push on the lua stack.
      */
     template <class T>
-    static bool push(lua_State* L, const T* p, std::error_code& ec)
+    static bool push(lua_State* L, const T* ptr, std::error_code& ec)
     {
-        if (p)
-            return push(L, p, getConstRegistryKey<T>(), ec);
+        if (ptr)
+            return push(L, ptr, getConstRegistryKey<T>(), ec);
 
         lua_pushnil(L);
         return true;
@@ -1536,9 +1593,9 @@ private:
     /**
      * @brief Push a pointer to object using metatable key.
      */
-    static bool push(lua_State* L, const void* p, const void* key, std::error_code& ec)
+    static bool push(lua_State* L, const void* ptr, const void* key, std::error_code& ec)
     {
-        auto* ptr = new (lua_newuserdata_x<UserdataPtr>(L, sizeof(UserdataPtr))) UserdataPtr(const_cast<void*>(p));
+        auto* udptr = new (lua_newuserdata_x<UserdataPtr>(L, sizeof(UserdataPtr))) UserdataPtr(const_cast<void*>(ptr));
 
         lua_rawgetp(L, LUA_REGISTRYINDEX, key);
 
@@ -1546,7 +1603,7 @@ private:
         {
             lua_pop(L, 1); // possibly: a nil
 
-            ptr->~UserdataPtr();
+            udptr->~UserdataPtr();
 
             ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
 
@@ -1558,13 +1615,84 @@ private:
         return true;
     }
 
-    explicit UserdataPtr(void* p)
+    explicit UserdataPtr(void* ptr)
     {
-        // Can't construct with a null pointer!
-        assert(p != nullptr);
-
-        m_p = p;
+        // Can't construct with a null object!
+        assert(ptr != nullptr);
+        m_p = ptr;
     }
+};
+
+//============================================================================
+/**
+ * @brief Wraps an external value type to a class object inside a Lua userdata.
+ *
+ * The lifetime of the object is managed by Lua. The object is constructed inside the userdata using an
+ * already constructed object provided externally, and it is destructed by a deallocator function provided.
+ */
+template <class T>
+class UserdataValueExternal : public Userdata
+{
+public:
+    UserdataValueExternal(const UserdataValueExternal&) = delete;
+    UserdataValueExternal operator=(const UserdataValueExternal&) = delete;
+
+    ~UserdataValueExternal()
+    {
+        if (getObject() != nullptr)
+            m_dealloc(getObject());
+    }
+
+    /**
+     * @brief Push a T via externally allocated object.
+     *
+     * @param L A Lua state.
+     * @param obj The object allocated externally that need to be stored.
+     * @param dealloc A deallocator function that will free the passed object.
+     *
+     * @return An object referring to the newly created userdata value.
+     */
+    template <class Dealloc>
+    static UserdataValueExternal<T>* place(lua_State* L, T* obj, Dealloc dealloc, std::error_code& ec)
+    {
+        auto* ud = new (lua_newuserdata_x<UserdataValueExternal<T>>(L, sizeof(UserdataValueExternal<T>))) UserdataValueExternal<T>(obj, dealloc);
+
+        lua_rawgetp(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>());
+
+        if (!lua_istable(L, -1))
+        {
+            lua_pop(L, 1); // possibly: a nil
+
+            ud->~UserdataValueExternal<T>();
+
+            ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
+
+            return nullptr;
+        }
+
+        lua_setmetatable(L, -2);
+
+        return ud;
+    }
+
+    T* getObject() noexcept
+    {
+        return static_cast<T*>(m_p);
+    }
+
+private:
+    UserdataValueExternal(void* ptr, void (*dealloc)(T*)) noexcept
+    {
+        // Can't construct with a null object!
+        assert(ptr != nullptr);
+        m_p = ptr;
+
+        // Can't construct with a null deallocator!
+        assert(dealloc != nullptr);
+        m_dealloc = dealloc;
+    }
+
+    void (*m_dealloc)(T*) = nullptr;
 };
 
 //============================================================================
@@ -3858,13 +3986,13 @@ struct constructor
 
 //=================================================================================================
 /**
- * @brief Factory generators.
+ * @brief Placement constructor generators.
  */
 template <class T>
-struct factory
+struct placement_constructor
 {
     template <class F, class Args>
-    static T* call(void* ptr, const F& func, const Args& args)
+    static T* construct(void* ptr, const F& func, const Args& args)
     {
         auto alloc = [ptr, &func](auto&&... args) { return func(ptr, std::forward<decltype(args)>(args)...); };
 
@@ -3872,9 +4000,31 @@ struct factory
     }
 
     template <class F>
-    static T* call(void* ptr, const F& func)
+    static T* construct(void* ptr, const F& func)
     {
         return func(ptr);
+    }
+};
+
+//=================================================================================================
+/**
+ * @brief External allocator generators.
+ */
+template <class T>
+struct external_constructor
+{
+    template <class F, class Args>
+    static T* construct(const F& func, const Args& args)
+    {
+        auto alloc = [&func](auto&&... args) { return func(std::forward<decltype(args)>(args)...); };
+
+        return std::apply(alloc, args);
+    }
+
+    template <class F>
+    static T* construct(const F& func)
+    {
+        return func();
     }
 };
 
@@ -6787,7 +6937,7 @@ class Namespace : public detail::Registrar
          *
          * @returns This class registration object.
          */
-        template <class U, typename = std::enable_if_t<!std::is_invocable_v<U>>>
+        template <class U, class = std::enable_if_t<!std::is_invocable_v<U>>>
         Class<T>& addStaticProperty(const char* name, const U* value)
         {
             assert(name != nullptr);
@@ -6816,7 +6966,7 @@ class Namespace : public detail::Registrar
          *
          * @returns This class registration object.
          */
-        template <class U, typename = std::enable_if_t<!std::is_invocable_v<U>>>
+        template <class U, class = std::enable_if_t<!std::is_invocable_v<U>>>
         Class<T>& addStaticProperty(const char* name, U* value, bool isWritable = true)
         {
             assert(name != nullptr);
@@ -6884,7 +7034,7 @@ class Namespace : public detail::Registrar
         /**
          * @brief Add or replace a static property, by constructible by std::function.
          */
-        template <class Getter, typename = std::enable_if_t<!std::is_pointer_v<Getter>>>
+        template <class Getter, class = std::enable_if_t<!std::is_pointer_v<Getter>>>
         Class<T> addStaticProperty(const char* name, Getter get)
         {
             assert(name != nullptr);
@@ -6899,7 +7049,7 @@ class Namespace : public detail::Registrar
             return *this;
         }
 
-        template <class Getter, class Setter, typename = std::enable_if_t<!std::is_pointer_v<Getter> && !std::is_pointer_v<Setter>>>
+        template <class Getter, class Setter, class = std::enable_if_t<!std::is_pointer_v<Getter> && !std::is_pointer_v<Setter>>>
         Class<T> addStaticProperty(const char* name, Getter get, Setter set)
         {
             assert(name != nullptr);
@@ -6923,7 +7073,7 @@ class Namespace : public detail::Registrar
         /**
          * @brief Add or replace a static member function.
          */
-        template <class Function, typename = std::enable_if_t<std::is_pointer_v<Function>>>
+        template <class Function, class = std::enable_if_t<std::is_pointer_v<Function>>>
         Class<T>& addStaticFunction(const char* name, Function fp)
         {
             assert(name != nullptr);
@@ -6940,7 +7090,7 @@ class Namespace : public detail::Registrar
         /**
          * @brief Add or replace a static member function for constructible by std::function.
          */
-        template <class Function, typename = std::enable_if_t<!std::is_pointer_v<Function>>>
+        template <class Function, class = std::enable_if_t<!std::is_pointer_v<Function>>>
         Class<T> addStaticFunction(const char* name, Function function)
         {
             using FnType = decltype(function);
@@ -7127,7 +7277,7 @@ class Namespace : public detail::Registrar
         /**
          * @brief Add or replace a property member, by constructible by std::function.
          */
-        template <class Getter, typename = std::enable_if_t<!std::is_pointer_v<Getter>>>
+        template <class Getter, class = std::enable_if_t<!std::is_pointer_v<Getter>>>
         Class<T>& addProperty(const char* name, Getter get)
         {
             using FirstArg = detail::function_argument_t<0, Getter>;
@@ -7147,7 +7297,7 @@ class Namespace : public detail::Registrar
             return *this;
         }
 
-        template <class Getter, class Setter, typename = std::enable_if_t<!std::is_pointer_v<Getter> && !std::is_pointer_v<Setter>>>
+        template <class Getter, class Setter, class = std::enable_if_t<!std::is_pointer_v<Getter> && !std::is_pointer_v<Setter>>>
         Class<T>& addProperty(const char* name, Getter get, Setter set)
         {
             addProperty<Getter>(name, std::move(get));
@@ -7171,7 +7321,7 @@ class Namespace : public detail::Registrar
         /**
          * @brief Add or replace a namespace function by convertible to std::function (capturing lambdas).
          */
-        template <class Function, typename = std::enable_if_t<detail::function_arity_v<Function> != 0>>
+        template <class Function, class = std::enable_if_t<detail::function_arity_v<Function> != 0>>
         Class<T> addFunction(const char* name, Function function)
         {
             using FnType = decltype(function);
@@ -7417,19 +7567,19 @@ class Namespace : public detail::Registrar
 
         //=========================================================================================
         /**
-         * @brief Add or replace a factory.
+         * @brief Add or replace a placement constructor.
          *
-         * The primary Constructor is invoked when calling the class type table like a function.
+         * The primary placement constructor is invoked when calling the class type table like a function.
          *
-         * The template parameter should be a function pointer type that matches the desired Constructor (since you can't take the
-         * address of a Constructor and pass it as an argument).
+         * The provider of the Function argument is responsible of doing placement new of the type T over the void* pointer provided to
+         * the method as first argument.
          */
         template <class Function>
         Class<T> addConstructor(Function function)
         {
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            auto factory = [function = std::move(function)](lua_State* L) -> T*
+            auto create = [function = std::move(function)](lua_State* L) -> T*
             {
                 std::error_code ec;
                 detail::UserdataValue<T>* value = detail::UserdataValue<T>::place(L, ec);
@@ -7439,17 +7589,55 @@ class Namespace : public detail::Registrar
                 using FnTraits = detail::function_traits<Function>;
                 using FnArgs = detail::remove_first_type_t<typename FnTraits::argument_types>;
 
-                T* obj = detail::factory<T>::call(value->getObject(), function, detail::make_arguments_list<FnArgs, 2>(L));
+                T* obj = detail::placement_constructor<T>::construct(value->getObject(), function, detail::make_arguments_list<FnArgs, 2>(L));
 
                 value->commit();
 
                 return obj;
             };
 
-            using FactoryFnType = decltype(factory);
+            using AllocatorFnType = decltype(create);
 
-            lua_newuserdata_aligned<FactoryFnType>(L, std::move(factory)); // Stack: co, cl, st, function userdata (ud)
-            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FactoryFnType>, 1); // Stack: co, cl, st, function
+            lua_newuserdata_aligned<AllocatorFnType>(L, std::move(create)); // Stack: co, cl, st, function userdata (ud)
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<AllocatorFnType>, 1); // Stack: co, cl, st, function
+            rawsetfield(L, -2, "__call"); // Stack: co, cl, st
+
+            return *this;
+        }
+
+        //=========================================================================================
+        /**
+         * @brief Add or replace a factory.
+         *
+         * The primary Constructor is invoked when calling the class type table like a function.
+         *
+         * The template parameter should be a function pointer type that matches the desired Constructor (since you can't take the
+         * address of a Constructor and pass it as an argument).
+         */
+        template <class Allocator, class Deallocator>
+        Class<T> addFactory(Allocator allocator, Deallocator deallocator)
+        {
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            auto create = [allocator = std::move(allocator), deallocator = std::move(deallocator)](lua_State* L) -> T*
+            {
+                using FnTraits = detail::function_traits<Allocator>;
+                using FnArgs = typename FnTraits::argument_types;
+
+                std::unique_ptr<T> obj { detail::external_constructor<T>::construct(allocator, detail::make_arguments_list<FnArgs, 0>(L)) };
+
+                std::error_code ec;
+                auto* value = detail::UserdataValueExternal<T>::place(L, obj.get(), deallocator, ec);
+                if (! value)
+                    luaL_error(L, "%s", ec.message().c_str());
+
+                return obj.release();
+            };
+
+            using AllocatorFnType = decltype(create);
+
+            lua_newuserdata_aligned<AllocatorFnType>(L, std::move(create)); // Stack: co, cl, st, function userdata (ud)
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<AllocatorFnType>, 1); // Stack: co, cl, st, function
             rawsetfield(L, -2, "__call"); // Stack: co, cl, st
 
             return *this;
@@ -7461,13 +7649,12 @@ class Namespace : public detail::Registrar
          *
          * Let the user define a fallback index (__index) metamethod at its level.
          */
-        template <class Function, typename = std::enable_if_t<!std::is_pointer_v<Function> && detail::function_arity_v<Function> != 0>>
-        Class<T> addIndexMetaMethod(Function function)
+        template <class Function>
+        auto addIndexMetaMethod(Function function)
+            -> std::enable_if_t<!std::is_pointer_v<Function>
+                && std::is_invocable_v<Function, T&, const LuaRef&, lua_State*>, Class<T>>
         {
             using FnType = decltype(function);
-
-            using FirstArg = detail::function_argument_t<0, Function>;
-            static_assert(std::is_same_v<std::decay_t<std::remove_pointer_t<FirstArg>>, T>);
 
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
@@ -7510,13 +7697,12 @@ class Namespace : public detail::Registrar
          *
          * Let the user define a fallback insert index (___newindex) metamethod at its level.
          */
-        template <class Function, typename = std::enable_if_t<!std::is_pointer_v<Function> && detail::function_arity_v<Function> != 0>>
-        Class<T> addNewIndexMetaMethod(Function function)
+        template <class Function>
+        auto addNewIndexMetaMethod(Function function)
+            -> std::enable_if_t<!std::is_pointer_v<Function>
+                && std::is_invocable_v<Function, T&, const LuaRef&, const LuaRef&, lua_State*>, Class<T>>
         {
             using FnType = decltype(function);
-
-            using FirstArg = detail::function_argument_t<0, Function>;
-            static_assert(std::is_same_v<std::decay_t<std::remove_pointer_t<FirstArg>>, T>);
 
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
@@ -7800,10 +7986,10 @@ public:
 
     //=============================================================================================
     /**
-     * @brief Add or replace a variable.
+     * @brief Add or replace a variable, a variable will be added in the namespace by copy of the passed value.
      *
      * @param name The property name.
-     * @param value A value pointer.
+     * @param value A value object.
      *
      * @returns This namespace registration object.
      */
@@ -7936,7 +8122,7 @@ public:
      *
      * @returns This namespace registration object.
      */
-    template <class Getter>
+    template <class Getter, class = std::enable_if_t<!std::is_pointer_v<Getter>>>
     Namespace& addProperty(const char* name, Getter get)
     {
         assert(name != nullptr);
@@ -7977,7 +8163,7 @@ public:
      *
      * @returns This namespace registration object.
      */
-    template <class Getter, class Setter>
+    template <class Getter, class Setter, class = std::enable_if_t<!std::is_pointer_v<Getter> && !std::is_pointer_v<Setter>>>
     Namespace& addProperty(const char* name, Getter get, Setter set)
     {
         assert(name != nullptr);
@@ -8033,7 +8219,7 @@ public:
     /**
      * @brief Add or replace a namespace function by convertible to std::function.
      */
-    template <class Function>
+    template <class Function, class = std::enable_if<!std::is_pointer_v<Function>>>
     Namespace& addFunction(const char* name, Function function)
     {
         using FnType = decltype(function);
