@@ -467,12 +467,22 @@ TEST_F(NamespaceTests, LuaFunctions)
 
 TEST_F(NamespaceTests, StdFunctions)
 {
-    luabridge::getGlobalNamespace(L).addFunction("Function",
-                                                 std::function<int(int)>(&Function<int>));
+    luabridge::getGlobalNamespace(L).addFunction("Function", std::function<int(int)>(&Function<int>));
 
     runLua("result = Function (12)");
     ASSERT_TRUE(result().isNumber());
     ASSERT_EQ(12, result<int>());
+}
+
+TEST_F(NamespaceTests, CapturingLambdas)
+{
+    int x = 30;
+
+    luabridge::getGlobalNamespace(L).addFunction("Function", [x](int v) -> int { return x + Function(v); });
+
+    runLua("result = Function (12)");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(42, result<int>());
 }
 
 #ifdef _M_IX86 // Windows 32bit only

@@ -560,7 +560,7 @@ luabridge::getGlobalNamespace (L)
 
 Constructors added in this fashion are called from Lua using the fully qualified name of the class. This Lua code will create instances of `A` and `B`.
 
-```cpp
+```lua
 a = test.A ()           -- Create a new A.
 b = test.B ("hello", 5) -- Create a new B.
 b = test.B ()           -- Error: expected string in argument 1
@@ -569,17 +569,13 @@ b = test.B ()           -- Error: expected string in argument 1
 Sometimes is not possible to use a constructor for a class, because some of the constructor arguments have types that couldn't be exposed to lua. So it is possible to workaround that problem by using a special `addConstructor` call taking a functor, which will allow to placement new the c++ class in a c++ lambda, specifying any custom parameter there:
 
 ```cpp
-struct NotExposed
-{
-  NotExposed () = default;
-};
+struct NotExposed;
+NotExposed* shouldNotSeeMe;
 
 struct HardToCreate
 {
-  explicit HardToCreate (const NotExposed& x, int easy);
+  explicit HardToCreate (const NotExposed* x, int easy);
 };
-
-NotExposed shouldNotSeeMe;
 
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
@@ -598,13 +594,41 @@ hard = test.HardToCreate (5) -- Create a new HardToCreate.
 The `addConstructor` overload taking a generic functor also accepts a `lua_State*` as last parameter in order to be used for constructors that needs to be overloaded by different numbers of arguments (arguments will start at index 2 of the stack):
 
 ```cpp
+luabridge::getGlobalNamespace (L)
+  .beginNamespace ("test")
+    .beginClass <HardToCreate> ("HardToCreate")
+      .addConstructor ([](void* ptr, lua_State* L) { new (ptr) HardToCreate (shouldNotSeeMe, lua_checkinteger (L, 2)); })
+    .endClass ()
+  .endNamespace ();
+```
+
+If granular control over allocation and deallocation of a type is needed, the `addFactory` method can be used to register both and allocator and deallocator of C++ type. This is useful in case of having classes being provided by factory methods from shared libraries.
+
+```cpp
+struct IObject
+{
+  virtual void overridableMethod () const = 0;
+};
+
+// These might be defined in a shared library, returning concrete types.
+extern "C" IObject* objectFactoryAllocator();
+extern "C" void objectFactoryDeallocator(IObject*);
 
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
-    .beginClass <AnotherTest> ("AnotherTest")
-      .addConstructor ([](void* ptr, lua_State* L) { new (ptr) AnotherTest (lua_checkinteger (L, 2)); })
+    .beginClass <IObject> ("Object")
+      .addFactory (&objectFactoryAllocator, &objectFactoryDeallocator)
+      .addFunction ("overridableMethod", &IObject::overridableMethod)
     .endClass ()
   .endNamespace ();
+```
+
+The object is the perfectly instantiable through lua:
+
+```lua
+a = test.Object ()           -- Create a new Object using objectFactoryAllocator
+a = nil                      -- Remove any reference count
+collectgarbage("collect")    -- The object is garbage collected using objectFactoryDeallocator
 ```
 
 2.7 - Index and New Index Metamethods Fallback
