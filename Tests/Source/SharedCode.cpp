@@ -27,7 +27,7 @@ LUABRIDGEDEMO_SHARED_API xyz::ISharedClass* allocator()
     return new xyz::SharedClass();
 }
 
-LUABRIDGEDEMO_SHARED_API void deleter(xyz::ISharedClass* ptr)
+LUABRIDGEDEMO_SHARED_API void deallocator(xyz::ISharedClass* ptr)
 {
     delete ptr;
 }
