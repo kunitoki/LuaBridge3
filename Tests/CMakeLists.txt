@@ -212,6 +212,10 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
     target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/Ast/include")
     target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/Compiler/include")
     target_compile_definitions (${LUABRIDGE_TEST_NAME} PRIVATE LUABRIDGEDEMO_LUAU=1)
+
+    target_include_directories (${LUABRIDGE_TESTLIB_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/VM/include")
+    target_include_directories (${LUABRIDGE_TESTLIB_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/Ast/include")
+    target_include_directories (${LUABRIDGE_TESTLIB_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/Compiler/include")
     target_compile_definitions (${LUABRIDGE_TESTLIB_NAME} PRIVATE LUABRIDGEDEMO_LUAU=1)
   elseif (${LUA_VERSION} STREQUAL "LUAJIT")
     target_compile_definitions (${LUABRIDGE_TEST_NAME} PRIVATE LUABRIDGEDEMO_LUAJIT=1)
