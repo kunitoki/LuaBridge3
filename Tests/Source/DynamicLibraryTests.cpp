@@ -40,7 +40,7 @@ int callSharedClassMethod(xyz::ISharedClass* s)
 
 TEST_F(DynamicLibraryTests, ExampleUsageFromLibrary)
 {
-    auto dll = dlopen(LUABRIDGEDEMO_DYNAMIC_LIBRARY, RTLD_NOW);
+    auto dll = dlopen(LUABRIDGEDEMO_SHARED_LIBRARY, RTLD_NOW);
     ASSERT_NE(nullptr, dll);
 
     auto unloadDll = ScopedGuard([dll] { dlclose(dll); });
@@ -78,4 +78,3 @@ TEST_F(DynamicLibraryTests, ExampleUsageFromLibrary)
     ASSERT_NE(nullptr, ptr);
     EXPECT_EQ(1379, callSharedClassMethod(ptr));
 }
-
