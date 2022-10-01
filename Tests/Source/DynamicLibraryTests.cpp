@@ -123,7 +123,7 @@ int callSharedClassMethod(xyz::ISharedClass* s)
 
 struct DynamicLibraryTests : TestBase
 {
-    void* loadSharedLibrary()
+    auto loadSharedLibrary() -> decltype(openSharedLibrary(std::declval<const char*>()))
     {
         auto executablePath = getExecutablePath();
         if (! executablePath.has_value())
