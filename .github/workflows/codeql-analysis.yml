@@ -3,10 +3,14 @@ name: "CodeQL"
 on:
   push:
     branches: [ master ]
+    paths:
+      - "**/Source/*"
+      - "**/Source/**/*"
   pull_request:
     branches: [ master ]
-  #schedule:
-  #  - cron: '27 16 * * 4'
+    paths:
+      - "**/Source/*"
+      - "**/Source/**/*"
 
 env:
   BUILD_TYPE: Release
@@ -28,7 +32,7 @@ jobs:
         submodules: true
 
     - name: Initialize CodeQL
-      uses: github/codeql-action/init@v1
+      uses: github/codeql-action/init@v2
       with:
         languages: ${{ matrix.language }}
 
@@ -46,4 +50,4 @@ jobs:
       run: cmake --build . --config $BUILD_TYPE
 
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v1
+      uses: github/codeql-action/analyze@v2

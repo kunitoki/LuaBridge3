@@ -75,11 +75,25 @@ inline int index_metamethod(lua_State* L)
 
         if (lua_isnil(L, -1)) // Stack: mt, nil
         {
-            lua_remove(L, -2); // Stack: nil
+            lua_pop(L, 1); // Stack: mt
+            lua_rawgetp(L, -1, getIndexFallbackKey()); // Stack: mt, ifb (may be nil)
+            lua_remove(L, -2); // Stack: ifb
+            if (lua_iscfunction(L, -1))
+            {
+                lua_pushvalue(L, 1); // Stack: ifb, arg1
+                lua_pushvalue(L, 2); // Stack: ifb, arg2
+                lua_call(L, 2, 1); // Stack: ifbresult
+            }
+            else
+            {
+                lua_pop(L, 1);
+                lua_pushnil(L);
+            }
+
             return 1;
         }
 
-        // Removethe  metatable and repeat the search in the parent one.
+        // Remove the metatable and repeat the search in the parent one.
         assert(lua_istable(L, -1)); // Stack: mt, parent mt
         lua_remove(L, -2); // Stack: parent mt
     }
@@ -137,12 +151,26 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
 
         if (lua_isnil(L, -1)) // Stack: mt, nil
         {
+            lua_pop(L, 1); // Stack: mt
+            lua_rawgetp(L, -1, getNewIndexFallbackKey()); // Stack: mt, nifb (may be nil)
+            if (lua_iscfunction(L, -1))
+            {
+                lua_pushvalue(L, 1); // stack: nifb, arg1
+                lua_pushvalue(L, 2); // stack: nifb, arg2
+                lua_pushvalue(L, 3); // stack: nifb, arg3
+                lua_call(L, 3, 1); // stack: nifbresult
+                return 0;
+            }
+
+            lua_pop(L, 1); // Stack: mt
             lua_pop(L, 1); // Stack: -
             luaL_error(L, "No writable member '%s'", lua_tostring(L, 2));
+            return 0;
         }
 
         assert(lua_istable(L, -1)); // Stack: mt, parent mt
         lua_remove(L, -2); // Stack: parent mt
+
         // Repeat the search in the parent
     }
 
@@ -571,7 +599,7 @@ template <class Args, class T>
 int constructor_placement_proxy(lua_State* L)
 {
     std::error_code ec;
-    detail::UserdataValue<T>* value = detail::UserdataValue<T>::place(L, ec);
+    auto* value = detail::UserdataValue<T>::place(L, ec);
     if (! value)
         luaL_error(L, "%s", ec.message().c_str());
 
@@ -584,24 +612,46 @@ int constructor_placement_proxy(lua_State* L)
 
 //=========================================================================================
 /**
- * @brief Factory proxy.
+ * @brief lua_CFunction factory constructor proxy.
  */
 template <class T, class Function>
-T* factory_object_proxy(lua_State* L, Function&& func)
+T* factory_constructor_proxy(lua_State* L, Function&& func)
 {
     std::error_code ec;
-    detail::UserdataValue<T>* value = detail::UserdataValue<T>::place(L, ec);
+    auto* value = detail::UserdataValue<T>::place(L, ec);
     if (! value)
         luaL_error(L, "%s", ec.message().c_str());
 
     using FnTraits = detail::function_traits<Function>;
     using FnArgs = detail::remove_first_type_t<typename FnTraits::argument_types>;
 
-    T* obj = detail::factory<T>::call(value->getObject(), std::forward<Function>(func), detail::make_arguments_list<FnArgs, 2>(L));
+    T* obj = detail::placement_constructor<T>::construct(value->getObject(), std::forward<Function>(func), detail::make_arguments_list<FnArgs, 2>(L));
 
     value->commit();
 
     return obj;
+}
+
+//=========================================================================================
+/**
+ * @brief lua_CFunction factory constructor proxy.
+ */
+template <class T, class Allocator, class Deallocator>
+T* factory_external_constructor_proxy(lua_State* L, Allocator&& allocator, Deallocator&& deallocator)
+{
+    using FnTraits = detail::function_traits<std::decay_t<Allocator>>;
+    using FnArgs = typename FnTraits::argument_types;
+
+    std::unique_ptr<T> obj(detail::external_constructor<T>::construct(
+        std::forward<Allocator>(allocator),
+        detail::make_arguments_list<FnArgs, 0>(L)));
+
+    std::error_code ec;
+    auto* value = detail::UserdataValueExternal<T>::place(L, obj.get(), std::forward<Deallocator>(deallocator), ec);
+    if (! value)
+        luaL_error(L, "%s", ec.message().c_str());
+
+    return obj.release();
 }
 
 } // namespace detail

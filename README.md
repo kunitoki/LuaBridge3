@@ -8,7 +8,7 @@
 
 # LuaBridge 3.0
 
-[LuaBridge][1] is a lightweight and dependency-free library for mapping data,
+[LuaBridge3][1] is a lightweight and dependency-free library for mapping data,
 functions, and classes back and forth between C++ and [Lua][2] (a powerful,
 fast, lightweight, embeddable scripting language). LuaBridge has been tested
 and works with Lua revisions starting from 5.1.5, and also compatibility is
@@ -16,16 +16,18 @@ provided with lua 5.2.4, 5.3.6 and 5.4.4 as well as [LuaJit][3] and [Luau][4].
 
 ## Features
 
-LuaBridge is usable from a compliant C++17 compiler and offers the following features:
+LuaBridge3 is usable from a compliant C++17 compiler and offers the following features:
 
-* [MIT Licensed][5]
+* [MIT Licensed][5], no usage restrictions!
 * Headers-only: No Makefile, no .cpp files, just one `#include` and one header file (optional) !
+* Works with ANY lua version out there (PUC-Lua, LuaJIT, Luau, you name it).
 * Simple, light, and nothing else needed.
 * No macros, settings, or configuration scripts needed.
 * Supports different object lifetime management models.
 * Convenient, type-safe access to the Lua stack.
 * Automatic function parameter type binding.
 * Easy access to Lua objects like tables and functions.
+* Expose C++ classes allowing them to use the flexibility of lua property lookup.
 * Interoperable with most common c++ standard library container types.
 * Written in a clear and easy to debug style.
 
@@ -33,18 +35,20 @@ LuaBridge is usable from a compliant C++17 compiler and offers the following fea
 
 LuaBridge3 offers a set of improvements compared to vanilla LuaBridge:
 
+* The only binder library that works with both LuaJIT and Luau, wonderful for game development !
 * Can work with both c++ exceptions and without (Works with `-fno-exceptions` and `/EHsc-`).
+* Can safely register and use classes exposed across shared library boundaries.
+* Full support for capturing lambdas in all namespace and class methods.
+* Supports placement allocation or custom allocations/deallocations of C++ classes exposed to lua.
+* Lightweight object creation: allow adding lua tables on the stack and register methods and metamethods in them.
+* Allows for fallback `__index` and `__newindex` metamethods in exposed C++ classes, truly dynamic C++ classes !
 * Added `std::shared_ptr` support for types intrusively deriving from `std::enable_shared_from_this`.
 * Supports conversion to and from `std::nullptr_t`, `std::byte`, `std::tuple` and `std::reference_wrapper`.
+* Supports conversion to and from C style arrays of any supported type.
 * Transparent support of all signed and unsigned integer types up to `int64_t`.
-* Automatic handling of enum types by communicating with lua through `std::underlying_type_t`.
-* Support for converting to and from C style arrays of any supported type.
-* Full support for capturing lambdas in all namespace and class methods.
-* Allows creating class instances using non intrusive class factories instead of requiring public constructors.
-* Lightweight object creation: allow adding lua tables on the stack and register methods and metamethods in them.
 * Consistent numeric handling and conversions (signed, unsigned and floats) across all lua versions.
+* Automatic handling of enum types by communicating with lua through `std::underlying_type_t`.
 * Opt-in handling of safe stack space checks (automatically avoids exhausting lua stack space when pushing values!).
-* The only binder library that works with both LuaJIT and Luau, wonderful for game development !
 
 ## Status
 
@@ -57,17 +61,17 @@ LuaBridge3 offers a set of improvements compared to vanilla LuaBridge:
 
 ## Documentation
 
-Please read the [LuaBridge Reference Manual][6] for more details on the API.
+Please read the [LuaBridge3 Reference Manual][6] for more details on the API.
 
 ## Release Notes
 
-Plase read the [LuaBridge Release Notes][7] for more details
+Plase read the [LuaBridge3 Release Notes][7] for more details
 
 ## Unit Tests
 
 Unit test build requires a CMake and C++17 compliant compiler.
 
-There are 9 unit test flavors:
+There are 11 unit test flavors:
 * `LuaBridgeTests51` - uses Lua 5.1
 * `LuaBridgeTests51Noexcept` - uses Lua 5.1 without exceptions enabled
 * `LuaBridgeTests52` - uses Lua 5.2
@@ -76,16 +80,18 @@ There are 9 unit test flavors:
 * `LuaBridgeTests53Noexcept` - uses Lua 5.3 without exceptions enabled
 * `LuaBridgeTests54` - uses Lua 5.4
 * `LuaBridgeTests54Noexcept` - uses Lua 5.4 without exceptions enabled
+* `LuaBridgeTestsLuaJIT` - uses LuaJIT 2.1.0
+* `LuaBridgeTestsLuaJITNoexcept` - uses LuaJIT 2.1.0 without exceptions enabled
 * `LuaBridgeTestsLuau` - uses Luau
 
-(Luau compiler needs exceptions, so there is no tests that runs on Luau without exceptions)
+(Luau compiler needs exceptions, so there are no test targets on Luau without exceptions)
 
 Generate Unix Makefiles and build on Linux:
 ```bash
 git clone --recursive git@github.com:kunitoki/LuaBridge3.git
 
-mkdir -p LuaBridge/build
-pushd LuaBridge/build
+mkdir -p LuaBridge3/build
+pushd LuaBridge3/build
 cmake -G "Unix Makefiles" ../
 cmake --build . -DCMAKE_BUILD_TYPE=Debug
 # or cmake --build . -DCMAKE_BUILD_TYPE=Release
@@ -97,8 +103,8 @@ Generate XCode project and build on MacOS:
 ```bash
 git clone --recursive git@github.com:kunitoki/LuaBridge3.git
 
-mkdir -p LuaBridge/build
-pushd LuaBridge/build
+mkdir -p LuaBridge3/build
+pushd LuaBridge3/build
 cmake -G Xcode ../ # Generates XCode project build/LuaBridge.xcodeproj
 cmake --build . -DCMAKE_BUILD_TYPE=Debug
 # or cmake --build . -DCMAKE_BUILD_TYPE=Release
@@ -110,17 +116,17 @@ Generate VS2019 solution on Windows:
 ```cmd
 git clone --recursive git@github.com:kunitoki/LuaBridge3.git
 
-mkdir LuaBridge/build
-pushd LuaBridge/build
+mkdir LuaBridge3/build
+pushd LuaBridge3/build
 cmake -G "Visual Studio 16" ../ # Generates MSVS solution build/LuaBridge.sln
 popd
 ```
 
 ## Official Repository
 
-LuaBridge is published under the terms of the [MIT License][5].
+LuaBridge3 is published under the terms of the [MIT License][5].
 
-The original version of LuaBridge was written by Nathan Reed. The project has
+The original version of LuaBridge3 was written by Nathan Reed. The project has
 been taken over by Vinnie Falco, who added new functionality, wrote the new
 documentation, and incorporated contributions from Nigel Atkinson. Then it has
 been forked from the original https://github.com/vinniefalco/LuaBridge into its
@@ -135,10 +141,10 @@ Copyright 2012, Vinnie Falco (<vinnie.falco@gmail.com>)<br>
 Copyright 2008, Nigel Atkinson<br>
 Copyright 2007, Nathan Reed<br>
 
-[1]:  https://github.com/kunitoki/LuaBridge3 "LuaBridge"
+[1]:  https://github.com/kunitoki/LuaBridge3 "LuaBridge3"
 [2]:  https://lua.org "The Lua Programming Language"
 [3]:  https://luajit.org/ "The LuaJIT Project"
 [4]:  https://luau-lang.org/ "The Luau Project"
 [5]:  https://www.opensource.org/licenses/mit-license.html "The MIT License"
-[6]:  https://kunitoki.github.io/LuaBridge3/Manual "LuaBridge Reference Manual"
-[7]:  https://kunitoki.github.io/LuaBridge3/CHANGES "LuaBridge Release Notes"
+[6]:  https://kunitoki.github.io/LuaBridge3/Manual "LuaBridge3 Reference Manual"
+[7]:  https://kunitoki.github.io/LuaBridge3/CHANGES "LuaBridge3 Release Notes"

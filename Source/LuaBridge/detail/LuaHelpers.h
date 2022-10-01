@@ -272,6 +272,49 @@ inline lua_Integer tointeger(lua_State* L, int idx, int* isnum)
 }
 
 /**
+ * @brief Register main thread, only supported on 5.1.
+ */
+inline constexpr char main_thread_name[] = "__luabridge_main_thread";
+
+inline void register_main_thread(lua_State* threadL)
+{
+#if LUA_VERSION_NUM < 502
+    if (threadL == nullptr)
+        lua_pushnil(threadL);
+    else
+        lua_pushthread(threadL);
+
+    lua_setglobal(threadL, main_thread_name);
+#else
+    unused(threadL);
+#endif
+}
+
+/**
+ * @brief Get main thread, not supported on 5.1.
+ */
+inline lua_State* main_thread(lua_State* threadL)
+{
+#if LUA_VERSION_NUM < 502
+    lua_getglobal(threadL, main_thread_name);
+    if (lua_isthread(threadL, -1))
+    {
+        auto L = lua_tothread(threadL, -1);
+        lua_pop(threadL, 1);
+        return L;
+    }
+    assert(false); // Have you forgot to call luabridge::registerMainThread ?
+    lua_pop(threadL, 1);
+    return threadL;
+#else
+    lua_rawgeti(threadL, LUA_REGISTRYINDEX, LUA_RIDX_MAINTHREAD);
+    lua_State* L = lua_tothread(threadL, -1);
+    lua_pop(threadL, 1);
+    return L;
+#endif
+}
+
+/**
  * @brief Get a table value, bypassing metamethods.
  */
 inline void rawgetfield(lua_State* L, int index, char const* key)

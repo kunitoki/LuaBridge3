@@ -330,7 +330,7 @@ public:
      * @param ec Error code that will be set in case of failure to push on the lua stack.
      */
     template <class U>
-    static bool push(lua_State* L, const U& u, std::error_code& ec)
+    static auto push(lua_State* L, const U& u, std::error_code& ec) -> std::enable_if_t<std::is_copy_constructible_v<U>, bool>
     {
         auto* ud = place(L, ec);
 
@@ -354,7 +354,7 @@ public:
      * @param ec Error code that will be set in case of failure to push on the lua stack.
      */
     template <class U>
-    static bool push(lua_State* L, U&& u, std::error_code& ec)
+    static auto push(lua_State* L, U&& u, std::error_code& ec) -> std::enable_if_t<std::is_move_constructible_v<U>, bool>
     {
         auto* ud = place(L, ec);
 
@@ -417,10 +417,10 @@ public:
      * @param ec Error code that will be set in case of failure to push on the lua stack.
      */
     template <class T>
-    static bool push(lua_State* L, T* p, std::error_code& ec)
+    static bool push(lua_State* L, T* ptr, std::error_code& ec)
     {
-        if (p)
-            return push(L, p, getClassRegistryKey<T>(), ec);
+        if (ptr)
+            return push(L, ptr, getClassRegistryKey<T>(), ec);
 
         lua_pushnil(L);
         return true;
@@ -436,10 +436,10 @@ public:
      * @param ec Error code that will be set in case of failure to push on the lua stack.
      */
     template <class T>
-    static bool push(lua_State* L, const T* p, std::error_code& ec)
+    static bool push(lua_State* L, const T* ptr, std::error_code& ec)
     {
-        if (p)
-            return push(L, p, getConstRegistryKey<T>(), ec);
+        if (ptr)
+            return push(L, ptr, getConstRegistryKey<T>(), ec);
 
         lua_pushnil(L);
         return true;
@@ -449,9 +449,9 @@ private:
     /**
      * @brief Push a pointer to object using metatable key.
      */
-    static bool push(lua_State* L, const void* p, const void* key, std::error_code& ec)
+    static bool push(lua_State* L, const void* ptr, const void* key, std::error_code& ec)
     {
-        auto* ptr = new (lua_newuserdata_x<UserdataPtr>(L, sizeof(UserdataPtr))) UserdataPtr(const_cast<void*>(p));
+        auto* udptr = new (lua_newuserdata_x<UserdataPtr>(L, sizeof(UserdataPtr))) UserdataPtr(const_cast<void*>(ptr));
 
         lua_rawgetp(L, LUA_REGISTRYINDEX, key);
 
@@ -459,7 +459,7 @@ private:
         {
             lua_pop(L, 1); // possibly: a nil
 
-            ptr->~UserdataPtr();
+            udptr->~UserdataPtr();
 
             ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
 
@@ -471,13 +471,84 @@ private:
         return true;
     }
 
-    explicit UserdataPtr(void* p)
+    explicit UserdataPtr(void* ptr)
     {
-        // Can't construct with a null pointer!
-        assert(p != nullptr);
-
-        m_p = p;
+        // Can't construct with a null object!
+        assert(ptr != nullptr);
+        m_p = ptr;
     }
+};
+
+//============================================================================
+/**
+ * @brief Wraps an external value type to a class object inside a Lua userdata.
+ *
+ * The lifetime of the object is managed by Lua. The object is constructed inside the userdata using an
+ * already constructed object provided externally, and it is destructed by a deallocator function provided.
+ */
+template <class T>
+class UserdataValueExternal : public Userdata
+{
+public:
+    UserdataValueExternal(const UserdataValueExternal&) = delete;
+    UserdataValueExternal operator=(const UserdataValueExternal&) = delete;
+
+    ~UserdataValueExternal()
+    {
+        if (getObject() != nullptr)
+            m_dealloc(getObject());
+    }
+
+    /**
+     * @brief Push a T via externally allocated object.
+     *
+     * @param L A Lua state.
+     * @param obj The object allocated externally that need to be stored.
+     * @param dealloc A deallocator function that will free the passed object.
+     *
+     * @return An object referring to the newly created userdata value.
+     */
+    template <class Dealloc>
+    static UserdataValueExternal<T>* place(lua_State* L, T* obj, Dealloc dealloc, std::error_code& ec)
+    {
+        auto* ud = new (lua_newuserdata_x<UserdataValueExternal<T>>(L, sizeof(UserdataValueExternal<T>))) UserdataValueExternal<T>(obj, dealloc);
+
+        lua_rawgetp(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>());
+
+        if (!lua_istable(L, -1))
+        {
+            lua_pop(L, 1); // possibly: a nil
+
+            ud->~UserdataValueExternal<T>();
+
+            ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
+
+            return nullptr;
+        }
+
+        lua_setmetatable(L, -2);
+
+        return ud;
+    }
+
+    T* getObject() noexcept
+    {
+        return static_cast<T*>(m_p);
+    }
+
+private:
+    UserdataValueExternal(void* ptr, void (*dealloc)(T*)) noexcept
+    {
+        // Can't construct with a null object!
+        assert(ptr != nullptr);
+        m_p = ptr;
+
+        // Can't construct with a null deallocator!
+        assert(dealloc != nullptr);
+        m_dealloc = dealloc;
+    }
+
+    void (*m_dealloc)(T*) = nullptr;
 };
 
 //============================================================================

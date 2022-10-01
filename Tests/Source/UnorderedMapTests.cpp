@@ -24,7 +24,6 @@ struct Data
 } // namespace
 
 namespace std {
-
 template<>
 struct hash<Data>
 {
@@ -33,16 +32,6 @@ struct hash<Data>
         return 0; // Don't care about hash collisions
     }
 };
-
-template<>
-struct hash<::luabridge::LuaRef>
-{
-    size_t operator()(const ::luabridge::LuaRef& value) const
-    {
-        return 0; // Don't care about hash collisions
-    }
-};
-
 } // namespace std
 
 TEST_F(UnorderedMapTests, LuaRef)
@@ -51,13 +40,16 @@ TEST_F(UnorderedMapTests, LuaRef)
         runLua("result = {[false] = true, a = 'abc', [1] = 5, [3.14] = -1.1}");
 
         using Map = std::unordered_map<luabridge::LuaRef, luabridge::LuaRef>;
-        Map expected{
-            {luabridge::LuaRef(L, false), luabridge::LuaRef(L, true)},
-            {luabridge::LuaRef(L, 'a'), luabridge::LuaRef(L, "abc")},
-            {luabridge::LuaRef(L, 1), luabridge::LuaRef(L, 5)},
-            {luabridge::LuaRef(L, 3.14), luabridge::LuaRef(L, -1.1)},
+
+        Map expected {
+            { luabridge::LuaRef(L, false), luabridge::LuaRef(L, true) },
+            { luabridge::LuaRef(L, 'a'), luabridge::LuaRef(L, "abc") },
+            { luabridge::LuaRef(L, 1), luabridge::LuaRef(L, 5) },
+            { luabridge::LuaRef(L, 3.14), luabridge::LuaRef(L, -1.1) },
         };
+
         Map actual = result();
+
         ASSERT_EQ(expected, actual);
         ASSERT_EQ(expected, result<Map>());
     }

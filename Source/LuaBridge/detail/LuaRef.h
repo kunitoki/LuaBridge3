@@ -87,7 +87,7 @@ protected:
     };
 
     LuaRefBase(lua_State* L)
-        : m_L(L)
+        : m_L(main_thread(L))
     {
     }
 
@@ -934,6 +934,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
      */
     LuaRef(lua_State* L, int index, FromStack)
         : LuaRefBase(L)
+        , m_ref(LUA_NOREF)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(m_L, 1))
@@ -955,6 +956,7 @@ public:
      */
     LuaRef(lua_State* L)
         : LuaRefBase(L)
+        , m_ref(LUA_NOREF)
     {
     }
 
@@ -968,6 +970,7 @@ public:
     template <class T>
     LuaRef(lua_State* L, const T& v)
         : LuaRefBase(L)
+        , m_ref(LUA_NOREF)
     {
         std::error_code ec;
         if (! Stack<T>::push(m_L, v, ec))
@@ -1259,6 +1262,46 @@ public:
         return LuaRef(m_L, FromStack());
     }
 
+    //=============================================================================================
+    /**
+     * @brief Get the unique hash of a LuaRef.
+     */
+    std::size_t hash() const
+    {
+        std::size_t value;
+        switch (type())
+        {
+        case LUA_TNONE:
+            value = std::hash<std::nullptr_t>{}(nullptr);
+            break;
+
+        case LUA_TBOOLEAN:
+            value = std::hash<bool>{}(unsafe_cast<bool>());
+            break;
+
+        case LUA_TNUMBER:
+            value = std::hash<lua_Number>{}(unsafe_cast<lua_Number>());
+            break;
+
+        case LUA_TSTRING:
+            value = std::hash<const char*>{}(unsafe_cast<const char*>());
+            break;
+
+        case LUA_TNIL:
+        case LUA_TTABLE:
+        case LUA_TFUNCTION:
+        case LUA_TTHREAD:
+        case LUA_TUSERDATA:
+        case LUA_TLIGHTUSERDATA:
+        default:
+            value = static_cast<std::size_t>(m_ref);
+            break;
+        }
+
+        const std::size_t seed = std::hash<int>{}(type());
+        return value + 0x9e3779b9u + (seed << 6) + (seed >> 2);
+    }
+
 private:
     void swap(LuaRef& other)
     {
@@ -1333,5 +1376,15 @@ template <class T>
 {
     return ref.cast<T>();
 }
-
 } // namespace luabridge
+
+namespace std {
+template <>
+struct hash<luabridge::LuaRef>
+{
+    std::size_t operator()(const luabridge::LuaRef& x) const
+    {
+        return x.hash();
+    }
+};
+} // namespace std

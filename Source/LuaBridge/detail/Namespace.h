@@ -425,7 +425,7 @@ class Namespace : public detail::Registrar
          *
          * @returns This class registration object.
          */
-        template <class U>
+        template <class U, class = std::enable_if_t<!std::is_invocable_v<U>>>
         Class<T>& addStaticProperty(const char* name, const U* value)
         {
             assert(name != nullptr);
@@ -454,7 +454,7 @@ class Namespace : public detail::Registrar
          *
          * @returns This class registration object.
          */
-        template <class U>
+        template <class U, class = std::enable_if_t<!std::is_invocable_v<U>>>
         Class<T>& addStaticProperty(const char* name, U* value, bool isWritable = true)
         {
             assert(name != nullptr);
@@ -522,7 +522,7 @@ class Namespace : public detail::Registrar
         /**
          * @brief Add or replace a static property, by constructible by std::function.
          */
-        template <class Getter, typename = std::enable_if_t<!std::is_pointer_v<Getter>>>
+        template <class Getter, class = std::enable_if_t<!std::is_pointer_v<Getter>>>
         Class<T> addStaticProperty(const char* name, Getter get)
         {
             assert(name != nullptr);
@@ -537,7 +537,7 @@ class Namespace : public detail::Registrar
             return *this;
         }
 
-        template <class Getter, class Setter, typename = std::enable_if_t<!std::is_pointer_v<Getter> && !std::is_pointer_v<Setter>>>
+        template <class Getter, class Setter, class = std::enable_if_t<!std::is_pointer_v<Getter> && !std::is_pointer_v<Setter>>>
         Class<T> addStaticProperty(const char* name, Getter get, Setter set)
         {
             assert(name != nullptr);
@@ -561,7 +561,7 @@ class Namespace : public detail::Registrar
         /**
          * @brief Add or replace a static member function.
          */
-        template <class Function, typename = std::enable_if_t<std::is_pointer_v<Function>>>
+        template <class Function, class = std::enable_if_t<std::is_pointer_v<Function>>>
         Class<T>& addStaticFunction(const char* name, Function fp)
         {
             assert(name != nullptr);
@@ -578,7 +578,7 @@ class Namespace : public detail::Registrar
         /**
          * @brief Add or replace a static member function for constructible by std::function.
          */
-        template <class Function, typename = std::enable_if_t<!std::is_pointer_v<Function>>>
+        template <class Function, class = std::enable_if_t<!std::is_pointer_v<Function>>>
         Class<T> addStaticFunction(const char* name, Function function)
         {
             using FnType = decltype(function);
@@ -617,25 +617,6 @@ class Namespace : public detail::Registrar
         /**
          * @brief Add or replace a property member.
          */
-        template <class U, class V>
-        Class<T>& addProperty(const char* name, const U V::*mp)
-        {
-            static_assert(std::is_base_of_v<V, T>);
-
-            using MemberPtrType = decltype(mp);
-
-            assert(name != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            new (lua_newuserdata_x<MemberPtrType>(L, sizeof(MemberPtrType))) MemberPtrType(mp); // Stack: co, cl, st, field ptr
-            lua_pushcclosure_x(L, &detail::property_getter<U, T>::call, 1); // Stack: co, cl, st, getter
-            lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
-            detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
-            detail::add_property_getter(L, name, -3); // Stack: co, cl, st
-
-            return *this;
-        }
-
         template <class U, class V>
         Class<T>& addProperty(const char* name, U V::*mp, bool isWritable = true)
         {
@@ -784,7 +765,7 @@ class Namespace : public detail::Registrar
         /**
          * @brief Add or replace a property member, by constructible by std::function.
          */
-        template <class Getter, typename = std::enable_if_t<!std::is_pointer_v<Getter>>>
+        template <class Getter, class = std::enable_if_t<!std::is_pointer_v<Getter>>>
         Class<T>& addProperty(const char* name, Getter get)
         {
             using FirstArg = detail::function_argument_t<0, Getter>;
@@ -804,7 +785,7 @@ class Namespace : public detail::Registrar
             return *this;
         }
 
-        template <class Getter, class Setter, typename = std::enable_if_t<!std::is_pointer_v<Getter> && !std::is_pointer_v<Setter>>>
+        template <class Getter, class Setter, class = std::enable_if_t<!std::is_pointer_v<Getter> && !std::is_pointer_v<Setter>>>
         Class<T>& addProperty(const char* name, Getter get, Setter set)
         {
             addProperty<Getter>(name, std::move(get));
@@ -828,7 +809,7 @@ class Namespace : public detail::Registrar
         /**
          * @brief Add or replace a namespace function by convertible to std::function (capturing lambdas).
          */
-        template <class Function, typename = std::enable_if_t<detail::function_arity_v<Function> != 0>>
+        template <class Function, class = std::enable_if_t<detail::function_arity_v<Function> != 0>>
         Class<T> addFunction(const char* name, Function function)
         {
             using FnType = decltype(function);
@@ -1074,6 +1055,34 @@ class Namespace : public detail::Registrar
 
         //=========================================================================================
         /**
+         * @brief Add or replace a placement constructor.
+         *
+         * The primary placement constructor is invoked when calling the class type table like a function.
+         *
+         * The provider of the Function argument is responsible of doing placement new of the type T over the void* pointer provided to
+         * the method as first argument.
+         */
+        template <class Function>
+        Class<T> addConstructor(Function&& function)
+        {
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            auto create = [function = std::forward<Function>(function)](lua_State* L) -> T*
+            {
+                return detail::factory_constructor_proxy<T>(L, function);
+            };
+
+            using AllocatorFnType = decltype(create);
+
+            lua_newuserdata_aligned<AllocatorFnType>(L, std::move(create)); // Stack: co, cl, st, function userdata (ud)
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<AllocatorFnType>, 1); // Stack: co, cl, st, function
+            rawsetfield(L, -2, "__call"); // Stack: co, cl, st
+
+            return *this;
+        }
+
+        //=========================================================================================
+        /**
          * @brief Add or replace a factory.
          *
          * The primary Constructor is invoked when calling the class type table like a function.
@@ -1081,21 +1090,119 @@ class Namespace : public detail::Registrar
          * The template parameter should be a function pointer type that matches the desired Constructor (since you can't take the
          * address of a Constructor and pass it as an argument).
          */
-        template <class Function>
-        Class<T> addConstructor(Function function)
+        template <class Allocator, class Deallocator>
+        Class<T> addFactory(Allocator&& allocator, Deallocator&& deallocator)
         {
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            auto factory = [function = std::move(function)](lua_State* L)
+            auto create = [
+                allocator = std::forward<Allocator>(allocator),
+                deallocator = std::forward<Deallocator>(deallocator)](lua_State* L) -> T*
             {
-                return detail::factory_object_proxy<T>(L, std::move(function));
+                return detail::factory_external_constructor_proxy<T>(L, allocator, deallocator);
             };
 
-            using FactoryFnType = decltype(factory);
+            using AllocatorFnType = decltype(create);
 
-            lua_newuserdata_aligned<FactoryFnType>(L, std::move(factory)); // Stack: co, cl, st, function userdata (ud)
-            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FactoryFnType>, 1); // Stack: co, cl, st, function
+            lua_newuserdata_aligned<AllocatorFnType>(L, std::move(create)); // Stack: co, cl, st, function userdata (ud)
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<AllocatorFnType>, 1); // Stack: co, cl, st, function
             rawsetfield(L, -2, "__call"); // Stack: co, cl, st
+
+            return *this;
+        }
+
+        //=========================================================================================
+        /**
+         * @brief Add an index metamethod function fallback that is triggered when no result is found in functions, properties or any other members.
+         *
+         * Let the user define a fallback index (__index) metamethod at its level.
+         */
+        template <class Function>
+        auto addIndexMetaMethod(Function function)
+            -> std::enable_if_t<!std::is_pointer_v<Function>
+                && std::is_invocable_v<Function, T&, const LuaRef&, lua_State*>, Class<T>>
+        {
+            using FnType = decltype(function);
+
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: co, cl, st, function userdata (ud)
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: co, cl, st, function
+            lua_rawsetp(L, -3, detail::getIndexFallbackKey());
+
+            return *this;
+        }
+
+        Class<T>& addIndexMetaMethod(LuaRef (*idxf)(T&, const LuaRef&, lua_State*))
+        {
+            using FnType = decltype(idxf);
+
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            lua_pushlightuserdata(L, reinterpret_cast<void*>(idxf)); // Stack: co, cl, st, function ptr
+            lua_pushcclosure_x(L, &detail::invoke_proxy_function<FnType>, 1); // Stack: co, cl, st, function
+            lua_rawsetp(L, -3, detail::getIndexFallbackKey());
+
+            return *this;
+        }
+
+        Class<T>& addIndexMetaMethod(LuaRef (T::* idxf)(const LuaRef&, lua_State*))
+        {
+            using MemFnPtr = decltype(idxf);
+
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            new (lua_newuserdata_x<MemFnPtr>(L, sizeof(MemFnPtr))) MemFnPtr(idxf);
+            lua_pushcclosure_x(L, &detail::invoke_member_function<MemFnPtr, T>, 1);
+            lua_rawsetp(L, -3, detail::getIndexFallbackKey());
+
+            return *this;
+        }
+
+        //=========================================================================================
+        /**
+         * @brief Add an insert index metamethod function fallback that is triggered when no result is found in functions, properties or any other members.
+         *
+         * Let the user define a fallback insert index (___newindex) metamethod at its level.
+         */
+        template <class Function>
+        auto addNewIndexMetaMethod(Function function)
+            -> std::enable_if_t<!std::is_pointer_v<Function>
+                && std::is_invocable_v<Function, T&, const LuaRef&, const LuaRef&, lua_State*>, Class<T>>
+        {
+            using FnType = decltype(function);
+
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: co, cl, st, function userdata (ud)
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: co, cl, st, function
+            lua_rawsetp(L, -3, detail::getNewIndexFallbackKey());
+
+            return *this;
+        }
+
+        Class<T>& addNewIndexMetaMethod(LuaRef (*idxf)(T&, const LuaRef&, const LuaRef&, lua_State*))
+        {
+            using FnType = decltype(idxf);
+
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            lua_pushlightuserdata(L, reinterpret_cast<void*>(idxf)); // Stack: co, cl, st, function ptr
+            lua_pushcclosure_x(L, &detail::invoke_proxy_function<FnType>, 1); // Stack: co, cl, st, function
+            lua_rawsetp(L, -3, detail::getNewIndexFallbackKey());
+
+            return *this;
+        }
+
+        Class<T>& addNewIndexMetaMethod(LuaRef (T::* idxf)(const LuaRef&, const LuaRef&, lua_State*))
+        {
+            using MemFnPtr = decltype(idxf);
+
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            new (lua_newuserdata_x<MemFnPtr>(L, sizeof(MemFnPtr))) MemFnPtr(idxf);
+            lua_pushcclosure_x(L, &detail::invoke_member_function<MemFnPtr, T>, 1);
+            lua_rawsetp(L, -3, detail::getNewIndexFallbackKey());
 
             return *this;
         }
@@ -1347,10 +1454,10 @@ public:
 
     //=============================================================================================
     /**
-     * @brief Add or replace a variable.
+     * @brief Add or replace a variable, a variable will be added in the namespace by copy of the passed value.
      *
      * @param name The property name.
-     * @param value A value pointer.
+     * @param value A value object.
      *
      * @returns This namespace registration object.
      */
@@ -1483,7 +1590,7 @@ public:
      *
      * @returns This namespace registration object.
      */
-    template <class Getter>
+    template <class Getter, class = std::enable_if_t<!std::is_pointer_v<Getter>>>
     Namespace& addProperty(const char* name, Getter get)
     {
         assert(name != nullptr);
@@ -1524,7 +1631,7 @@ public:
      *
      * @returns This namespace registration object.
      */
-    template <class Getter, class Setter>
+    template <class Getter, class Setter, class = std::enable_if_t<!std::is_pointer_v<Getter> && !std::is_pointer_v<Setter>>>
     Namespace& addProperty(const char* name, Getter get, Setter set)
     {
         assert(name != nullptr);
@@ -1580,7 +1687,7 @@ public:
     /**
      * @brief Add or replace a namespace function by convertible to std::function.
      */
-    template <class Function>
+    template <class Function, class = std::enable_if<!std::is_pointer_v<Function>>>
     Namespace& addFunction(const char* name, Function function)
     {
         using FnType = decltype(function);
@@ -1703,6 +1810,21 @@ inline Namespace getGlobalNamespace(lua_State* L)
 inline Namespace getNamespaceFromStack(lua_State* L)
 {
     return Namespace::getNamespaceFromStack(L);
+}
+
+//=================================================================================================
+/**
+ * @brief Registers main thread.
+ *
+ * This is a backward compatibility mitigation for lua 5.1 not supporting LUA_RIDX_MAINTHREAD.
+ *
+ * @param L The main Lua state that will be regstered as main thread.
+ *
+ * @returns A namespace registration object.
+ */
+inline void registerMainThread(lua_State* L)
+{
+    register_main_thread(L);
 }
 
 } // namespace luabridge

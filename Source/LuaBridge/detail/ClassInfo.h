@@ -8,10 +8,62 @@
 
 #include "Config.h"
 
+#include <cstdint>
 #include <memory>
+#include <string_view>
+
+#if defined __clang__ || defined __GNUC__
+#define LUABRIDGE_PRETTY_FUNCTION __PRETTY_FUNCTION__
+#define LUABRIDGE_PRETTY_FUNCTION_PREFIX '='
+#define LUABRIDGE_PRETTY_FUNCTION_SUFFIX ']'
+#elif defined _MSC_VER
+#define LUABRIDGE_PRETTY_FUNCTION __FUNCSIG__
+#define LUABRIDGE_PRETTY_FUNCTION_PREFIX '<'
+#define LUABRIDGE_PRETTY_FUNCTION_SUFFIX '>'
+#endif
 
 namespace luabridge {
 namespace detail {
+
+[[nodiscard]] static constexpr auto fnv1a(const char* s, std::size_t count) noexcept
+{
+    if constexpr (sizeof(void*) == 4)
+    {
+        uint32_t seed = 2166136261u;
+
+        for (std::size_t i = 0; i < count; ++i)
+            seed ^= static_cast<uint32_t>(*s++) * 16777619u;
+
+        return seed;
+    }
+    else
+    {
+        uint64_t seed = 14695981039346656037ull;
+
+        for (std::size_t i = 0; i < count; ++i)
+            seed ^= static_cast<uint64_t>(*s++) * 1099511628211ull;
+
+        return seed;
+    }
+}
+
+template <class T>
+[[nodiscard]] static constexpr auto typeName() noexcept
+{
+    constexpr std::string_view prettyName{ LUABRIDGE_PRETTY_FUNCTION };
+
+    constexpr auto first = prettyName.find_first_not_of(' ', prettyName.find_first_of(LUABRIDGE_PRETTY_FUNCTION_PREFIX) + 1);
+
+    return prettyName.substr(first, prettyName.find_last_of(LUABRIDGE_PRETTY_FUNCTION_SUFFIX) - first);
+}
+
+template <class T, auto = typeName<T>().find_first_of('.')>
+[[nodiscard]] static constexpr auto typeHash() noexcept
+{
+    constexpr auto stripped = typeName<T>();
+
+    return fnv1a(stripped.data(), stripped.size());
+}
 
 //=================================================================================================
 /**
@@ -78,6 +130,24 @@ inline const void* getParentKey() noexcept
 
 //=================================================================================================
 /**
+ * The key of the index fall back in another metatable.
+ */
+inline const void* getIndexFallbackKey()
+{
+  return reinterpret_cast<void*>(0x81ca);
+}
+
+//=================================================================================================
+/**
+ * The key of the new index fall back in another metatable.
+ */
+inline const void* getNewIndexFallbackKey()
+{
+  return reinterpret_cast<void*>(0x8107);
+}
+
+//=================================================================================================
+/**
  * @brief Get the key for the static table in the Lua registry.
  *
  * The static table holds the static data members, static properties, and static member functions for a class.
@@ -85,8 +155,9 @@ inline const void* getParentKey() noexcept
 template <class T>
 const void* getStaticRegistryKey() noexcept
 {
-    static char value;
-    return std::addressof(value);
+    static auto value = typeHash<T>();
+
+    return reinterpret_cast<void*>(value);
 }
 
 //=================================================================================================
@@ -99,8 +170,9 @@ const void* getStaticRegistryKey() noexcept
 template <class T>
 const void* getClassRegistryKey() noexcept
 {
-    static char value;
-    return std::addressof(value);
+    static auto value = typeHash<T>() ^ 1;
+
+    return reinterpret_cast<void*>(value);
 }
 
 //=================================================================================================
@@ -112,9 +184,9 @@ const void* getClassRegistryKey() noexcept
 template <class T>
 const void* getConstRegistryKey() noexcept
 {
-    static char value;
-    return std::addressof(value);
-}
+    static auto value = typeHash<T>() ^ 2;
 
+    return reinterpret_cast<void*>(value);
+}
 } // namespace detail
 } // namespace luabridge

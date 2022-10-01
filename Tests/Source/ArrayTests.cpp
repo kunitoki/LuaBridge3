@@ -134,8 +134,8 @@ TEST_F(ArrayTests, PassFromLua)
 TEST_F(ArrayTests, RaiseOnWrongSize)
 {
     runLua("result = { 1, 2, 3, 4 }");
-    
-    ASSERT_THROW((result<std::array<lua_Integer, 3>>()), std::exception);
+
+    ASSERT_ANY_THROW((result<std::array<lua_Integer, 3>>()));
 
     std::error_code ec;
     auto result = luabridge::push(L, std::array<lua_Integer, 4>{ 5, 6, 7, 8 }, ec);
