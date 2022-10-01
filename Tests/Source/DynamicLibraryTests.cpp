@@ -92,11 +92,7 @@ auto lookupSharedLibrarySymbol(T handle, const char* procedure_name)
 #endif
 }
 
-#if LUABRIDGE_ON_LUAU
-static void* allocFunction(lua_State*, void*, void* ptr, std::size_t osize, std::size_t nsize)
-#else
 static void* allocFunction(void*, void* ptr, std::size_t osize, std::size_t nsize)
-#endif
 {
     static std::set<void*> allocs;
 
@@ -184,6 +180,7 @@ TEST_F(DynamicLibraryTests, ExampleUsageFromLibrary)
     closeLuaState(); // Force garbage collection before we unload the deleter
 }
 
+#if !LUABRIDGE_ON_LUAU
 TEST_F(DynamicLibraryTests, ExampleRegistrationFromLibrary)
 {
     auto dll = loadSharedLibrary();
@@ -213,3 +210,4 @@ TEST_F(DynamicLibraryTests, ExampleRegistrationFromLibrary)
 
     closeLuaState(); // Force garbage collection
 }
+#endif
