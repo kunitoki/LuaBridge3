@@ -92,7 +92,11 @@ auto lookupSharedLibrarySymbol(T handle, const char* procedure_name)
 #endif
 }
 
+#if LUABRIDGE_ON_LUAU
+static void* allocFunction(lua_State*, void*, void* ptr, std::size_t osize, std::size_t nsize)
+#else
 static void* allocFunction(void*, void* ptr, std::size_t osize, std::size_t nsize)
+#endif
 {
     static std::set<void*> allocs;
 
