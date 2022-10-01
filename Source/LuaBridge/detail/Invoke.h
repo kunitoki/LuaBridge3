@@ -177,11 +177,10 @@ LuaResult call(const LuaRef& object, Args&&... args)
     object.push();
 
     {
-        const auto pushArgsResult = detail::push_arguments(L, std::forward_as_tuple(args...));
-        const auto& result = std::get<0>(pushArgsResult);
+        const auto [result, index] = detail::push_arguments(L, std::forward_as_tuple(args...));
         if (! result)
         {
-            lua_pop(L, static_cast<int>(std::get<1>(pushArgsResult)) + 1);
+            lua_pop(L, static_cast<int>(index) + 1);
             return LuaResult(L, result, result.message());
         }
     }
