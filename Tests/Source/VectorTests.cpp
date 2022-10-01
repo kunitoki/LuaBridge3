@@ -137,8 +137,7 @@ TEST_F(VectorTests, PushUnregisteredWithNoExceptionsShouldFailButRestoreStack)
     v.emplace_back();
     v.emplace_back();
     
-    std::error_code ec;
-    auto result = luabridge::Stack<decltype(v)>::push(L, v, ec);
+    auto result = luabridge::Stack<decltype(v)>::push(L, v);
     EXPECT_FALSE(result);
 
     EXPECT_EQ(1, lua_gettop(L) - initialStackSize);

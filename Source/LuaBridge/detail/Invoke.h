@@ -177,12 +177,12 @@ LuaResult call(const LuaRef& object, Args&&... args)
     object.push();
 
     {
-        std::error_code ec;
-        auto pushedArgs = detail::push_arguments(L, std::forward_as_tuple(args...), ec);
-        if (ec)
+        const auto pushArgsResult = detail::push_arguments(L, std::forward_as_tuple(args...));
+        const auto& result = std::get<0>(pushArgsResult);
+        if (! result)
         {
-            lua_pop(L, static_cast<int>(pushedArgs) + 1);
-            return LuaResult(L, ec, ec.message());
+            lua_pop(L, static_cast<int>(std::get<1>(pushArgsResult)) + 1);
+            return LuaResult(L, result, result.message());
         }
     }
 

@@ -20,14 +20,11 @@ struct Stack<std::list<T>>
 {
     using Type = std::list<T>;
     
-    [[nodiscard]] static bool push(lua_State* L, const Type& list, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, const Type& list)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 3))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
         const int initialStackSize = lua_gettop(L);
@@ -39,18 +36,17 @@ struct Stack<std::list<T>>
         {
             lua_pushinteger(L, tableIndex);
 
-            std::error_code errorCode;
-            if (! Stack<T>::push(L, *it, errorCode))
+            auto result = Stack<T>::push(L, *it);
+            if (! result)
             {
-                ec = errorCode;
                 lua_pop(L, lua_gettop(L) - initialStackSize);
-                return false;
+                return result;
             }
 
             lua_settable(L, -3);
         }
         
-        return true;
+        return {};
     }
 
     [[nodiscard]] static Type get(lua_State* L, int index)

@@ -47,18 +47,15 @@ struct LuaNil
 template <>
 struct Stack<LuaNil>
 {
-    [[nodiscard]] static bool push(lua_State* L, const LuaNil&, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, const LuaNil&)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 1))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
         lua_pushnil(L);
-        return true;
+        return {};
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -499,8 +496,7 @@ public:
 
         impl().push();
 
-        std::error_code ec;
-        if (! Stack<T>::push(m_L, rhs, ec))
+        if (! Stack<T>::push(m_L, rhs))
         {
             p.popCount(1);
             return false;
@@ -540,8 +536,7 @@ public:
 
         impl().push();
 
-        std::error_code ec;
-        if (! Stack<T>::push(m_L, rhs, ec))
+        if (! Stack<T>::push(m_L, rhs))
         {
             p.popCount(1);
             return false;
@@ -571,8 +566,7 @@ public:
 
         impl().push();
 
-        std::error_code ec;
-        if (! Stack<T>::push(m_L, rhs, ec))
+        if (! Stack<T>::push(m_L, rhs))
         {
             p.popCount(1);
             return false;
@@ -602,8 +596,7 @@ public:
 
         impl().push();
 
-        std::error_code ec;
-        if (! Stack<T>::push(m_L, rhs, ec))
+        if (! Stack<T>::push(m_L, rhs))
         {
             p.popCount(1);
             return false;
@@ -633,8 +626,7 @@ public:
 
         impl().push();
 
-        std::error_code ec;
-        if (! Stack<T>::push(m_L, rhs, ec))
+        if (! Stack<T>::push(m_L, rhs))
         {
             p.popCount(1);
             return false;
@@ -664,8 +656,7 @@ public:
 
         impl().push();
 
-        std::error_code ec;
-        if (! Stack<T>::push(m_L, v, ec))
+        if (! Stack<T>::push(m_L, v))
         {
             p.popCount(1);
             return false;
@@ -690,8 +681,7 @@ public:
 
         impl().push();
 
-        std::error_code ec;
-        if (! Stack<T>::push(m_L, v, ec))
+        if (! Stack<T>::push(m_L, v))
             return;
 
         luaL_ref(m_L, -2);
@@ -840,8 +830,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_tableRef);
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_keyRef);
 
-            std::error_code ec;
-            if (! Stack<T>::push(m_L, v, ec))
+            if (! Stack<T>::push(m_L, v))
                 return *this;
 
             lua_settable(m_L, -3);
@@ -873,8 +862,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_tableRef);
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_keyRef);
 
-            std::error_code ec;
-            if (! Stack<T>::push(m_L, v, ec))
+            if (! Stack<T>::push(m_L, v))
                 return *this;
 
             lua_rawset(m_L, -3);
@@ -1012,8 +1000,7 @@ public:
         : LuaRefBase(L)
         , m_ref(LUA_NOREF)
     {
-        std::error_code ec;
-        if (! Stack<T>::push(m_L, v, ec))
+        if (! Stack<T>::push(m_L, v))
             return;
 
         m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX);
@@ -1270,8 +1257,7 @@ public:
     template <class T>
     TableItem operator[](const T& key) const
     {
-        std::error_code ec;
-        if (! Stack<T>::push(m_L, key, ec))
+        if (! Stack<T>::push(m_L, key))
             return TableItem(m_L, m_ref);
 
         return TableItem(m_L, m_ref);
@@ -1294,8 +1280,7 @@ public:
 
         push(m_L);
 
-        std::error_code ec;
-        if (! Stack<T>::push(m_L, key, ec))
+        if (! Stack<T>::push(m_L, key))
             return LuaRef(m_L);
 
         lua_rawget(m_L, -2);
@@ -1361,9 +1346,11 @@ private:
 template <>
 struct Stack<LuaRef>
 {
-    [[nodiscard]] static bool push(lua_State* L, const LuaRef& v, std::error_code&)
+    [[nodiscard]] static Result push(lua_State* L, const LuaRef& v)
     {
-        return v.push(L), true;
+        v.push(L);
+
+        return {};
     }
 
     [[nodiscard]] static LuaRef get(lua_State* L, int index)
@@ -1379,9 +1366,11 @@ struct Stack<LuaRef>
 template <>
 struct Stack<LuaRef::TableItem>
 {
-    [[nodiscard]] static bool push(lua_State* L, const LuaRef::TableItem& v, std::error_code&)
+    [[nodiscard]] static Result push(lua_State* L, const LuaRef::TableItem& v)
     {
-        return v.push(L), true;
+        v.push(L);
+
+        return {};
     }
 };
 

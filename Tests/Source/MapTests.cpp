@@ -185,37 +185,33 @@ TEST_F(MapTests, PassFromLua)
 
 TEST_F(MapTests, UnregisteredClass)
 {
-    std::error_code ec;
-
     {
 #if LUABRIDGE_HAS_EXCEPTIONS
-        [[maybe_unused]] bool result;
-        ASSERT_THROW((result = luabridge::push(L, std::map<Unregistered, int>{ { Unregistered(), 1 } }, ec)), std::exception);
+        [[maybe_unused]] luabridge::Result r;
+        ASSERT_THROW((r = luabridge::push(L, std::map<Unregistered, int>{ { Unregistered(), 1 } })), std::exception);
 #else
-        ASSERT_FALSE((luabridge::push(L, std::map<Unregistered, int>{ { Unregistered(), 1 } }, ec)));
+        ASSERT_FALSE((luabridge::push(L, std::map<Unregistered, int>{ { Unregistered(), 1 } })));
 #endif
     }
 
     {
 #if LUABRIDGE_HAS_EXCEPTIONS
-        [[maybe_unused]] bool result;
-        ASSERT_THROW((result = luabridge::push(L, std::map<int, Unregistered>{ { 1, Unregistered() } }, ec)), std::exception);
+        [[maybe_unused]] luabridge::Result r;
+        ASSERT_THROW((r = luabridge::push(L, std::map<int, Unregistered>{ { 1, Unregistered() } })), std::exception);
 #else
-        ASSERT_FALSE((luabridge::push(L, std::map<int, Unregistered>{ { 1, Unregistered() } }, ec)));
+        ASSERT_FALSE((luabridge::push(L, std::map<int, Unregistered>{ { 1, Unregistered() } })));
 #endif
     }
 }
 
 TEST_F(MapTests, IsInstance)
 {
-    std::error_code ec;
-
-    ASSERT_TRUE((luabridge::push(L, std::map<std::string, int>{ { "x", 1 }, { "y", 2 }, { "z", 3 } }, ec)));
+    ASSERT_TRUE((luabridge::push(L, std::map<std::string, int>{ { "x", 1 }, { "y", 2 }, { "z", 3 } })));
     EXPECT_TRUE((luabridge::isInstance<std::map<std::string, int>>(L, -1)));
     
     lua_pop(L, 1);
     
-    ASSERT_TRUE((luabridge::push(L, 1, ec)));
+    ASSERT_TRUE((luabridge::push(L, 1)));
     EXPECT_FALSE((luabridge::isInstance<std::map<std::string, int>>(L, -1)));
 }
 
@@ -225,6 +221,5 @@ TEST_F(MapTests, StackOverflow)
     
     std::map<std::string, int> value{ { "x", 1 }, { "y", 2 }, { "z", 3 } };
     
-    std::error_code ec;
-    ASSERT_FALSE(luabridge::push(L, value, ec));
+    ASSERT_FALSE(luabridge::push(L, value));
 }

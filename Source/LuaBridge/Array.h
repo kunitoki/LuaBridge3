@@ -20,14 +20,11 @@ struct Stack<std::array<T, Size>>
 {
     using Type = std::array<T, Size>;
 
-    [[nodiscard]] static bool push(lua_State* L, const Type& array, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, const Type& array)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 3))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
         const int initialStackSize = lua_gettop(L);
@@ -38,19 +35,17 @@ struct Stack<std::array<T, Size>>
         {
             lua_pushinteger(L, static_cast<lua_Integer>(i + 1));
 
-            std::error_code errorCode;
-            bool result = Stack<T>::push(L, array[i], errorCode);
-            if (!result)
+            auto result = Stack<T>::push(L, array[i]);
+            if (! result)
             {
-                ec = errorCode;
                 lua_pop(L, lua_gettop(L) - initialStackSize);
-                return false;
+                return result;
             }
 
             lua_settable(L, -3);
         }
         
-        return true;
+        return {};
     }
 
     [[nodiscard]] static Type get(lua_State* L, int index)

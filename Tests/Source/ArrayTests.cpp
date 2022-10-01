@@ -137,8 +137,7 @@ TEST_F(ArrayTests, RaiseOnWrongSize)
 
     ASSERT_ANY_THROW((result<std::array<lua_Integer, 3>>()));
 
-    std::error_code ec;
-    auto result = luabridge::push(L, std::array<lua_Integer, 4>{ 5, 6, 7, 8 }, ec);
+    auto result = luabridge::push(L, std::array<lua_Integer, 4>{ 5, 6, 7, 8 });
     ASSERT_TRUE(result);
 
     EXPECT_TRUE((luabridge::isInstance<std::array<lua_Integer, 4>>(L, -1)));

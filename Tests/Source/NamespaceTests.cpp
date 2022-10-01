@@ -248,8 +248,7 @@ T Storage<T>::value;
 template<class T>
 int getDataC(lua_State* L)
 {
-    std::error_code ec;
-    [[maybe_unused]] auto result = luabridge::Stack<T>::push(L, Storage<T>::value, ec);
+    [[maybe_unused]] auto result = luabridge::Stack<T>::push(L, Storage<T>::value);
 
     return 1;
 }

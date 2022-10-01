@@ -248,9 +248,9 @@ struct property_getter<T, void>
         T* ptr = static_cast<T*>(lua_touserdata(L, lua_upvalueindex(1)));
         assert(ptr != nullptr);
 
-        std::error_code ec;
-        if (! Stack<T&>::push(L, *ptr, ec))
-            raise_lua_error(L, "%s", ec.message().c_str());
+        auto result = Stack<T&>::push(L, *ptr);
+        if (! result)
+            raise_lua_error(L, "%s", result.message().c_str());
 
         return 1;
     }
@@ -267,9 +267,9 @@ struct property_getter<std::reference_wrapper<T>, void>
         std::reference_wrapper<T>* ptr = static_cast<std::reference_wrapper<T>*>(lua_touserdata(L, lua_upvalueindex(1)));
         assert(ptr != nullptr);
 
-        std::error_code ec;
-        if (! Stack<T&>::push(L, ptr->get(), ec))
-            luaL_error(L, "%s", ec.message().c_str());
+        auto result = Stack<T&>::push(L, ptr->get());
+        if (! result)
+            luaL_error(L, "%s", result.message().c_str());
 
         return 1;
     }
@@ -290,14 +290,13 @@ struct property_getter
 
         T C::** mp = static_cast<T C::**>(lua_touserdata(L, lua_upvalueindex(1)));
 
-        std::error_code ec;
-        bool result = false;
+        Result result;
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
 #endif
-            result = Stack<T&>::push(L, c->**mp, ec);
+            result = Stack<T&>::push(L, c->**mp);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
@@ -307,8 +306,8 @@ struct property_getter
         }
 #endif
 
-        if (!result)
-            raise_lua_error(L, "%s", ec.message().c_str());
+        if (! result)
+            raise_lua_error(L, "%s", result.message().c_str());
 
         return 1;
     }

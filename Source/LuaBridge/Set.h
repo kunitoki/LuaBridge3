@@ -19,14 +19,11 @@ struct Stack<std::set<K, V>>
 {
     using Type = std::set<K, V>;
     
-    [[nodiscard]] static bool push(lua_State* L, const Type& set, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, const Type& set)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 3))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
         const int initialStackSize = lua_gettop(L);
@@ -35,26 +32,24 @@ struct Stack<std::set<K, V>>
 
         for (auto it = set.begin(); it != set.end(); ++it)
         {
-            std::error_code errorCodeKey;
-            if (! Stack<K>::push(L, it->first, errorCodeKey))
+            auto result = Stack<K>::push(L, it->first);
+            if (! result)
             {
-                ec = errorCodeKey;
                 lua_pop(L, lua_gettop(L) - initialStackSize);
-                return false;
+                return result;
             }
 
-            std::error_code errorCodeValue;
-            if (! Stack<V>::push(L, it->second, errorCodeValue))
+            result = Stack<V>::push(L, it->second);
+            if (! result)
             {
-                ec = errorCodeValue;
                 lua_pop(L, lua_gettop(L) - initialStackSize);
-                return false;
+                return result;
             }
 
             lua_settable(L, -3);
         }
         
-        return true;
+        return {};
     }
 
     [[nodiscard]] static Type get(lua_State* L, int index)

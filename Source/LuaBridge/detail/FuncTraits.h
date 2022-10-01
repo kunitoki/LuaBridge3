@@ -272,27 +272,23 @@ auto make_arguments_list(lua_State* L)
  * @brief Helpers for iterating through tuple arguments, pushing each argument to the lua stack.
  */
 template <std::size_t Index = 0, class... Types>
-auto push_arguments(lua_State*, std::tuple<Types...>, std::error_code&)
-    -> std::enable_if_t<Index == sizeof...(Types), std::size_t>
+auto push_arguments(lua_State*, std::tuple<Types...>)
+    -> std::enable_if_t<Index == sizeof...(Types), std::tuple<Result, std::size_t>>
 {
-    return Index + 1;
+    return std::make_tuple(Result(), Index + 1);
 }
 
 template <std::size_t Index = 0, class... Types>
-auto push_arguments(lua_State* L, std::tuple<Types...> t, std::error_code& ec)
-    -> std::enable_if_t<Index < sizeof...(Types), std::size_t>
+auto push_arguments(lua_State* L, std::tuple<Types...> t)
+    -> std::enable_if_t<Index < sizeof...(Types), std::tuple<Result, std::size_t>>
 {
     using T = std::tuple_element_t<Index, std::tuple<Types...>>;
 
-    std::error_code pec;
-    bool result = Stack<T>::push(L, std::get<Index>(t), pec);
+    auto result = Stack<T>::push(L, std::get<Index>(t));
     if (! result)
-    {
-        ec = pec;
-        return Index + 1;
-    }
+        return std::make_tuple(result, Index + 1);
 
-    return push_arguments<Index + 1, Types...>(L, std::move(t), ec);
+    return push_arguments<Index + 1, Types...>(L, std::move(t));
 }
 
 //=================================================================================================
@@ -345,14 +341,13 @@ struct function
     template <class F>
     static int call(lua_State* L, F func)
     {
-        std::error_code ec;
-        bool result = false;
+        Result result;
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
 #endif
-            result = Stack<ReturnType>::push(L, std::apply(func, make_arguments_list<ArgsPack, Start>(L)), ec);
+            result = Stack<ReturnType>::push(L, std::apply(func, make_arguments_list<ArgsPack, Start>(L)));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
@@ -363,7 +358,7 @@ struct function
 #endif
 
         if (! result)
-            raise_lua_error(L, "%s", ec.message().c_str());
+            raise_lua_error(L, "%s", result.message().c_str());
 
         return 1;
     }
@@ -371,8 +366,7 @@ struct function
     template <class T, class F>
     static int call(lua_State* L, T* ptr, F func)
     {
-        std::error_code ec;
-        bool result = false;
+        Result result;
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         try
@@ -380,7 +374,7 @@ struct function
 #endif
             auto f = [ptr, func](auto&&... args) -> ReturnType { return (ptr->*func)(std::forward<decltype(args)>(args)...); };
 
-            result = Stack<ReturnType>::push(L, std::apply(f, make_arguments_list<ArgsPack, Start>(L)), ec);
+            result = Stack<ReturnType>::push(L, std::apply(f, make_arguments_list<ArgsPack, Start>(L)));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
@@ -391,7 +385,7 @@ struct function
 #endif
 
         if (! result)
-            raise_lua_error(L, "%s", ec.message().c_str());
+            raise_lua_error(L, "%s", result.message().c_str());
 
         return 1;
     }

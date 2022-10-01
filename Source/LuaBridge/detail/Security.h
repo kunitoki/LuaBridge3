@@ -71,8 +71,7 @@ T getGlobal(lua_State* L, const char* name)
 template <class T>
 bool setGlobal(lua_State* L, T&& t, const char* name)
 {
-    std::error_code ec;
-    if (push(L, std::forward<T>(t), ec))
+    if (auto result = push(L, std::forward<T>(t)))
     {
         lua_setglobal(L, name);
         return true;

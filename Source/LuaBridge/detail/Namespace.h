@@ -266,9 +266,9 @@ class Namespace : public detail::Registrar
 
             T* object = detail::constructor<T, Args>::call(detail::make_arguments_list<Args, 2>(L));
 
-            std::error_code ec;
-            if (! detail::UserdataSharedHelper<C, false>::push(L, object, ec))
-                luaL_error(L, "%s", ec.message().c_str());
+            auto r = detail::UserdataSharedHelper<C, false>::push(L, object);
+            if (! r)
+                luaL_error(L, "%s", r.message().c_str());
 
             return 1;
         }
@@ -1537,18 +1537,19 @@ public:
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 
-        std::error_code ec;
         if constexpr (std::is_enum_v<T>)
         {
             using U = std::underlying_type_t<T>;
-            
-            if (! Stack<U>::push(L, static_cast<U>(value), ec))
-                luaL_error(L, "%s", ec.message().c_str());
+
+            auto result = Stack<U>::push(L, static_cast<U>(value));
+            if (! result)
+                luaL_error(L, "%s", result.message().c_str());
         }
         else
         {
-            if (! Stack<T>::push(L, value, ec))
-                luaL_error(L, "%s", ec.message().c_str());
+            auto result = Stack<T>::push(L, value);
+            if (! result)
+                luaL_error(L, "%s", result.message().c_str());
         }
 
         rawsetfield(L, -2, name); // Stack: ns

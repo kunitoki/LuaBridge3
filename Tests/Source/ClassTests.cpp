@@ -121,18 +121,15 @@ TEST_F(ClassTests, IsInstance)
         .endClass();
 
     BaseClass base;
-    std::error_code ec1;
-    auto result1 = luabridge::push(L, base, ec1);
+    auto result1 = luabridge::push(L, base);
     ASSERT_TRUE(result1);
 
     DerivedClass derived;
-    std::error_code ec2;
-    auto result2 = luabridge::push(L, derived, ec2);
+    auto result2 = luabridge::push(L, derived);
     ASSERT_TRUE(result2);
 
     OtherClass other;
-    std::error_code ec3;
-    auto result3 = luabridge::push(L, other, ec3);
+    auto result3 = luabridge::push(L, other);
     ASSERT_TRUE(result3);
 
     ASSERT_TRUE(luabridge::isInstance<BaseClass>(L, -3));
@@ -486,8 +483,7 @@ int proxyCFunctionState(lua_State* L)
         return 0;
     }
     
-    std::error_code ec;
-    [[maybe_unused]] auto result = luabridge::push(L, arg.cast<int>() + 1000, ec);
+    [[maybe_unused]] auto result = luabridge::push(L, arg.cast<int>() + 1000);
 
     return 1;
 }
@@ -1033,8 +1029,7 @@ int getDataC(lua_State* L)
     auto objectRef = luabridge::LuaRef::fromStack(L, 1);
     auto* object = objectRef.cast<const Class<T, BaseClass>*>();
 
-    std::error_code ec;
-    [[maybe_unused]] auto result = luabridge::Stack<T>::push(L, object->data, ec);
+    [[maybe_unused]] auto result = luabridge::Stack<T>::push(L, object->data);
 
     return 1;
 }
@@ -2254,11 +2249,9 @@ struct OverridableX
 
 luabridge::LuaRef indexMetaMethodFunction(OverridableX& x, const luabridge::LuaRef& key, lua_State* L)
 {
-    std::error_code ec;
-
     if (key.tostring() == "xyz")
     {
-        if (!luabridge::push(L, "123", ec))
+        if (!luabridge::push(L, "123"))
             lua_pushnil(L);
     }
     else
@@ -2324,16 +2317,14 @@ TEST_F(ClassTests, IndexFallbackMetaMethodFreeFunctor)
 
     auto indexMetaMethod = [&capture](OverridableX&, luabridge::LuaRef key, lua_State* L) -> luabridge::LuaRef
     {
-        std::error_code ec;
-
         if (key.tostring() == "xyz")
         {
-            if (!luabridge::push(L, capture + "123", ec))
+            if (!luabridge::push(L, capture + "123"))
                 lua_pushnil(L);
         }
         else
         {
-            if (!luabridge::push(L, 456, ec))
+            if (!luabridge::push(L, 456))
                 lua_pushnil(L);
         }
 
@@ -2388,8 +2379,7 @@ TEST_F(ClassTests, NewIndexFallbackMetaMethodFreeFunctor)
 
     auto newIndexMetaMethod = [&capture](OverridableX& x, const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State* L) -> luabridge::LuaRef
     {
-        std::error_code ec;
-        if (!luabridge::push(L, capture + value.cast<int>(), ec))
+        if (!luabridge::push(L, capture + value.cast<int>()))
             lua_pushnil(L);
 
         auto v = luabridge::LuaRef::fromStack(L);
