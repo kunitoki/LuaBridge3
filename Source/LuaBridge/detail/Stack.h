@@ -12,7 +12,6 @@
 #include "Result.h"
 #include "Userdata.h"
 
-#include <any>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -573,6 +572,78 @@ struct Stack<unsigned long long>
     }
 };
 
+#if defined(__SIZEOF_INT128__)
+//=================================================================================================
+/**
+ * @brief Stack specialization for `__int128_t`.
+ */
+template <>
+struct Stack<__int128_t>
+{
+    [[nodiscard]] static Result push(lua_State* L, __int128_t value)
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 1))
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
+        if (! is_integral_representable_by(value))
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
+
+        lua_pushinteger(L, static_cast<lua_Integer>(value));
+        return {};
+    }
+
+    [[nodiscard]] static __int128_t get(lua_State* L, int index)
+    {
+        return static_cast<__int128_t>(luaL_checkinteger(L, index));
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        if (lua_type(L, index) == LUA_TNUMBER)
+            return is_integral_representable_by<__int128_t>(L, index);
+
+        return false;
+    }
+};
+
+//=================================================================================================
+/**
+ * @brief Stack specialization for `__uint128_t`.
+ */
+template <>
+struct Stack<__uint128_t>
+{
+    [[nodiscard]] static Result push(lua_State* L, __uint128_t value)
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 1))
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
+        if (! is_integral_representable_by(value))
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
+
+        pushunsigned(L, value);
+        return {};
+    }
+
+    [[nodiscard]] static __uint128_t get(lua_State* L, int index)
+    {
+        return static_cast<__uint128_t>(luaL_checkinteger(L, index));
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        if (lua_type(L, index) == LUA_TNUMBER)
+            return is_integral_representable_by<__uint128_t>(L, index);
+
+        return false;
+    }
+};
+#endif
+
 //=================================================================================================
 /**
  * @brief Stack specialization for `float`.
@@ -842,42 +913,6 @@ struct Stack<std::optional<T>>
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
     {
         return lua_isnil(L, index) || Stack<T>::isInstance(L, index);
-    }
-};
-
-//=================================================================================================
-/**
- * @brief Stack specialization for `std::any`.
- */
-template <>
-struct Stack<std::any>
-{
-    [[nodiscard]] static Result push(lua_State* L, const std::any& value)
-    {
-#if LUABRIDGE_SAFE_STACK_CHECKS
-        if (! lua_checkstack(L, 1))
-            return makeErrorCode(ErrorCode::LuaStackOverflow);
-#endif
-
-        lua_newuserdata_aligned<std::any>(L, value);
-        return {};
-    }
-
-    [[nodiscard]] static std::any get(lua_State* L, int index)
-    {
-        if (lua_type(L, index) != LUA_TUSERDATA)
-            return {};
-
-        auto any = static_cast<std::any*>(lua_touserdata(L, index));
-        if (any == nullptr)
-            return {};
-
-        return *any;
-    }
-
-    [[nodiscard]] static bool isInstance(lua_State* L, int index)
-    {
-        return lua_isuserdata(L, index);
     }
 };
 
