@@ -625,7 +625,7 @@ struct Stack<__uint128_t>
         if (! is_integral_representable_by(value))
             return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
-        pushunsigned(L, value);
+        lua_pushinteger(L, static_cast<lua_Integer>(value));
         return {};
     }
 
