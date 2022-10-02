@@ -6,6 +6,7 @@
 #include "SharedCode.h"
 
 #include <filesystem>
+#include <set>
 
 #if _WIN32
 #include <windows.h>
@@ -15,10 +16,6 @@
 #else
 #include <dlfcn.h>
 #endif
-
-struct DynamicLibraryTests : TestBase
-{
-};
 
 namespace {
 template <class F>
@@ -95,21 +92,54 @@ auto lookupSharedLibrarySymbol(T handle, const char* procedure_name)
 #endif
 }
 
+static void* allocFunction(void*, void* ptr, std::size_t osize, std::size_t nsize)
+{
+    static std::set<void*> allocs;
+
+    void* nptr = nullptr;
+
+    if (nsize > 0)
+    {
+        nptr = new uint8_t[nsize];
+
+        if (ptr != nullptr)
+            std::memcpy(nptr, ptr, nsize < osize ? nsize : osize);
+
+        allocs.emplace(nptr);
+    }
+
+    auto node = allocs.extract(ptr);
+    if (! node.empty() && ptr != nullptr)
+        delete[] static_cast<uint8_t*>(ptr);
+
+    return nptr;
+}
+
 int callSharedClassMethod(xyz::ISharedClass* s)
 {
     return s->publicMethod("1337");
 }
 } // namespace
 
+struct DynamicLibraryTests : TestBase
+{
+    auto loadSharedLibrary() -> decltype(openSharedLibrary(std::declval<const char*>()))
+    {
+        auto executablePath = getExecutablePath();
+        if (! executablePath.has_value())
+            return nullptr;
+
+        auto libraryPath = executablePath->remove_filename() / LUABRIDGEDEMO_SHARED_LIBRARY;
+        if (! std::filesystem::exists(libraryPath))
+            return nullptr;
+
+        return openSharedLibrary(libraryPath.string().c_str());
+    }
+};
+
 TEST_F(DynamicLibraryTests, ExampleUsageFromLibrary)
 {
-    auto executablePath = getExecutablePath();
-    ASSERT_TRUE(executablePath.has_value());
-
-    auto libraryPath = executablePath->remove_filename() / LUABRIDGEDEMO_SHARED_LIBRARY;
-    ASSERT_TRUE(std::filesystem::exists(libraryPath));
-
-    auto dll = openSharedLibrary(libraryPath.string().c_str());
+    auto dll = loadSharedLibrary();
     ASSERT_NE(nullptr, dll);
 
     auto unloadDll = ScopedGuard([dll] { closeSharedLibrary(dll); });
@@ -147,26 +177,22 @@ TEST_F(DynamicLibraryTests, ExampleUsageFromLibrary)
     ASSERT_NE(nullptr, ptr);
     EXPECT_EQ(1379, callSharedClassMethod(ptr));
 
-    lua_close(L); // Force garbage collection before we unload the deleter
-    L = nullptr;
+    closeLuaState(); // Force garbage collection before we unload the deleter
 }
 
-#if 0
+#if !LUABRIDGE_ON_LUAU
 TEST_F(DynamicLibraryTests, ExampleRegistrationFromLibrary)
 {
-    auto executablePath = getExecutablePath();
-    ASSERT_TRUE(executablePath.has_value());
-
-    auto libraryPath = executablePath->remove_filename() / LUABRIDGEDEMO_SHARED_LIBRARY;
-    ASSERT_TRUE(std::filesystem::exists(libraryPath));
-
-    auto dll = openSharedLibrary(libraryPath.string().c_str());
+    auto dll = loadSharedLibrary();
     ASSERT_NE(nullptr, dll);
 
     auto unloadDll = ScopedGuard([dll] { closeSharedLibrary(dll); });
 
     auto registerAnotherClass = lookupSharedLibrarySymbol<void (*)(lua_State*)>(dll, "registerAnotherClass");
     ASSERT_NE(nullptr, registerAnotherClass);
+
+    closeLuaState();
+    L = createNewLuaState(&allocFunction);
 
     registerAnotherClass(L);
 
@@ -182,7 +208,6 @@ TEST_F(DynamicLibraryTests, ExampleRegistrationFromLibrary)
     runLua("d = dll.AnotherClass(); result = d:publicConstMethod(12)");
     EXPECT_EQ(42, result<int>());
 
-    lua_close(L);
-    L = nullptr;
+    closeLuaState(); // Force garbage collection
 }
 #endif
