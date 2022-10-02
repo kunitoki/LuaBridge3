@@ -86,18 +86,35 @@ struct TestBase : public ::testing::Test
 
     void SetUp() override
     {
-        L = luaL_newstate();
-
-        luaL_openlibs(L);
-
-        luabridge::registerMainThread(L);
-
-#if LUABRIDGE_HAS_EXCEPTIONS
-        luabridge::enableExceptions(L);
-#endif
+        L = createNewLuaState();
     }
 
     void TearDown() override
+    {
+        closeLuaState();
+    }
+
+    lua_State* createNewLuaState(lua_Alloc alloc = nullptr) const
+    {
+        lua_State* l;
+
+        if (alloc)
+            l = lua_newstate(alloc, nullptr);
+        else
+            l = luaL_newstate();
+
+        luaL_openlibs(l);
+
+        luabridge::registerMainThread(l);
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        luabridge::enableExceptions(l);
+#endif
+
+        return l;
+    }
+
+    void closeLuaState()
     {
         if (L != nullptr)
         {

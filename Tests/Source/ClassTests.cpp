@@ -629,8 +629,7 @@ TEST_F(ClassFunctions, StdFunctions)
     ASSERT_EQ(3, result<int>());
 
     runLua("result = nil");
-    lua_close(L); // Force garbage collection
-    L = nullptr;
+    closeLuaState(); // Force garbage collection
 
     ASSERT_TRUE(data.expired());
 }
@@ -675,8 +674,7 @@ TEST_F(ClassFunctions, StdFunctions_PassState)
     ASSERT_EQ(3, result<int>());
 
     runLua("result = nil");
-    lua_close(L); // Force garbage collection
-    L = nullptr;
+    closeLuaState(); // Force garbage collection
 
     ASSERT_TRUE(data.expired());
 }
@@ -720,8 +718,7 @@ TEST_F(ClassFunctions, ConstStdFunctions)
     ASSERT_EQ(5, result<int>());
 
     runLua("result = nil");
-    lua_close(L); // Force garbage collection
-    L = nullptr;
+    closeLuaState(); // Force garbage collection
 
     ASSERT_TRUE(data.expired());
 }
@@ -1205,8 +1202,7 @@ TEST_F(ClassProperties, StdFunctions)
     ASSERT_EQ(-2, result()["data2"].cast<int>());
 
     runLua("result = nil");
-    lua_close(L); // Force garbage collection
-    L = nullptr;
+    closeLuaState(); // Force garbage collection
 
     ASSERT_TRUE(getterData.expired());
     ASSERT_TRUE(setterData.expired());
@@ -1246,8 +1242,7 @@ TEST_F(ClassProperties, StdFunctions_ReadOnly)
     ASSERT_EQ(501, result()["data"].cast<int>());
 
     runLua("result = nil");
-    lua_close(L); // Force garbage collection
-    L = nullptr;
+    closeLuaState(); // Force garbage collection
 
     ASSERT_TRUE(getterData.expired());
 }
@@ -1967,8 +1962,7 @@ TEST_F(ClassTests, DestructorIsNotCalledIfConstructorThrows)
     ASSERT_THROW(runLua("result = OuterClass ()"), std::exception);
     ASSERT_EQ(1, InnerClass::destructorCallCount);
 
-    lua_close(L);
-    L = nullptr;
+    closeLuaState(); // Force garbage collection
 
     ASSERT_EQ(1, InnerClass::destructorCallCount);
     ASSERT_EQ(0, OuterClass::destructorCallCount);
@@ -1985,8 +1979,7 @@ TEST_F(ClassTests, DestructorIsCalledOnce)
     InnerClass::destructorCallCount = 0;
     runLua("result = InnerClass ()");
 
-    lua_close(L);
-    L = nullptr;
+    closeLuaState(); // Force garbage collection
 
     ASSERT_EQ(1, InnerClass::destructorCallCount);
 }
