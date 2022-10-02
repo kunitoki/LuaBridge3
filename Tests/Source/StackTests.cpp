@@ -915,6 +915,17 @@ TEST_F(StackTests, IntTypeNotFittingPush)
         EXPECT_FALSE(result);
         EXPECT_STREQ("luabridge", static_cast<std::error_code>(result).category().name());
     }
+
+#if defined(__SIZEOF_INT128__)
+    if constexpr (sizeof(uint64_t) == sizeof(lua_Integer) && ! std::is_unsigned_v<lua_Integer>)
+    {
+        __uint128_t value = __uint128_t(9223372036854775808ull) + __uint128_t(9223372036854775808ull);
+
+        auto result = luabridge::push(L, value);
+        EXPECT_FALSE(result);
+        EXPECT_STREQ("luabridge", static_cast<std::error_code>(result).category().name());
+    }
+#endif
 }
 
 TEST_F(StackTests, IntTypeNotFittingIsInstance)
@@ -944,6 +955,22 @@ TEST_F(StackTests, IntTypeNotFittingIsInstance)
         EXPECT_FALSE(luabridge::isInstance<int32_t>(L, 1));
         EXPECT_FALSE(luabridge::isInstance<uint32_t>(L, 1));
     }
+
+#if defined(__SIZEOF_INT128__)
+    if constexpr (sizeof(uint64_t) == sizeof(lua_Integer))
+    {
+        const luabridge::StackRestore sr(L);
+
+        EXPECT_TRUE(luabridge::push(L, __int128_t(9223372036854775807ll)));
+        EXPECT_FALSE(luabridge::isInstance<std::byte>(L, 1));
+        EXPECT_FALSE(luabridge::isInstance<int8_t>(L, 1));
+        EXPECT_FALSE(luabridge::isInstance<uint8_t>(L, 1));
+        EXPECT_FALSE(luabridge::isInstance<int16_t>(L, 1));
+        EXPECT_FALSE(luabridge::isInstance<uint16_t>(L, 1));
+        EXPECT_FALSE(luabridge::isInstance<int32_t>(L, 1));
+        EXPECT_FALSE(luabridge::isInstance<uint32_t>(L, 1));
+    }
+#endif
 }
 
 TEST_F(StackTests, FloatType)
