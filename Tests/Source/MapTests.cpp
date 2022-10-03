@@ -9,8 +9,10 @@
 #include <map>
 
 namespace {
-struct Unregistered {
-    bool operator<(const Unregistered& other) const {
+struct Unregistered
+{
+    bool operator<(const Unregistered& other) const
+    {
         return true;
     }
 };
@@ -223,3 +225,46 @@ TEST_F(MapTests, StackOverflow)
     
     ASSERT_FALSE(luabridge::push(L, value));
 }
+
+#if !LUABRIDGE_HAS_EXCEPTIONS
+TEST_F(MapTests, PushUnregisteredWithNoExceptionsShouldFailButRestoreStack)
+{
+    {
+        const int initialStackSize = lua_gettop(L);
+
+        lua_pushnumber(L, 1);
+        EXPECT_EQ(1, lua_gettop(L) - initialStackSize);
+
+        std::map<int, Unregistered> v;
+        v.emplace(std::make_pair(1, Unregistered{}));
+        v.emplace(std::make_pair(2, Unregistered{}));
+
+        auto result = luabridge::Stack<decltype(v)>::push(L, v);
+        EXPECT_FALSE(result);
+
+        EXPECT_EQ(1, lua_gettop(L) - initialStackSize);
+
+        lua_pop(L, 1);
+        EXPECT_EQ(0, lua_gettop(L) - initialStackSize);
+    }
+
+    {
+        const int initialStackSize = lua_gettop(L);
+
+        lua_pushnumber(L, 1);
+        EXPECT_EQ(1, lua_gettop(L) - initialStackSize);
+
+        std::map<Unregistered, int> v;
+        v.emplace(std::make_pair(Unregistered{}, 1));
+        v.emplace(std::make_pair(Unregistered{}, 2));
+
+        auto result = luabridge::Stack<decltype(v)>::push(L, v);
+        EXPECT_FALSE(result);
+
+        EXPECT_EQ(1, lua_gettop(L) - initialStackSize);
+
+        lua_pop(L, 1);
+        EXPECT_EQ(0, lua_gettop(L) - initialStackSize);
+    }
+}
+#endif

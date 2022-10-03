@@ -126,3 +126,27 @@ TEST_F(ListTests, StackOverflow)
     
     ASSERT_FALSE(luabridge::push(L, value));
 }
+
+#if !LUABRIDGE_HAS_EXCEPTIONS
+TEST_F(ListTests, PushUnregisteredWithNoExceptionsShouldFailButRestoreStack)
+{
+    class Unregistered {};
+
+    const int initialStackSize = lua_gettop(L);
+
+    lua_pushnumber(L, 1);
+    EXPECT_EQ(1, lua_gettop(L) - initialStackSize);
+
+    std::list<Unregistered> v;
+    v.emplace_back();
+    v.emplace_back();
+
+    auto result = luabridge::Stack<decltype(v)>::push(L, v);
+    EXPECT_FALSE(result);
+
+    EXPECT_EQ(1, lua_gettop(L) - initialStackSize);
+
+    lua_pop(L, 1);
+    EXPECT_EQ(0, lua_gettop(L) - initialStackSize);
+}
+#endif

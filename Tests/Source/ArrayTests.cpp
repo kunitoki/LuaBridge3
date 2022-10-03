@@ -130,19 +130,42 @@ TEST_F(ArrayTests, PassFromLua)
     ASSERT_EQ((std::array<Data, 3>({-3, 4, 9})), (result<std::array<Data, 3>>()));
 }
 
-#if LUABRIDGE_HAS_EXCEPTIONS
-TEST_F(ArrayTests, RaiseOnWrongSize)
+TEST_F(ArrayTests, FailOnWrongSize)
 {
     runLua("result = { 1, 2, 3, 4 }");
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_ANY_THROW((result<std::array<lua_Integer, 3>>()));
+#else
+    auto castResult = result().cast<std::array<lua_Integer, 3>>();
+    ASSERT_FALSE(castResult);
+#endif
 
     auto result = luabridge::push(L, std::array<lua_Integer, 4>{ 5, 6, 7, 8 });
     ASSERT_TRUE(result);
 
     EXPECT_TRUE((luabridge::isInstance<std::array<lua_Integer, 4>>(L, -1)));
     EXPECT_FALSE((luabridge::isInstance<std::array<lua_Integer, 3>>(L, -1)));
-    
-    lua_pop(L, -1);
+}
+
+#if !LUABRIDGE_HAS_EXCEPTIONS
+TEST_F(ArrayTests, PushUnregisteredWithNoExceptionsShouldFailButRestoreStack)
+{
+    class Unregistered {};
+
+    const int initialStackSize = lua_gettop(L);
+
+    lua_pushnumber(L, 1);
+    EXPECT_EQ(1, lua_gettop(L) - initialStackSize);
+
+    std::array<Unregistered, 2> v;
+
+    auto result = luabridge::Stack<decltype(v)>::push(L, v);
+    EXPECT_FALSE(result);
+
+    EXPECT_EQ(1, lua_gettop(L) - initialStackSize);
+
+    lua_pop(L, 1);
+    EXPECT_EQ(0, lua_gettop(L) - initialStackSize);
 }
 #endif

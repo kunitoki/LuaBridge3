@@ -13,16 +13,15 @@ struct UnorderedMapTests : TestBase
 };
 
 namespace {
+struct Unregistered
+{
+};
 
 struct Data
 {
     /* explicit */ Data(int i) : i(i) {}
 
     int i;
-};
-
-struct Unpublished
-{
 };
 } // namespace
 
@@ -37,9 +36,9 @@ struct hash<Data>
 };
 
 template <>
-struct hash<Unpublished>
+struct hash<Unregistered>
 {
-    size_t operator()(const Unpublished& value) const noexcept
+    size_t operator()(const Unregistered& value) const noexcept
     {
         return 0; // Don't care about hash collisions
     }
@@ -47,11 +46,6 @@ struct hash<Unpublished>
 } // namespace std
 
 namespace {
-bool operator==(const Unpublished& lhs, const Unpublished& rhs)
-{
-    return true;
-}
-
 bool operator==(const Data& lhs, const Data& rhs)
 {
     return lhs.i == rhs.i;
@@ -160,36 +154,46 @@ TEST_F(UnorderedMapTests, PassFromLua)
     }
 }
 
-TEST_F(UnorderedMapTests, PushRaiseOnKey)
+#if !LUABRIDGE_HAS_EXCEPTIONS
+TEST_F(UnorderedMapTests, PushUnregisteredWithNoExceptionsShouldFailButRestoreStack)
 {
-    luabridge::getGlobalNamespace(L)
-        .beginClass<Data>("Data")
-        .addConstructor<void (*)(int)>()
-        .endClass();
-
     {
-        std::unordered_map<Unpublished, Data> expected1{{ Unpublished(), Data(-4) }};
-#if LUABRIDGE_HAS_EXCEPTIONS
-        luabridge::Result r;
-        ASSERT_ANY_THROW((r = luabridge::push(L, expected1)));
-#else
-        ASSERT_FALSE(luabridge::push(L, expected1));
-#endif
+        const int initialStackSize = lua_gettop(L);
 
-        lua_pushnil(L);
-        ASSERT_FALSE((luabridge::Stack<std::unordered_map<Unpublished, Data>>::isInstance(L, -1)));
+        lua_pushnumber(L, 1);
+        EXPECT_EQ(1, lua_gettop(L) - initialStackSize);
+
+        std::unordered_map<int, Unregistered> v;
+        v.emplace(std::make_pair(1, Unregistered{}));
+        v.emplace(std::make_pair(2, Unregistered{}));
+
+        auto result = luabridge::Stack<decltype(v)>::push(L, v);
+        EXPECT_FALSE(result);
+
+        EXPECT_EQ(1, lua_gettop(L) - initialStackSize);
+
+        lua_pop(L, 1);
+        EXPECT_EQ(0, lua_gettop(L) - initialStackSize);
     }
 
     {
-        std::unordered_map<Data, Unpublished> expected2{{ Data(-4), Unpublished() }};
-#if LUABRIDGE_HAS_EXCEPTIONS
-        luabridge::Result r;
-        ASSERT_ANY_THROW((r = luabridge::push(L, expected2)));
-#else
-        ASSERT_FALSE(luabridge::push(L, expected2));
-#endif
+        const int initialStackSize = lua_gettop(L);
 
-        lua_pushnil(L);
-        ASSERT_FALSE((luabridge::Stack<std::unordered_map<Data, Unpublished>>::isInstance(L, -1)));
+        lua_pushnumber(L, 1);
+        EXPECT_EQ(1, lua_gettop(L) - initialStackSize);
+
+        std::unordered_map<Unregistered, int> v;
+        v.emplace(std::make_pair(Unregistered{}, 1));
+        v.emplace(std::make_pair(Unregistered{}, 2));
+
+        auto result = luabridge::Stack<decltype(v)>::push(L, v);
+        EXPECT_FALSE(result);
+
+        EXPECT_EQ(1, lua_gettop(L) - initialStackSize);
+
+        lua_pop(L, 1);
+        EXPECT_EQ(0, lua_gettop(L) - initialStackSize);
     }
 }
+#endif
+
