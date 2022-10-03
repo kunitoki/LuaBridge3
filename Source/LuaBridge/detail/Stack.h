@@ -668,7 +668,7 @@ struct Stack<unsigned long long>
     }
 };
 
-#if defined(__SIZEOF_INT128__)
+#if 0 // defined(__SIZEOF_INT128__)
 //=================================================================================================
 /**
  * @brief Stack specialization for `__int128_t`.
