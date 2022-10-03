@@ -53,10 +53,13 @@ struct Stack<std::map<K, V>>
         return {};
     }
 
-    [[nodiscard]] static Type get(lua_State* L, int index)
+    [[nodiscard]] static Expected<Type, std::error_code> get(lua_State* L, int index)
     {
+        const StackRestore stackRestore(L);
+
         if (!lua_istable(L, index))
-            luaL_error(L, "#%d argument must be a table", index);
+            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            //luaL_error(L, "#%d argument must be a table", index);
 
         Type map;
 
@@ -65,7 +68,15 @@ struct Stack<std::map<K, V>>
 
         while (lua_next(L, absIndex) != 0)
         {
-            map.emplace(Stack<K>::get(L, -2), Stack<V>::get(L, -1));
+            auto value = Stack<V>::get(L, -1);
+            if (! value)
+                return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+
+            auto key = Stack<K>::get(L, -2);
+            if (! key)
+                return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+
+            map.emplace(*key, *value);
             lua_pop(L, 1);
         }
 

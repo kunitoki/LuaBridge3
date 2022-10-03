@@ -49,10 +49,13 @@ struct Stack<std::list<T>>
         return {};
     }
 
-    [[nodiscard]] static Type get(lua_State* L, int index)
+    [[nodiscard]] static Expected<Type, std::error_code> get(lua_State* L, int index)
     {
+        const StackRestore stackRestore(L);
+
         if (!lua_istable(L, index))
-            luaL_error(L, "#%d argument must be a table", index);
+            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            // luaL_error(L, "#%d argument must be a table", index);
 
         Type list;
 
@@ -61,7 +64,11 @@ struct Stack<std::list<T>>
 
         while (lua_next(L, absIndex) != 0)
         {
-            list.emplace_back(Stack<T>::get(L, -1));
+            auto item = Stack<T>::get(L, -1);
+            if (! item)
+                return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+
+            list.emplace_back(*item);
             lua_pop(L, 1);
         }
 

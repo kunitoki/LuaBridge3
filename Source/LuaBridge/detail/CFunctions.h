@@ -352,7 +352,11 @@ struct property_setter<T, void>
         T* ptr = static_cast<T*>(lua_touserdata(L, lua_upvalueindex(1)));
         assert(ptr != nullptr);
 
-        *ptr = Stack<T>::get(L, 1);
+        auto result = Stack<T>::get(L, 1);
+        if (! result)
+            raise_lua_error(L, "%s", result.error().message().c_str());
+
+        *ptr = *result;
 
         return 0;
     }
@@ -394,7 +398,11 @@ struct property_setter
         try
         {
 #endif
-            c->** mp = Stack<T>::get(L, 2);
+            auto result = Stack<T>::get(L, 2);
+            if (! result)
+                raise_lua_error(L, "%s", result.error().message().c_str());
+
+            c->** mp = *result;
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }

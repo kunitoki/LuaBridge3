@@ -10,6 +10,7 @@
 
 #include "Config.h"
 #include "Errors.h"
+#include "Expected.h"
 #include "Stack.h"
 
 #include <iostream>
@@ -72,67 +73,6 @@ template <class Impl, class LuaRef>
 class LuaRefBase
 {
 protected:
-    //=============================================================================================
-    /**
-     * @brief Pop the Lua stack.
-     *
-     * Pops the specified number of stack items on destruction. We use this when returning objects, to avoid an explicit temporary
-     * variable, since the destructor executes after the return statement. For example:
-     *
-     * @code
-     *     template <class U>
-     *     U cast (lua_State* L)
-     *     {
-     *         StackPop p (L, 1);
-     *         ...
-     *         return U (); // Destructor called after this line
-     *     }
-     * @endcode
-     *
-     * @note The `StackPop` object must always be a named local variable.
-     */
-    class StackPop
-    {
-    public:
-        /**
-         * @brief Create a StackPop object.
-         *
-         * @param L  A Lua state.
-         * @param count The number of stack entries to pop on destruction.
-         */
-        StackPop(lua_State* L, int count)
-            : m_L(L)
-            , m_count(count) {
-        }
-
-        /**
-         * @brief Destroy a StackPop object.
-         *
-         * In case an exception is in flight before the destructor is called, stack is potentially cleared by lua. So we never pop more than
-         * the actual size of the stack.
-         */
-        ~StackPop()
-        {
-            const int stackSize = lua_gettop(m_L);
-
-            lua_pop(m_L, stackSize < m_count ? stackSize : m_count);
-        }
-
-        /**
-         * @brief Set a new number to pop.
-         *
-         * @param newCount The new number of stack entries to pop on destruction.
-         */
-        void popCount(int newCount)
-        {
-            m_count = newCount;
-        }
-
-    private:
-        lua_State* m_L = nullptr;
-        int m_count = 0;
-    };
-
     friend struct Stack<LuaRef>;
 
     //=============================================================================================
@@ -175,7 +115,7 @@ public:
             return {};
 #endif
 
-        StackPop p(m_L, 1);
+        const StackRestore stackRestore(m_L);
 
         lua_getglobal(m_L, "tostring");
 
@@ -204,15 +144,15 @@ public:
             break;
 
         case LUA_TNUMBER:
-            os << cast<lua_Number>();
+            os << unsafe_cast<lua_Number>();
             break;
 
         case LUA_TBOOLEAN:
-            os << (cast<bool>() ? "true" : "false");
+            os << (unsafe_cast<bool>() ? "true" : "false");
             break;
 
         case LUA_TSTRING:
-            os << '"' << cast<const char*>() << '"';
+            os << '"' << unsafe_cast<const char*>() << '"';
             break;
 
         case LUA_TTABLE:
@@ -307,7 +247,7 @@ public:
      */
     int type() const
     {
-        StackPop p(m_L, 1);
+        const StackRestore stackRestore(m_L);
 
         impl().push();
 
@@ -395,14 +335,14 @@ public:
 
     //=============================================================================================
     /**
-     * @brief Perform an explicit conversion to the type T.
+     * @brief Perform a safe explicit conversion to the type T.
      *
-     * @returns A value of the type T converted from this reference.
+     * @returns An expected holding a value of the type T converted from this reference or an error code.
      */
     template <class T>
-    T cast() const
+    Expected<T, std::error_code> cast() const
     {
-        StackPop p(m_L, 1);
+        const StackRestore stackRestore(m_L);
 
         impl().push();
 
@@ -418,6 +358,30 @@ public:
         }
     }
 
+    /**
+     * @brief Perform an unsafe explicit conversion to the type T.
+     *
+     * @returns A value of the type T converted from this reference.
+     */
+    template <class T>
+    T unsafe_cast() const
+    {
+        const StackRestore stackRestore(m_L);
+
+        impl().push();
+
+        if constexpr (std::is_enum_v<T>)
+        {
+            using U = std::underlying_type_t<T>;
+
+            return static_cast<T>(*Stack<U>::get(m_L, -1));
+        }
+        else
+        {
+            return *Stack<T>::get(m_L, -1);
+        }
+    }
+
     //=============================================================================================
     /**
      * @brief Indicate if this reference is convertible to the type T.
@@ -427,14 +391,14 @@ public:
     template <class T>
     bool isInstance() const
     {
-        StackPop p(m_L, 1);
+        const StackRestore stackRestore(m_L);
 
         impl().push();
 
         if constexpr (std::is_enum_v<T>)
         {
             using U = std::underlying_type_t<T>;
-            
+
             return Stack<U>::isInstance(m_L, -1);
         }
         else
@@ -447,12 +411,15 @@ public:
     /**
      * @brief Type cast operator.
      *
+     * This operator calls cast<T> and always dereference the returned expected instance, resulting in exceptions being thrown if the
+     * exceptions are enabled, or otherwise we'll enter the UB land (and a likely crash down the line).
+     *
      * @returns A value of the type T converted from this reference.
      */
     template <class T>
     operator T() const
     {
-        return cast<T>();
+        return cast<T>().value();
     }
 
     //=============================================================================================
@@ -466,15 +433,12 @@ public:
         if (isNil())
             return LuaRef(m_L);
 
-        StackPop p(m_L, 2);
+        const StackRestore stackRestore(m_L);
 
         impl().push();
 
         if (! lua_getmetatable(m_L, -1))
-        {
-            p.popCount(1);
             return LuaRef(m_L);
-        }
 
         return LuaRef::fromStack(m_L);
     }
@@ -492,15 +456,12 @@ public:
     template <class T>
     bool operator==(const T& rhs) const
     {
-        StackPop p(m_L, 2);
+        const StackRestore stackRestore(m_L);
 
         impl().push();
 
         if (! Stack<T>::push(m_L, rhs))
-        {
-            p.popCount(1);
             return false;
-        }
 
         return lua_compare(m_L, -2, -1, LUA_OPEQ) == 1;
     }
@@ -532,15 +493,12 @@ public:
     template <class T>
     bool operator<(const T& rhs) const
     {
-        StackPop p(m_L, 2);
+        const StackRestore stackRestore(m_L);
 
         impl().push();
 
         if (! Stack<T>::push(m_L, rhs))
-        {
-            p.popCount(1);
             return false;
-        }
 
         const int lhsType = lua_type(m_L, -2);
         const int rhsType = lua_type(m_L, -1);
@@ -562,15 +520,12 @@ public:
     template <class T>
     bool operator<=(const T& rhs) const
     {
-        StackPop p(m_L, 2);
+        const StackRestore stackRestore(m_L);
 
         impl().push();
 
         if (! Stack<T>::push(m_L, rhs))
-        {
-            p.popCount(1);
             return false;
-        }
 
         const int lhsType = lua_type(m_L, -2);
         const int rhsType = lua_type(m_L, -1);
@@ -592,15 +547,12 @@ public:
     template <class T>
     bool operator>(const T& rhs) const
     {
-        StackPop p(m_L, 2);
+        const StackRestore stackRestore(m_L);
 
         impl().push();
 
         if (! Stack<T>::push(m_L, rhs))
-        {
-            p.popCount(1);
             return false;
-        }
 
         const int lhsType = lua_type(m_L, -2);
         const int rhsType = lua_type(m_L, -1);
@@ -622,15 +574,12 @@ public:
     template <class T>
     bool operator>=(const T& rhs) const
     {
-        StackPop p(m_L, 2);
+        const StackRestore stackRestore(m_L);
 
         impl().push();
 
         if (! Stack<T>::push(m_L, rhs))
-        {
-            p.popCount(1);
             return false;
-        }
 
         const int lhsType = lua_type(m_L, -2);
         const int rhsType = lua_type(m_L, -1);
@@ -652,42 +601,16 @@ public:
     template <class T>
     bool rawequal(const T& v) const
     {
-        StackPop p(m_L, 2);
+        const StackRestore stackRestore(m_L);
 
         impl().push();
 
         if (! Stack<T>::push(m_L, v))
-        {
-            p.popCount(1);
             return false;
-        }
 
         return lua_rawequal(m_L, -1, -2) == 1;
     }
 
-    //=============================================================================================
-    /**
-     * @brief Append a value to a referred table.
-     *
-     * If the table is a sequence this will add another element to it.
-     *
-     * @param v A value to append to the table.
-     */
-#if 0
-    template <class T>
-    void append(const T& v) const
-    {
-        StackPop p(m_L, 1);
-
-        impl().push();
-
-        if (! Stack<T>::push(m_L, v))
-            return;
-
-        luaL_ref(m_L, -2);
-    }
-#endif
-    
     //=============================================================================================
     /**
      * @brief Return the length of a referred array.
@@ -698,7 +621,7 @@ public:
      */
     int length() const
     {
-        StackPop p(m_L, 1);
+        const StackRestore stackRestore(m_L);
 
         impl().push();
 
@@ -825,7 +748,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
                 return *this;
 #endif
 
-            StackPop p(m_L, 1);
+            const StackRestore stackRestore(m_L);
 
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_tableRef);
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_keyRef);
@@ -857,7 +780,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
                 return *this;
 #endif
 
-            StackPop p(m_L, 1);
+            const StackRestore stackRestore(m_L);
 
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_tableRef);
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_keyRef);
@@ -1168,10 +1091,10 @@ public:
 
         m_L = rhs.m_L;
         m_ref = std::exchange(rhs.m_ref, LUA_NOREF);
-        
+
         return *this;
     }
-    
+
     //=============================================================================================
     /**
      * @brief Assign a table item reference.
@@ -1240,7 +1163,7 @@ public:
     {
         if (m_ref != LUA_NOREF)
             luaL_unref(m_L, LUA_REGISTRYINDEX, m_ref);
-        
+
         m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX);
     }
 
@@ -1276,7 +1199,7 @@ public:
     template <class T>
     LuaRef rawget(const T& key) const
     {
-        StackPop(m_L, 1);
+        const StackRestore stackRestore(m_L);
 
         push(m_L);
 
@@ -1301,15 +1224,15 @@ public:
             break;
 
         case LUA_TBOOLEAN:
-            value = std::hash<bool>{}(cast<bool>());
+            value = std::hash<bool>{}(unsafe_cast<bool>());
             break;
 
         case LUA_TNUMBER:
-            value = std::hash<lua_Number>{}(cast<lua_Number>());
+            value = std::hash<lua_Number>{}(unsafe_cast<lua_Number>());
             break;
 
         case LUA_TSTRING:
-            value = std::hash<const char*>{}(cast<const char*>());
+            value = std::hash<const char*>{}(unsafe_cast<const char*>());
             break;
 
         case LUA_TNIL:
@@ -1353,7 +1276,7 @@ struct Stack<LuaRef>
         return {};
     }
 
-    [[nodiscard]] static LuaRef get(lua_State* L, int index)
+    [[nodiscard]] static Expected<LuaRef, std::error_code> get(lua_State* L, int index)
     {
         return LuaRef::fromStack(L, index);
     }

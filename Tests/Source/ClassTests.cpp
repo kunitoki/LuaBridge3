@@ -483,7 +483,7 @@ int proxyCFunctionState(lua_State* L)
         return 0;
     }
     
-    [[maybe_unused]] auto result = luabridge::push(L, arg.cast<int>() + 1000);
+    [[maybe_unused]] auto result = luabridge::push(L, arg.unsafe_cast<int>() + 1000);
 
     return 1;
 }
@@ -1024,7 +1024,7 @@ template<class T, class BaseClass>
 int getDataC(lua_State* L)
 {
     auto objectRef = luabridge::LuaRef::fromStack(L, 1);
-    auto* object = objectRef.cast<const Class<T, BaseClass>*>();
+    auto* object = objectRef.unsafe_cast<const Class<T, BaseClass>*>();
 
     [[maybe_unused]] auto result = luabridge::Stack<T>::push(L, object->data);
 
@@ -1035,9 +1035,9 @@ template<class T, class BaseClass>
 int setDataC(lua_State* L)
 {
     auto objectRef = luabridge::LuaRef::fromStack(L, 1);
-    auto* object = objectRef.cast<const Class<T, BaseClass>*>();
+    auto* object = objectRef.unsafe_cast<const Class<T, BaseClass>*>();
     auto valueRef = luabridge::LuaRef::fromStack(L, 2);
-    T value = valueRef.cast<T>();
+    T value = valueRef.unsafe_cast<T>();
     object->data = value;
     return 0;
 }
@@ -1856,7 +1856,7 @@ TEST_F(ClassMetaMethods, SimulateArray)
                 if (index >= static_cast<int>(data.size()))
                     data.resize(index + 1);
                 
-                data[index] = ref.cast<std::string>();
+                data[index] = ref.unsafe_cast<std::string>();
             })
         .endTable();
 
@@ -2287,7 +2287,7 @@ TEST_F(ClassTests, IndexFallbackMetaMethodMemberFptr)
     luabridge::setGlobal(L, &x, "x");
 
     runLua("result = x.xyz");
-    ASSERT_EQ("123", result().cast<std::string_view>());
+    ASSERT_EQ("123", result<std::string_view>());
 }
 
 TEST_F(ClassTests, IndexFallbackMetaMethodFunctionPtr)
@@ -2301,7 +2301,7 @@ TEST_F(ClassTests, IndexFallbackMetaMethodFunctionPtr)
     luabridge::setGlobal(L, &x, "x");
 
     runLua("result = x.xyz");
-    ASSERT_EQ("123", result().cast<std::string_view>());
+    ASSERT_EQ("123", result<std::string_view>());
 }
 
 TEST_F(ClassTests, IndexFallbackMetaMethodFreeFunctor)
@@ -2333,7 +2333,7 @@ TEST_F(ClassTests, IndexFallbackMetaMethodFreeFunctor)
     luabridge::setGlobal(L, &x, "x");
 
     runLua("result = x.xyz");
-    ASSERT_EQ("123123", result().cast<std::string_view>());
+    ASSERT_EQ("123123", result<std::string_view>());
 }
 
 TEST_F(ClassTests, NewIndexFallbackMetaMethodMemberFptr)
@@ -2348,7 +2348,7 @@ TEST_F(ClassTests, NewIndexFallbackMetaMethodMemberFptr)
     luabridge::setGlobal(L, &x, "x");
 
     runLua("x.qwertyuiop = 123; result = x.qwertyuiop");
-    ASSERT_EQ(123, result().cast<int>());
+    ASSERT_EQ(123, result<int>());
 }
 
 TEST_F(ClassTests, NewIndexFallbackMetaMethodFunctionPtr)
@@ -2363,7 +2363,7 @@ TEST_F(ClassTests, NewIndexFallbackMetaMethodFunctionPtr)
     luabridge::setGlobal(L, &x, "x");
 
     runLua("x.qwertyuiop = 123; result = x.qwertyuiop");
-    ASSERT_EQ(123, result().cast<int>());
+    ASSERT_EQ(123, result<int>());
 }
 
 TEST_F(ClassTests, NewIndexFallbackMetaMethodFreeFunctor)
@@ -2372,7 +2372,7 @@ TEST_F(ClassTests, NewIndexFallbackMetaMethodFreeFunctor)
 
     auto newIndexMetaMethod = [&capture](OverridableX& x, const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State* L) -> luabridge::LuaRef
     {
-        if (!luabridge::push(L, capture + value.cast<int>()))
+        if (!luabridge::push(L, capture + value.unsafe_cast<int>()))
             lua_pushnil(L);
 
         auto v = luabridge::LuaRef::fromStack(L);
@@ -2390,5 +2390,5 @@ TEST_F(ClassTests, NewIndexFallbackMetaMethodFreeFunctor)
     luabridge::setGlobal(L, &x, "x");
 
     runLua("x.qwertyuiop = 123; result = x.qwertyuiop");
-    ASSERT_EQ(246, result().cast<int>());
+    ASSERT_EQ(246, result<int>());
 }

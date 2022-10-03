@@ -51,7 +51,7 @@ private:
  * @note This works on any type specialized by `Stack`, including `LuaRef` and its table proxies.
 */
 template <class T>
-T getGlobal(lua_State* L, const char* name)
+Expected<T, std::error_code> getGlobal(lua_State* L, const char* name)
 {
     lua_getglobal(L, name);
 

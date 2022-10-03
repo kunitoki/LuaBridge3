@@ -48,10 +48,13 @@ struct Stack<std::vector<T>>
         return {};
     }
 
-    [[nodiscard]] static Type get(lua_State* L, int index)
+    [[nodiscard]] static Expected<Type, std::error_code> get(lua_State* L, int index)
     {
+        const StackRestore stackRestor(L);
+
         if (!lua_istable(L, index))
-            luaL_error(L, "#%d argument must be a table", index);
+            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            //luaL_error(L, "#%d argument must be a table", index);
 
         Type vector;
         vector.reserve(static_cast<std::size_t>(get_length(L, index)));
@@ -61,7 +64,11 @@ struct Stack<std::vector<T>>
 
         while (lua_next(L, absIndex) != 0)
         {
-            vector.emplace_back(Stack<T>::get(L, -1));
+            auto item = Stack<T>::get(L, -1);
+            if (! item)
+                return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+
+            vector.emplace_back(*item);
             lua_pop(L, 1);
         }
 

@@ -11,6 +11,7 @@
 #include "Errors.h"
 #include "Stack.h"
 #include "TypeTraits.h"
+#include "Userdata.h"
 
 #include <functional>
 #include <tuple>
@@ -255,10 +256,20 @@ constexpr auto tupleize(Types&&... types)
  * @tparam ArgsPack Arguments pack to extract from the lua stack.
  * @tparam Start Start index where stack variables are located in the lua stack.
  */
+template <class T>
+auto unwrap_argument_or_error(lua_State* L, std::size_t index)
+{
+    auto result = Stack<T>::get(L, index);
+    if (! result)
+        luaL_error(L, "Error decoding argument #%d: %s", static_cast<int>(index), result.error().message().c_str());
+
+    return *result;
+}
+
 template <class ArgsPack, std::size_t Start, std::size_t... Indices>
 auto make_arguments_list_impl(lua_State* L, std::index_sequence<Indices...>)
 {
-    return tupleize(Stack<std::tuple_element_t<Indices, ArgsPack>>::get(L, Start + Indices)...);
+    return tupleize(unwrap_argument_or_error<std::tuple_element_t<Indices, ArgsPack>>(L, Start + Indices)...);
 }
 
 template <class ArgsPack, std::size_t Start>
@@ -468,14 +479,14 @@ struct constructor
 {
     static T* call(const Args& args)
     {
-        auto alloc = [](auto&&... args) { return new T{ std::forward<decltype(args)>(args)... }; };
+        auto alloc = [](auto&&... args) { return new T(std::forward<decltype(args)>(args)...); };
 
         return std::apply(alloc, args);
     }
 
     static T* call(void* ptr, const Args& args)
     {
-        auto alloc = [ptr](auto&&... args) { return new (ptr) T{ std::forward<decltype(args)>(args)... }; };
+        auto alloc = [ptr](auto&&... args) { return new (ptr) T(std::forward<decltype(args)>(args)...); };
 
         return std::apply(alloc, args);
     }
@@ -524,6 +535,42 @@ struct external_constructor
         return func();
     }
 };
+
+//=================================================================================================
+/**
+ * @brief lua_CFunction to construct a class object wrapped in a container.
+ */
+template <class C, class Args>
+int constructor_container_proxy(lua_State* L)
+{
+    using T = typename ContainerTraits<C>::Type;
+
+    T* object = detail::constructor<T, Args>::call(detail::make_arguments_list<Args, 2>(L));
+
+    auto result = detail::UserdataSharedHelper<C, false>::push(L, object);
+    if (! result)
+        luaL_error(L, "%s", result.message().c_str());
+
+    return 1;
+}
+
+/**
+ * @brief lua_CFunction to construct a class object in-place in the userdata.
+ */
+template <class T, class Args>
+int constructor_placement_proxy(lua_State* L)
+{
+    std::error_code ec;
+    auto* value = detail::UserdataValue<T>::place(L, ec);
+    if (! value)
+        luaL_error(L, "%s", ec.message().c_str());
+
+    detail::constructor<T, Args>::call(value->getObject(), detail::make_arguments_list<Args, 2>(L));
+
+    value->commit();
+
+    return 1;
+}
 
 } // namespace detail
 } // namespace luabridge

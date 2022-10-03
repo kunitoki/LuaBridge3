@@ -32,6 +32,10 @@ enum class ErrorCode
     IntegerDoesntFitIntoLuaInteger,
     
     FloatingPointDoesntFitIntoLuaNumber,
+
+    InvalidTypeCast,
+
+    InvalidTableSizeInCast
 };
 
 //=================================================================================================
@@ -61,7 +65,13 @@ struct ErrorCategory : std::error_category
 
         case ErrorCode::FloatingPointDoesntFitIntoLuaNumber:
             return "The native floating point can't fit inside a lua number";
-                
+
+        case ErrorCode::InvalidTypeCast:
+            return "The lua object can't be casted to desired type";
+
+        case ErrorCode::InvalidTableSizeInCast:
+            return "The lua table has different size than expected";
+
         default:
             return "Unknown error";
         }

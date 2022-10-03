@@ -9,7 +9,9 @@
 namespace luabridge {
 
 //=================================================================================================
-
+/**
+ * @brief Simple result class containing an error code.
+ */
 struct Result
 {
     Result() = default;

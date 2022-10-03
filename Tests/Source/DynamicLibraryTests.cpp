@@ -92,29 +92,6 @@ auto lookupSharedLibrarySymbol(T handle, const char* procedure_name)
 #endif
 }
 
-static void* allocFunction(void*, void* ptr, std::size_t osize, std::size_t nsize)
-{
-    static std::set<void*> allocs;
-
-    void* nptr = nullptr;
-
-    if (nsize > 0)
-    {
-        nptr = new uint8_t[nsize];
-
-        if (ptr != nullptr)
-            std::memcpy(nptr, ptr, nsize < osize ? nsize : osize);
-
-        allocs.emplace(nptr);
-    }
-
-    auto node = allocs.extract(ptr);
-    if (! node.empty() && ptr != nullptr)
-        delete[] static_cast<uint8_t*>(ptr);
-
-    return nptr;
-}
-
 int callSharedClassMethod(xyz::ISharedClass* s)
 {
     return s->publicMethod("1337");
@@ -181,6 +158,31 @@ TEST_F(DynamicLibraryTests, ExampleUsageFromLibrary)
 }
 
 #if !LUABRIDGE_ON_LUAU
+namespace {
+void* allocFunction(void*, void* ptr, std::size_t osize, std::size_t nsize)
+{
+    static std::set<void*> allocs;
+
+    void* nptr = nullptr;
+
+    if (nsize > 0)
+    {
+        nptr = new uint8_t[nsize];
+
+        if (ptr != nullptr)
+            std::memcpy(nptr, ptr, nsize < osize ? nsize : osize);
+
+        allocs.emplace(nptr);
+    }
+
+    auto node = allocs.extract(ptr);
+    if (! node.empty() && ptr != nullptr)
+        delete[] static_cast<uint8_t*>(ptr);
+
+    return nptr;
+}
+} // namespace
+
 TEST_F(DynamicLibraryTests, ExampleRegistrationFromLibrary)
 {
     auto dll = loadSharedLibrary();

@@ -734,16 +734,22 @@ struct UserdataSharedHelper<C, true>
 template <class T, bool ByContainer>
 struct StackHelper
 {
-    using ReturnType = std::remove_const_t<typename ContainerTraits<T>::Type>;
+    using ReturnType = Expected<T, std::error_code>;
 
     static Result push(lua_State* L, const T& t)
     {
         return UserdataSharedHelper<T, std::is_const_v<typename ContainerTraits<T>::Type>>::push(L, t);
     }
 
-    static T get(lua_State* L, int index)
+    static ReturnType get(lua_State* L, int index)
     {
-        return ContainerTraits<T>::construct(Userdata::get<ReturnType>(L, index, true));
+        using CastType = std::remove_const_t<typename ContainerTraits<T>::Type>;
+
+        auto* result = Userdata::get<CastType>(L, index, true);
+        if (! result)
+            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+
+        return ContainerTraits<T>::construct(result);
     }
 };
 
@@ -766,9 +772,13 @@ struct StackHelper<T, false>
         return UserdataValue<T>::push(L, std::move(t));
     }
 
-    static const T& get(lua_State* L, int index)
+    static Expected<std::reference_wrapper<const T>, std::error_code> get(lua_State* L, int index)
     {
-        return *Userdata::get<T>(L, index, true);
+        auto* result = Userdata::get<T>(L, index, true);
+        if (! result)
+            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+
+        return std::cref(*result);
     }
 };
 
@@ -782,7 +792,7 @@ struct StackHelper<T, false>
 template <class C, bool ByContainer>
 struct RefStackHelper
 {
-    using ReturnType = C;
+    using ReturnType = Expected<C, std::error_code>;
     using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
 
     static Result push(lua_State* L, const C& t)
@@ -792,14 +802,18 @@ struct RefStackHelper
 
     static ReturnType get(lua_State* L, int index)
     {
-        return ContainerTraits<C>::construct(Userdata::get<T>(L, index, true));
+        auto* result = Userdata::get<T>(L, index, true);
+        if (! result)
+            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+
+        return ContainerTraits<C>::construct(result);
     }
 };
 
 template <class T>
 struct RefStackHelper<T, false>
 {
-    using ReturnType = T&;
+    using ReturnType = Expected<std::reference_wrapper<T>, std::error_code>;
 
     static Result push(lua_State* L, const T& t)
     {
@@ -808,12 +822,12 @@ struct RefStackHelper<T, false>
 
     static ReturnType get(lua_State* L, int index)
     {
-        T* t = Userdata::get<T>(L, index, true);
+        auto* result = Userdata::get<T>(L, index, true);
+        if (! result)
+            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            //luaL_error(L, "nil passed to reference");
 
-        if (!t)
-            luaL_error(L, "nil passed to reference");
-
-        return *t;
+        return std::ref(*result);
     }
 };
 
@@ -824,18 +838,22 @@ struct RefStackHelper<T, false>
 template <class T, class Enable = void>
 struct UserdataGetter
 {
-    using ReturnType = T*;
+    using ReturnType = Expected<T*, std::error_code>;
 
     static ReturnType get(lua_State* L, int index)
     {
-        return Userdata::get<T>(L, index, false);
+        auto* result = Userdata::get<T>(L, index, true);
+        if (! result)
+            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+
+        return result;
     }
 };
 
 template <class T>
 struct UserdataGetter<T, std::void_t<T (*)()>>
 {
-    using ReturnType = T;
+    using ReturnType = Expected<T, std::error_code>;
 
     static ReturnType get(lua_State* L, int index)
     {
@@ -907,11 +925,11 @@ struct StackOpSelector;
 template <class T>
 struct StackOpSelector<T*, true>
 {
-    using ReturnType = T*;
+    using ReturnType = Expected<T*, std::error_code>;
 
     static Result push(lua_State* L, T* value) { return UserdataPtr::push(L, value); }
 
-    static T* get(lua_State* L, int index) { return Userdata::get<T>(L, index, false); }
+    static ReturnType get(lua_State* L, int index) { return Userdata::get<T>(L, index, false); }
 
     static bool isInstance(lua_State* L, int index) { return Userdata::isInstance<T>(L, index); }
 };
@@ -920,11 +938,11 @@ struct StackOpSelector<T*, true>
 template <class T>
 struct StackOpSelector<const T*, true>
 {
-    using ReturnType = const T*;
+    using ReturnType = Expected<const T*, std::error_code>;
 
     static Result push(lua_State* L, const T* value) { return UserdataPtr::push(L, value); }
 
-    static const T* get(lua_State* L, int index) { return Userdata::get<T>(L, index, true); }
+    static ReturnType get(lua_State* L, int index) { return Userdata::get<T>(L, index, true); }
 
     static bool isInstance(lua_State* L, int index) { return Userdata::isInstance<T>(L, index); }
 };

@@ -14,10 +14,10 @@ namespace luabridge {
 /**
  * @brief Stack specialization for `std::set`.
  */
-template <class K, class V>
-struct Stack<std::set<K, V>>
+template <class K>
+struct Stack<std::set<K>>
 {
-    using Type = std::set<K, V>;
+    using Type = std::set<K>;
     
     [[nodiscard]] static Result push(lua_State* L, const Type& set)
     {
@@ -30,16 +30,12 @@ struct Stack<std::set<K, V>>
         
         lua_createtable(L, 0, static_cast<int>(set.size()));
 
-        for (auto it = set.begin(); it != set.end(); ++it)
+        auto it = set.cbegin();
+        for (lua_Integer tableIndex = 1; it != set.cend(); ++tableIndex, ++it)
         {
-            auto result = Stack<K>::push(L, it->first);
-            if (! result)
-            {
-                lua_pop(L, lua_gettop(L) - initialStackSize);
-                return result;
-            }
+            lua_pushinteger(L, tableIndex);
 
-            result = Stack<V>::push(L, it->second);
+            auto result = Stack<K>::push(L, *it);
             if (! result)
             {
                 lua_pop(L, lua_gettop(L) - initialStackSize);
@@ -48,14 +44,17 @@ struct Stack<std::set<K, V>>
 
             lua_settable(L, -3);
         }
-        
+
         return {};
     }
 
-    [[nodiscard]] static Type get(lua_State* L, int index)
+    [[nodiscard]] static Expected<Type, std::error_code> get(lua_State* L, int index)
     {
+        const StackRestore stackRestore(L);
+
         if (!lua_istable(L, index))
-            luaL_error(L, "#%d argument must be a table", index);
+            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            //luaL_error(L, "#%d argument must be a table", index);
 
         Type set;
 
@@ -64,7 +63,11 @@ struct Stack<std::set<K, V>>
 
         while (lua_next(L, absIndex) != 0)
         {
-            set.emplace(Stack<K>::get(L, -2), Stack<V>::get(L, -1));
+            auto item = Stack<K>::get(L, -1);
+            if (! item)
+                return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+
+            set.emplace(*item);
             lua_pop(L, 1);
         }
 

@@ -50,7 +50,7 @@ template<typename T>
 std::optional<T> optCast(luabridge::LuaRef const& ref)
 {
     // NOTE cast to std::optional: https://stackoverflow.com/a/45865802
-    return ref.cast<std::optional<T>>();
+    return ref.unsafe_cast<std::optional<T>>();
 }
 
 template <class T>

@@ -48,13 +48,17 @@ struct Stack<std::array<T, Size>>
         return {};
     }
 
-    [[nodiscard]] static Type get(lua_State* L, int index)
+    [[nodiscard]] static Expected<Type, std::error_code> get(lua_State* L, int index)
     {
+        const StackRestore stackRestore(L);
+
         if (!lua_istable(L, index))
-            luaL_error(L, "#%d argment must be a table", index);
+            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            //luaL_error(L, "#%d argment must be a table", index);
 
         if (get_length(L, index) != Size)
-            luaL_error(L, "table size should be %d but is %d", static_cast<int>(Size), get_length(L, index));
+            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTableSizeInCast));
+            //luaL_error(L, "table size should be %d but is %d", static_cast<int>(Size), get_length(L, index));
 
         Type array;
 
@@ -64,7 +68,11 @@ struct Stack<std::array<T, Size>>
         int arrayIndex = 0;
         while (lua_next(L, absIndex) != 0)
         {
-            array[arrayIndex++] = Stack<T>::get(L, -1);
+            auto item = Stack<T>::get(L, -1);
+            if (!item)
+                return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+
+            array[arrayIndex++] = *item;
             lua_pop(L, 1);
         }
 

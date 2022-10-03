@@ -121,15 +121,15 @@ TEST_F(MapTests, CastToMap)
 {
     using StrToInt = std::map<std::string, int>;
     runLua("result = {[1] = 2, a = 3}");
-    ASSERT_EQ((StrToInt{{"1", 2}, {"a", 3}}), result().cast<StrToInt>());
+    ASSERT_EQ((StrToInt{{"1", 2}, {"a", 3}}), result<StrToInt>());
 
     using IntToInt = std::map<int, int>;
     runLua("result = {[1] = 2, a = 3}");
 
 #if LUABRIDGE_HAS_EXCEPTIONS
-    ASSERT_ANY_THROW((result().cast<IntToInt>()));
+    ASSERT_ANY_THROW((result<IntToInt>()));
 #else
-    ASSERT_DEATH((result().cast<IntToInt>()), "");
+    ASSERT_DEATH((result<IntToInt>()), "");
 #endif
 }
 
