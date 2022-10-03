@@ -175,6 +175,8 @@ TEST_F(UnorderedMapTests, PushRaiseOnKey)
 #else
         ASSERT_FALSE(luabridge::push(L, expected1));
 #endif
+
+        lua_pushnil(L);
         ASSERT_FALSE((luabridge::Stack<std::unordered_map<Unpublished, Data>>::isInstance(L, -1)));
     }
 
@@ -186,6 +188,8 @@ TEST_F(UnorderedMapTests, PushRaiseOnKey)
 #else
         ASSERT_FALSE(luabridge::push(L, expected2));
 #endif
+
+        lua_pushnil(L);
         ASSERT_FALSE((luabridge::Stack<std::unordered_map<Data, Unpublished>>::isInstance(L, -1)));
     }
 }
