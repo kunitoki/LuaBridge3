@@ -169,7 +169,9 @@ TEST_F(UnorderedMapTests, PushRaiseOnKey)
 
     std::unordered_map<Unpublished, Data> expected1{{ Unpublished(), Data(-4) }};
     ASSERT_FALSE(luabridge::push(L, expected1));
+    ASSERT_FALSE((luabridge::Stack<std::unordered_map<Unpublished, Data>>::isInstance(L, -1)));
 
     std::unordered_map<Data, Unpublished> expected2{{ Data(-4), Unpublished() }};
     ASSERT_FALSE(luabridge::push(L, expected2));
+    ASSERT_FALSE((luabridge::Stack<std::unordered_map<Data, Unpublished>>::isInstance(L, -1)));
 }
