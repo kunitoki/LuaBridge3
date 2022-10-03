@@ -46,6 +46,11 @@ struct hash<Unregistered>
 } // namespace std
 
 namespace {
+[[maybe_unused]] bool operator==(const Unregistered& lhs, const Unregistered& rhs)
+{
+    return true;
+}
+
 bool operator==(const Data& lhs, const Data& rhs)
 {
     return lhs.i == rhs.i;
