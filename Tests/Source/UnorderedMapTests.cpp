@@ -21,10 +21,13 @@ struct Data
     int i;
 };
 
+struct Unpublished
+{
+};
 } // namespace
 
 namespace std {
-template<>
+template <>
 struct hash<Data>
 {
     size_t operator()(const Data& value) const noexcept
@@ -32,7 +35,49 @@ struct hash<Data>
         return 0; // Don't care about hash collisions
     }
 };
+
+template <>
+struct hash<Unpublished>
+{
+    size_t operator()(const Unpublished& value) const noexcept
+    {
+        return 0; // Don't care about hash collisions
+    }
+};
 } // namespace std
+
+namespace {
+bool operator==(const Unpublished& lhs, const Unpublished& rhs)
+{
+    return true;
+}
+
+bool operator==(const Data& lhs, const Data& rhs)
+{
+    return lhs.i == rhs.i;
+}
+
+std::ostream& operator<<(std::ostream& lhs, const Data& rhs)
+{
+    lhs << "{" << rhs.i << "}";
+    return lhs;
+}
+
+std::unordered_map<Data, Data> processValues(const std::unordered_map<Data, Data>& data)
+{
+    return data;
+}
+
+std::unordered_map<Data, Data> processPointers(const std::unordered_map<Data, const Data*>& data)
+{
+    std::unordered_map<Data, Data> result;
+    for (const auto& item : data)
+    {
+        result.emplace(item.first, *item.second);
+    }
+    return result;
+}
+} // namespace
 
 TEST_F(UnorderedMapTests, LuaRef)
 {
@@ -89,36 +134,6 @@ TEST_F(UnorderedMapTests, PassToFunction)
     ASSERT_EQ(constLvalue, result<Int2Bool>());
 }
 
-namespace {
-
-bool operator==(const Data& lhs, const Data& rhs)
-{
-    return lhs.i == rhs.i;
-}
-
-std::ostream& operator<<(std::ostream& lhs, const Data& rhs)
-{
-    lhs << "{" << rhs.i << "}";
-    return lhs;
-}
-
-std::unordered_map<Data, Data> processValues(const std::unordered_map<Data, Data>& data)
-{
-    return data;
-}
-
-std::unordered_map<Data, Data> processPointers(const std::unordered_map<Data, const Data*>& data)
-{
-    std::unordered_map<Data, Data> result;
-    for (const auto& item : data)
-    {
-        result.emplace(item.first, *item.second);
-    }
-    return result;
-}
-
-} // namespace
-
 TEST_F(UnorderedMapTests, PassFromLua)
 {
     luabridge::getGlobalNamespace(L)
@@ -143,4 +158,18 @@ TEST_F(UnorderedMapTests, PassFromLua)
         const auto actual = result<std::unordered_map<Data, Data>>();
         ASSERT_EQ(expected, actual);
     }
+}
+
+TEST_F(UnorderedMapTests, PushRaiseOnKey)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Data>("Data")
+        .addConstructor<void (*)(int)>()
+        .endClass();
+
+    std::unordered_map<Unpublished, Data> expected1{{ Unpublished(), Data(-4) }};
+    ASSERT_FALSE(luabridge::push(L, expected1));
+
+    std::unordered_map<Data, Unpublished> expected2{{ Data(-4), Unpublished() }};
+    ASSERT_FALSE(luabridge::push(L, expected2));
 }

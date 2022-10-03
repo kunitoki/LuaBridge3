@@ -27,8 +27,8 @@ struct Stack<std::vector<T>>
             return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
-        const int initialStackSize = lua_gettop(L);
-        
+        StackRestore stackRestore(L);
+
         lua_createtable(L, static_cast<int>(vector.size()), 0);
 
         for (std::size_t i = 0; i < vector.size(); ++i)
@@ -37,24 +37,22 @@ struct Stack<std::vector<T>>
             
             auto result = Stack<T>::push(L, vector[i]);
             if (! result)
-            {
-                lua_pop(L, lua_gettop(L) - initialStackSize);
                 return result;
-            }
-            
+
             lua_settable(L, -3);
         }
         
+        stackRestore.reset();
         return {};
     }
 
     [[nodiscard]] static Expected<Type, std::error_code> get(lua_State* L, int index)
     {
-        const StackRestore stackRestor(L);
-
         if (!lua_istable(L, index))
             return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
             //luaL_error(L, "#%d argument must be a table", index);
+
+        const StackRestore stackRestore(L);
 
         Type vector;
         vector.reserve(static_cast<std::size_t>(get_length(L, index)));

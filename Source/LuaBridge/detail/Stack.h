@@ -41,12 +41,19 @@ public:
 
     ~StackRestore()
     {
-        lua_settop(m_L, m_stackTop);
+        if (m_doRestoreStack)
+            lua_settop(m_L, m_stackTop);
+    }
+
+    void reset()
+    {
+        m_doRestoreStack = false;
     }
 
 private:
     lua_State* const m_L = nullptr;
     int m_stackTop = 0;
+    bool m_doRestoreStack = true;
 };
 
 //=================================================================================================

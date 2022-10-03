@@ -27,39 +27,34 @@ struct Stack<std::unordered_map<K, V>>
             return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
-        const int initialStackSize = lua_gettop(L);
-        
+        StackRestore stackRestore(L);
+
         lua_createtable(L, 0, static_cast<int>(map.size()));
 
         for (auto it = map.begin(); it != map.end(); ++it)
         {
             auto result = Stack<K>::push(L, it->first);
             if (! result)
-            {
-                lua_pop(L, lua_gettop(L) - initialStackSize);
                 return result;
-            }
-            
+
             result = Stack<V>::push(L, it->second);
             if (! result)
-            {
-                lua_pop(L, lua_gettop(L) - initialStackSize);
                 return result;
-            }
 
             lua_settable(L, -3);
         }
         
+        stackRestore.reset();
         return {};
     }
 
     [[nodiscard]] static Expected<Type, std::error_code> get(lua_State* L, int index)
     {
-        const StackRestore stackRestore(L);
-
         if (!lua_istable(L, index))
             return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
             //luaL_error(L, "#%d argument must be a table", index);
+
+        const StackRestore stackRestore(L);
 
         Type map;
 

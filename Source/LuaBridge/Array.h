@@ -27,8 +27,8 @@ struct Stack<std::array<T, Size>>
             return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
-        const int initialStackSize = lua_gettop(L);
-        
+        StackRestore stackRestore(L);
+
         lua_createtable(L, static_cast<int>(Size), 0);
 
         for (std::size_t i = 0; i < Size; ++i)
@@ -37,21 +37,17 @@ struct Stack<std::array<T, Size>>
 
             auto result = Stack<T>::push(L, array[i]);
             if (! result)
-            {
-                lua_pop(L, lua_gettop(L) - initialStackSize);
                 return result;
-            }
 
             lua_settable(L, -3);
         }
         
+        stackRestore.reset();
         return {};
     }
 
     [[nodiscard]] static Expected<Type, std::error_code> get(lua_State* L, int index)
     {
-        const StackRestore stackRestore(L);
-
         if (!lua_istable(L, index))
             return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
             //luaL_error(L, "#%d argment must be a table", index);
@@ -59,6 +55,8 @@ struct Stack<std::array<T, Size>>
         if (get_length(L, index) != Size)
             return makeUnexpected(makeErrorCode(ErrorCode::InvalidTableSizeInCast));
             //luaL_error(L, "table size should be %d but is %d", static_cast<int>(Size), get_length(L, index));
+
+        const StackRestore stackRestore(L);
 
         Type array;
 
