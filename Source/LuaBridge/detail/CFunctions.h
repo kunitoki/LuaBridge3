@@ -595,7 +595,7 @@ inline int try_overload_functions(lua_State* L)
 
         // call f, this pops the function and its args, pushes result(s)
         const int err = lua_pcall(L, nargs, LUA_MULTRET, 0);
-        if (err == LUA_OK)
+        if (err == LUABRIDGE_LUA_OK)
         {
             // calculate number of return values and return
             const int nresults = lua_gettop(L) - nargs - 4; // 4: overloads, errors, key, table
