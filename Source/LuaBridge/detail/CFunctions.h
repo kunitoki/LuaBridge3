@@ -554,7 +554,7 @@ inline int try_overload_functions(lua_State* L)
     lua_pushvalue(L, lua_upvalueindex(1));
     assert(lua_istable(L, -1));
     const int idx_overloads = nargs + 1;
-    const int num_overloads = lua_rawlen(L, idx_overloads);
+    const int num_overloads = get_length(L, idx_overloads);
 
     // create table to hold error messages
     lua_createtable(L, num_overloads, 0);
