@@ -608,15 +608,14 @@ inline int try_overload_functions(lua_State* L)
         }
         else
         {
-            return lua_error(L);  // critical error: rethrow
+            return lua_error_x(L);  // critical error: rethrow
         }
 
         lua_pop(L, 1); // pop value (table)
     }
 
     lua_Debug debug;
-    lua_getstack(L, 0, &debug);
-    lua_getinfo(L, "n", &debug);
+    lua_getstack_info_x(L, 0, "n", &debug);
     lua_pushfstring(L, "All %d overloads of %s returned an error:", nerrors, debug.name);
 
     // Concatenate error messages of each overload
@@ -627,7 +626,7 @@ inline int try_overload_functions(lua_State* L)
     }
     lua_concat(L, nerrors * 2 + 1);
 
-    return lua_error(L); // throw error message just built
+    return lua_error_x(L); // throw error message just built
 }
 
 } // namespace detail

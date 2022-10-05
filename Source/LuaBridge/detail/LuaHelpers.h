@@ -65,6 +65,17 @@ inline void lua_pushcclosure_x(lua_State* L, lua_CFunction fn, int n)
     lua_pushcclosure(L, fn, "", n);
 }
 
+inline int lua_error_x(lua_State* L)
+{
+    lua_error(L);
+    return 0;
+}
+
+inline int lua_getstack_info_x(lua_State* L, int level, const char* what, lua_Debug* ar)
+{
+    return lua_getinfo(L, level, what, ar);
+}
+
 #else
 using ::luaL_ref;
 using ::luaL_unref;
@@ -83,6 +94,17 @@ inline void lua_pushcfunction_x(lua_State *L, lua_CFunction fn)
 inline void lua_pushcclosure_x(lua_State* L, lua_CFunction fn, int n)
 {
     lua_pushcclosure(L, fn, n);
+}
+
+inline int lua_error_x(lua_State* L)
+{
+    return lua_error(L);
+}
+
+inline int lua_getstack_info_x(lua_State* L, int level, const char* what, lua_Debug* ar)
+{
+    lua_getstack(L, level, ar);
+    return lua_getinfo(L, what, ar);
 }
 
 #endif // LUABRIDGE_ON_LUAU
@@ -482,12 +504,7 @@ inline int raise_lua_error(lua_State *L, const char *fmt, ...)
     va_end(argp);
     lua_concat(L, 2);
 
-#if LUABRIDGE_ON_LUAU
-    lua_error(L);
-    return 1;
-#else
-    return lua_error(L);
-#endif
+    return lua_error_x(L);
 }
 
 /**
