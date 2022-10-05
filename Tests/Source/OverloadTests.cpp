@@ -233,3 +233,47 @@ TEST_F(OverloadTests, NoMatchingArityWithStateClass)
     EXPECT_FALSE(runLua("result = y:test ('0', '0')"));
 #endif
 }
+
+TEST_F(OverloadTests, MixedFunctionTypesClass)
+{
+    int x = 100;
+
+    struct X
+    {
+        int test()
+        {
+            return 42;
+        }
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<X>("X")
+            .addOverload("test",
+                [x](X*, int v, lua_State*) -> int {
+                    return v + x;
+                },
+                +[](X*, std::string v, lua_State*) -> int {
+                    return v.size() ? int(v[0]) : 1337;
+                }/*,
+                &X::test*/)
+        .endClass();
+
+    X y;
+    luabridge::setGlobal(L, &y, "y");
+
+    //runLua("result = y:test ()");
+    //ASSERT_TRUE(result().isNumber());
+    //EXPECT_EQ(42, result<int>());
+
+    runLua("result = y:test (255)");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(355, result<int>());
+
+    runLua("result = y:test ('')");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(1337, result<int>());
+
+    runLua("result = y:test ('0')");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(48, result<int>());
+}

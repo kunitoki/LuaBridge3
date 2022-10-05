@@ -203,7 +203,7 @@ struct function_arity_excluding
 
 template <class... Ts, class ExclusionType>
 struct function_arity_excluding<std::tuple<Ts...>, ExclusionType>
-    : std::integral_constant<std::size_t, ((std::is_same_v<std::decay_t<Ts>, ExclusionType> ? 0 : 1) + ...)>
+    : std::integral_constant<std::size_t, (0 + ... + (std::is_same_v<std::decay_t<Ts>, ExclusionType> ? 0 : 1))>
 {
 };
 
