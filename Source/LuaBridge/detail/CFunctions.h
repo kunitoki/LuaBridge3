@@ -578,7 +578,7 @@ inline int try_overload_functions(lua_State* L)
             lua_pushfstring(L, "Skipped overload #%d with unmatched arity of %d instead of %d", nerrors, overload_arity, nargs);
             lua_rawseti(L, idx_errors, ++nerrors);
 
-            lua_pop(L, 1); // pop arity
+            lua_pop(L, 2); // pop arity, value (table)
             continue;
         }
 
@@ -628,36 +628,6 @@ inline int try_overload_functions(lua_State* L)
     lua_concat(L, nerrors * 2 + 1);
 
     return lua_error(L); // throw error message just built
-}
-
-//=================================================================================================
-
-template <class... Fs>
-inline void add_overload_functions(lua_State* L, const char* name, Fs... funcs)
-{
-    // create new closure of try_overloads with new table
-    lua_createtable(L, static_cast<int>(sizeof...(Fs)), 0); // reserve space for N overloads
-
-    int idx = 1;
-
-    ([&]
-    {
-        lua_createtable(L, 2, 0); // reserve space for: function, arity
-        lua_pushinteger(L, 1);
-        lua_pushinteger(L, static_cast<int>(function_arity_excluding_v<Fs, lua_State*>));
-        lua_settable(L, -3);
-        lua_pushinteger(L, 2);
-        lua_newuserdata_aligned<Fs>(L, std::move(funcs)); // Stack: ns, function userdata (ud)
-        lua_pushcclosure_x(L, &invoke_proxy_functor<Fs>, 1); // Stack: ns, function
-        lua_settable(L, -3);
-
-        lua_rawseti(L, -2, idx);
-        ++idx;
-
-    } (), ...);
-
-    lua_pushcclosure_x(L, &try_overload_functions, 1);
-    rawsetfield(L, -2, name);
 }
 
 } // namespace detail
