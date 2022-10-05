@@ -18,7 +18,6 @@
 
 namespace luabridge {
 namespace detail {
-
 //=================================================================================================
 /**
  * @brief Generic function traits.
@@ -194,6 +193,27 @@ static constexpr bool function_is_member_v = function_traits<F>::is_member;
  */
 template <class F>
 static constexpr bool function_is_const_v = function_traits<F>::is_const;
+
+//=================================================================================================
+
+template <class, class>
+struct function_arity_excluding
+{
+};
+
+template <class... Ts, class ExclusionType>
+struct function_arity_excluding<std::tuple<Ts...>, ExclusionType>
+    : std::integral_constant<std::size_t, ((std::is_same_v<std::decay_t<Ts>, ExclusionType> ? 0 : 1) + ...)>
+{
+};
+
+/**
+ * @brief An integral constant expression that gives the number of arguments excluding one type (usually used with lua_State*) accepted by the callable object.
+ *
+ * @tparam F Callable object.
+ */
+template <class F, class ExclusionType>
+static constexpr std::size_t function_arity_excluding_v = function_arity_excluding<function_arguments_t<F>, ExclusionType>::value;
 
 //=================================================================================================
 /**

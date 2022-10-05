@@ -544,5 +544,121 @@ int invoke_proxy_functor(lua_State* L)
     return function<typename FnTraits::result_type, typename FnTraits::argument_types, 1>::call(L, func);
 }
 
+//=================================================================================================
+
+inline int try_overload_functions(lua_State* L)
+{
+    int nargs = lua_gettop(L);
+
+    // get the list of overloads
+    lua_pushvalue(L, lua_upvalueindex(1));
+    assert(lua_istable(L, -1));
+    const int idx_overloads = nargs + 1;
+    const int num_overloads = lua_rawlen(L, idx_overloads);
+
+    // create table to hold error messages
+    lua_createtable(L, num_overloads, 0);
+    const int idx_errors = nargs + 2;
+    int nerrors = 0;
+
+    // iterate through table, snippet taken from Lua docs
+    lua_pushnil(L);  // first key
+    while (lua_next(L, idx_overloads) != 0)
+    {
+        assert(lua_istable(L, -1));
+
+        // check matching arity
+        lua_rawgeti(L, -1, 1);
+        assert(lua_isnumber(L, -1));
+
+        const int overload_arity = lua_tointeger(L, -1);
+        if (overload_arity != nargs)
+        {
+            // store error message and try next overload
+            lua_pushfstring(L, "Skipped overload #%d with unmatched arity of %d instead of %d", nerrors, overload_arity, nargs);
+            lua_rawseti(L, idx_errors, ++nerrors);
+
+            lua_pop(L, 1); // pop arity
+            continue;
+        }
+
+        lua_pop(L, 1); // pop arity
+
+        // push function
+        lua_pushnumber(L, 2);
+        lua_gettable(L, -2);
+        assert(lua_isfunction(L, -1));
+
+        // push arguments
+        for (int i = 1; i <= nargs; ++i)
+            lua_pushvalue(L, i);
+
+        // call f, this pops the function and its args, pushes result(s)
+        const int err = lua_pcall(L, nargs, LUA_MULTRET, 0);
+        if (err == LUA_OK)
+        {
+            // calculate number of return values and return
+            const int nresults = lua_gettop(L) - nargs - 4; // 4: overloads, errors, key, table
+            return nresults;
+        }
+        else if (err == LUA_ERRRUN)
+        {
+            // store error message and try next overload
+            lua_rawseti(L, idx_errors, ++nerrors);
+        }
+        else
+        {
+            return lua_error(L);  // critical error: rethrow
+        }
+
+        lua_pop(L, 1); // pop value (table)
+    }
+
+    lua_Debug debug;
+    lua_getstack(L, 0, &debug);
+    lua_getinfo(L, "n", &debug);
+    lua_pushfstring(L, "All %d overloads of %s returned an error:", nerrors, debug.name);
+
+    // Concatenate error messages of each overload
+    for (int i = 1; i <= nerrors; ++i)
+    {
+        lua_pushfstring(L, "\n%d: ", i);
+        lua_rawgeti(L, idx_errors, i);
+    }
+    lua_concat(L, nerrors * 2 + 1);
+
+    return lua_error(L); // throw error message just built
+}
+
+//=================================================================================================
+
+template <class... Fs>
+inline void add_overload_functions(lua_State* L, const char* name, Fs... funcs)
+{
+    // create new closure of try_overloads with new table
+    lua_createtable(L, static_cast<int>(sizeof...(Fs)), 0); // reserve space for N overloads
+
+    int idx = 1;
+
+    ([&]
+    {
+        lua_createtable(L, 2, 0); // reserve space for: function, arity
+        lua_pushinteger(L, 1);
+        lua_pushinteger(L, static_cast<int>(function_arity_excluding_v<Fs, lua_State*>));
+        lua_settable(L, -3);
+        lua_pushinteger(L, 2);
+        lua_newuserdata_aligned<Fs>(L, std::move(funcs)); // Stack: ns, function userdata (ud)
+        lua_pushcclosure_x(L, &invoke_proxy_functor<Fs>, 1); // Stack: ns, function
+        lua_settable(L, -3);
+
+        lua_rawseti(L, -2, idx);
+        ++idx;
+
+    } (), ...);
+
+    lua_pushcclosure_x(L, &try_overload_functions, 1);
+    rawsetfield(L, -2, name);
+}
+
 } // namespace detail
 } // namespace luabridge

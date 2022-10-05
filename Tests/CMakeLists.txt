@@ -23,6 +23,7 @@ set (LUABRIDGE_TEST_SOURCE_FILES
   Source/MapTests.cpp
   Source/NamespaceTests.cpp
   Source/OptionalTests.cpp
+  Source/OverloadTests.cpp
   Source/PerformanceTests.cpp
   Source/RefCountedPtrTests.cpp
   Source/StackTests.cpp

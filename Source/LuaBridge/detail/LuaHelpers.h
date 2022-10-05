@@ -359,6 +359,26 @@ inline void rawsetfield(lua_State* L, int index, char const* key)
 }
 
 /**
+ * @brief Return the size of lua table, even if not a sequence { 1=x, 2=y, 3=... }.
+ */
+[[nodiscard]] inline int table_length(lua_State* L, int index)
+{
+    assert(lua_istable(L, index));
+
+    int items_count = 0;
+
+    lua_pushnil(L);
+    while (lua_next(L, index) != 0)
+    {
+        ++items_count;
+
+        lua_pop(L, 1);
+    }
+
+    return items_count;
+}
+
+/**
  * @brief Return an aligned pointer of type T.
  */
 template <class T>
