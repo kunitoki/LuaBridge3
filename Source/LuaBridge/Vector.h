@@ -46,10 +46,10 @@ struct Stack<std::vector<T>>
         return {};
     }
 
-    [[nodiscard]] static Expected<Type, std::error_code> get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<Type> get(lua_State* L, int index)
     {
         if (!lua_istable(L, index))
-            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
             //luaL_error(L, "#%d argument must be a table", index);
 
         const StackRestore stackRestore(L);
@@ -64,7 +64,7 @@ struct Stack<std::vector<T>>
         {
             auto item = Stack<T>::get(L, -1);
             if (! item)
-                return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+                return makeErrorCode(ErrorCode::InvalidTypeCast);
 
             vector.emplace_back(*item);
             lua_pop(L, 1);
