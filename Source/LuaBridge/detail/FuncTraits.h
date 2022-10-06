@@ -217,6 +217,33 @@ static constexpr std::size_t function_arity_excluding_v = function_arity_excludi
 
 //=================================================================================================
 /**
+ * @brief Detect if we T is a callable object.
+ *
+ * @tparam T Potentially callable object.
+ */
+template <class T, class = void>
+struct is_callable
+{
+    static constexpr const bool value = false;
+};
+
+template <class T>
+struct is_callable<T, std::void_t<decltype(&T::operator())>>
+{
+    static constexpr const bool value = true;
+};
+
+template <class T>
+struct is_callable<T, std::enable_if_t<std::is_pointer_v<T> && std::is_function_v<std::remove_pointer_t<T>>>>
+{
+    static constexpr const bool value = true;
+};
+
+template <class T>
+inline static constexpr bool is_callable_v = is_callable<T>::value;
+
+//=================================================================================================
+/**
  * @brief Detect if we are a `std::function`.
  *
  * @tparam F Callable object.

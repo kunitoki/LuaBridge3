@@ -1779,102 +1779,56 @@ public:
 
     //=============================================================================================
     /**
-     * @brief Add or replace a namespace function by convertible to std::function.
-     */
-    template <class Function, class = std::enable_if<!std::is_pointer_v<Function>>>
-    Namespace& addFunction(const char* name, Function function)
-    {
-        using FnType = decltype(function);
-
-        assert(name != nullptr);
-        assert(lua_istable(L, -1)); // Stack: namespace table (ns)
-
-        lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: ns, function userdata (ud)
-        lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: ns, function
-        rawsetfield(L, -2, name); // Stack: ns
-
-        return *this;
-    }
-
-    //=============================================================================================
-    /**
-     * @brief Add or replace a free function.
-     */
-    template <class ReturnType, class... Params>
-    Namespace& addFunction(const char* name, ReturnType (*fp)(Params...))
-    {
-        using FnType = decltype(fp);
-
-        assert(name != nullptr);
-        assert(lua_istable(L, -1)); // Stack: namespace table (ns)
-
-        lua_pushlightuserdata(L, reinterpret_cast<void*>(fp)); // Stack: ns, function ptr
-        lua_pushcclosure_x(L, &detail::invoke_proxy_function<FnType>, 1); // Stack: ns, function
-        rawsetfield(L, -2, name); // Stack: ns
-
-        return *this;
-    }
-
-    //=============================================================================================
-    /**
-     * @brief Add or replace a lua_CFunction.
-     *
-     * @param name The function name.
-     * @param fp   A C-function pointer.
-     *
-     * @returns This namespace registration object.
-     */
-    Namespace& addFunction(const char* name, lua_CFunction fp)
-    {
-        assert(name != nullptr);
-        assert(lua_istable(L, -1)); // Stack: namespace table (ns)
-
-        lua_pushcfunction_x(L, fp); // Stack: ns, function
-        rawsetfield(L, -2, name); // Stack: ns
-
-        return *this;
-    }
-
-    //=============================================================================================
-    /**
-     * @brief Add or replace an overload function.
+     * @brief Add or replace a single function or multiple overloaded functions.
      *
      * @param name The overload name.
-     * @param functions A set of functions that will be treated as overloads.
+     * @param functions A single or set of functions that will be invoked.
      *
      * @returns This namespace registration object.
      */
-    template <class... Functions, class = std::enable_if<(!std::is_pointer_v<Functions> && ...)>>
-    Namespace& addOverload(const char* name, Functions... functions)
+    template <class... Functions>
+    auto addFunction(const char* name, Functions... functions)
+        -> std::enable_if_t<(detail::is_callable_v<Functions> && ...), Namespace&>
     {
-        static_assert(sizeof...(Functions) > 1);
+        static_assert(sizeof...(Functions) > 0);
 
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 
-        // create new closure of try_overloads with new table
-        lua_createtable(L, static_cast<int>(sizeof...(Functions)), 0); // reserve space for N overloads
-
-        int idx = 1;
-
-        ([&]
+        if constexpr (sizeof...(Functions) == 1)
         {
-            lua_createtable(L, 2, 0); // reserve space for: function, arity
-            lua_pushinteger(L, 1);
-            lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
-            lua_settable(L, -3);
-            lua_pushinteger(L, 2);
-            lua_newuserdata_aligned<Functions>(L, std::move(functions)); // Stack: ns, function userdata (ud)
-            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<Functions>, 1); // Stack: ns, function
-            lua_settable(L, -3);
+            ([&]
+            {
+                detail::push_function(L, std::move(functions));
+                rawsetfield(L, -2, name);
 
-            lua_rawseti(L, -2, idx);
-            ++idx;
+            } (), ...);
+        }
+        else
+        {
+            // create new closure of try_overloads with new table
+            lua_createtable(L, static_cast<int>(sizeof...(Functions)), 0); // reserve space for N overloads
 
-        } (), ...);
+            int idx = 1;
 
-        lua_pushcclosure_x(L, &detail::try_overload_functions, 1);
-        rawsetfield(L, -2, name);
+            ([&]
+            {
+                lua_createtable(L, 2, 0); // reserve space for: function, arity
+                lua_pushinteger(L, 1);
+                lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
+                lua_settable(L, -3);
+                lua_pushinteger(L, 2);
+                detail::push_function(L, std::move(functions));
+                lua_settable(L, -3);
+
+                lua_rawseti(L, -2, idx);
+                ++idx;
+
+            } (), ...);
+
+            lua_pushcclosure_x(L, &detail::try_overload_functions, 1);
+            rawsetfield(L, -2, name);
+        }
 
         return *this;
     }

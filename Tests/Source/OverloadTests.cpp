@@ -20,7 +20,7 @@ TEST_F(OverloadTests, NoMatchingArity)
     int x = 100;
 
     luabridge::getGlobalNamespace(L)
-        .addOverload("test",
+        .addFunction("test",
             [x](int v) -> int {
                 return v + x;
             },
@@ -46,7 +46,7 @@ TEST_F(OverloadTests, NoMatchingArityWithState)
     int x = 100;
 
     luabridge::getGlobalNamespace(L)
-        .addOverload("test",
+        .addFunction("test",
             [x](int v, lua_State*) -> int {
                 return v + x;
             },
@@ -72,7 +72,7 @@ TEST_F(OverloadTests, SingleArgumentOverloads)
     int x = 100;
 
     luabridge::getGlobalNamespace(L)
-        .addOverload("test",
+        .addFunction("test",
             [x](int v) -> int {
                 return v + x;
             },
@@ -98,7 +98,7 @@ TEST_F(OverloadTests, SingleArgumentOverloadsWithState)
     int x = 100;
 
     luabridge::getGlobalNamespace(L)
-        .addOverload("test",
+        .addFunction("test",
             [x](int v, lua_State*) -> int {
                 return v + x;
             },
@@ -122,7 +122,7 @@ TEST_F(OverloadTests, SingleArgumentOverloadsWithState)
 TEST_F(OverloadTests, IntegerTypeFallbackOverloads)
 {
     luabridge::getGlobalNamespace(L)
-        .addOverload("test",
+        .addFunction("test",
             [](int8_t v) -> int {
                 return 1;
             },

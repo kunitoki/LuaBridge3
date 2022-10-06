@@ -545,7 +545,11 @@ int invoke_proxy_functor(lua_State* L)
 }
 
 //=================================================================================================
-
+/**
+ * @brief lua_CFunction to resolve an invocation between several overloads.
+ *
+ * The list of overloads is in the first upvalue. The arguments of the function call are at the top of the Lua stack.
+ */
 inline int try_overload_functions(lua_State* L)
 {
     int nargs = lua_gettop(L);
@@ -627,6 +631,29 @@ inline int try_overload_functions(lua_State* L)
     lua_concat(L, nerrors * 2 + 1);
 
     return lua_error_x(L); // throw error message just built
+}
+
+//=================================================================================================
+
+inline void push_function(lua_State* L, lua_CFunction fp)
+{
+    lua_pushcfunction_x(L, fp);
+}
+
+template <class ReturnType, class... Params>
+inline void push_function(lua_State* L, ReturnType (*fp)(Params...))
+{
+    using FnType = decltype(fp);
+
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType>, 1);
+}
+
+template <class F, class = std::enable_if<detail::is_callable_v<F> && !std::is_pointer_v<F>>>
+inline void push_function(lua_State* L, F&& f)
+{
+    lua_newuserdata_aligned<F>(L, std::forward<F>(f));
+    lua_pushcclosure_x(L, &detail::invoke_proxy_functor<F>, 1);
 }
 
 } // namespace detail
