@@ -813,15 +813,13 @@ class Namespace : public detail::Registrar
 
         //=========================================================================================
         /**
-         * @brief Add or replace a namespace function by convertible to std::function (capturing lambdas).
+         * @brief Add or replace a function that can operate on the class.
          */
-        template <class Function, class = std::enable_if_t<detail::function_arity_v<Function> != 0>>
-        Class<T> addFunction(const char* name, Function function)
+        template <class... Functions>
+        auto addFunction(const char* name, Functions... functions)
+            -> std::enable_if_t<(detail::is_callable_v<Functions> && ...), Class<T>&>
         {
-            using FnType = decltype(function);
-
-            using FirstArg = detail::function_argument_t<0, Function>;
-            static_assert(std::is_same_v<std::decay_t<std::remove_pointer_t<FirstArg>>, T>);
+            static_assert(sizeof...(Functions) > 0);
 
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
@@ -832,198 +830,53 @@ class Namespace : public detail::Registrar
                 return *this;
             }
 
-            lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: co, cl, st, function userdata (ud)
-            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: co, cl, st, function
-
-            if constexpr (! std::is_const_v<std::remove_reference_t<std::remove_pointer_t<FirstArg>>>)
+            if constexpr (sizeof...(Functions) == 1)
             {
-                rawsetfield(L, -3, name); // Stack: co, cl, st
+                ([&]
+                {
+                    detail::push_member_function<T>(L, std::move(functions));
+
+                } (), ...);
             }
             else
+            {
+                // create new closure of try_overloads with new table
+                lua_createtable(L, static_cast<int>(sizeof...(Functions)), 0); // reserve space for N overloads
+
+                int idx = 1;
+
+                ([&]
+                {
+                    lua_createtable(L, 2, 0); // reserve space for: function, arity
+                    lua_pushinteger(L, 1);
+                    lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
+                    lua_settable(L, -3);
+                    lua_pushinteger(L, 2);
+                    detail::push_member_function<T>(L, std::move(functions));
+                    lua_settable(L, -3);
+
+                    lua_rawseti(L, -2, idx);
+                    ++idx;
+
+                } (), ...);
+
+                lua_pushcclosure_x(L, &detail::try_overload_functions, 1);
+            }
+
+            static constexpr bool is_const = (true && ... &&
+                (detail::is_const_member_function_pointer_v<Functions> ||
+                 (detail::function_arity_v<Functions> > 0 && detail::is_const_proxy_function_v<T, Functions>)));
+
+            if constexpr (is_const)
             {
                 lua_pushvalue(L, -1); // Stack: co, cl, st, function, function
                 rawsetfield(L, -4, name); // Stack: co, cl, st, function
                 rawsetfield(L, -4, name); // Stack: co, cl, st
             }
-
-            return *this;
-        }
-
-        //=========================================================================================
-        /**
-         * @brief Add or replace a member function.
-         */
-        template <class U, class ReturnType, class... Params>
-        Class<T>& addFunction(const char* name, ReturnType (U::*mf)(Params...))
-        {
-            static_assert(std::is_base_of_v<U, T>);
-
-            using MemFn = decltype(mf);
-
-            assert(name != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            if (name == std::string_view("__gc"))
+            else
             {
-                throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
-                return *this;
+                rawsetfield(L, -3, name); // Stack: co, cl, st
             }
-
-            new (lua_newuserdata_x<MemFn>(L, sizeof(MemFn))) MemFn(mf);
-            lua_pushcclosure_x(L, &detail::invoke_member_function<MemFn, T>, 1);
-            rawsetfield(L, -3, name); // class table
-
-            return *this;
-        }
-
-        template <class U, class ReturnType, class... Params>
-        Class<T>& addFunction(const char* name, ReturnType (U::*mf)(Params...) const)
-        {
-            static_assert(std::is_base_of_v<U, T>);
-
-            using MemFn = decltype(mf);
-
-            assert(name != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            if (name == std::string_view("__gc"))
-            {
-                throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
-                return *this;
-            }
-
-            new (lua_newuserdata_x<MemFn>(L, sizeof(MemFn))) MemFn(mf);
-            lua_pushcclosure_x(L, &detail::invoke_const_member_function<MemFn, T>, 1);
-            lua_pushvalue(L, -1);
-            rawsetfield(L, -5, name); // const table
-            rawsetfield(L, -3, name); // class table
-
-            return *this;
-        }
-
-        //=========================================================================================
-        /**
-         * @brief Add or replace a proxy function.
-         */
-        template <class ReturnType, class... Params>
-        Class<T>& addFunction(const char* name, ReturnType (*proxyFn)(T* object, Params...))
-        {
-            using FnType = decltype(proxyFn);
-
-            assert(name != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            if (name == std::string_view("__gc"))
-            {
-                throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
-                return *this;
-            }
-
-            lua_pushlightuserdata(L, reinterpret_cast<void*>(proxyFn)); // Stack: co, cl, st, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_proxy_function<FnType>, 1); // Stack: co, cl, st, function
-            rawsetfield(L, -3, name); // Stack: co, cl, st
-
-            return *this;
-        }
-
-        template <class ReturnType, class... Params>
-        Class<T>& addFunction(const char* name, ReturnType (*proxyFn)(const T* object, Params...))
-        {
-            using FnType = decltype(proxyFn);
-
-            assert(name != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            if (name == std::string_view("__gc"))
-            {
-                throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
-                return *this;
-            }
-
-            lua_pushlightuserdata(L, reinterpret_cast<void*>(proxyFn)); // Stack: co, cl, st, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_proxy_function<FnType>, 1); // Stack: co, cl, st, function
-            lua_pushvalue(L, -1); // Stack: co, cl, st, function, function
-            rawsetfield(L, -4, name); // Stack: co, cl, st, function
-            rawsetfield(L, -4, name); // Stack: co, cl, st
-
-            return *this;
-        }
-
-        //=========================================================================================
-        /**
-         * @brief Add or replace a member lua_CFunction.
-         */
-        template <class U>
-        Class<T>& addFunction(const char* name, int (U::*mfp)(lua_State*))
-        {
-            static_assert(std::is_base_of_v<U, T>);
-
-            using F = decltype(mfp);
-
-            assert(name != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            if (name == std::string_view("__gc"))
-            {
-                throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
-                return *this;
-            }
-
-            new (lua_newuserdata_x<F>(L, sizeof(mfp))) F(mfp); // Stack: co, cl, st, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_member_cfunction<T>, 1); // Stack: co, cl, st, function
-            rawsetfield(L, -3, name); // Stack: co, cl, st
-
-            return *this;
-        }
-
-        //=========================================================================================
-        /**
-         * @brief Add or replace a const member lua_CFunction.
-         */
-        template <class U>
-        Class<T>& addFunction(const char* name, int (U::*mfp)(lua_State*) const)
-        {
-            static_assert(std::is_base_of_v<U, T>);
-
-            using F = decltype(mfp);
-
-            assert(name != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            if (name == std::string_view("__gc"))
-            {
-                throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
-                return *this;
-            }
-
-            new (lua_newuserdata_x<F>(L, sizeof(mfp))) F(mfp);
-            lua_pushcclosure_x(L, &detail::invoke_const_member_cfunction<T>, 1);
-            lua_pushvalue(L, -1); // Stack: co, cl, st, function, function
-            rawsetfield(L, -4, name); // Stack: co, cl, st, function
-            rawsetfield(L, -4, name); // Stack: co, cl, st
-
-            return *this;
-        }
-
-        //=========================================================================================
-        /**
-         * @brief Add or replace a free lua_CFunction that works as a member.
-         *
-         * This object is at top of the stack, then all other arguments.
-         */
-        Class<T>& addFunction(const char* name, lua_CFunction fp)
-        {
-            assert(name != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            if (name == std::string_view("__gc"))
-            {
-                throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
-                return *this;
-            }
-
-            lua_pushcfunction_x(L, fp); // Stack: co, cl, st, function
-            rawsetfield(L, -3, name); // Stack: co, cl, st
 
             return *this;
         }

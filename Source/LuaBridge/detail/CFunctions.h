@@ -634,12 +634,13 @@ inline int try_overload_functions(lua_State* L)
 }
 
 //=================================================================================================
-
+// Lua CFunction
 inline void push_function(lua_State* L, lua_CFunction fp)
 {
     lua_pushcfunction_x(L, fp);
 }
 
+// Generic function pointer
 template <class ReturnType, class... Params>
 inline void push_function(lua_State* L, ReturnType (*fp)(Params...))
 {
@@ -649,18 +650,99 @@ inline void push_function(lua_State* L, ReturnType (*fp)(Params...))
     lua_pushcclosure_x(L, &invoke_proxy_function<FnType>, 1);
 }
 
-template <class F, class = std::enable_if<is_callable_v<F> && !std::is_pointer_v<F>>>
+// Callable object (lambdas)
+template <class F, class = std::enable_if<is_callable_v<F> && !std::is_pointer_v<F> && !std::is_member_function_pointer_v<F>>>
 inline void push_function(lua_State* L, F&& f)
 {
     lua_newuserdata_aligned<F>(L, std::forward<F>(f));
     lua_pushcclosure_x(L, &invoke_proxy_functor<F>, 1);
 }
 
-template <class T, class F, class = std::enable_if<std::is_member_function_pointer_v<F>>>
-inline void push_function(lua_State* L, F&& f)
+//=================================================================================================
+// Lua CFunction
+template <class T>
+void push_member_function(lua_State* L, lua_CFunction fp)
 {
-    new (lua_newuserdata_x<F>(L, sizeof(F))) F(std::forward<F>(f));
+    lua_pushcfunction_x(L, fp);
+}
+
+// Generic function pointer
+template <class T, class ReturnType, class... Params>
+void push_member_function(lua_State* L, ReturnType (*fp)(T*, Params...))
+{
+    using FnType = decltype(fp);
+
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType>, 1);
+}
+
+template <class T, class ReturnType, class... Params>
+void push_member_function(lua_State* L, ReturnType (*fp)(const T*, Params...))
+{
+    using FnType = decltype(fp);
+
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType>, 1);
+}
+
+// Callable object (lambdas)
+template <class T, class F, class = std::enable_if<
+    is_callable_v<F> &&
+        is_proxy_member_function_v<T, F> &&
+        !std::is_pointer_v<F> &&
+        !std::is_member_function_pointer_v<F>>>
+void push_member_function(lua_State* L, F&& f)
+{
+    lua_newuserdata_aligned<F>(L, std::forward<F>(f));
+    lua_pushcclosure_x(L, &invoke_proxy_functor<F>, 1);
+}
+
+// Non const member function pointer
+template <class T, class U, class ReturnType, class... Params>
+void push_member_function(lua_State* L, ReturnType (U::*mfp)(Params...))
+{
+    static_assert(std::is_same_v<T, U> || std::is_base_of_v<U, T>);
+
+    using F = decltype(mfp);
+
+    new (lua_newuserdata_x<F>(L, sizeof(F))) F(mfp);
     lua_pushcclosure_x(L, &invoke_member_function<F, T>, 1);
+}
+
+// Const member function pointer
+template <class T, class U, class ReturnType, class... Params>
+void push_member_function(lua_State* L, ReturnType (U::*mfp)(Params...) const)
+{
+    static_assert(std::is_same_v<T, U> || std::is_base_of_v<U, T>);
+
+    using F = decltype(mfp);
+
+    new (lua_newuserdata_x<F>(L, sizeof(F))) F(mfp);
+    lua_pushcclosure_x(L, &detail::invoke_const_member_function<F, T>, 1);
+}
+
+// Non const member Lua CFunction pointer
+template <class T, class U = T>
+void push_member_function(lua_State* L, int (U::*mfp)(lua_State*))
+{
+    static_assert(std::is_same_v<T, U> || std::is_base_of_v<U, T>);
+
+    using F = decltype(mfp);
+
+    new (lua_newuserdata_x<F>(L, sizeof(F))) F(mfp);
+    lua_pushcclosure_x(L, &invoke_member_cfunction<T>, 1);
+}
+
+// Const member Lua CFunction pointer
+template <class T, class U = T>
+void push_member_function(lua_State* L, int (U::*mfp)(lua_State*) const)
+{
+    static_assert(std::is_same_v<T, U> || std::is_base_of_v<U, T>);
+
+    using F = decltype(mfp);
+
+    new (lua_newuserdata_x<F>(L, sizeof(F))) F(mfp);
+    lua_pushcclosure_x(L, &invoke_const_member_cfunction<T>, 1);
 }
 
 } // namespace detail

@@ -20,6 +20,19 @@ namespace luabridge {
 namespace detail {
 //=================================================================================================
 /**
+ * @brief Provides the member typedef type which is the type referred to by T with its topmost cv-qualifiers removed.
+ */
+template< class T >
+struct remove_cvref
+{
+    typedef std::remove_cv_t<std::remove_reference_t<T>> type;
+};
+
+template <class T>
+using remove_cvref_t = typename remove_cvref<T>::type;
+
+//=================================================================================================
+/**
  * @brief Generic function traits.
  *
  * @tparam IsMember True if the function is a member function pointer.
@@ -146,6 +159,28 @@ struct function_traits : std::conditional_t<std::is_class_v<F>,
 
 //=================================================================================================
 /**
+ * @brief Deduces the argument type of a callble object or void in case it has no argument.
+ *
+ * @tparam I Argument index.
+ * @tparam F Callable object.
+ */
+template <std::size_t I, class F, class = void>
+struct function_argument_or_void
+{
+    using type = void;
+};
+
+template <std::size_t I, class F>
+struct function_argument_or_void<I, F, std::enable_if_t<I < std::tuple_size_v<typename function_traits<F>::argument_types>>>
+{
+    using type = std::tuple_element_t<I, typename function_traits<F>::argument_types>;
+};
+
+template <std::size_t I, class F>
+using function_argument_or_void_t = typename function_argument_or_void<I, F>::type;
+
+//=================================================================================================
+/**
  * @brief Deduces the return type of a callble object.
  *
  * @tparam F Callable object.
@@ -224,29 +259,120 @@ static constexpr std::size_t function_arity_excluding_v = function_arity_excludi
 template <class T, class = void>
 struct is_callable
 {
-    static constexpr const bool value = false;
+    static constexpr bool value = false;
 };
 
 template <class T>
 struct is_callable<T, std::void_t<decltype(&T::operator())>>
 {
-    static constexpr const bool value = true;
+    static constexpr bool value = true;
 };
 
 template <class T>
 struct is_callable<T, std::enable_if_t<std::is_pointer_v<T> && std::is_function_v<std::remove_pointer_t<T>>>>
 {
-    static constexpr const bool value = true;
+    static constexpr bool value = true;
 };
 
 template <class T>
 struct is_callable<T, std::enable_if_t<std::is_member_function_pointer_v<T>>>
 {
-    static constexpr const bool value = true;
+    static constexpr bool value = true;
 };
 
 template <class T>
 inline static constexpr bool is_callable_v = is_callable<T>::value;
+
+//=================================================================================================
+/**
+ * @brief Detect if we T is a const member function pointer.
+ *
+ * @tparam T Potentially const member function pointer.
+ */
+template <class T>
+struct is_const_member_function_pointer
+{
+    static constexpr bool value = false;
+};
+
+template <class T, class R, class... Args>
+struct is_const_member_function_pointer<R (T::*)(Args...)>
+{
+    static constexpr bool value = false;
+};
+
+template <class T, class R, class... Args>
+struct is_const_member_function_pointer<R (T::*)(Args...) const>
+{
+    static constexpr bool value = true;
+};
+
+template <class T>
+inline static constexpr bool is_const_member_function_pointer_v = is_const_member_function_pointer<T>::value;
+
+//=================================================================================================
+/**
+ * @brief Detect if we T is a member lua cfunction pointer.
+ *
+ * @tparam T Potentially member lua cfunction pointer.
+ */
+template <class T>
+struct is_member_cfunction_pointer
+{
+    static constexpr bool value = false;
+};
+
+template <class T>
+struct is_member_cfunction_pointer<int (T::*)(lua_State*)>
+{
+    static constexpr bool value = true;
+};
+
+template <class T>
+struct is_member_cfunction_pointer<int (T::*)(lua_State*) const>
+{
+    static constexpr bool value = true;
+};
+
+template <class T>
+inline static constexpr bool is_member_cfunction_pointer_v = is_member_cfunction_pointer<T>::value;
+
+/**
+ * @brief Detect if we T is a const member lua cfunction pointer.
+ *
+ * @tparam T Potentially const member lua cfunction pointer.
+ */
+template <class T>
+struct is_const_member_cfunction_pointer
+{
+    static constexpr bool value = false;
+};
+
+template <class T>
+struct is_const_member_cfunction_pointer<int (T::*)(lua_State*)>
+{
+    static constexpr bool value = false;
+};
+
+template <class T>
+struct is_const_member_cfunction_pointer<int (T::*)(lua_State*) const>
+{
+    static constexpr bool value = true;
+};
+
+template <class T>
+inline static constexpr bool is_const_member_cfunction_pointer_v = is_const_member_cfunction_pointer<T>::value;
+
+//=================================================================================================
+
+template <class T, class F>
+inline static constexpr bool is_proxy_member_function_v =
+    std::is_same_v<T, std::decay_t<std::remove_pointer_t<function_argument_or_void_t<0, F>>>>;
+
+template <class T, class F>
+inline static constexpr bool is_const_proxy_function_v =
+    is_proxy_member_function_v<T, F> &&
+    std::is_const_v<std::remove_pointer_t<function_argument_or_void_t<0, F>>>;
 
 //=================================================================================================
 /**
