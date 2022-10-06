@@ -230,27 +230,6 @@ template <class F>
 static constexpr bool function_is_const_v = function_traits<F>::is_const;
 
 //=================================================================================================
-
-template <class, class>
-struct function_arity_excluding
-{
-};
-
-template <class... Ts, class ExclusionType>
-struct function_arity_excluding<std::tuple<Ts...>, ExclusionType>
-    : std::integral_constant<std::size_t, (0 + ... + (std::is_same_v<std::decay_t<Ts>, ExclusionType> ? 0 : 1))>
-{
-};
-
-/**
- * @brief An integral constant expression that gives the number of arguments excluding one type (usually used with lua_State*) accepted by the callable object.
- *
- * @tparam F Callable object.
- */
-template <class F, class ExclusionType>
-static constexpr std::size_t function_arity_excluding_v = function_arity_excluding<function_arguments_t<F>, ExclusionType>::value;
-
-//=================================================================================================
 /**
  * @brief Detect if we T is a callable object.
  *
@@ -364,6 +343,12 @@ template <class T>
 inline static constexpr bool is_const_member_cfunction_pointer_v = is_const_member_cfunction_pointer<T>::value;
 
 //=================================================================================================
+/**
+ * @brief A constexpr check for proxy_member functions.
+ *
+ * @tparam T Type where the callable should be able to operate.
+ * @tparam F Callable object.
+ */
 
 template <class T, class F>
 inline static constexpr bool is_proxy_member_function_v =
@@ -373,6 +358,51 @@ template <class T, class F>
 inline static constexpr bool is_const_proxy_function_v =
     is_proxy_member_function_v<T, F> &&
     std::is_const_v<std::remove_pointer_t<function_argument_or_void_t<0, F>>>;
+
+//=================================================================================================
+/**
+ * @brief An integral constant expression that gives the number of arguments excluding one type (usually used with lua_State*) accepted by the callable object.
+ *
+ * @tparam F Callable object.
+ */
+template <class, class>
+struct function_arity_excluding
+{
+};
+
+template < class... Ts, class ExclusionType>
+struct function_arity_excluding<std::tuple<Ts...>, ExclusionType>
+    : std::integral_constant<std::size_t, (0 + ... + (std::is_same_v<std::decay_t<Ts>, ExclusionType> ? 0 : 1))>
+{
+};
+
+template <class F, class ExclusionType>
+static constexpr std::size_t function_arity_excluding_v = function_arity_excluding<function_arguments_t<F>, ExclusionType>::value;
+
+/**
+ * @brief An integral constant expression that gives the number of arguments excluding one type (usually used with lua_State*) accepted by the callable object.
+ *
+ * @tparam F Callable object.
+ */
+template <class, class, class, class, class = void>
+struct member_function_arity_excluding
+{
+};
+
+template <class T, class F, class... Ts, class ExclusionType>
+struct member_function_arity_excluding<T, F, std::tuple<Ts...>, ExclusionType, std::enable_if_t<!is_proxy_member_function_v<T, F>>>
+    : std::integral_constant<std::size_t, (0 + ... + (std::is_same_v<std::decay_t<Ts>, ExclusionType> ? 0 : 1))>
+{
+};
+
+template <class T, class F, class... Ts, class ExclusionType>
+struct member_function_arity_excluding<T, F, std::tuple<Ts...>, ExclusionType, std::enable_if_t<is_proxy_member_function_v<T, F>>>
+    : std::integral_constant<std::size_t, (0 + ... + (std::is_same_v<std::decay_t<Ts>, ExclusionType> ? 0 : 1)) - 1>
+{
+};
+
+template <class T, class F, class ExclusionType>
+static constexpr std::size_t member_function_arity_excluding_v = member_function_arity_excluding<T, F, function_arguments_t<F>, ExclusionType>::value;
 
 //=================================================================================================
 /**

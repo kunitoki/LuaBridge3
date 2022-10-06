@@ -612,7 +612,7 @@ class Namespace : public detail::Registrar
 
                 } (), ...);
 
-                lua_pushcclosure_x(L, &detail::try_overload_functions, 1);
+                lua_pushcclosure_x(L, &detail::try_overload_functions<false>, 1);
                 rawsetfield(L, -2, name);
             }
 
@@ -814,6 +814,11 @@ class Namespace : public detail::Registrar
         //=========================================================================================
         /**
          * @brief Add or replace a function that can operate on the class.
+         *
+         * @param name The function or overloaded functions name.
+         * @param functions A single or set of functions that will be invoked.
+         *
+         * @returns This class registration object.
          */
         template <class... Functions>
         auto addFunction(const char* name, Functions... functions)
@@ -849,7 +854,7 @@ class Namespace : public detail::Registrar
                 {
                     lua_createtable(L, 2, 0); // reserve space for: function, arity
                     lua_pushinteger(L, 1);
-                    lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
+                    lua_pushinteger(L, static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>));
                     lua_settable(L, -3);
                     lua_pushinteger(L, 2);
                     detail::push_member_function<T>(L, std::move(functions));
@@ -860,7 +865,7 @@ class Namespace : public detail::Registrar
 
                 } (), ...);
 
-                lua_pushcclosure_x(L, &detail::try_overload_functions, 1);
+                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, 1);
             }
 
             static constexpr bool is_const = (true && ... &&
@@ -877,73 +882,6 @@ class Namespace : public detail::Registrar
             {
                 rawsetfield(L, -3, name); // Stack: co, cl, st
             }
-
-            return *this;
-        }
-
-        //=============================================================================================
-        /**
-         * @brief Add or replace an overload function.
-         *
-         * @param name The overload name.
-         * @param functions A set of functions that will be treated as overloads.
-         *
-         * @returns This namespace registration object.
-         */
-        template <class... Functions, class = std::enable_if<(!std::is_pointer_v<Functions> && ...)>>
-        Class<T>& addOverload(const char* name, Functions... functions)
-        {
-            static_assert(sizeof...(Functions) > 1);
-
-            assert(name != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            if (name == std::string_view("__gc"))
-            {
-                throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
-                return *this;
-            }
-
-            // create new closure of try_overloads with new table
-            lua_createtable(L, static_cast<int>(sizeof...(Functions)), 0); // reserve space for N overloads
-
-            int idx = 1;
-
-            ([&]
-            {
-                using FirstArg = detail::function_argument_t<0, Functions>;
-                static_assert(std::is_same_v<std::decay_t<std::remove_pointer_t<FirstArg>>, T>);
-
-                lua_createtable(L, 2, 0); // reserve space for: function, arity
-                lua_pushinteger(L, 1);
-                lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
-                lua_settable(L, -3);
-                lua_pushinteger(L, 2);
-                lua_newuserdata_aligned<Functions>(L, std::move(functions)); // Stack: ns, function userdata (ud)
-                lua_pushcclosure_x(L, &detail::invoke_proxy_functor<Functions>, 1); // Stack: ns, function
-                lua_settable(L, -3);
-
-                lua_rawseti(L, -2, idx);
-                ++idx;
-
-            } (), ...);
-
-            lua_pushcclosure_x(L, &detail::try_overload_functions, 1);
-
-            /*
-            if constexpr (! std::is_const_v<std::remove_reference_t<std::remove_pointer_t<FirstArg>>>)
-            {
-                rawsetfield(L, -3, name); // Stack: co, cl, st
-            }
-            else
-            {
-            */
-            lua_pushvalue(L, -1); // Stack: co, cl, st, function, function
-            rawsetfield(L, -4, name); // Stack: co, cl, st, function
-            rawsetfield(L, -4, name); // Stack: co, cl, st
-            /*
-            }
-            */
 
             return *this;
         }
@@ -1679,7 +1617,7 @@ public:
 
             } (), ...);
 
-            lua_pushcclosure_x(L, &detail::try_overload_functions, 1);
+            lua_pushcclosure_x(L, &detail::try_overload_functions<false>, 1);
             rawsetfield(L, -2, name);
         }
 

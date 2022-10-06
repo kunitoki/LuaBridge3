@@ -550,9 +550,11 @@ int invoke_proxy_functor(lua_State* L)
  *
  * The list of overloads is in the first upvalue. The arguments of the function call are at the top of the Lua stack.
  */
+template <bool Member>
 inline int try_overload_functions(lua_State* L)
 {
-    int nargs = lua_gettop(L);
+    const int nargs = lua_gettop(L);
+    const int effective_args = nargs - (Member ? 1 : 0);
 
     // get the list of overloads
     lua_pushvalue(L, lua_upvalueindex(1));
@@ -576,10 +578,10 @@ inline int try_overload_functions(lua_State* L)
         assert(lua_isnumber(L, -1));
 
         const int overload_arity = lua_tointeger(L, -1);
-        if (overload_arity != nargs)
+        if (overload_arity != effective_args)
         {
             // store error message and try next overload
-            lua_pushfstring(L, "Skipped overload #%d with unmatched arity of %d instead of %d", nerrors, overload_arity, nargs);
+            lua_pushfstring(L, "Skipped overload #%d with unmatched arity of %d instead of %d", nerrors, overload_arity, effective_args);
             lua_rawseti(L, idx_errors, ++nerrors);
 
             lua_pop(L, 2); // pop arity, value (table)

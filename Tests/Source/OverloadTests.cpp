@@ -176,7 +176,7 @@ TEST_F(OverloadTests, NoMatchingArityClass)
 
     luabridge::getGlobalNamespace(L)
         .beginClass<X>("X")
-            .addOverload("test",
+            .addFunction("test",
                 [x](X*, int v) -> int {
                     return v + x;
                 },
@@ -209,7 +209,7 @@ TEST_F(OverloadTests, NoMatchingArityWithStateClass)
 
     luabridge::getGlobalNamespace(L)
         .beginClass<X>("X")
-            .addOverload("test",
+            .addFunction("test",
                 [x](X*, int v, lua_State*) -> int {
                     return v + x;
                 },
@@ -248,22 +248,22 @@ TEST_F(OverloadTests, MixedFunctionTypesClass)
 
     luabridge::getGlobalNamespace(L)
         .beginClass<X>("X")
-            .addOverload("test",
+            .addFunction("test",
                 [x](X*, int v, lua_State*) -> int {
                     return v + x;
                 },
                 +[](X*, std::string v, lua_State*) -> int {
                     return v.size() ? int(v[0]) : 1337;
-                }/*,
-                &X::test*/)
+                },
+                &X::test)
         .endClass();
 
     X y;
     luabridge::setGlobal(L, &y, "y");
 
-    //runLua("result = y:test ()");
-    //ASSERT_TRUE(result().isNumber());
-    //EXPECT_EQ(42, result<int>());
+    runLua("result = y:test ()");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(42, result<int>());
 
     runLua("result = y:test (255)");
     ASSERT_TRUE(result().isNumber());
