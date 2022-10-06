@@ -733,9 +733,9 @@ namespace luabridge {
 template <class T>
 struct Stack
 {
-  static bool push (lua_State* L, T value, std::error_code& ec);
+  static Result push (lua_State* L, const T& value);
 
-  static T get (lua_State* L, int index);
+  static Expected<T, std::error_code> get (lua_State* L, int index);
 
   static bool isInstance (lua_State* L, int index);
 };
@@ -747,10 +747,10 @@ When a specialization of `Stack` exists for a given type `T` we say that the `T`
 
 The Stack template class specializations are used automatically for variables, properties, data members, property members, function arguments and return values. These basic types are supported:
 
-*   `bool`
-*   `char`, converted to a string of length one.
-*   `char const*` and `std::string` strings.
-*   Integers, `float`, and `double`, converted to `Lua_number`.
+* `bool`
+* `char`, converted to a string of length one.
+* `char const*` and `std::string` strings.
+* `std::byte`, integers, `float`, `double`, `long double` converted to `Lua_number`.
 
 User-defined types which are convertible to one of the basic types are possible, simply provide a `Stack <>` specialization in the `luabridge` namespace for your user-defined type, modeled after the existing types. For example, here is a specialization for a `juce::String`:
 
@@ -760,15 +760,23 @@ namespace luabridge {
 template <>
 struct Stack<juce::String>
 {
-  static bool push (lua_State* L, const juce::String& s, std::error_code& ec)
+  static Result push (lua_State* L, const juce::String& s)
   {
     lua_pushstring (L, s.toUTF8 ());
-    return true;
+    return {};
   }
 
-  static juce::String get (lua_State* L, int index)
+  static Expected<juce::String, std::error_code> get (lua_State* L, int index)
   {
-    return juce::String (luaL_checkstring (L, index));
+    if (lua_type (L, index) != LUA_TSTRING)
+        return makeUnexpected (makeErrorCode (ErrorCode::InvalidTypeCast));
+
+    std::size_t length = 0;
+    const char* str = lua_tolstring (L, index, &length);
+    if (str == nullptr)
+        return makeUnexpected (makeErrorCode (ErrorCode::InvalidTypeCast));
+
+    return juce::String::fromUTF8 (str);
   }
 
   static bool isInstance (lua_State* L, int index)
@@ -780,7 +788,7 @@ struct Stack<juce::String>
 } // namespace luabridge
 ```
 
-To make sure the library can work without exceptions enabled, if for some reason the push of the value on the lua stack cannot be performed, it is mandatory to return `false` but also fill the error code `ec` value with a proper error code, eventually restoring the stack as it was before entering the call:
+To make sure the library can work without exceptions enabled, if for some reason the push and get of the value on/from the lua stack cannot be performed, it is mandatory to return a `Result` object that can be constructed from a `std::error_code`. It also good practice to resotre the stack to it's original state in case of failures:
 
 ```cpp
 namespace luabridge {
@@ -788,31 +796,58 @@ namespace luabridge {
 template <class T>
 struct Stack<Array<T>>
 {
-  static bool push (lua_State* L, const Array<T>& array, std::error_code& ec)
+  static Result push (lua_State* L, const Array<T>& array)
   {
-    const int initialStackSize = lua_gettop(L);
+    const int initialStackSize = lua_gettop (L);
 
-    lua_createtable(L, static_cast<int>(array.size()), 0);
+    lua_createtable (L, static_cast<int> (array.size ()), 0);
 
-    for (std::size_t i = 0; i < array.size(); ++i)
+    for (std::size_t i = 0; i < array.size (); ++i)
     {
-      lua_pushinteger(L, static_cast<lua_Integer>(i + 1));
+      lua_pushinteger (L, static_cast<lua_Integer> (i + 1));
 
-      std::error_code errorCode;
-      if (! Stack<T>::push(L, array[i], errorCode))         // The push can fail
+      auto result = Stack<T>::push (L, array[i]);
+      if (! result)
       {
-        ec = errorCode;                                     // Forward the error code
-        lua_pop(L, lua_gettop(L) - initialStackSize);       // Restore the stack
-        return false;                                       // Return false
+        lua_pop (L, lua_gettop (L) - initialStackSize);  // Restore the stack
+        return result;                                   // Forward the error code
       }
 
-      lua_settable(L, -3);
+      lua_settable (L, -3);
     }
 
-    return true;
+    return {};                                           // No error
   }
 
-  // ...
+  static Expected<Array<T>, std::error_code> get (lua_State* L, int index)
+  {
+    if (!lua_istable (L, index))
+      return makeUnexpected (makeErrorCode (ErrorCode::InvalidTypeCast));
+
+    const int initialStackSize = lua_gettop (L);
+
+    Array<T> a;
+    a.reserve (static_cast<std::size_t> (get_length(L, index)));
+
+    const int absIndex = lua_absindex (L, index);
+
+    lua_pushnil (L);
+    while (lua_next (L, absIndex) != 0)
+    {
+      auto item = Stack<T>::get (L, -1);
+      if (! item)
+      {
+        lua_pop (L, lua_gettop (L) - initialStackSize);
+        return item.error ();
+      }
+
+      a.append (*item);
+
+      lua_pop (L, 1);
+    }
+
+    return a;
+  }
 };
 
 } // namespace luabridge
@@ -1194,12 +1229,24 @@ void passString (std::string);
 
 luabridge::LuaRef v (L);
 
-// The following are all equivalent:
+// The following are all equivalent, and they could be potentially unsafe:
 
 passString (std::string (v));
-passString ((std::string)v);
-passString (static_cast <std::string> (v));
-passString (v.cast <std::string> ());
+passString ((std::string) v);
+passString (static_cast<std::string> (v));
+passString (v.unsafe_cast<std::string> ());
+```
+
+The only way to ensure safety when type casting is to use the `LuaRef::cast<T>` method, which is a safe cast of a lua reference to a type `T`. It will return a `luabridge::Expected<T, std::error_code>` which will contain the type if the cast was successful, and an error code otherwise. No exception or abort will be triggered from such call (while it's not the same for `LuaRef::cast<T>`).
+
+```cpp
+void passString (std::string);
+
+luabridge::LuaRef v (L);
+
+// The following is safe and will never throw exceptions or call the lua panic handler.
+
+passString (v.cast<std::string> ().valueOr ("fallback"));
 ```
 
 4.2 - Table Proxies

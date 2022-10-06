@@ -6,6 +6,7 @@
 #pragma once
 
 #include "Config.h"
+#include "Stack.h"
 
 namespace luabridge {
 
