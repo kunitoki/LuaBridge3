@@ -277,3 +277,52 @@ TEST_F(OverloadTests, MixedFunctionTypesClass)
     ASSERT_TRUE(result().isNumber());
     EXPECT_EQ(48, result<int>());
 }
+
+TEST_F(OverloadTests, LuaCFunctionFallback)
+{
+    struct X
+    {
+        int test(std::string)
+        {
+            return 3;
+        }
+
+        int testLua(lua_State* L)
+        {
+            lua_pushnumber(L, 4);
+            return 1;
+        }
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<X>("X")
+            .addFunction("test",
+                [](X*, char v, lua_State*) -> int {
+                    return 1;
+                },
+                +[](X*, int v) -> int {
+                    return 2;
+                },
+                &X::test,
+                &X::testLua)
+        .endClass();
+
+    X y;
+    luabridge::setGlobal(L, &y, "y");
+
+    runLua("result = y:test ('2')");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(1, result<int>());
+
+    runLua("result = y:test (1)");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(2, result<int>());
+
+    runLua("result = y:test ('123456')");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(3, result<int>());
+
+    runLua("result = y:test ()");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(4, result<int>());
+}

@@ -690,11 +690,13 @@ void push_member_function(lua_State* L, ReturnType (*fp)(const T*, Params...))
 // Callable object (lambdas)
 template <class T, class F, class = std::enable_if<
     is_callable_v<F> &&
-        is_proxy_member_function_v<T, F> &&
+        std::is_object_v<F> &&
         !std::is_pointer_v<F> &&
         !std::is_member_function_pointer_v<F>>>
 void push_member_function(lua_State* L, F&& f)
 {
+    static_assert(std::is_same_v<T, remove_cvref_t<std::remove_pointer_t<function_argument_or_void_t<0, F>>>>);
+
     lua_newuserdata_aligned<F>(L, std::forward<F>(f));
     lua_pushcclosure_x(L, &invoke_proxy_functor<F>, 1);
 }

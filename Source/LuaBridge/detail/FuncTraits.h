@@ -352,7 +352,7 @@ inline static constexpr bool is_const_member_cfunction_pointer_v = is_const_memb
 
 template <class T, class F>
 inline static constexpr bool is_proxy_member_function_v =
-    std::is_same_v<T, std::decay_t<std::remove_pointer_t<function_argument_or_void_t<0, F>>>>;
+    std::is_same_v<T, remove_cvref_t<std::remove_pointer_t<function_argument_or_void_t<0, F>>>>;
 
 template <class T, class F>
 inline static constexpr bool is_const_proxy_function_v =
