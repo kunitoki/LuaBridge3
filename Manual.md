@@ -1317,19 +1317,27 @@ By default `LuaBridge3` is able to work without exceptions, and it's perfectly c
 
 When using the `luabridge::call` or `LuaRef::operator()` no exception should be raised, only if exceptions are disabled in the application or enabled in the application but disabled in luabridge. To control if the lua function invoked has raised a lua error, it is possible to do so by checking the `LuaResult` object that is returned from those functions.
 
+```lua
+function fail ()
+  error ("A problem occurred")
+end
+```
+
 ```cpp
 luabridge::LuaRef f (L) = luabridge::getGlobal (L, "fail");
 
 luabridge::LuaResult result = f ();
 if (! result)
   std::cerr << result.errorMessage ();
-
-function fail ()
-  error ("A problem occurred")
-end
 ```
 
 It is also possible that pushing an unregistered class instance into those function will generate an error, that can be trapped using the same mechanism in a `LuaResult`:
+
+```lua
+function fail (unregistred)
+  error ("Should never reach here")
+end
+```
 
 ```cpp
 struct UnregisteredClass {};
@@ -1341,10 +1349,6 @@ auto argument = UnregisteredClass();
 luabridge::LuaResult result = f (argument);
 if (! result)
   std::cerr << result.errorMessage ();
-
-function fail (unregistred)
-  error ("Should never reach here")
-end
 ```
 
 Calling `luabridge::pcall` will not return a `LuaResult` but only the status code. It will anyway throw an exception if the return code of `lua_pcall`is not equal `LUA_OK`, and return the error code in case exceptions are disabled.
@@ -1354,6 +1358,12 @@ When compiling `LuaBridge3` with exceptions disabled, all references to try catc
 ### 4.3.2 - Class LuaException
 
 When the application is compiled with exceptions and `luabridge::enableExceptions` function has been called, using `luabridge::call` or `LuaRef::operator()` will uses the C++ exception handling mechanism, throwing a `LuaException` object in case an argument has a type that has not been registered (and cannot be pushed onto the lua stack) or the lua function generated an error:
+
+```lua
+function fail ()
+  error ("A problem occurred")
+end
+```
 
 ```cpp
 luabridge::LuaRef f (L) = luabridge::getGlobal (L, "fail");
@@ -1366,10 +1376,6 @@ catch (const luabridge::LuaException& e)
 {
   std::cerr << e.what ();
 }
-
-function fail ()
-  error ("A problem occurred")
-end
 ```
 
 5 - Security
@@ -1403,7 +1409,7 @@ LuaRef getGlobal (lua_State* L, const char* name);
 
 /// Gets a global Lua variable reference as type T.
 template <class T>
-T getGlobal (lua_State* L, const char* name);
+Expected<T, std::error_code> getGlobal (lua_State* L, const char* name);
 
 /// Sets a global Lua variable. Throws or return false if the class is not registered.
 template <class T>
@@ -1669,9 +1675,13 @@ bool isCallable () const;
 template <class T>
 operator T () const;
 
-/// Perform the explicit type conversion.
+/// Perform the explicit type conversion, safe.
 template <class T>
-T cast () const;
+Expected<T, std::error_code> cast () const;
+
+/// Perform the explicit type conversion, unsafe (throws or abort on failure).
+template <class T>
+T unsafe_cast () const;
 
 /// Check if the Lua value is convertible to the type T.
 template <class T>
@@ -1759,10 +1769,10 @@ Stack Traits - Stack<T>
 ```cpp
 /// Converts the C++ value into the Lua value at the top of the Lua stack. Returns true if the push could be performed.
 /// When false is returned, `ec` contains the error code corresponding to the failure.
-bool push (lua_State* L, T value, std::error_code& ec);
+Result push (lua_State* L, const T& value);
 
 /// Converts the Lua value at the index into the C++ value of the type T.
-T get (lua_State* L, int index);
+Expected<T, std::error_code> get (lua_State* L, int index);
 
 /// Checks if the Lua value at the index is convertible into the C++ value of the type T.
 bool isInstance (lua_State* L, int index);
