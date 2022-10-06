@@ -649,11 +649,18 @@ inline void push_function(lua_State* L, ReturnType (*fp)(Params...))
     lua_pushcclosure_x(L, &invoke_proxy_function<FnType>, 1);
 }
 
-template <class F, class = std::enable_if<detail::is_callable_v<F> && !std::is_pointer_v<F>>>
+template <class F, class = std::enable_if<is_callable_v<F> && !std::is_pointer_v<F>>>
 inline void push_function(lua_State* L, F&& f)
 {
     lua_newuserdata_aligned<F>(L, std::forward<F>(f));
-    lua_pushcclosure_x(L, &detail::invoke_proxy_functor<F>, 1);
+    lua_pushcclosure_x(L, &invoke_proxy_functor<F>, 1);
+}
+
+template <class T, class F, class = std::enable_if<std::is_member_function_pointer_v<F>>>
+inline void push_function(lua_State* L, F&& f)
+{
+    new (lua_newuserdata_x<F>(L, sizeof(F))) F(std::forward<F>(f));
+    lua_pushcclosure_x(L, &invoke_member_function<F, T>, 1);
 }
 
 } // namespace detail

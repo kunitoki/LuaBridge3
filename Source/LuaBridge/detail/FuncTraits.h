@@ -240,6 +240,12 @@ struct is_callable<T, std::enable_if_t<std::is_pointer_v<T> && std::is_function_
 };
 
 template <class T>
+struct is_callable<T, std::enable_if_t<std::is_member_function_pointer_v<T>>>
+{
+    static constexpr const bool value = true;
+};
+
+template <class T>
 inline static constexpr bool is_callable_v = is_callable<T>::value;
 
 //=================================================================================================

@@ -565,56 +565,56 @@ class Namespace : public detail::Registrar
 
         //=========================================================================================
         /**
-         * @brief Add or replace a static member function.
-         */
-        template <class Function, class = std::enable_if_t<std::is_pointer_v<Function>>>
-        Class<T>& addStaticFunction(const char* name, Function fp)
-        {
-            assert(name != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            lua_pushlightuserdata(L, reinterpret_cast<void*>(fp)); // Stack: co, cl, st, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_proxy_function<Function>, 1); // co, cl, st, function
-            rawsetfield(L, -2, name); // co, cl, st
-
-            return *this;
-        }
-
-        //=========================================================================================
-        /**
-         * @brief Add or replace a static member function for constructible by std::function.
-         */
-        template <class Function, class = std::enable_if_t<!std::is_pointer_v<Function>>>
-        Class<T> addStaticFunction(const char* name, Function function)
-        {
-            using FnType = decltype(function);
-
-            assert(name != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: co, cl, st, function userdata (ud)
-            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: co, cl, st, function
-            rawsetfield(L, -2, name); // Stack: co, cl, st
-
-            return *this;
-        }
-
-        //=========================================================================================
-        /**
-         * @brief Add or replace a lua_CFunction.
+         * @brief Add or replace a single static function or multiple overloaded functions.
          *
-         * @param name The name of the function.
-         * @param fp   A C-function pointer.
+         * @param name The overload name.
+         * @param functions A single or set of static functions that will be invoked.
          *
          * @returns This class registration object.
          */
-        Class<T>& addStaticFunction(const char* name, lua_CFunction fp)
+        template <class... Functions>
+        auto addStaticFunction(const char* name, Functions... functions)
+            -> std::enable_if_t<(detail::is_callable_v<Functions> && ...), Class<T>&>
         {
+            static_assert(sizeof...(Functions) > 0);
+
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            lua_pushcfunction_x(L, fp); // co, cl, st, function
-            rawsetfield(L, -2, name); // co, cl, st
+            if constexpr (sizeof...(Functions) == 1)
+            {
+                ([&]
+                {
+                    detail::push_function(L, std::move(functions));
+                    rawsetfield(L, -2, name);
+
+                } (), ...);
+            }
+            else
+            {
+                // create new closure of try_overloads with new table
+                lua_createtable(L, static_cast<int>(sizeof...(Functions)), 0); // reserve space for N overloads
+
+                int idx = 1;
+
+                ([&]
+                {
+                    lua_createtable(L, 2, 0); // reserve space for: function, arity
+                    lua_pushinteger(L, 1);
+                    lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
+                    lua_settable(L, -3);
+                    lua_pushinteger(L, 2);
+                    detail::push_function(L, std::move(functions));
+                    lua_settable(L, -3);
+
+                    lua_rawseti(L, -2, idx);
+                    ++idx;
+
+                } (), ...);
+
+                lua_pushcclosure_x(L, &detail::try_overload_functions, 1);
+                rawsetfield(L, -2, name);
+            }
 
             return *this;
         }
