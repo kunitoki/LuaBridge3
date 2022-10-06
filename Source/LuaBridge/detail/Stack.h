@@ -96,10 +96,10 @@ struct Stack<std::nullptr_t>
         return {};
     }
 
-    [[nodiscard]] static Expected<std::nullptr_t, std::error_code> get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<std::nullptr_t> get(lua_State* L, int index)
     {
         if (! lua_isnil(L, index))
-            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
         return nullptr;
     }
@@ -117,7 +117,7 @@ struct Stack<std::nullptr_t>
 template <>
 struct Stack<lua_State*>
 {
-    [[nodiscard]] static Expected<lua_State*, std::error_code> get(lua_State* L, int)
+    [[nodiscard]] static TypeResult<lua_State*> get(lua_State* L, int)
     {
         return L;
     }
@@ -141,10 +141,10 @@ struct Stack<lua_CFunction>
         return {};
     }
 
-    [[nodiscard]] static Expected<lua_CFunction, std::error_code> get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<lua_CFunction> get(lua_State* L, int index)
     {
         if (! lua_iscfunction(L, index))
-            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
         return lua_tocfunction(L, index);
     }
@@ -173,7 +173,7 @@ struct Stack<bool>
         return {};
     }
 
-    [[nodiscard]] static Expected<bool, std::error_code> get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<bool> get(lua_State* L, int index)
     {
         return lua_toboolean(L, index) ? true : false;
     }
@@ -204,13 +204,13 @@ struct Stack<std::byte>
         return {};
     }
 
-    [[nodiscard]] static Expected<std::byte, std::error_code> get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<std::byte> get(lua_State* L, int index)
     {
         if (lua_type(L, index) != LUA_TNUMBER)
-            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
         if (! is_integral_representable_by<unsigned char>(L, index))
-            return makeUnexpected(makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger));
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
         return static_cast<std::byte>(lua_tointeger(L, index));
     }
@@ -242,16 +242,16 @@ struct Stack<char>
         return {};
     }
 
-    [[nodiscard]] static Expected<char, std::error_code> get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<char> get(lua_State* L, int index)
     {
         if (lua_type(L, index) != LUA_TSTRING)
-            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
         std::size_t length = 0;
         const char* str = lua_tolstring(L, index, &length);
 
         if (str == nullptr || length != 1)
-            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
         return str[0];
     }
@@ -289,13 +289,13 @@ struct Stack<int8_t>
         return {};
     }
 
-    [[nodiscard]] static Expected<int8_t, std::error_code> get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<int8_t> get(lua_State* L, int index)
     {
         if (lua_type(L, index) != LUA_TNUMBER)
-            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
         if (! is_integral_representable_by<int8_t>(L, index))
-            return makeUnexpected(makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger));
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
         return static_cast<int8_t>(lua_tointeger(L, index));
     }
@@ -329,13 +329,13 @@ struct Stack<unsigned char>
         return {};
     }
 
-    [[nodiscard]] static Expected<unsigned char, std::error_code> get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<unsigned char> get(lua_State* L, int index)
     {
         if (lua_type(L, index) != LUA_TNUMBER)
-            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
         if (! is_integral_representable_by<unsigned char>(L, index))
-            return makeUnexpected(makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger));
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
         return static_cast<unsigned char>(lua_tointeger(L, index));
     }
@@ -369,13 +369,13 @@ struct Stack<short>
         return {};
     }
 
-    [[nodiscard]] static Expected<short, std::error_code> get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<short> get(lua_State* L, int index)
     {
         if (lua_type(L, index) != LUA_TNUMBER)
-            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
         if (! is_integral_representable_by<short>(L, index))
-            return makeUnexpected(makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger));
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
         return static_cast<short>(lua_tointeger(L, index));
     }
@@ -409,13 +409,13 @@ struct Stack<unsigned short>
         return {};
     }
 
-    [[nodiscard]] static Expected<unsigned short, std::error_code> get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<unsigned short> get(lua_State* L, int index)
     {
         if (lua_type(L, index) != LUA_TNUMBER)
-            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
         if (! is_integral_representable_by<unsigned short>(L, index))
-            return makeUnexpected(makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger));
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
         return static_cast<unsigned short>(lua_tointeger(L, index));
     }
@@ -450,13 +450,13 @@ struct Stack<int>
         return {};
     }
 
-    [[nodiscard]] static Expected<int, std::error_code> get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<int> get(lua_State* L, int index)
     {
         if (lua_type(L, index) != LUA_TNUMBER)
-            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
         if (! is_integral_representable_by<int>(L, index))
-            return makeUnexpected(makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger));
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
         return static_cast<int>(lua_tointeger(L, index));
     }
@@ -491,13 +491,13 @@ struct Stack<unsigned int>
         return {};
     }
 
-    [[nodiscard]] static Expected<unsigned int, std::error_code> get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<unsigned int> get(lua_State* L, int index)
     {
         if (lua_type(L, index) != LUA_TNUMBER)
-            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
         if (! is_integral_representable_by<unsigned int>(L, index))
-            return makeUnexpected(makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger));
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
         return static_cast<unsigned int>(lua_tointeger(L, index));
     }
@@ -532,13 +532,13 @@ struct Stack<long>
         return {};
     }
 
-    [[nodiscard]] static Expected<long, std::error_code> get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<long> get(lua_State* L, int index)
     {
         if (lua_type(L, index) != LUA_TNUMBER)
-            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
         if (! is_integral_representable_by<long>(L, index))
-            return makeUnexpected(makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger));
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
         return static_cast<long>(lua_tointeger(L, index));
     }
@@ -573,13 +573,13 @@ struct Stack<unsigned long>
         return {};
     }
 
-    [[nodiscard]] static Expected<unsigned long, std::error_code> get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<unsigned long> get(lua_State* L, int index)
     {
         if (lua_type(L, index) != LUA_TNUMBER)
-            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
         if (! is_integral_representable_by<unsigned long>(L, index))
-            return makeUnexpected(makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger));
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
         return static_cast<unsigned long>(lua_tointeger(L, index));
     }
@@ -614,13 +614,13 @@ struct Stack<long long>
         return {};
     }
 
-    [[nodiscard]] static Expected<long long, std::error_code> get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<long long> get(lua_State* L, int index)
     {
         if (lua_type(L, index) != LUA_TNUMBER)
-            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
         if (! is_integral_representable_by<long long>(L, index))
-            return makeUnexpected(makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger));
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
         return static_cast<long long>(lua_tointeger(L, index));
     }
@@ -655,13 +655,13 @@ struct Stack<unsigned long long>
         return {};
     }
 
-    [[nodiscard]] static Expected<unsigned long long, std::error_code> get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<unsigned long long> get(lua_State* L, int index)
     {
         if (lua_type(L, index) != LUA_TNUMBER)
-            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
         if (! is_integral_representable_by<unsigned long long>(L, index))
-            return makeUnexpected(makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger));
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
         return static_cast<unsigned long long>(lua_tointeger(L, index));
     }
@@ -697,13 +697,13 @@ struct Stack<__int128_t>
         return {};
     }
 
-    [[nodiscard]] static Expected<__int128_t, std::error_code> get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<__int128_t> get(lua_State* L, int index)
     {
         if (lua_type(L, index) != LUA_TNUMBER)
-            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
         if (! is_integral_representable_by<__int128_t>(L, index))
-            return makeUnexpected(makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger));
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
         return static_cast<__int128_t>(lua_tointeger(L, index));
     }
@@ -738,13 +738,13 @@ struct Stack<__uint128_t>
         return {};
     }
 
-    [[nodiscard]] static Expected<__uint128_t, std::error_code> get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<__uint128_t> get(lua_State* L, int index)
     {
         if (lua_type(L, index) != LUA_TNUMBER)
-            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
         if (! is_integral_representable_by<__uint128_t>(L, index))
-            return makeUnexpected(makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger));
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
         return static_cast<__uint128_t>(lua_tointeger(L, index));
     }
@@ -780,13 +780,13 @@ struct Stack<float>
         return {};
     }
 
-    [[nodiscard]] static Expected<float, std::error_code> get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<float> get(lua_State* L, int index)
     {
         if (lua_type(L, index) != LUA_TNUMBER)
-            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
         if (! is_floating_point_representable_by<float>(L, index))
-            return makeUnexpected(makeErrorCode(ErrorCode::FloatingPointDoesntFitIntoLuaNumber));
+            return makeErrorCode(ErrorCode::FloatingPointDoesntFitIntoLuaNumber);
 
         return static_cast<float>(lua_tonumber(L, index));
     }
@@ -821,13 +821,13 @@ struct Stack<double>
         return {};
     }
 
-    [[nodiscard]] static Expected<double, std::error_code> get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<double> get(lua_State* L, int index)
     {
         if (lua_type(L, index) != LUA_TNUMBER)
-            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
         if (! is_floating_point_representable_by<double>(L, index))
-            return makeUnexpected(makeErrorCode(ErrorCode::FloatingPointDoesntFitIntoLuaNumber));
+            return makeErrorCode(ErrorCode::FloatingPointDoesntFitIntoLuaNumber);
 
         return static_cast<double>(lua_tonumber(L, index));
     }
@@ -862,13 +862,13 @@ struct Stack<long double>
         return {};
     }
 
-    [[nodiscard]] static Expected<long double, std::error_code> get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<long double> get(lua_State* L, int index)
     {
         if (lua_type(L, index) != LUA_TNUMBER)
-            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
         if (! is_floating_point_representable_by<long double>(L, index))
-            return makeUnexpected(makeErrorCode(ErrorCode::FloatingPointDoesntFitIntoLuaNumber));
+            return makeErrorCode(ErrorCode::FloatingPointDoesntFitIntoLuaNumber);
 
         return static_cast<long double>(lua_tonumber(L, index));
     }
@@ -904,15 +904,15 @@ struct Stack<const char*>
         return {};
     }
 
-    [[nodiscard]] static Expected<const char*, std::error_code> get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<const char*> get(lua_State* L, int index)
     {
         if (lua_type(L, index) != LUA_TSTRING)
-            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
         std::size_t length = 0;
         const char* str = lua_tolstring(L, index, &length);
         if (str == nullptr)
-            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
         return str;
     }
@@ -941,15 +941,15 @@ struct Stack<std::string_view>
         return {};
     }
 
-    [[nodiscard]] static Expected<std::string_view, std::error_code> get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<std::string_view> get(lua_State* L, int index)
     {
         if (lua_type(L, index) != LUA_TSTRING)
-            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
         std::size_t length = 0;
         const char* str = lua_tolstring(L, index, &length);
         if (str == nullptr)
-            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
         return std::string_view{ str, length };
     }
@@ -978,7 +978,7 @@ struct Stack<std::string>
         return {};
     }
 
-    [[nodiscard]] static Expected<std::string, std::error_code> get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<std::string> get(lua_State* L, int index)
     {
         std::size_t length = 0;
         const char* str = nullptr;
@@ -999,9 +999,9 @@ struct Stack<std::string>
         }
 
         if (str == nullptr)
-            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
-        return std::string_view{ str, length };
+        return std::string{ str, length };
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -1042,12 +1042,16 @@ struct Stack<std::optional<T>>
         return {};
     }
 
-    [[nodiscard]] static Expected<Type, std::error_code> get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<Type> get(lua_State* L, int index)
     {
         if (lua_type(L, index) == LUA_TNIL)
             return std::nullopt;
 
-        return Stack<T>::get(L, index);
+        auto result = Stack<T>::get(L, index);
+        if (! result)
+            return result.error();
+
+        return *result;
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -1082,16 +1086,16 @@ struct Stack<std::tuple<Types...>>
         return {};
     }
 
-    [[nodiscard]] static Expected<std::tuple<Types...>, std::error_code> get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<std::tuple<Types...>> get(lua_State* L, int index)
     {
         const StackRestore stackRestore(L);
 
         if (!lua_istable(L, index))
-            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
             //luaL_error(L, "#%d argment must be a table", index);
 
         if (get_length(L, index) != static_cast<int>(Size))
-            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTableSizeInCast));
+            return makeErrorCode(ErrorCode::InvalidTableSizeInCast);
             //luaL_error(L, "table size should be %d but is %d", static_cast<unsigned>(Size), get_length(L, index));
 
         std::tuple<Types...> value;
@@ -1101,7 +1105,7 @@ struct Stack<std::tuple<Types...>>
 
         auto result = pop_element(L, absIndex, value);
         if (! result)
-            return makeUnexpected(result);
+            return result.error();
 
         return value;
     }
@@ -1226,7 +1230,7 @@ namespace detail {
 template <class T>
 struct StackOpSelector<T&, false>
 {
-    using ReturnType = Expected<T, std::error_code>;
+    using ReturnType = TypeResult<T>;
 
     static Result push(lua_State* L, T& value) { return Stack<T>::push(L, value); }
 
@@ -1238,7 +1242,7 @@ struct StackOpSelector<T&, false>
 template <class T>
 struct StackOpSelector<const T&, false>
 {
-    using ReturnType = Expected<T, std::error_code>;
+    using ReturnType = TypeResult<T>;
 
     static Result push(lua_State* L, const T& value) { return Stack<T>::push(L, value); }
 
@@ -1250,7 +1254,7 @@ struct StackOpSelector<const T&, false>
 template <class T>
 struct StackOpSelector<T*, false>
 {
-    using ReturnType = Expected<T, std::error_code>;
+    using ReturnType = TypeResult<T>;
 
     static Result push(lua_State* L, T* value) { return Stack<T>::push(L, *value); }
 
@@ -1262,7 +1266,7 @@ struct StackOpSelector<T*, false>
 template <class T>
 struct StackOpSelector<const T*, false>
 {
-    using ReturnType = Expected<T, std::error_code>;
+    using ReturnType = TypeResult<T>;
 
     static Result push(lua_State* L, const T* value) { return Stack<T>::push(L, *value); }
 
@@ -1340,7 +1344,7 @@ template <class T>
  * @brief Get an object from the Lua stack.
  */
 template <class T>
-[[nodiscard]] Expected<T, std::error_code> get(lua_State* L, int index)
+[[nodiscard]] TypeResult<T> get(lua_State* L, int index)
 {
     return Stack<T>::get(L, index);
 }

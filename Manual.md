@@ -735,7 +735,7 @@ struct Stack
 {
   static Result push (lua_State* L, const T& value);
 
-  static Expected<T, std::error_code> get (lua_State* L, int index);
+  static TypeResult<T> get (lua_State* L, int index);
 
   static bool isInstance (lua_State* L, int index);
 };
@@ -766,15 +766,15 @@ struct Stack<juce::String>
     return {};
   }
 
-  static Expected<juce::String, std::error_code> get (lua_State* L, int index)
+  static TypeResult<juce::String> get (lua_State* L, int index)
   {
     if (lua_type (L, index) != LUA_TSTRING)
-        return makeUnexpected (makeErrorCode (ErrorCode::InvalidTypeCast));
+        return makeErrorCode (ErrorCode::InvalidTypeCast);
 
     std::size_t length = 0;
     const char* str = lua_tolstring (L, index, &length);
     if (str == nullptr)
-        return makeUnexpected (makeErrorCode (ErrorCode::InvalidTypeCast));
+        return makeErrorCode (ErrorCode::InvalidTypeCast);
 
     return juce::String::fromUTF8 (str);
   }
@@ -819,10 +819,10 @@ struct Stack<Array<T>>
     return {};                                           // No error
   }
 
-  static Expected<Array<T>, std::error_code> get (lua_State* L, int index)
+  static TypeResult<Array<T>> get (lua_State* L, int index)
   {
     if (!lua_istable (L, index))
-      return makeUnexpected (makeErrorCode (ErrorCode::InvalidTypeCast));
+      return makeErrorCode (ErrorCode::InvalidTypeCast);
 
     const int initialStackSize = lua_gettop (L);
 
@@ -1237,7 +1237,7 @@ passString (static_cast<std::string> (v));
 passString (v.unsafe_cast<std::string> ());
 ```
 
-The only way to ensure safety when type casting is to use the `LuaRef::cast<T>` method, which is a safe cast of a lua reference to a type `T`. It will return a `luabridge::Expected<T, std::error_code>` which will contain the type if the cast was successful, and an error code otherwise. No exception or abort will be triggered from such call (while it's not the same for `LuaRef::cast<T>`).
+The only way to ensure safety when type casting is to use the `LuaRef::cast<T>` method, which is a safe cast of a lua reference to a type `T`. It will return a `luabridge::TypeResult<T>` which will contain the type if the cast was successful, and an error code otherwise. No exception or abort will be triggered from such call (while it's not the same for `LuaRef::cast<T>`).
 
 ```cpp
 void passString (std::string);
@@ -1409,7 +1409,7 @@ LuaRef getGlobal (lua_State* L, const char* name);
 
 /// Gets a global Lua variable reference as type T.
 template <class T>
-Expected<T, std::error_code> getGlobal (lua_State* L, const char* name);
+TypeResult<T> getGlobal (lua_State* L, const char* name);
 
 /// Sets a global Lua variable. Throws or return false if the class is not registered.
 template <class T>
@@ -1677,7 +1677,7 @@ operator T () const;
 
 /// Perform the explicit type conversion, safe.
 template <class T>
-Expected<T, std::error_code> cast () const;
+TypeResult<T> cast () const;
 
 /// Perform the explicit type conversion, unsafe (throws or abort on failure).
 template <class T>
@@ -1772,7 +1772,7 @@ Stack Traits - Stack<T>
 Result push (lua_State* L, const T& value);
 
 /// Converts the Lua value at the index into the C++ value of the type T.
-Expected<T, std::error_code> get (lua_State* L, int index);
+TypeResult<T> get (lua_State* L, int index);
 
 /// Checks if the Lua value at the index is convertible into the C++ value of the type T.
 bool isInstance (lua_State* L, int index);

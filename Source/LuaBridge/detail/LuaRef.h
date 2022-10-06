@@ -340,7 +340,7 @@ public:
      * @returns An expected holding a value of the type T converted from this reference or an error code.
      */
     template <class T>
-    Expected<T, std::error_code> cast() const
+    TypeResult<T> cast() const
     {
         const StackRestore stackRestore(m_L);
 
@@ -350,7 +350,11 @@ public:
         {
             using U = std::underlying_type_t<T>;
 
-            return static_cast<T>(Stack<U>::get(m_L, -1));
+            auto result = Stack<U>::get(m_L, -1);
+            if (! result)
+                return result.error();
+
+            return static_cast<T>(*result);
         }
         else
         {
@@ -1276,7 +1280,7 @@ struct Stack<LuaRef>
         return {};
     }
 
-    [[nodiscard]] static Expected<LuaRef, std::error_code> get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<LuaRef> get(lua_State* L, int index)
     {
         return LuaRef::fromStack(L, index);
     }

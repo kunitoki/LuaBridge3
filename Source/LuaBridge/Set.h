@@ -46,7 +46,7 @@ struct Stack<std::set<K>>
         return {};
     }
 
-    [[nodiscard]] static Expected<Type, std::error_code> get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<Type> get(lua_State* L, int index)
     {
         if (!lua_istable(L, index))
             return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
