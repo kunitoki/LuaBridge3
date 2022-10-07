@@ -27,12 +27,6 @@ struct non_const_overload
     {
         return ptr;
     }
-
-    template <class R, class T>
-    static constexpr auto of(R (T::*ptr)(Args...)) noexcept -> decltype(ptr)
-    {
-        return ptr;
-    }
 };
 
 template <class... Args>
@@ -43,31 +37,16 @@ struct const_overload
     {
         return ptr;
     }
-
-    template <class R, class T>
-    static constexpr auto of(R (T::*ptr)(Args...) const) noexcept -> decltype(ptr)
-    {
-        return ptr;
-    }
 };
 
 template <class... Args>
 struct overload : const_overload<Args...>, non_const_overload<Args...>
 {
-    using const_overload<Args...>::of;
     using const_overload<Args...>::operator();
-
-    using non_const_overload<Args...>::of;
     using non_const_overload<Args...>::operator();
 
     template <class R>
     constexpr auto operator()(R (*ptr)(Args...)) const noexcept -> decltype(ptr)
-    {
-        return ptr;
-    }
-
-    template <class R>
-    static constexpr auto of(R (*ptr)(Args...)) noexcept -> decltype(ptr)
     {
         return ptr;
     }
