@@ -97,7 +97,7 @@ It also offers a set of improvements compared to vanilla LuaBridge:
 * Lightweight object creation: allow adding lua tables on the stack and register methods and metamethods in them.
 * Allows for fallback `__index` and `__newindex` metamethods in exposed C++ classes, to support flexible and dynamic C++ classes !
 * Added `std::shared_ptr` to support shared C++/Lua lifetime for types deriving from `std::enable_shared_from_this`.
-* Supports conversion to and from `std::nullptr_t`, `std::byte`, `std::tuple` and `std::reference_wrapper`.
+* Supports conversion to and from `std::nullptr_t`, `std::byte`, `std::pair`, `std::tuple` and `std::reference_wrapper`.
 * Supports conversion to and from C style arrays of any supported type.
 * Transparent support of all signed and unsigned integer types up to `int64_t`.
 * Consistent numeric handling and conversions (signed, unsigned and floats) across all lua versions.

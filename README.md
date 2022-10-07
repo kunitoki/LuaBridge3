@@ -44,7 +44,7 @@ LuaBridge3 offers a set of improvements compared to vanilla LuaBridge:
 * Lightweight object creation: allow adding lua tables on the stack and register methods and metamethods in them.
 * Allows for fallback `__index` and `__newindex` metamethods in exposed C++ classes, to support flexible and dynamic C++ classes !
 * Added `std::shared_ptr` to support shared C++/Lua lifetime for types deriving from `std::enable_shared_from_this`.
-* Supports conversion to and from `std::nullptr_t`, `std::byte`, `std::tuple` and `std::reference_wrapper`.
+* Supports conversion to and from `std::nullptr_t`, `std::byte`, `std::pair`, `std::tuple` and `std::reference_wrapper`.
 * Supports conversion to and from C style arrays of any supported type.
 * Transparent support of all signed and unsigned integer types up to `int64_t`.
 * Consistent numeric handling and conversions (signed, unsigned and floats) across all lua versions.
@@ -67,6 +67,19 @@ Please read the [LuaBridge3 Reference Manual][6] for more details on the API.
 ## Release Notes
 
 Plase read the [LuaBridge3 Release Notes][7] for more details
+
+## Installing LuaBridge3 (vcpkg)
+
+You can download and install LuaBridge3 using the [vcpkg](https://github.com/Microsoft/vcpkg) dependency manager:
+```Powershell or bash
+git clone https://github.com/Microsoft/vcpkg.git
+cd vcpkg
+./bootstrap-vcpkg.sh # The name of the script should be "./bootstrap-vcpkg.bat" for Powershell
+./vcpkg integrate install
+./vcpkg install luabridge3
+```
+
+The LuaBridge3 port in vcpkg is kept up to date by Microsoft team members and community contributors. If the version is out of date, please [create an issue or pull request](https://github.com/Microsoft/vcpkg) on the vcpkg repository.
 
 ## Unit Tests
 
