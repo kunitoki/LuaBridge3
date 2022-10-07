@@ -260,6 +260,8 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
     target_link_libraries (${LUABRIDGE_TESTLIB_NAME} PRIVATE ${LUABRIDGE_LIBS})
   endif ()
 
+  add_test(NAME ${LUABRIDGE_TEST_NAME} COMMAND ${LUABRIDGE_TEST_NAME})
+
 endmacro (add_test_app)
 
 # ====================================================== Real Unit Tests
