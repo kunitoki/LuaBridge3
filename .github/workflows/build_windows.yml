@@ -26,7 +26,7 @@ jobs:
     - name: Build
       working-directory: ${{runner.workspace}}/build
       shell: bash
-      run: cmake --build . --config $BUILD_TYPE --parallel $JOBS -- /p:CL_MPcount=$JOBS
+      run: cmake --build . --config $BUILD_TYPE --parallel $JOBS
 
     - name: Test Lua 5.1
       working-directory: ${{runner.workspace}}/build/Tests/Release

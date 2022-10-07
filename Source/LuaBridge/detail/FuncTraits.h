@@ -470,7 +470,7 @@ constexpr auto tupleize(Types&&... types)
 template <class T>
 auto unwrap_argument_or_error(lua_State* L, std::size_t index)
 {
-    auto result = Stack<T>::get(L, index);
+    auto result = Stack<T>::get(L, static_cast<int>(index));
     if (! result)
         luaL_error(L, "Error decoding argument #%d: %s", static_cast<int>(index), result.message().c_str());
 
