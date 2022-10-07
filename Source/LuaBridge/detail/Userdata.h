@@ -776,7 +776,7 @@ struct StackHelper<T, false>
     {
         auto* result = Userdata::get<T>(L, index, true);
         if (! result)
-            return makeErrorCode(ErrorCode::InvalidTypeCast);
+            return makeErrorCode(ErrorCode::InvalidTypeCast); // nil passed to reference
 
         return std::cref(*result);
     }
@@ -824,8 +824,7 @@ struct RefStackHelper<T, false>
     {
         auto* result = Userdata::get<T>(L, index, true);
         if (! result)
-            return makeErrorCode(ErrorCode::InvalidTypeCast);
-            //luaL_error(L, "nil passed to reference");
+            return makeErrorCode(ErrorCode::InvalidTypeCast); // nil passed to reference
 
         return std::ref(*result);
     }

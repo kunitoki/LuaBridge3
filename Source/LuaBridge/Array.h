@@ -50,11 +50,9 @@ struct Stack<std::array<T, Size>>
     {
         if (!lua_istable(L, index))
             return makeErrorCode(ErrorCode::InvalidTypeCast);
-            //luaL_error(L, "#%d argment must be a table", index);
 
         if (get_length(L, index) != Size)
             return makeErrorCode(ErrorCode::InvalidTableSizeInCast);
-            //luaL_error(L, "table size should be %d but is %d", static_cast<int>(Size), get_length(L, index));
 
         const StackRestore stackRestore(L);
 

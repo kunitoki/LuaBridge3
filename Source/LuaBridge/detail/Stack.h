@@ -1092,11 +1092,9 @@ struct Stack<std::tuple<Types...>>
 
         if (!lua_istable(L, index))
             return makeErrorCode(ErrorCode::InvalidTypeCast);
-            //luaL_error(L, "#%d argment must be a table", index);
 
         if (get_length(L, index) != static_cast<int>(Size))
             return makeErrorCode(ErrorCode::InvalidTableSizeInCast);
-            //luaL_error(L, "table size should be %d but is %d", static_cast<unsigned>(Size), get_length(L, index));
 
         std::tuple<Types...> value;
 

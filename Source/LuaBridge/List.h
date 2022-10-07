@@ -51,7 +51,6 @@ struct Stack<std::list<T>>
     {
         if (!lua_istable(L, index))
             return makeErrorCode(ErrorCode::InvalidTypeCast);
-            // luaL_error(L, "#%d argument must be a table", index);
 
         const StackRestore stackRestore(L);
 
