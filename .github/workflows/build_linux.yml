@@ -15,12 +15,14 @@ jobs:
       with:
         submodules: true
 
+    - uses: seanmiddleditch/gha-setup-ninja@master
+
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
 
     - name: Configure
       working-directory: ${{runner.workspace}}/build
-      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -G Ninja
 
     - name: Build
       working-directory: ${{runner.workspace}}/build
