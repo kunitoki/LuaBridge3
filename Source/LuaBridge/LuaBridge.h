@@ -25,6 +25,8 @@
 #include "detail/LuaHelpers.h"
 #include "detail/LuaRef.h"
 #include "detail/Namespace.h"
+#include "detail/Overload.h"
+#include "detail/Result.h"
 #include "detail/Security.h"
 #include "detail/Stack.h"
 #include "detail/TypeTraits.h"

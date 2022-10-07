@@ -838,45 +838,83 @@ class Namespace : public detail::Registrar
                     detail::push_member_function<T>(L, std::move(functions));
 
                 } (), ...);
-            }
-            else
-            {
-                // create new closure of try_overloads with new table
-                lua_createtable(L, static_cast<int>(sizeof...(Functions)), 0); // reserve space for N overloads
 
-                int idx = 1;
-
-                ([&]
+                if constexpr (detail::const_functions_count<T, Functions...> == 1)
                 {
-                    lua_createtable(L, 2, 0); // reserve space for: function, arity
-                    lua_pushinteger(L, 1);
-                    lua_pushinteger(L, static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>));
-                    lua_settable(L, -3);
-                    lua_pushinteger(L, 2);
-                    detail::push_member_function<T>(L, std::move(functions));
-                    lua_settable(L, -3);
-
-                    lua_rawseti(L, -2, idx);
-                    ++idx;
-
-                } (), ...);
-
-                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, 1);
-            }
-
-            static constexpr bool is_const = (true && ... &&
-                (detail::is_const_member_function_pointer_v<Functions> ||
-                 (detail::function_arity_v<Functions> > 0 && detail::is_const_proxy_function_v<T, Functions>)));
-
-            if constexpr (is_const)
-            {
-                lua_pushvalue(L, -1); // Stack: co, cl, st, function, function
-                rawsetfield(L, -4, name); // Stack: co, cl, st, function
-                rawsetfield(L, -4, name); // Stack: co, cl, st
+                    lua_pushvalue(L, -1); // Stack: co, cl, st, function, function
+                    rawsetfield(L, -4, name); // Stack: co, cl, st, function
+                    rawsetfield(L, -4, name); // Stack: co, cl, st
+                }
+                else
+                {
+                    rawsetfield(L, -3, name); // Stack: co, cl, st
+                }
             }
             else
             {
-                rawsetfield(L, -3, name); // Stack: co, cl, st
+                // create new closure of const try_overload_functions with new table
+                if constexpr (detail::const_functions_count<T, Functions...> > 0)
+                {
+                    lua_createtable(L, static_cast<int>(detail::const_functions_count<T, Functions...>), 0);
+
+                    int idx = 1;
+
+                    ([&]
+                    {
+                        if (!detail::is_const_function<T, Functions>)
+                            return;
+
+                        lua_createtable(L, 2, 0); // reserve space for: function, arity
+                        lua_pushinteger(L, 1);
+                        lua_pushinteger(L, static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>));
+                        lua_settable(L, -3);
+                        lua_pushinteger(L, 2);
+                        detail::push_member_function<T>(L, std::move(functions));
+                        lua_settable(L, -3);
+
+                        lua_rawseti(L, -2, idx);
+                        ++idx;
+
+                    } (), ...);
+
+                    assert(idx > 1);
+
+                    lua_pushcclosure_x(L, &detail::try_overload_functions<true>, 1);
+                    lua_pushvalue(L, -1); // Stack: co, cl, st, function, function
+                    rawsetfield(L, -4, name); // Stack: co, cl, st, function
+                    rawsetfield(L, -4, name); // Stack: co, cl, st
+                }
+
+                // create new closure of non const try_overload_functions with new table
+                if constexpr (detail::non_const_functions_count<T, Functions...> > 0)
+                {
+                    lua_createtable(L, static_cast<int>(detail::non_const_functions_count<T, Functions...>), 0);
+
+                    int idx = 1;
+
+                    ([&]
+                    {
+                        if (detail::is_const_function<T, Functions>)
+                            return;
+
+                        lua_createtable(L, 2, 0); // reserve space for: function, arity
+                        lua_pushinteger(L, 1);
+                        lua_pushinteger(L, static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>));
+                        lua_settable(L, -3);
+                        lua_pushinteger(L, 2);
+                        detail::push_member_function<T>(L, std::move(functions));
+                        lua_settable(L, -3);
+
+                        lua_rawseti(L, -2, idx);
+                        ++idx;
+
+                    } (), ...);
+
+                    assert(idx > 1);
+
+                    lua_pushcclosure_x(L, &detail::try_overload_functions<true>, 1);
+                    rawsetfield(L, -3, name); // Stack: co, cl, st
+                }
             }
 
             return *this;

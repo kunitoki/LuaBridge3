@@ -326,3 +326,79 @@ TEST_F(OverloadTests, LuaCFunctionFallback)
     ASSERT_TRUE(result().isNumber());
     EXPECT_EQ(4, result<int>());
 }
+
+TEST_F(OverloadTests, ConstAndNonConstOverloadClass)
+{
+    struct X
+    {
+        int test1(std::string)              { return 1; }
+        int test1(std::string) const        { return 2; }
+        int test2(std::string)              { return 3; }
+        int test2(std::string, int)         { return 4; }
+        int test3(std::string) const        { return 5; }
+        int test3(std::string, int) const   { return 6; }
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<X>("X")
+            .addFunction("test1",
+                luabridge::nonConstOverload<std::string>(&X::test1),
+                luabridge::constOverload<std::string>(&X::test1))
+            .addFunction("test2",
+                luabridge::overload<std::string>(&X::test2),
+                luabridge::overload<std::string, int>(&X::test2))
+            .addFunction("test3",
+                luabridge::constOverload<std::string>(&X::test3),
+                luabridge::constOverload<std::string, int>(&X::test3))
+        .endClass();
+
+    // Non const object
+    X x;
+    luabridge::setGlobal(L, &x, "x");
+
+    runLua("result = x:test1 ('abc')");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(1, result<int>());
+
+    runLua("result = x.test2");
+    EXPECT_FALSE(result().isNil());
+    runLua("result = x:test2 ('abc')");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(3, result<int>());
+
+    runLua("result = x.test3");
+    EXPECT_FALSE(result().isNil());
+    runLua("result = x:test3 ('abc')");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(5, result<int>());
+    runLua("result = x:test3 ('abc', 1)");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(6, result<int>());
+
+    // Const object
+    const X y;
+    luabridge::setGlobal(L, &y, "y");
+
+    runLua("result = y:test1 ('abc')");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(2, result<int>());
+
+    runLua("result = y.test2");
+    EXPECT_TRUE(result().isNil());
+#if LUABRIDGE_HAS_EXCEPTIONS
+    ASSERT_ANY_THROW(runLua("result = y:test2 ('abc')"));
+    ASSERT_ANY_THROW(runLua("result = y:test2 ('abc', 1)"));
+#else
+    ASSERT_FALSE(runLua("result = y:test2 ('abc')"));
+    ASSERT_FALSE(runLua("result = y:test2 ('abc', 1)"));
+#endif
+
+    runLua("result = y.test3");
+    EXPECT_FALSE(result().isNil());
+    runLua("result = y:test3 ('abc')");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(5, result<int>());
+    runLua("result = y:test3 ('abc', 1)");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(6, result<int>());
+}

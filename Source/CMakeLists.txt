@@ -26,6 +26,7 @@ set (LUABRIDGE_DETAIL_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/LuaHelpers.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/LuaRef.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Namespace.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Overload.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Result.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/ScopeGuard.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Security.h
