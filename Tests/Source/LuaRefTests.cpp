@@ -127,7 +127,6 @@ TEST_F(LuaRefTests, TypeCheck)
         result.print(ss);
         EXPECT_NE(std::string::npos, ss.str().find("userdata:"));
         EXPECT_NE(0u, result.hash());
-        lua_pop(L, 1);
     }
 
     {
@@ -141,7 +140,6 @@ TEST_F(LuaRefTests, TypeCheck)
         result.print(ss);
         EXPECT_NE(std::string::npos, ss.str().find("thread:"));
         EXPECT_NE(0u, result.hash());
-        lua_pop(L, 1);
     }
 }
 
