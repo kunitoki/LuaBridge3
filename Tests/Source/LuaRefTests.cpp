@@ -13,6 +13,138 @@ struct LuaRefTests : TestBase
 {
 };
 
+TEST_F(LuaRefTests, TypeCheck)
+{
+    {
+        luabridge::LuaRef none(L);
+        EXPECT_FALSE(none.isValid());
+        EXPECT_TRUE(none.isNil());
+        std::stringstream ss;
+        none.print(ss);
+        EXPECT_EQ("nil", ss.str());
+        EXPECT_NE(0u, none.hash());
+    }
+
+    {
+        runLua("result = nil");
+        EXPECT_EQ(LUA_TNIL, result().type());
+        EXPECT_TRUE(result().isValid());
+        EXPECT_TRUE(result().isNil());
+        std::stringstream ss;
+        result().print(ss);
+        EXPECT_EQ("nil", ss.str());
+        EXPECT_NE(0u, result().hash());
+    }
+
+    {
+        runLua("result = true");
+        EXPECT_EQ(LUA_TBOOLEAN, result().type());
+        EXPECT_TRUE(result().isValid());
+        EXPECT_TRUE(result().isBool());
+        std::stringstream ss;
+        result().print(ss);
+        EXPECT_EQ("true", ss.str());
+        EXPECT_NE(0u, result().hash());
+    }
+
+    {
+        runLua("result = 11");
+        EXPECT_EQ(LUA_TNUMBER, result().type());
+        EXPECT_TRUE(result().isValid());
+        EXPECT_TRUE(result().isNumber());
+        std::stringstream ss;
+        result().print(ss);
+        EXPECT_EQ("11", ss.str());
+        EXPECT_NE(0u, result().hash());
+    }
+
+    {
+        runLua("result = 3.1");
+        EXPECT_EQ(LUA_TNUMBER, result().type());
+        EXPECT_TRUE(result().isValid());
+        EXPECT_TRUE(result().isNumber());
+        std::stringstream ss;
+        result().print(ss);
+        EXPECT_EQ("3.1", ss.str());
+        EXPECT_NE(0u, result().hash());
+    }
+
+    {
+        runLua("result = 'abcd'");
+        EXPECT_EQ(LUA_TSTRING, result().type());
+        EXPECT_TRUE(result().isValid());
+        EXPECT_TRUE(result().isString());
+        std::stringstream ss;
+        result().print(ss);
+        EXPECT_EQ("\"abcd\"", ss.str());
+        EXPECT_NE(0u, result().hash());
+    }
+
+    {
+        runLua("result = {}");
+        EXPECT_EQ(LUA_TTABLE, result().type());
+        EXPECT_TRUE(result().isValid());
+        EXPECT_TRUE(result().isTable());
+        std::stringstream ss;
+        result().print(ss);
+        EXPECT_NE(std::string::npos, ss.str().find("table:"));
+        EXPECT_NE(0u, result().hash());
+    }
+
+    {
+        runLua("result = function () end");
+        EXPECT_EQ(LUA_TFUNCTION, result().type());
+        EXPECT_TRUE(result().isValid());
+        EXPECT_TRUE(result().isFunction());
+        EXPECT_TRUE(result().isCallable());
+        std::stringstream ss;
+        result().print(ss);
+        EXPECT_NE(std::string::npos, ss.str().find("function:"));
+        EXPECT_NE(0u, result().hash());
+    }
+
+    {
+        void* x = nullptr;
+        lua_pushlightuserdata(L, x);
+        auto result = luabridge::LuaRef::fromStack(L);
+        EXPECT_EQ(LUA_TLIGHTUSERDATA, result.type());
+        EXPECT_TRUE(result.isValid());
+        EXPECT_TRUE(result.isLightUserdata());
+        std::stringstream ss;
+        result.print(ss);
+        EXPECT_NE(std::string::npos, ss.str().find("userdata:"));
+        EXPECT_NE(0u, result.hash());
+        lua_pop(L, 1);
+    }
+
+    {
+        lua_newuserdata(L, 100);
+        auto result = luabridge::LuaRef::fromStack(L);
+        EXPECT_EQ(LUA_TUSERDATA, result.type());
+        EXPECT_TRUE(result.isValid());
+        EXPECT_TRUE(result.isUserdata());
+        std::stringstream ss;
+        result.print(ss);
+        EXPECT_NE(std::string::npos, ss.str().find("userdata:"));
+        EXPECT_NE(0u, result.hash());
+        lua_pop(L, 1);
+    }
+
+    {
+        auto threadL = lua_newthread(L);
+        lua_pushthread(threadL);
+        auto result = luabridge::LuaRef::fromStack(L);
+        EXPECT_EQ(LUA_TTHREAD, result.type());
+        EXPECT_TRUE(result.isValid());
+        EXPECT_TRUE(result.isThread());
+        std::stringstream ss;
+        result.print(ss);
+        EXPECT_NE(std::string::npos, ss.str().find("thread:"));
+        EXPECT_NE(0u, result.hash());
+        lua_pop(L, 1);
+    }
+}
+
 TEST_F(LuaRefTests, ValueAccess)
 {
     runLua("result = true");
@@ -38,6 +170,7 @@ TEST_F(LuaRefTests, ValueAccess)
 
     runLua("result = 'D'");
     EXPECT_TRUE(result().isString());
+    ASSERT_EQ("D", result());
     ASSERT_EQ('D', result<char>());
     ASSERT_EQ("D", result<std::string>());
     ASSERT_STREQ("D", result<const char*>());
@@ -57,6 +190,9 @@ TEST_F(LuaRefTests, ValueAccess)
     EXPECT_TRUE(fnResult.size());
     EXPECT_TRUE(fnResult[0].isNumber());
     ASSERT_EQ(41, fnResult[0].unsafe_cast<int>());
+    ASSERT_EQ(41, *fnResult[0].cast<int>());
+    ASSERT_EQ(41, luabridge::unsafe_cast<int>(fnResult[0]));
+    ASSERT_EQ(41, *luabridge::cast<int>(fnResult[0]));
     EXPECT_TRUE(result().isNumber());
     ASSERT_EQ(42, result<int>());
 }
@@ -234,6 +370,62 @@ TEST_F(LuaRefTests, Comparison)
     EXPECT_TRUE(t2 >= t3);
 }
 
+TEST_F(LuaRefTests, ComparisonNumbers)
+{
+    runLua("result = 7");
+    EXPECT_TRUE(result().isNumber());
+
+    EXPECT_EQ(7, result());
+    EXPECT_EQ(result(), 7);
+    EXPECT_NE(8, result());
+    EXPECT_NE(result(), 8);
+
+    EXPECT_GT(8, result());
+    EXPECT_LT(result(), 8);
+
+    EXPECT_GE(8, result());
+    EXPECT_GE(7, result());
+    EXPECT_LE(result(), 8);
+    EXPECT_LE(result(), 7);
+}
+
+TEST_F(LuaRefTests, ComparisonLuaRef)
+{
+    runLua("result = 7");
+    auto seven = result();
+
+    runLua("result = 8");
+    auto eight = result();
+
+    EXPECT_EQ(seven, seven);
+    EXPECT_NE(seven, eight);
+    EXPECT_NE(eight, seven);
+
+    EXPECT_GT(eight, seven);
+    EXPECT_LT(seven, eight);
+
+    EXPECT_GE(eight, seven);
+    EXPECT_LE(seven, eight);
+}
+
+TEST_F(LuaRefTests, ComparisonLuaRefInvalidTypes)
+{
+    runLua("result = 7");
+    auto seven = result();
+
+    runLua("result = '8'");
+    auto eight = result();
+
+    EXPECT_NE(seven, eight);
+    EXPECT_NE(eight, seven);
+
+    EXPECT_GT(eight, seven);
+    EXPECT_LT(seven, eight);
+
+    EXPECT_GE(eight, seven);
+    EXPECT_LE(seven, eight);
+}
+
 TEST_F(LuaRefTests, Assignment)
 {
     runLua("value = {a = 5}");
@@ -273,6 +465,29 @@ TEST_F(LuaRefTests, Assignment)
     ASSERT_EQ(1, c1.unsafe_cast<int>());
     c1 = 11;
     ASSERT_EQ(11, c1.unsafe_cast<int>());
+}
+
+TEST_F(LuaRefTests, MoveConstructAndAssign)
+{
+    runLua("value = {a = 5}");
+    auto value = luabridge::getGlobal(L, "value");
+    EXPECT_TRUE(value.isTable());
+    EXPECT_TRUE(value["a"].isNumber());
+    EXPECT_TRUE(value.rawget("a").isNumber());
+    ASSERT_EQ(5, value["a"].unsafe_cast<int>());
+
+    luabridge::LuaRef moveConstructed = std::move(value);
+    EXPECT_TRUE(moveConstructed.isTable());
+    EXPECT_TRUE(moveConstructed["a"].isNumber());
+    ASSERT_EQ(5, moveConstructed["a"].unsafe_cast<int>());
+    EXPECT_FALSE(value.isValid());
+
+    luabridge::LuaRef moveAssigned(L);
+    moveAssigned = std::move(moveConstructed);
+    EXPECT_TRUE(moveAssigned.isTable());
+    EXPECT_TRUE(moveAssigned["a"].isNumber());
+    ASSERT_EQ(5, moveAssigned["a"].unsafe_cast<int>());
+    EXPECT_FALSE(moveConstructed.isValid());
 }
 
 TEST_F(LuaRefTests, Callable)

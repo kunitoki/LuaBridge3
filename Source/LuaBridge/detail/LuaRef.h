@@ -139,6 +139,7 @@ public:
     {
         switch (type())
         {
+        case LUA_TNONE:
         case LUA_TNIL:
             os << "nil";
             break;
@@ -156,23 +157,11 @@ public:
             break;
 
         case LUA_TTABLE:
-            os << "table: " << tostring();
-            break;
-
         case LUA_TFUNCTION:
-            os << "function: " << tostring();
-            break;
-
-        case LUA_TUSERDATA:
-            os << "userdata: " << tostring();
-            break;
-
         case LUA_TTHREAD:
-            os << "thread: " << tostring();
-            break;
-
+        case LUA_TUSERDATA:
         case LUA_TLIGHTUSERDATA:
-            os << "lightuserdata: " << tostring();
+            os << tostring();
             break;
 
         default:
@@ -1268,6 +1257,67 @@ private:
 
 //=================================================================================================
 /**
+ * @brief Equality between type T and LuaRef.
+ */
+template <class T>
+auto operator==(const T& lhs, const LuaRef& rhs)
+    -> std::enable_if_t<!std::is_same_v<T, LuaRef> && !std::is_same_v<T, LuaRefBase<LuaRef, LuaRef>>, bool>
+{
+    return rhs == lhs;
+}
+
+/**
+ * @brief Inequality between type T and LuaRef.
+ */
+template <class T>
+auto operator!=(const T& lhs, const LuaRef& rhs)
+    -> std::enable_if_t<!std::is_same_v<T, LuaRef> && !std::is_same_v<T, LuaRefBase<LuaRef, LuaRef>>, bool>
+{
+    return !(rhs == lhs);
+}
+
+/**
+ * @brief Less than between type T and LuaRef.
+ */
+template <class T>
+auto operator<(const T& lhs, const LuaRef& rhs)
+    -> std::enable_if_t<!std::is_same_v<T, LuaRef> && !std::is_same_v<T, LuaRefBase<LuaRef, LuaRef>>, bool>
+{
+    return !(rhs >= lhs);
+}
+
+/**
+ * @brief Less than equal between type T and LuaRef.
+ */
+template <class T>
+auto operator<=(const T& lhs, const LuaRef& rhs)
+    -> std::enable_if_t<!std::is_same_v<T, LuaRef> && !std::is_same_v<T, LuaRefBase<LuaRef, LuaRef>>, bool>
+{
+    return !(rhs > lhs);
+}
+
+/**
+ * @brief Greater than between type T and LuaRef.
+ */
+template <class T>
+auto operator>(const T& lhs, const LuaRef& rhs)
+    -> std::enable_if_t<!std::is_same_v<T, LuaRef> && !std::is_same_v<T, LuaRefBase<LuaRef, LuaRef>>, bool>
+{
+    return rhs <= lhs;
+}
+
+/**
+ * @brief Greater than equal between type T and LuaRef.
+ */
+template <class T>
+auto operator>=(const T& lhs, const LuaRef& rhs)
+    -> std::enable_if_t<!std::is_same_v<T, LuaRef> && !std::is_same_v<T, LuaRefBase<LuaRef, LuaRef>>, bool>
+{
+    return !(rhs > lhs);
+}
+
+//=================================================================================================
+/**
  * @brief Stack specialization for `LuaRef`.
  */
 template <>
@@ -1325,12 +1375,21 @@ struct Stack<LuaRef::TableItem>
 
 //=================================================================================================
 /**
- * @brief C++ like cast syntax.
+ * @brief C++ like cast syntax, safe.
  */
 template <class T>
-[[nodiscard]] T cast(const LuaRef& ref)
+[[nodiscard]] TypeResult<T> cast(const LuaRef& ref)
 {
     return ref.cast<T>();
+}
+
+/**
+ * @brief C++ like cast syntax, unsafe.
+ */
+template <class T>
+[[nodiscard]] T unsafe_cast(const LuaRef& ref)
+{
+    return ref.unsafe_cast<T>();
 }
 } // namespace luabridge
 
