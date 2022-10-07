@@ -14,20 +14,18 @@ jobs:
       with:
         submodules: true
 
-    - uses: seanmiddleditch/gha-setup-ninja@master
-
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
 
     - name: Configure
       shell: bash
       working-directory: ${{runner.workspace}}/build
-      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -G Ninja
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE
 
     - name: Build
       working-directory: ${{runner.workspace}}/build
       shell: bash
-      run: cmake --build . --config $BUILD_TYPE
+      run: cmake --build . --config $BUILD_TYPE --parallel 4
 
     - name: Test Lua 5.1
       working-directory: ${{runner.workspace}}/build/Tests/Release
