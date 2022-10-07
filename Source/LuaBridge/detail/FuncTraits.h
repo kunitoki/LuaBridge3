@@ -781,5 +781,39 @@ int constructor_placement_proxy(lua_State* L)
     return 1;
 }
 
+//=================================================================================================
+/**
+ * @brief Constructor forwarder.
+ */
+template <class T, class F>
+struct constructor_forwarder
+{
+    explicit constructor_forwarder(F&& f)
+        : m_func(std::forward<F>(f))
+    {
+    }
+
+    T* operator()(lua_State* L)
+    {
+        std::error_code ec;
+        auto* value = detail::UserdataValue<T>::place(L, ec);
+        if (! value)
+            luaL_error(L, "%s", ec.message().c_str());
+
+        using FnTraits = detail::function_traits<F>;
+        using FnArgs = detail::remove_first_type_t<typename FnTraits::argument_types>;
+
+        T* obj = placement_constructor<T>::construct(
+            value->getObject(), m_func, detail::make_arguments_list<FnArgs, 2>(L));
+
+        value->commit();
+
+        return obj;
+    }
+
+private:
+    F m_func;
+};
+
 } // namespace detail
 } // namespace luabridge

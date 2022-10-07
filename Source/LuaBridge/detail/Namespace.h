@@ -574,10 +574,8 @@ class Namespace : public detail::Registrar
          */
         template <class... Functions>
         auto addStaticFunction(const char* name, Functions... functions)
-            -> std::enable_if_t<(detail::is_callable_v<Functions> && ...), Class<T>&>
+            -> std::enable_if_t<(detail::is_callable_v<Functions> && ...) && (sizeof...(Functions) > 0), Class<T>&>
         {
-            static_assert(sizeof...(Functions) > 0);
-
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
@@ -586,7 +584,6 @@ class Namespace : public detail::Registrar
                 ([&]
                 {
                     detail::push_function(L, std::move(functions));
-                    rawsetfield(L, -2, name);
 
                 } (), ...);
             }
@@ -613,8 +610,9 @@ class Namespace : public detail::Registrar
                 } (), ...);
 
                 lua_pushcclosure_x(L, &detail::try_overload_functions<false>, 1);
-                rawsetfield(L, -2, name);
             }
+
+            rawsetfield(L, -2, name);
 
             return *this;
         }
@@ -822,10 +820,8 @@ class Namespace : public detail::Registrar
          */
         template <class... Functions>
         auto addFunction(const char* name, Functions... functions)
-            -> std::enable_if_t<(detail::is_callable_v<Functions> && ...), Class<T>&>
+            -> std::enable_if_t<(detail::is_callable_v<Functions> && ...) && (sizeof...(Functions) > 0), Class<T>&>
         {
-            static_assert(sizeof...(Functions) > 0);
-
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
@@ -926,32 +922,44 @@ class Namespace : public detail::Registrar
          * The provider of the Function argument is responsible of doing placement new of the type T over the void* pointer provided to
          * the method as first argument.
          */
-        template <class Function>
-        Class<T> addConstructor(Function function)
+        template <class... Functions>
+        auto addConstructor(Functions... functions)
+            -> std::enable_if_t<(detail::is_callable_v<Functions> && ...) && (sizeof...(Functions) > 0), Class<T>&>
         {
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            auto create = [function = std::move(function)](lua_State* L) -> T*
+            if constexpr (sizeof...(Functions) == 1)
             {
-                std::error_code ec;
-                auto* value = detail::UserdataValue<T>::place(L, ec);
-                if (! value)
-                    luaL_error(L, "%s", ec.message().c_str());
+                ([&]
+                {
+                    detail::push_function(L, detail::constructor_forwarder<T, Functions>(std::move(functions))); // Stack: co, cl, st, function
 
-                using FnTraits = detail::function_traits<Function>;
-                using FnArgs = detail::remove_first_type_t<typename FnTraits::argument_types>;
+                } (), ...);
+            }
+            else
+            {
+                // create new closure of try_overloads with new table
+                lua_createtable(L, static_cast<int>(sizeof...(Functions)), 0); // reserve space for N overloads
 
-                T* obj = detail::placement_constructor<T>::construct(value->getObject(), function, detail::make_arguments_list<FnArgs, 2>(L));
+                int idx = 1;
 
-                value->commit();
+                ([&]
+                {
+                    lua_createtable(L, 2, 0); // reserve space for: function, arity
+                    lua_pushinteger(L, 1);
+                    lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
+                    lua_settable(L, -3);
+                    lua_pushinteger(L, 2);
+                    detail::push_function(L, detail::constructor_forwarder<T, Functions>(std::move(functions)));
+                    lua_settable(L, -3);
+                    lua_rawseti(L, -2, idx);
+                    ++idx;
 
-                return obj;
-            };
+                } (), ...);
 
-            using AllocatorFnType = decltype(create);
+                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, 1);
+            }
 
-            lua_newuserdata_aligned<AllocatorFnType>(L, std::move(create)); // Stack: co, cl, st, function userdata (ud)
-            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<AllocatorFnType>, 1); // Stack: co, cl, st, function
             rawsetfield(L, -2, "__call"); // Stack: co, cl, st
 
             return *this;
@@ -1579,10 +1587,8 @@ public:
      */
     template <class... Functions>
     auto addFunction(const char* name, Functions... functions)
-        -> std::enable_if_t<(detail::is_callable_v<Functions> && ...), Namespace&>
+        -> std::enable_if_t<(detail::is_callable_v<Functions> && ...) && (sizeof...(Functions) > 0), Namespace&>
     {
-        static_assert(sizeof...(Functions) > 0);
-
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 
