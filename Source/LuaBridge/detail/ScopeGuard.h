@@ -38,6 +38,7 @@ public:
 
 private:
     F m_func;
+    bool m_shouldRun;
 };
 
 template <class F>

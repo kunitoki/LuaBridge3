@@ -26,6 +26,7 @@ set (LUABRIDGE_TEST_SOURCE_FILES
   Source/OverloadTests.cpp
   Source/PerformanceTests.cpp
   Source/RefCountedPtrTests.cpp
+  Source/ScopeGuardTests.cpp
   Source/StackTests.cpp
   Source/Tests.cpp
   Source/TestBase.h
