@@ -402,3 +402,53 @@ TEST_F(OverloadTests, ConstAndNonConstOverloadClass)
     ASSERT_TRUE(result().isNumber());
     EXPECT_EQ(6, result<int>());
 }
+
+TEST_F(OverloadTests, LuaCFunctionArityCheck)
+{
+    struct X
+    {
+        int test1(int)
+        {
+            return 1;
+        }
+
+        int test2(lua_State* L)
+        {
+            lua_pushinteger(L, 2);
+            return 1;
+        }
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<X>("X")
+            .addFunction("test_a", &X::test2, &X::test1)
+            .addFunction("test_b", &X::test1, &X::test2)
+        .endClass();
+
+    X x;
+    luabridge::setGlobal(L, &x, "x");
+
+    runLua("result = x:test_a ('abc')");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(2, result<int>());
+
+    runLua("result = x:test_a (1)");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(2, result<int>());
+
+    runLua("result = x:test_a (1, 2, 3)");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(2, result<int>());
+
+    runLua("result = x:test_b ('abc')");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(2, result<int>());
+
+    runLua("result = x:test_b (1)");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(1, result<int>());
+
+    runLua("result = x:test_b (1, 2, 3)");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(2, result<int>());
+}

@@ -35,20 +35,21 @@ LuaBridge3 is usable from a compliant C++17 compiler and offers the following fe
 
 LuaBridge3 offers a set of improvements compared to vanilla LuaBridge:
 
-* The only binder library that works with both LuaJIT and Luau, wonderful for game development !
+* The only binder library that works with PUC-Lua as well as LuaJIT and Luau, wonderful for game development !
 * Can work with both c++ exceptions and without (Works with `-fno-exceptions` and `/EHsc-`).
 * Can safely register and use classes exposed across shared library boundaries.
 * Full support for capturing lambdas in all namespace and class methods.
+* Overloaded function support in Namespace functions, Class constructors, functions and static functions.
 * Supports placement allocation or custom allocations/deallocations of C++ classes exposed to lua.
 * Lightweight object creation: allow adding lua tables on the stack and register methods and metamethods in them.
-* Allows for fallback `__index` and `__newindex` metamethods in exposed C++ classes, truly dynamic C++ classes !
-* Added `std::shared_ptr` support for types intrusively deriving from `std::enable_shared_from_this`.
+* Allows for fallback `__index` and `__newindex` metamethods in exposed C++ classes, to support flexible and dynamic C++ classes !
+* Added `std::shared_ptr` to support shared C++/Lua lifetime for types deriving from `std::enable_shared_from_this`.
 * Supports conversion to and from `std::nullptr_t`, `std::byte`, `std::tuple` and `std::reference_wrapper`.
 * Supports conversion to and from C style arrays of any supported type.
 * Transparent support of all signed and unsigned integer types up to `int64_t`.
 * Consistent numeric handling and conversions (signed, unsigned and floats) across all lua versions.
 * Automatic handling of enum types by communicating with lua through `std::underlying_type_t`.
-* Opt-in handling of safe stack space checks (automatically avoids exhausting lua stack space when pushing values!).
+* Opt-out handling of safe stack space checks (automatically avoids exhausting lua stack space when pushing values!).
 
 ## Status
 

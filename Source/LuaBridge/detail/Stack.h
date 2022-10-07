@@ -989,6 +989,11 @@ struct Stack<std::string>
         }
         else
         {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+            if (! lua_checkstack(L, 1))
+                return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
             // Lua reference manual:
             // If the value is a number, then lua_tolstring also changes the actual value in the stack
             // to a string. (This change confuses lua_next when lua_tolstring is applied to keys during

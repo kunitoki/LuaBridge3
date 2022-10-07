@@ -598,7 +598,10 @@ class Namespace : public detail::Registrar
                 {
                     lua_createtable(L, 2, 0); // reserve space for: function, arity
                     lua_pushinteger(L, 1);
-                    lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
+                    if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
+                        lua_pushinteger(L, -1);
+                    else
+                        lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
                     lua_settable(L, -3);
                     lua_pushinteger(L, 2);
                     detail::push_function(L, std::move(functions));
@@ -866,7 +869,10 @@ class Namespace : public detail::Registrar
 
                         lua_createtable(L, 2, 0); // reserve space for: function, arity
                         lua_pushinteger(L, 1);
-                        lua_pushinteger(L, static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>));
+                        if (detail::is_any_cfunction_pointer_v<Functions>)
+                            lua_pushinteger(L, -1);
+                        else
+                            lua_pushinteger(L, static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>));
                         lua_settable(L, -3);
                         lua_pushinteger(L, 2);
                         detail::push_member_function<T>(L, std::move(functions));
@@ -899,7 +905,10 @@ class Namespace : public detail::Registrar
 
                         lua_createtable(L, 2, 0); // reserve space for: function, arity
                         lua_pushinteger(L, 1);
-                        lua_pushinteger(L, static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>));
+                        if (detail::is_any_cfunction_pointer_v<Functions>)
+                            lua_pushinteger(L, -1);
+                        else
+                            lua_pushinteger(L, static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>));
                         lua_settable(L, -3);
                         lua_pushinteger(L, 2);
                         detail::push_member_function<T>(L, std::move(functions));
@@ -985,7 +994,10 @@ class Namespace : public detail::Registrar
                 {
                     lua_createtable(L, 2, 0); // reserve space for: function, arity
                     lua_pushinteger(L, 1);
-                    lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
+                    if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
+                        lua_pushinteger(L, -1);
+                    else
+                        lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
                     lua_settable(L, -3);
                     lua_pushinteger(L, 2);
                     detail::push_function(L, detail::constructor_forwarder<T, Functions>(std::move(functions)));
@@ -1617,7 +1629,6 @@ public:
             ([&]
             {
                 detail::push_function(L, std::move(functions));
-                rawsetfield(L, -2, name);
 
             } (), ...);
         }
@@ -1632,7 +1643,10 @@ public:
             {
                 lua_createtable(L, 2, 0); // reserve space for: function, arity
                 lua_pushinteger(L, 1);
-                lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
+                if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
+                    lua_pushinteger(L, -1);
+                else
+                    lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
                 lua_settable(L, -3);
                 lua_pushinteger(L, 2);
                 detail::push_function(L, std::move(functions));
@@ -1644,8 +1658,9 @@ public:
             } (), ...);
 
             lua_pushcclosure_x(L, &detail::try_overload_functions<false>, 1);
-            rawsetfield(L, -2, name);
         }
+
+        rawsetfield(L, -2, name);
 
         return *this;
     }

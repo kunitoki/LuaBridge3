@@ -31,7 +31,10 @@ Contents
     *   [2.3 - Class Objects](#23---class-objects)
     *   [2.4 - Property Member Proxies](#24---property-member-proxies)
     *   [2.5 - Function Member Proxies](#25---function-member-proxies)
+    *   [2.5.1 - Function Overloading](#251---function-overloading)
     *   [2.6 - Constructors](#26---constructors)
+    *   [2.6.1 - Constructor Proxies](#261---constructor-proxies)
+    *   [2.6.2 - Constructor Factories](#262---constructor-factories)
     *   [2.7 - Index and New Index Metamethods Fallback](#27---index-and-new-index-metamethods-fallback)
     *   [2.8 - Lua Stack](#28---lua-stack)
     *   [2.9 - lua_State](#29---lua_state)
@@ -85,20 +88,21 @@ LuaBridge is usable from a compliant C++17 and offers the following features:
 
 It also offers a set of improvements compared to vanilla LuaBridge:
 
-* The only binder library that works with both LuaJIT and Luau, wonderful for game development !
+* The only binder library that works with PUC-Lua as well as LuaJIT and Luau, wonderful for game development !
 * Can work with both c++ exceptions and without (Works with `-fno-exceptions` and `/EHsc-`).
 * Can safely register and use classes exposed across shared library boundaries.
 * Full support for capturing lambdas in all namespace and class methods.
+* Overloaded function support in Namespace functions, Class constructors, functions and static functions.
 * Supports placement allocation or custom allocations/deallocations of C++ classes exposed to lua.
 * Lightweight object creation: allow adding lua tables on the stack and register methods and metamethods in them.
-* Allows for fallback `__index` and `__newindex` metamethods in exposed C++ classes, truly dynamic C++ classes !
-* Added `std::shared_ptr` support for types intrusively deriving from `std::enable_shared_from_this`.
+* Allows for fallback `__index` and `__newindex` metamethods in exposed C++ classes, to support flexible and dynamic C++ classes !
+* Added `std::shared_ptr` to support shared C++/Lua lifetime for types deriving from `std::enable_shared_from_this`.
 * Supports conversion to and from `std::nullptr_t`, `std::byte`, `std::tuple` and `std::reference_wrapper`.
 * Supports conversion to and from C style arrays of any supported type.
 * Transparent support of all signed and unsigned integer types up to `int64_t`.
 * Consistent numeric handling and conversions (signed, unsigned and floats) across all lua versions.
 * Automatic handling of enum types by communicating with lua through `std::underlying_type_t`.
-* Opt-in handling of safe stack space checks (automatically avoids exhausting lua stack space when pushing values!).
+* Opt-out handling of safe stack space checks (automatically avoids exhausting lua stack space when pushing values!).
 
 LuaBridge is distributed as a a collection of header files. You simply add one line, `#include <LuaBridge/LuaBridge.h>` where you want to pass functions, classes, and variables back and forth between C++ and Lua. There are no additional source files, no compilation settings, and no Makefiles or IDE-specific project files. LuaBridge is easy to integrate.
 
@@ -501,12 +505,12 @@ struct Vec
 The class is closed for modifications, but we want to extend Vec objects with our member function. To do this, first we add a "helper" function:
 
 ```cpp
-void scale (float value)
+void scale (Vec* vec, float value)
 {
-  value->coord [0] *= value;
-  value->coord [1] *= value;
-  value->coord [2] *= value;
-};
+  vec->coord [0] *= value;
+  vec->coord [1] *= value;
+  vec->coord [2] *= value;
+}
 ```
 
 Now we can register the `Vec` class with a member function `scale`:
@@ -534,6 +538,62 @@ luabridge::getGlobalNamespace (L)
 
 Of course when not capturing, it is better to prefix the lambda with `+` so it is converted and stored internally to a function pointer instead of an `std::function`, so it is actually lighter to store and faster to call.
 
+### 2.5.1 - Function Overloading
+
+When specifying more than one method to the `addFunction` or `addStaticFunction` of both `Namespace` and `Class`, those overloads will be invoked in case of a call. Only overloads that have matched arguments arity will be considered, and they will be tried from first to last until the call succeeds.
+
+```cpp
+struct Vec { float coord [3]; };
+struct Quat { float values [4]; };
+
+void rotateByDegreees (Vec* vec, float degrees);
+void rotateByQuaternion (Vec* vec, const Quat& quaternion);
+```
+
+Now we can register the `Vec` class with a member function `rotate` that will be resolving the call into the two provided overloads:
+
+```cpp
+luabridge::getGlobalNamespace (L)
+  .beginNamespace ("test")
+    .beginClass <Vec> ("Vec")
+      .addFunction ("rotate", &rotateByDegreees, &rotateByQuaternion)
+    .endClass ()
+  .endNamespace ();
+```
+
+In case of members (or functions) with the same name, it's necessary to use `overload`, `constOverload` or `nonConstOverload` to disambiguate which of the functions needs to be registered:
+
+```cpp
+struct Quat { float values [4]; };
+
+struct Vec
+{
+  void rotate(float degrees);
+  void rotate(const Quat& quaternion);
+
+  void x(float new_value);
+  float x(float value_if_zero) const;
+
+  float coord [3];
+};
+
+luabridge::getGlobalNamespace (L)
+  .beginNamespace ("test")
+    .beginClass <Vec> ("Vec")
+      .addFunction ("rotate",
+        luabridge::overload<float>(&Vec::rotate),
+        luabridge::overload<const Quat&>(&Vec::rotate))
+      .addFunction ("x",
+        luabridge::nonConstOverload<float>(&Vec::x),
+        luabridge::constOverload<float>(&Vec::x))
+    .endClass ()
+  .endNamespace ();
+
+```
+
+It's possible to mix lambdas, function pointers and member functions in overload creation. Providing a `lua_Cfunction` as last method will ensure it can be reached in case no other overload is successfully  executed, kind of like a "catch all" method.
+
+Special attention needs to be given to the order (priority) of the overloads, based on the number and type of the arguments. Better to place first the overloads that can be called more frequently, and putting "stronger" types first: for example when having an overload taking an `int` and an overload taking `float`, as lua is not able to distinguish between them properly (until lua 5.4) the first overload will always be called.
 
 2.6 - Constructors
 ------------------
@@ -570,7 +630,9 @@ b = test.B ("hello", 5) -- Create a new B.
 b = test.B ()           -- Error: expected string in argument 1
 ```
 
-Sometimes is not possible to use a constructor for a class, because some of the constructor arguments have types that couldn't be exposed to lua. So it is possible to workaround that problem by using a special `addConstructor` call taking a functor, which will allow to placement new the c++ class in a c++ lambda, specifying any custom parameter there:
+### 2.6.1 - Constructor Proxies
+
+Sometimes is not possible to use a constructor for a class, because some of the constructor arguments have types that couldn't be exposed to lua, or more control is needed when constructors need to be invoked (like checking the lau stack). So it is possible to workaround those limitations by using a special `addConstructor` that doesn't need any template specialiation, but takes only one or more functors, which will allow to placement new the c++ class in a c++ lambda, specifying any custom parameter there:
 
 ```cpp
 struct NotExposed;
@@ -605,6 +667,31 @@ luabridge::getGlobalNamespace (L)
     .endClass ()
   .endNamespace ();
 ```
+
+As mentioned at the beginning, it's possible to specify multiple functors, that will be tried in order until the object can be constructed:
+
+```cpp
+struct NotExposed;
+NotExposed* shouldNotSeeMe;
+
+struct HardToCreate
+{
+  HardToCreate (const NotExposed* x, int easy);
+  HardToCreate (const NotExposed* x, int easy, int lessEasy);
+};
+
+luabridge::getGlobalNamespace (L)
+  .beginNamespace ("test")
+    .beginClass <HardToCreate> ("HardToCreate")
+      .addConstructor (
+        [&shouldNotSeeMe](void* ptr, int easy) { new (ptr) HardToCreate (shouldNotSeeMe, easy); },
+        [&shouldNotSeeMe](void* ptr, int easy, int lessEasy) { new (ptr) HardToCreate (shouldNotSeeMe, easy, lessEasy); })
+    .endClass ()
+  .endNamespace ();
+```
+
+
+### 2.6.2 - Constructor Factories
 
 If granular control over allocation and deallocation of a type is needed, the `addFactory` method can be used to register both and allocator and deallocator of C++ type. This is useful in case of having classes being provided by factory methods from shared libraries.
 

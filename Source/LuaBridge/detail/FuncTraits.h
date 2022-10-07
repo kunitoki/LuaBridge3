@@ -291,7 +291,28 @@ inline static constexpr bool is_const_member_function_pointer_v = is_const_membe
 
 //=================================================================================================
 /**
- * @brief Detect if we T is a member lua cfunction pointer.
+ * @brief Detect if T is a lua cfunction pointer.
+ *
+ * @tparam T Potentially lua cfunction pointer.
+ */
+template <class T>
+struct is_cfunction_pointer
+{
+    static constexpr bool value = false;
+};
+
+template <>
+struct is_cfunction_pointer<int (*)(lua_State*)>
+{
+    static constexpr bool value = true;
+};
+
+template <class T>
+inline static constexpr bool is_cfunction_pointer_v = is_cfunction_pointer<T>::value;
+
+//=================================================================================================
+/**
+ * @brief Detect if T is a member lua cfunction pointer.
  *
  * @tparam T Potentially member lua cfunction pointer.
  */
@@ -317,7 +338,7 @@ template <class T>
 inline static constexpr bool is_member_cfunction_pointer_v = is_member_cfunction_pointer<T>::value;
 
 /**
- * @brief Detect if we T is a const member lua cfunction pointer.
+ * @brief Detect if T is a const member lua cfunction pointer.
  *
  * @tparam T Potentially const member lua cfunction pointer.
  */
@@ -344,12 +365,20 @@ inline static constexpr bool is_const_member_cfunction_pointer_v = is_const_memb
 
 //=================================================================================================
 /**
+ * @brief Detect if T is a member or non member lua cfunction pointer.
+ *
+ * @tparam T Potentially member or non member lua cfunction pointer.
+ */
+template <class T>
+inline static constexpr bool is_any_cfunction_pointer_v = is_cfunction_pointer_v<T> || is_member_cfunction_pointer_v<T>;
+
+//=================================================================================================
+/**
  * @brief A constexpr check for proxy_member functions.
  *
  * @tparam T Type where the callable should be able to operate.
  * @tparam F Callable object.
  */
-
 template <class T, class F>
 inline static constexpr bool is_proxy_member_function_v =
     std::is_same_v<T, remove_cvref_t<std::remove_pointer_t<function_argument_or_void_t<0, F>>>>;
@@ -405,6 +434,9 @@ template <class T, class F, class ExclusionType>
 inline static constexpr std::size_t member_function_arity_excluding_v = member_function_arity_excluding<T, F, function_arguments_t<F>, ExclusionType>::value;
 
 //=================================================================================================
+/**
+ * @brief Detectors for const and non const functions in packs and counting them.
+ */
 template <class T, class F>
 static constexpr bool is_const_function =
     detail::is_const_member_function_pointer_v<F> ||
@@ -415,48 +447,6 @@ inline static constexpr std::size_t const_functions_count = (0 + ... + (is_const
 
 template <class T, class... Fs>
 inline static constexpr std::size_t non_const_functions_count = (0 + ... + (is_const_function<T, Fs> ? 0 : 1));
-
-//=================================================================================================
-/**
- * @brief Detect if we are a `std::function`.
- *
- * @tparam F Callable object.
- */
-template <class F, class...>
-struct is_std_function : std::false_type
-{
-};
-
-template <class ReturnType, class... Args>
-struct is_std_function<std::function<ReturnType(Args...)>> : std::true_type
-{
-};
-
-template <class Signature>
-struct is_std_function<std::function<Signature>> : std::true_type
-{
-};
-
-template <class F>
-static constexpr bool is_std_function_v = is_std_function<F>::value;
-
-//=================================================================================================
-/**
- * @brief Reconstruct a function signature from return type and args.
- */
-template <class, class...>
-struct to_std_function_type
-{
-};
-
-template <class ReturnType, class... Args>
-struct to_std_function_type<ReturnType, std::tuple<Args...>>
-{
-    using type = std::function<ReturnType(Args...)>;
-};
-
-template <class ReturnType, class... Args>
-using to_std_function_type_t = typename to_std_function_type<ReturnType, Args...>::type;
 
 //=================================================================================================
 /**

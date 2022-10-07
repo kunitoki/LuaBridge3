@@ -578,7 +578,7 @@ inline int try_overload_functions(lua_State* L)
         assert(lua_isnumber(L, -1));
 
         const int overload_arity = lua_tointeger(L, -1);
-        if (overload_arity != effective_args)
+        if (overload_arity >= 0 && overload_arity != effective_args)
         {
             // store error message and try next overload
             lua_pushfstring(L, "Skipped overload #%d with unmatched arity of %d instead of %d", nerrors, overload_arity, effective_args);
