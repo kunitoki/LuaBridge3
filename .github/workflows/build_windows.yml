@@ -4,6 +4,7 @@ on: [push]
 
 env:
   BUILD_TYPE: Release
+  JOBS: 8
 
 jobs:
   build:
@@ -25,47 +26,35 @@ jobs:
     - name: Build
       working-directory: ${{runner.workspace}}/build
       shell: bash
-      run: cmake --build . --config $BUILD_TYPE
+      run: cmake --build . --config $BUILD_TYPE --parallel $JOBS -- /p:CL_MPcount=$JOBS
 
     - name: Test Lua 5.1
       working-directory: ${{runner.workspace}}/build/Tests/Release
       shell: bash
-      run: ./LuaBridgeTests51.exe
-
-    - name: Test Lua 5.1 - No Exceptions
-      working-directory: ${{runner.workspace}}/build/Tests/Release
-      shell: bash
-      run: ./LuaBridgeTests51Noexcept.exe
+      run: |
+        ./LuaBridgeTests51.exe
+        ./LuaBridgeTests51Noexcept.exe
 
     - name: Test Lua 5.2
       working-directory: ${{runner.workspace}}/build/Tests/Release
       shell: bash
-      run: ./LuaBridgeTests52Noexcept.exe
-
-    - name: Test Lua 5.2 - No Exceptions
-      working-directory: ${{runner.workspace}}/build/Tests/Release
-      shell: bash
-      run: ./LuaBridgeTests52Noexcept.exe
+      run: |
+        ./LuaBridgeTests52.exe
+        ./LuaBridgeTests52Noexcept.exe
 
     - name: Test Lua 5.3
       working-directory: ${{runner.workspace}}/build/Tests/Release
       shell: bash
-      run: ./LuaBridgeTests53.exe
-
-    - name: Test Lua 5.3 - No Exceptions
-      working-directory: ${{runner.workspace}}/build/Tests/Release
-      shell: bash
-      run: ./LuaBridgeTests53Noexcept.exe
+      run: |
+        ./LuaBridgeTests53.exe
+        ./LuaBridgeTests53Noexcept.exe
 
     - name: Test Lua 5.4
       working-directory: ${{runner.workspace}}/build/Tests/Release
       shell: bash
-      run: ./LuaBridgeTests54.exe
-
-    - name: Test Lua 5.4 - No Exceptions
-      working-directory: ${{runner.workspace}}/build/Tests/Release
-      shell: bash
-      run: ./LuaBridgeTests54Noexcept.exe
+      run: |
+        ./LuaBridgeTests54.exe
+        ./LuaBridgeTests54Noexcept.exe
 
     #- name: Test LuaJIT
     #  working-directory: ${{runner.workspace}}/build/Tests/Release
@@ -75,7 +64,8 @@ jobs:
     - name: Test LuaJIT - No Exceptions
       working-directory: ${{runner.workspace}}/build/Tests/Release
       shell: bash
-      run: ./LuaBridgeTestsLuaJITNoexcept.exe
+      run: |
+        ./LuaBridgeTestsLuaJITNoexcept.exe
 
     - name: Test Luau
       working-directory: ${{runner.workspace}}/build/Tests/Release
