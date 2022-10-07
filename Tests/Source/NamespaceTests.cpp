@@ -224,14 +224,14 @@ TEST_F(NamespaceTests, AddVariable)
     ASSERT_EQ(-10, int_);
 
     runLua("result = ns.int");
-    ASSERT_EQ(-20, result().cast<int>());
+    ASSERT_EQ(-20, result<int>());
 
     runLua("ns.any = {a = 42, b = 2}");
     ASSERT_TRUE(any.isTable());
     ASSERT_TRUE(any["b"].isNil());
 
     runLua("result = ns.any.a");
-    ASSERT_EQ(42, result().cast<int>());
+    ASSERT_EQ(42, result<int>());
 }
 
 namespace {
@@ -248,8 +248,7 @@ T Storage<T>::value;
 template<class T>
 int getDataC(lua_State* L)
 {
-    std::error_code ec;
-    [[maybe_unused]] auto result = luabridge::Stack<T>::push(L, Storage<T>::value, ec);
+    [[maybe_unused]] auto result = luabridge::Stack<T>::push(L, Storage<T>::value);
 
     return 1;
 }
@@ -257,7 +256,12 @@ int getDataC(lua_State* L)
 template<class T>
 int setDataC(lua_State* L)
 {
-    Storage<T>::value = luabridge::Stack<T>::get(L, -1);
+    auto result = luabridge::Stack<T>::get(L, -1);
+    if (! result)
+        luaL_error(L, "%s", result.error().message().c_str());
+
+    Storage<T>::value = *result;
+
     return 0;
 }
 
@@ -320,7 +324,7 @@ TEST_F(NamespaceTests, Properties_ProxyCFunctions)
     Storage<int>::value = 3;
     runLua("result = ns.value");
     ASSERT_TRUE(result().isNumber());
-    ASSERT_EQ(3, result().cast<int>());
+    ASSERT_EQ(3, result<int>());
 }
 
 TEST_F(NamespaceTests, Properties_ProxyCFunctions_ReadOnly)
@@ -343,7 +347,7 @@ TEST_F(NamespaceTests, Properties_ProxyCFunctions_ReadOnly)
     Storage<int>::value = 3;
     runLua("result = ns.value");
     ASSERT_TRUE(result().isNumber());
-    ASSERT_EQ(3, result().cast<int>());
+    ASSERT_EQ(3, result<int>());
 }
 
 namespace {

@@ -11,6 +11,7 @@
 #include "Errors.h"
 #include "Stack.h"
 #include "TypeTraits.h"
+#include "Userdata.h"
 
 #include <functional>
 #include <tuple>
@@ -255,10 +256,20 @@ constexpr auto tupleize(Types&&... types)
  * @tparam ArgsPack Arguments pack to extract from the lua stack.
  * @tparam Start Start index where stack variables are located in the lua stack.
  */
+template <class T>
+auto unwrap_argument_or_error(lua_State* L, std::size_t index)
+{
+    auto result = Stack<T>::get(L, index);
+    if (! result)
+        luaL_error(L, "Error decoding argument #%d: %s", static_cast<int>(index), result.message().c_str());
+
+    return *result;
+}
+
 template <class ArgsPack, std::size_t Start, std::size_t... Indices>
 auto make_arguments_list_impl(lua_State* L, std::index_sequence<Indices...>)
 {
-    return tupleize(Stack<std::tuple_element_t<Indices, ArgsPack>>::get(L, Start + Indices)...);
+    return tupleize(unwrap_argument_or_error<std::tuple_element_t<Indices, ArgsPack>>(L, Start + Indices)...);
 }
 
 template <class ArgsPack, std::size_t Start>
@@ -272,27 +283,23 @@ auto make_arguments_list(lua_State* L)
  * @brief Helpers for iterating through tuple arguments, pushing each argument to the lua stack.
  */
 template <std::size_t Index = 0, class... Types>
-auto push_arguments(lua_State*, std::tuple<Types...>, std::error_code&)
-    -> std::enable_if_t<Index == sizeof...(Types), std::size_t>
+auto push_arguments(lua_State*, std::tuple<Types...>)
+    -> std::enable_if_t<Index == sizeof...(Types), std::tuple<Result, std::size_t>>
 {
-    return Index + 1;
+    return std::make_tuple(Result(), Index + 1);
 }
 
 template <std::size_t Index = 0, class... Types>
-auto push_arguments(lua_State* L, std::tuple<Types...> t, std::error_code& ec)
-    -> std::enable_if_t<Index < sizeof...(Types), std::size_t>
+auto push_arguments(lua_State* L, std::tuple<Types...> t)
+    -> std::enable_if_t<Index < sizeof...(Types), std::tuple<Result, std::size_t>>
 {
     using T = std::tuple_element_t<Index, std::tuple<Types...>>;
 
-    std::error_code pec;
-    bool result = Stack<T>::push(L, std::get<Index>(t), pec);
+    auto result = Stack<T>::push(L, std::get<Index>(t));
     if (! result)
-    {
-        ec = pec;
-        return Index + 1;
-    }
+        return std::make_tuple(result, Index + 1);
 
-    return push_arguments<Index + 1, Types...>(L, std::move(t), ec);
+    return push_arguments<Index + 1, Types...>(L, std::move(t));
 }
 
 //=================================================================================================
@@ -345,14 +352,13 @@ struct function
     template <class F>
     static int call(lua_State* L, F func)
     {
-        std::error_code ec;
-        bool result = false;
+        Result result;
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
 #endif
-            result = Stack<ReturnType>::push(L, std::apply(func, make_arguments_list<ArgsPack, Start>(L)), ec);
+            result = Stack<ReturnType>::push(L, std::apply(func, make_arguments_list<ArgsPack, Start>(L)));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
@@ -363,7 +369,7 @@ struct function
 #endif
 
         if (! result)
-            raise_lua_error(L, "%s", ec.message().c_str());
+            raise_lua_error(L, "%s", result.message().c_str());
 
         return 1;
     }
@@ -371,8 +377,7 @@ struct function
     template <class T, class F>
     static int call(lua_State* L, T* ptr, F func)
     {
-        std::error_code ec;
-        bool result = false;
+        Result result;
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         try
@@ -380,7 +385,7 @@ struct function
 #endif
             auto f = [ptr, func](auto&&... args) -> ReturnType { return (ptr->*func)(std::forward<decltype(args)>(args)...); };
 
-            result = Stack<ReturnType>::push(L, std::apply(f, make_arguments_list<ArgsPack, Start>(L)), ec);
+            result = Stack<ReturnType>::push(L, std::apply(f, make_arguments_list<ArgsPack, Start>(L)));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
@@ -391,7 +396,7 @@ struct function
 #endif
 
         if (! result)
-            raise_lua_error(L, "%s", ec.message().c_str());
+            raise_lua_error(L, "%s", result.message().c_str());
 
         return 1;
     }
@@ -474,14 +479,14 @@ struct constructor
 {
     static T* call(const Args& args)
     {
-        auto alloc = [](auto&&... args) { return new T{ std::forward<decltype(args)>(args)... }; };
+        auto alloc = [](auto&&... args) { return new T(std::forward<decltype(args)>(args)...); };
 
         return std::apply(alloc, args);
     }
 
     static T* call(void* ptr, const Args& args)
     {
-        auto alloc = [ptr](auto&&... args) { return new (ptr) T{ std::forward<decltype(args)>(args)... }; };
+        auto alloc = [ptr](auto&&... args) { return new (ptr) T(std::forward<decltype(args)>(args)...); };
 
         return std::apply(alloc, args);
     }
@@ -530,6 +535,42 @@ struct external_constructor
         return func();
     }
 };
+
+//=================================================================================================
+/**
+ * @brief lua_CFunction to construct a class object wrapped in a container.
+ */
+template <class C, class Args>
+int constructor_container_proxy(lua_State* L)
+{
+    using T = typename ContainerTraits<C>::Type;
+
+    T* object = detail::constructor<T, Args>::call(detail::make_arguments_list<Args, 2>(L));
+
+    auto result = detail::UserdataSharedHelper<C, false>::push(L, object);
+    if (! result)
+        luaL_error(L, "%s", result.message().c_str());
+
+    return 1;
+}
+
+/**
+ * @brief lua_CFunction to construct a class object in-place in the userdata.
+ */
+template <class T, class Args>
+int constructor_placement_proxy(lua_State* L)
+{
+    std::error_code ec;
+    auto* value = detail::UserdataValue<T>::place(L, ec);
+    if (! value)
+        luaL_error(L, "%s", ec.message().c_str());
+
+    detail::constructor<T, Args>::call(value->getObject(), detail::make_arguments_list<Args, 2>(L));
+
+    value->commit();
+
+    return 1;
+}
 
 } // namespace detail
 } // namespace luabridge

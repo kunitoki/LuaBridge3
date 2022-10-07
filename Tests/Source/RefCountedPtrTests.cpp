@@ -12,7 +12,7 @@ struct RefCountedPtrTests : TestBase
     T variable(const std::string& name)
     {
         runLua("result = " + name);
-        return result().cast<T>();
+        return result<T>();
     }
 };
 

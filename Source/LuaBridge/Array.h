@@ -20,46 +20,41 @@ struct Stack<std::array<T, Size>>
 {
     using Type = std::array<T, Size>;
 
-    [[nodiscard]] static bool push(lua_State* L, const Type& array, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, const Type& array)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 3))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
-        const int initialStackSize = lua_gettop(L);
-        
+        StackRestore stackRestore(L);
+
         lua_createtable(L, static_cast<int>(Size), 0);
 
         for (std::size_t i = 0; i < Size; ++i)
         {
             lua_pushinteger(L, static_cast<lua_Integer>(i + 1));
 
-            std::error_code errorCode;
-            bool result = Stack<T>::push(L, array[i], errorCode);
-            if (!result)
-            {
-                ec = errorCode;
-                lua_pop(L, lua_gettop(L) - initialStackSize);
-                return false;
-            }
+            auto result = Stack<T>::push(L, array[i]);
+            if (! result)
+                return result;
 
             lua_settable(L, -3);
         }
         
-        return true;
+        stackRestore.reset();
+        return {};
     }
 
-    [[nodiscard]] static Type get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<Type> get(lua_State* L, int index)
     {
         if (!lua_istable(L, index))
-            luaL_error(L, "#%d argment must be a table", index);
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
         if (get_length(L, index) != Size)
-            luaL_error(L, "table size should be %d but is %d", static_cast<int>(Size), get_length(L, index));
+            return makeErrorCode(ErrorCode::InvalidTableSizeInCast);
+
+        const StackRestore stackRestore(L);
 
         Type array;
 
@@ -69,7 +64,11 @@ struct Stack<std::array<T, Size>>
         int arrayIndex = 0;
         while (lua_next(L, absIndex) != 0)
         {
-            array[arrayIndex++] = Stack<T>::get(L, -1);
+            auto item = Stack<T>::get(L, -1);
+            if (!item)
+                return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+            array[arrayIndex++] = *item;
             lua_pop(L, 1);
         }
 

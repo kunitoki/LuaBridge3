@@ -20,48 +20,40 @@ struct Stack<std::map<K, V>>
 {
     using Type = std::map<K, V>;
 
-    [[nodiscard]] static bool push(lua_State* L, const Type& map, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, const Type& map)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 3))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
-        const int initialStackSize = lua_gettop(L);
+        StackRestore stackRestore(L);
 
         lua_createtable(L, 0, static_cast<int>(map.size()));
 
         for (auto it = map.begin(); it != map.end(); ++it)
         {
-            std::error_code errorCodeKey;
-            if (! Stack<K>::push(L, it->first, errorCodeKey))
-            {
-                ec = errorCodeKey;
-                lua_pop(L, lua_gettop(L) - initialStackSize);
-                return false;
-            }
+            auto result = Stack<K>::push(L, it->first);
+            if (! result)
+                return result;
 
-            std::error_code errorCodeValue;
-            if (! Stack<V>::push(L, it->second, errorCodeValue))
-            {
-                ec = errorCodeValue;
-                lua_pop(L, lua_gettop(L) - initialStackSize);
-                return false;
-            }
+            result = Stack<V>::push(L, it->second);
+            if (! result)
+                return result;
 
             lua_settable(L, -3);
         }
         
-        return true;
+        stackRestore.reset();
+        return {};
     }
 
-    [[nodiscard]] static Type get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<Type> get(lua_State* L, int index)
     {
         if (!lua_istable(L, index))
-            luaL_error(L, "#%d argument must be a table", index);
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        const StackRestore stackRestore(L);
 
         Type map;
 
@@ -70,7 +62,15 @@ struct Stack<std::map<K, V>>
 
         while (lua_next(L, absIndex) != 0)
         {
-            map.emplace(Stack<K>::get(L, -2), Stack<V>::get(L, -1));
+            auto value = Stack<V>::get(L, -1);
+            if (! value)
+                return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+            auto key = Stack<K>::get(L, -2);
+            if (! key)
+                return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+            map.emplace(*key, *value);
             lua_pop(L, 1);
         }
 

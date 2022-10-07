@@ -14,53 +14,44 @@ namespace luabridge {
 /**
  * @brief Stack specialization for `std::set`.
  */
-template <class K, class V>
-struct Stack<std::set<K, V>>
+template <class K>
+struct Stack<std::set<K>>
 {
-    using Type = std::set<K, V>;
+    using Type = std::set<K>;
     
-    [[nodiscard]] static bool push(lua_State* L, const Type& set, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, const Type& set)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 3))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
-        const int initialStackSize = lua_gettop(L);
-        
+        StackRestore stackRestore(L);
+
         lua_createtable(L, 0, static_cast<int>(set.size()));
 
-        for (auto it = set.begin(); it != set.end(); ++it)
+        auto it = set.cbegin();
+        for (lua_Integer tableIndex = 1; it != set.cend(); ++tableIndex, ++it)
         {
-            std::error_code errorCodeKey;
-            if (! Stack<K>::push(L, it->first, errorCodeKey))
-            {
-                ec = errorCodeKey;
-                lua_pop(L, lua_gettop(L) - initialStackSize);
-                return false;
-            }
+            lua_pushinteger(L, tableIndex);
 
-            std::error_code errorCodeValue;
-            if (! Stack<V>::push(L, it->second, errorCodeValue))
-            {
-                ec = errorCodeValue;
-                lua_pop(L, lua_gettop(L) - initialStackSize);
-                return false;
-            }
+            auto result = Stack<K>::push(L, *it);
+            if (! result)
+                return result;
 
             lua_settable(L, -3);
         }
-        
-        return true;
+
+        stackRestore.reset();
+        return {};
     }
 
-    [[nodiscard]] static Type get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<Type> get(lua_State* L, int index)
     {
         if (!lua_istable(L, index))
-            luaL_error(L, "#%d argument must be a table", index);
+            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+
+        const StackRestore stackRestore(L);
 
         Type set;
 
@@ -69,7 +60,11 @@ struct Stack<std::set<K, V>>
 
         while (lua_next(L, absIndex) != 0)
         {
-            set.emplace(Stack<K>::get(L, -2), Stack<V>::get(L, -1));
+            auto item = Stack<K>::get(L, -1);
+            if (! item)
+                return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+
+            set.emplace(*item);
             lua_pop(L, 1);
         }
 

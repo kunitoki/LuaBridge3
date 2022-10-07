@@ -11,6 +11,7 @@
 #include "LuaException.h"
 #include "ClassInfo.h"
 #include "TypeTraits.h"
+#include "Result.h"
 #include "Stack.h"
 
 #include <cassert>
@@ -330,18 +331,19 @@ public:
      * @param ec Error code that will be set in case of failure to push on the lua stack.
      */
     template <class U>
-    static auto push(lua_State* L, const U& u, std::error_code& ec) -> std::enable_if_t<std::is_copy_constructible_v<U>, bool>
+    static auto push(lua_State* L, const U& u) -> std::enable_if_t<std::is_copy_constructible_v<U>, Result>
     {
+        std::error_code ec;
         auto* ud = place(L, ec);
 
         if (!ud)
-            return false;
+            return ec;
 
         new (ud->getObject()) U(u);
 
         ud->commit();
 
-        return true;
+        return {};
     }
 
     /**
@@ -354,18 +356,19 @@ public:
      * @param ec Error code that will be set in case of failure to push on the lua stack.
      */
     template <class U>
-    static auto push(lua_State* L, U&& u, std::error_code& ec) -> std::enable_if_t<std::is_move_constructible_v<U>, bool>
+    static auto push(lua_State* L, U&& u) -> std::enable_if_t<std::is_move_constructible_v<U>, Result>
     {
+        std::error_code ec;
         auto* ud = place(L, ec);
 
         if (!ud)
-            return false;
+            return ec;
 
         new (ud->getObject()) U(std::move(u));
 
         ud->commit();
 
-        return true;
+        return {};
     }
 
     /**
@@ -417,13 +420,13 @@ public:
      * @param ec Error code that will be set in case of failure to push on the lua stack.
      */
     template <class T>
-    static bool push(lua_State* L, T* ptr, std::error_code& ec)
+    static Result push(lua_State* L, T* ptr)
     {
         if (ptr)
-            return push(L, ptr, getClassRegistryKey<T>(), ec);
+            return push(L, ptr, getClassRegistryKey<T>());
 
         lua_pushnil(L);
-        return true;
+        return {};
     }
 
     /**
@@ -436,20 +439,20 @@ public:
      * @param ec Error code that will be set in case of failure to push on the lua stack.
      */
     template <class T>
-    static bool push(lua_State* L, const T* ptr, std::error_code& ec)
+    static Result push(lua_State* L, const T* ptr)
     {
         if (ptr)
-            return push(L, ptr, getConstRegistryKey<T>(), ec);
+            return push(L, ptr, getConstRegistryKey<T>());
 
         lua_pushnil(L);
-        return true;
+        return {};
     }
 
 private:
     /**
      * @brief Push a pointer to object using metatable key.
      */
-    static bool push(lua_State* L, const void* ptr, const void* key, std::error_code& ec)
+    static Result push(lua_State* L, const void* ptr, const void* key)
     {
         auto* udptr = new (lua_newuserdata_x<UserdataPtr>(L, sizeof(UserdataPtr))) UserdataPtr(const_cast<void*>(ptr));
 
@@ -461,14 +464,12 @@ private:
 
             udptr->~UserdataPtr();
 
-            ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
-
-            return false;
+            return throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
         }
 
         lua_setmetatable(L, -2);
 
-        return true;
+        return {};
     }
 
     explicit UserdataPtr(void* ptr)
@@ -605,7 +606,7 @@ struct UserdataSharedHelper
 {
     using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
 
-    static bool push(lua_State* L, const C& c, std::error_code& ec)
+    static Result push(lua_State* L, const C& c)
     {
         if (ContainerTraits<C>::get(c) != nullptr)
         {
@@ -619,9 +620,7 @@ struct UserdataSharedHelper
 
                 us->~UserdataShared<C>();
 
-                ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
-
-                return false;
+                return throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
             }
 
             lua_setmetatable(L, -2);
@@ -631,10 +630,10 @@ struct UserdataSharedHelper
             lua_pushnil(L);
         }
 
-        return true;
+        return {};
     }
 
-    static bool push(lua_State* L, T* t, std::error_code& ec)
+    static Result push(lua_State* L, T* t)
     {
         if (t)
         {
@@ -648,9 +647,7 @@ struct UserdataSharedHelper
 
                 us->~UserdataShared<C>();
 
-                ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
-
-                return false;
+                return throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
             }
 
             lua_setmetatable(L, -2);
@@ -660,7 +657,7 @@ struct UserdataSharedHelper
             lua_pushnil(L);
         }
 
-        return true;
+        return {};
     }
 };
 
@@ -672,7 +669,7 @@ struct UserdataSharedHelper<C, true>
 {
     using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
 
-    static bool push(lua_State* L, const C& c, std::error_code& ec)
+    static Result push(lua_State* L, const C& c)
     {
         if (ContainerTraits<C>::get(c) != nullptr)
         {
@@ -686,9 +683,7 @@ struct UserdataSharedHelper<C, true>
 
                 us->~UserdataShared<C>();
 
-                ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
-
-                return false;
+                return throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
             }
 
             lua_setmetatable(L, -2);
@@ -698,10 +693,10 @@ struct UserdataSharedHelper<C, true>
             lua_pushnil(L);
         }
 
-        return true;
+        return {};
     }
 
-    static bool push(lua_State* L, T* t, std::error_code& ec)
+    static Result push(lua_State* L, T* t)
     {
         if (t)
         {
@@ -715,9 +710,7 @@ struct UserdataSharedHelper<C, true>
 
                 us->~UserdataShared<C>();
 
-                ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
-
-                return false;
+                return throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
             }
 
             lua_setmetatable(L, -2);
@@ -727,7 +720,7 @@ struct UserdataSharedHelper<C, true>
             lua_pushnil(L);
         }
 
-        return true;
+        return {};
     }
 };
 
@@ -741,16 +734,22 @@ struct UserdataSharedHelper<C, true>
 template <class T, bool ByContainer>
 struct StackHelper
 {
-    using ReturnType = std::remove_const_t<typename ContainerTraits<T>::Type>;
+    using ReturnType = TypeResult<T>;
 
-    static bool push(lua_State* L, const T& t, std::error_code& ec)
+    static Result push(lua_State* L, const T& t)
     {
-        return UserdataSharedHelper<T, std::is_const_v<typename ContainerTraits<T>::Type>>::push(L, t, ec);
+        return UserdataSharedHelper<T, std::is_const_v<typename ContainerTraits<T>::Type>>::push(L, t);
     }
 
-    static T get(lua_State* L, int index)
+    static ReturnType get(lua_State* L, int index)
     {
-        return ContainerTraits<T>::construct(Userdata::get<ReturnType>(L, index, true));
+        using CastType = std::remove_const_t<typename ContainerTraits<T>::Type>;
+
+        auto* result = Userdata::get<CastType>(L, index, true);
+        if (! result)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        return ContainerTraits<T>::construct(result);
     }
 };
 
@@ -763,19 +762,23 @@ struct StackHelper
 template <class T>
 struct StackHelper<T, false>
 {
-    static bool push(lua_State* L, const T& t, std::error_code& ec)
+    static Result push(lua_State* L, const T& t)
     {
-        return UserdataValue<T>::push(L, t, ec);
+        return UserdataValue<T>::push(L, t);
     }
 
-    static bool push(lua_State* L, T&& t, std::error_code& ec)
+    static Result push(lua_State* L, T&& t)
     {
-        return UserdataValue<T>::push(L, std::move(t), ec);
+        return UserdataValue<T>::push(L, std::move(t));
     }
 
-    static T const& get(lua_State* L, int index)
+    static TypeResult<std::reference_wrapper<const T>> get(lua_State* L, int index)
     {
-        return *Userdata::get<T>(L, index, true);
+        auto* result = Userdata::get<T>(L, index, true);
+        if (! result)
+            return makeErrorCode(ErrorCode::InvalidTypeCast); // nil passed to reference
+
+        return std::cref(*result);
     }
 };
 
@@ -789,38 +792,41 @@ struct StackHelper<T, false>
 template <class C, bool ByContainer>
 struct RefStackHelper
 {
-    using ReturnType = C;
+    using ReturnType = TypeResult<C>;
     using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
 
-    static bool push(lua_State* L, const C& t, std::error_code& ec)
+    static Result push(lua_State* L, const C& t)
     {
-        return UserdataSharedHelper<C, std::is_const_v<typename ContainerTraits<C>::Type>>::push(L, t, ec);
+        return UserdataSharedHelper<C, std::is_const_v<typename ContainerTraits<C>::Type>>::push(L, t);
     }
 
     static ReturnType get(lua_State* L, int index)
     {
-        return ContainerTraits<C>::construct(Userdata::get<T>(L, index, true));
+        auto* result = Userdata::get<T>(L, index, true);
+        if (! result)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        return ContainerTraits<C>::construct(result);
     }
 };
 
 template <class T>
 struct RefStackHelper<T, false>
 {
-    using ReturnType = T&;
+    using ReturnType = TypeResult<std::reference_wrapper<T>>;
 
-    static bool push(lua_State* L, const T& t, std::error_code& ec)
+    static Result push(lua_State* L, const T& t)
     {
-        return UserdataPtr::push(L, &t, ec);
+        return UserdataPtr::push(L, std::addressof(t));
     }
 
     static ReturnType get(lua_State* L, int index)
     {
-        T* t = Userdata::get<T>(L, index, true);
+        auto* result = Userdata::get<T>(L, index, true);
+        if (! result)
+            return makeErrorCode(ErrorCode::InvalidTypeCast); // nil passed to reference
 
-        if (!t)
-            luaL_error(L, "nil passed to reference");
-
-        return *t;
+        return std::ref(*result);
     }
 };
 
@@ -831,22 +837,30 @@ struct RefStackHelper<T, false>
 template <class T, class Enable = void>
 struct UserdataGetter
 {
-    using ReturnType = T*;
+    using ReturnType = TypeResult<T*>;
 
     static ReturnType get(lua_State* L, int index)
     {
-        return Userdata::get<T>(L, index, false);
+        auto* result = Userdata::get<T>(L, index, true);
+        if (! result)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        return result;
     }
 };
 
 template <class T>
 struct UserdataGetter<T, std::void_t<T (*)()>>
 {
-    using ReturnType = T;
+    using ReturnType = TypeResult<T>;
 
     static ReturnType get(lua_State* L, int index)
     {
-        return StackHelper<T, IsContainer<T>::value>::get(L, index);
+        auto result = StackHelper<T, IsContainer<T>::value>::get(L, index);
+        if (! result)
+            return result.error();
+
+        return *result;
     }
 };
 
@@ -864,14 +878,14 @@ struct Stack
     using Getter = detail::UserdataGetter<T>;
     using ReturnType = typename Getter::ReturnType;
 
-    [[nodiscard]] static bool push(lua_State* L, const T& value, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, const T& value)
     {
-        return detail::StackHelper<T, detail::IsContainer<T>::value>::push(L, value, ec);
+        return detail::StackHelper<T, detail::IsContainer<T>::value>::push(L, value);
     }
 
-    [[nodiscard]] static bool push(lua_State* L, T&& value, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, T&& value)
     {
-        return detail::StackHelper<T, detail::IsContainer<T>::value>::push(L, std::move(value), ec);
+        return detail::StackHelper<T, detail::IsContainer<T>::value>::push(L, std::move(value));
     }
 
     [[nodiscard]] static ReturnType get(lua_State* L, int index)
@@ -914,11 +928,11 @@ struct StackOpSelector;
 template <class T>
 struct StackOpSelector<T*, true>
 {
-    using ReturnType = T*;
+    using ReturnType = TypeResult<T*>;
 
-    static bool push(lua_State* L, T* value, std::error_code& ec) { return UserdataPtr::push(L, value, ec); }
+    static Result push(lua_State* L, T* value) { return UserdataPtr::push(L, value); }
 
-    static T* get(lua_State* L, int index) { return Userdata::get<T>(L, index, false); }
+    static ReturnType get(lua_State* L, int index) { return Userdata::get<T>(L, index, false); }
 
     static bool isInstance(lua_State* L, int index) { return Userdata::isInstance<T>(L, index); }
 };
@@ -927,11 +941,11 @@ struct StackOpSelector<T*, true>
 template <class T>
 struct StackOpSelector<const T*, true>
 {
-    using ReturnType = const T*;
+    using ReturnType = TypeResult<const T*>;
 
-    static bool push(lua_State* L, const T* value, std::error_code& ec) { return UserdataPtr::push(L, value, ec); }
+    static Result push(lua_State* L, const T* value) { return UserdataPtr::push(L, value); }
 
-    static const T* get(lua_State* L, int index) { return Userdata::get<T>(L, index, true); }
+    static ReturnType get(lua_State* L, int index) { return Userdata::get<T>(L, index, true); }
 
     static bool isInstance(lua_State* L, int index) { return Userdata::isInstance<T>(L, index); }
 };
@@ -943,7 +957,7 @@ struct StackOpSelector<T&, true>
     using Helper = RefStackHelper<T, IsContainer<T>::value>;
     using ReturnType = typename Helper::ReturnType;
 
-    static bool push(lua_State* L, T& value, std::error_code& ec) { return UserdataPtr::push(L, &value, ec); }
+    static Result push(lua_State* L, T& value) { return UserdataPtr::push(L, &value); }
 
     static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
 
@@ -957,7 +971,7 @@ struct StackOpSelector<const T&, true>
     using Helper = RefStackHelper<T, IsContainer<T>::value>;
     using ReturnType = typename Helper::ReturnType;
 
-    static bool push(lua_State* L, const T& value, std::error_code& ec) { return Helper::push(L, value, ec); }
+    static Result push(lua_State* L, const T& value) { return Helper::push(L, value); }
 
     static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
 

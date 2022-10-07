@@ -20,17 +20,14 @@ struct Stack<std::list<T>>
 {
     using Type = std::list<T>;
     
-    [[nodiscard]] static bool push(lua_State* L, const Type& list, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, const Type& list)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 3))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
-        const int initialStackSize = lua_gettop(L);
+        StackRestore stackRestore(L);
 
         lua_createtable(L, static_cast<int>(list.size()), 0);
 
@@ -39,24 +36,23 @@ struct Stack<std::list<T>>
         {
             lua_pushinteger(L, tableIndex);
 
-            std::error_code errorCode;
-            if (! Stack<T>::push(L, *it, errorCode))
-            {
-                ec = errorCode;
-                lua_pop(L, lua_gettop(L) - initialStackSize);
-                return false;
-            }
+            auto result = Stack<T>::push(L, *it);
+            if (! result)
+                return result;
 
             lua_settable(L, -3);
         }
-        
-        return true;
+
+        stackRestore.reset();
+        return {};
     }
 
-    [[nodiscard]] static Type get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<Type> get(lua_State* L, int index)
     {
         if (!lua_istable(L, index))
-            luaL_error(L, "#%d argument must be a table", index);
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        const StackRestore stackRestore(L);
 
         Type list;
 
@@ -65,7 +61,11 @@ struct Stack<std::list<T>>
 
         while (lua_next(L, absIndex) != 0)
         {
-            list.emplace_back(Stack<T>::get(L, -1));
+            auto item = Stack<T>::get(L, -1);
+            if (! item)
+                return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+            list.emplace_back(*item);
             lua_pop(L, 1);
         }
 

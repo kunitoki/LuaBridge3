@@ -6,6 +6,7 @@
 #pragma once
 
 #include "Config.h"
+#include "Stack.h"
 
 namespace luabridge {
 
@@ -51,7 +52,7 @@ private:
  * @note This works on any type specialized by `Stack`, including `LuaRef` and its table proxies.
 */
 template <class T>
-T getGlobal(lua_State* L, const char* name)
+TypeResult<T> getGlobal(lua_State* L, const char* name)
 {
     lua_getglobal(L, name);
 
@@ -71,8 +72,7 @@ T getGlobal(lua_State* L, const char* name)
 template <class T>
 bool setGlobal(lua_State* L, T&& t, const char* name)
 {
-    std::error_code ec;
-    if (push(L, std::forward<T>(t), ec))
+    if (auto result = push(L, std::forward<T>(t)))
     {
         lua_setglobal(L, name);
         return true;

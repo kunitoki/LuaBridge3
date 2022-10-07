@@ -460,15 +460,15 @@ TEST_F(LuaBridgeTest, StdSharedPtr)
     std::shared_ptr<A> a = std::make_shared<A>(1);
     luabridge::setGlobal(L, a, "a");
     
-    std::shared_ptr<A> a2 = luabridge::getGlobal<std::shared_ptr<A>>(L, "a");
+    std::shared_ptr<A> a2 = *luabridge::getGlobal<std::shared_ptr<A>>(L, "a");
     EXPECT_EQ(1, a2->x);
 
     EXPECT_TRUE(runLua("result = a"));
-    auto a3 = result().cast<std::shared_ptr<A>>();
+    auto a3 = result<std::shared_ptr<A>>();
     EXPECT_EQ(1, a3->x);
 
     EXPECT_TRUE(runLua("result = test.A(2)"));
-    auto a4 = result().cast<std::shared_ptr<A>>();
+    auto a4 = result<std::shared_ptr<A>>();
     EXPECT_EQ(2, a4->x);
 }
 

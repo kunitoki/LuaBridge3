@@ -99,25 +99,22 @@ TEST_F(ListTests, UnregisteredClass)
 {
     struct Unregistered {};
     
-    std::error_code ec;
 #if LUABRIDGE_HAS_EXCEPTIONS
-    [[maybe_unused]] bool result;
-    ASSERT_THROW((result = luabridge::push(L, std::list<Unregistered>{ Unregistered() }, ec)), std::exception);
+    [[maybe_unused]] luabridge::Result r;
+    ASSERT_THROW((r = luabridge::push(L, std::list<Unregistered>{ Unregistered() })), std::exception);
 #else
-    ASSERT_FALSE((luabridge::push(L, std::list<Unregistered>{ Unregistered() }, ec)));
+    ASSERT_FALSE((luabridge::push(L, std::list<Unregistered>{ Unregistered() })));
 #endif
 }
 
 TEST_F(ListTests, IsInstance)
 {
-    std::error_code ec;
-
-    ASSERT_TRUE((luabridge::push(L, std::list<int>{ 1, 2, 3 }, ec)));
+    ASSERT_TRUE((luabridge::push(L, std::list<int>{ 1, 2, 3 })));
     EXPECT_TRUE(luabridge::isInstance<std::list<int>>(L, -1));
     
     lua_pop(L, 1);
     
-    ASSERT_TRUE((luabridge::push(L, 1, ec)));
+    ASSERT_TRUE((luabridge::push(L, 1)));
     EXPECT_FALSE(luabridge::isInstance<std::list<int>>(L, -1));
 }
 
@@ -127,6 +124,29 @@ TEST_F(ListTests, StackOverflow)
     
     std::list<int> value = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
     
-    std::error_code ec;
-    ASSERT_FALSE(luabridge::push(L, value, ec));
+    ASSERT_FALSE(luabridge::push(L, value));
 }
+
+#if !LUABRIDGE_HAS_EXCEPTIONS
+TEST_F(ListTests, PushUnregisteredWithNoExceptionsShouldFailButRestoreStack)
+{
+    class Unregistered {};
+
+    const int initialStackSize = lua_gettop(L);
+
+    lua_pushnumber(L, 1);
+    EXPECT_EQ(1, lua_gettop(L) - initialStackSize);
+
+    std::list<Unregistered> v;
+    v.emplace_back();
+    v.emplace_back();
+
+    auto result = luabridge::Stack<decltype(v)>::push(L, v);
+    EXPECT_FALSE(result);
+
+    EXPECT_EQ(1, lua_gettop(L) - initialStackSize);
+
+    lua_pop(L, 1);
+    EXPECT_EQ(0, lua_gettop(L) - initialStackSize);
+}
+#endif

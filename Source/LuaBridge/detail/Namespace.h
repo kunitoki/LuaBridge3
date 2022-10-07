@@ -257,43 +257,6 @@ class Namespace : public detail::Registrar
 
         //=========================================================================================
         /**
-         * @brief lua_CFunction to construct a class object wrapped in a container.
-         */
-        template <class Args, class C>
-        static int ctorContainerProxy(lua_State* L)
-        {
-            using T = typename ContainerTraits<C>::Type;
-
-            T* object = detail::constructor<T, Args>::call(detail::make_arguments_list<Args, 2>(L));
-
-            std::error_code ec;
-            if (! detail::UserdataSharedHelper<C, false>::push(L, object, ec))
-                luaL_error(L, "%s", ec.message().c_str());
-
-            return 1;
-        }
-
-        //=========================================================================================
-        /**
-         * @brief lua_CFunction to construct a class object in-place in the userdata.
-         */
-        template <class Args, class T>
-        static int ctorPlacementProxy(lua_State* L)
-        {
-            std::error_code ec;
-            detail::UserdataValue<T>* value = detail::UserdataValue<T>::place(L, ec);
-            if (! value)
-                luaL_error(L, "%s", ec.message().c_str());
-
-            detail::constructor<T, Args>::call(value->getObject(), detail::make_arguments_list<Args, 2>(L));
-
-            value->commit();
-
-            return 1;
-        }
-
-        //=========================================================================================
-        /**
          * @brief Asserts on stack state.
          */
         void assertStackState() const
@@ -1079,7 +1042,7 @@ class Namespace : public detail::Registrar
         {
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            lua_pushcclosure_x(L, &ctorContainerProxy<detail::function_arguments_t<MemFn>, C>, 0);
+            lua_pushcclosure_x(L, &detail::constructor_container_proxy<C, detail::function_arguments_t<MemFn>>, 0);
             rawsetfield(L, -2, "__call");
 
             return *this;
@@ -1090,7 +1053,7 @@ class Namespace : public detail::Registrar
         {
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            lua_pushcclosure_x(L, &ctorPlacementProxy<detail::function_arguments_t<MemFn>, T>, 0);
+            lua_pushcclosure_x(L, &detail::constructor_placement_proxy<T, detail::function_arguments_t<MemFn>>, 0);
             rawsetfield(L, -2, "__call");
 
             return *this;
@@ -1113,7 +1076,7 @@ class Namespace : public detail::Registrar
             auto create = [function = std::move(function)](lua_State* L) -> T*
             {
                 std::error_code ec;
-                detail::UserdataValue<T>* value = detail::UserdataValue<T>::place(L, ec);
+                auto* value = detail::UserdataValue<T>::place(L, ec);
                 if (! value)
                     luaL_error(L, "%s", ec.message().c_str());
 
@@ -1537,18 +1500,19 @@ public:
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 
-        std::error_code ec;
         if constexpr (std::is_enum_v<T>)
         {
             using U = std::underlying_type_t<T>;
-            
-            if (! Stack<U>::push(L, static_cast<U>(value), ec))
-                luaL_error(L, "%s", ec.message().c_str());
+
+            auto result = Stack<U>::push(L, static_cast<U>(value));
+            if (! result)
+                luaL_error(L, "%s", result.message().c_str());
         }
         else
         {
-            if (! Stack<T>::push(L, value, ec))
-                luaL_error(L, "%s", ec.message().c_str());
+            auto result = Stack<T>::push(L, value);
+            if (! result)
+                luaL_error(L, "%s", result.message().c_str());
         }
 
         rawsetfield(L, -2, name); // Stack: ns

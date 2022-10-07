@@ -50,7 +50,7 @@ template<typename T>
 std::optional<T> optCast(luabridge::LuaRef const& ref)
 {
     // NOTE cast to std::optional: https://stackoverflow.com/a/45865802
-    return ref.cast<std::optional<T>>();
+    return ref.unsafe_cast<std::optional<T>>();
 }
 
 template <class T>
@@ -326,3 +326,25 @@ TEST_F(OptionalTests, FromCppApi)
     EXPECT_FALSE(result().isNil());
     EXPECT_EQ("abcdef", *result<std::optional<std::string>>());
 }
+
+#if !LUABRIDGE_HAS_EXCEPTIONS
+TEST_F(OptionalTests, PushUnregisteredWithNoExceptionsShouldFailButRestoreStack)
+{
+    class Unregistered {};
+
+    const int initialStackSize = lua_gettop(L);
+
+    lua_pushnumber(L, 1);
+    EXPECT_EQ(1, lua_gettop(L) - initialStackSize);
+
+    std::optional<Unregistered> v = Unregistered{};
+
+    auto result = luabridge::Stack<decltype(v)>::push(L, v);
+    EXPECT_FALSE(result);
+
+    EXPECT_EQ(1, lua_gettop(L) - initialStackSize);
+
+    lua_pop(L, 1);
+    EXPECT_EQ(0, lua_gettop(L) - initialStackSize);
+}
+#endif
