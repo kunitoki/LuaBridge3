@@ -577,7 +577,7 @@ inline int try_overload_functions(lua_State* L)
         lua_rawgeti(L, -1, 1);
         assert(lua_isnumber(L, -1));
 
-        const int overload_arity = lua_tointeger(L, -1);
+        const int overload_arity = static_cast<int>(lua_tointeger(L, -1));
         if (overload_arity >= 0 && overload_arity != effective_args)
         {
             // store error message and try next overload
