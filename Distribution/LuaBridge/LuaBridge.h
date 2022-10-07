@@ -78,6 +78,10 @@
 #define LUABRIDGE_SAFE_STACK_CHECKS 1
 #endif
 
+#if !defined(LUABRIDGE_RAISE_UNREGISTERED_CLASS_USAGE) && LUABRIDGE_HAS_EXCEPTIONS
+#define LUABRIDGE_RAISE_UNREGISTERED_CLASS_USAGE 1
+#endif
+
 
 // End File: Source/LuaBridge/detail/Config.h
 
@@ -656,9 +660,13 @@ struct ErrorCategory : std::error_category
 
 inline std::error_code makeErrorCode(ErrorCode e)
 {
-  return { static_cast<int>(e), detail::ErrorCategory::getInstance() };
+    return { static_cast<int>(e), detail::ErrorCategory::getInstance() };
 }
 
+inline std::error_code make_error_code(ErrorCode e)
+{
+    return { static_cast<int>(e), detail::ErrorCategory::getInstance() };
+}
 } 
 
 namespace std {
@@ -2914,7 +2922,11 @@ public:
 
             ud->~UserdataValue<T>();
 
+#if LUABRIDGE_RAISE_UNREGISTERED_CLASS_USAGE
             ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
+#else
+            ec = makeErrorCode(ErrorCode::ClassNotRegistered);
+#endif
 
             return nullptr;
         }
@@ -3017,7 +3029,11 @@ private:
 
             udptr->~UserdataPtr();
 
+#if LUABRIDGE_RAISE_UNREGISTERED_CLASS_USAGE
             return throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
+#else
+            return makeErrorCode(ErrorCode::ClassNotRegistered);
+#endif
         }
 
         lua_setmetatable(L, -2);
@@ -3059,7 +3075,11 @@ public:
 
             ud->~UserdataValueExternal<T>();
 
+#if LUABRIDGE_RAISE_UNREGISTERED_CLASS_USAGE
             ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
+#else
+            ec = makeErrorCode(ErrorCode::ClassNotRegistered);
+#endif
 
             return nullptr;
         }
@@ -3132,7 +3152,11 @@ struct UserdataSharedHelper
 
                 us->~UserdataShared<C>();
 
+#if LUABRIDGE_RAISE_UNREGISTERED_CLASS_USAGE
                 return throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
+#else
+                return makeErrorCode(ErrorCode::ClassNotRegistered);
+#endif
             }
 
             lua_setmetatable(L, -2);
@@ -3159,7 +3183,11 @@ struct UserdataSharedHelper
 
                 us->~UserdataShared<C>();
 
+#if LUABRIDGE_RAISE_UNREGISTERED_CLASS_USAGE
                 return throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
+#else
+                return makeErrorCode(ErrorCode::ClassNotRegistered);
+#endif
             }
 
             lua_setmetatable(L, -2);
@@ -3192,7 +3220,11 @@ struct UserdataSharedHelper<C, true>
 
                 us->~UserdataShared<C>();
 
+#if LUABRIDGE_RAISE_UNREGISTERED_CLASS_USAGE
                 return throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
+#else
+                return makeErrorCode(ErrorCode::ClassNotRegistered);
+#endif
             }
 
             lua_setmetatable(L, -2);
@@ -3219,7 +3251,11 @@ struct UserdataSharedHelper<C, true>
 
                 us->~UserdataShared<C>();
 
+#if LUABRIDGE_RAISE_UNREGISTERED_CLASS_USAGE
                 return throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
+#else
+                return makeErrorCode(ErrorCode::ClassNotRegistered);
+#endif
             }
 
             lua_setmetatable(L, -2);
@@ -4377,6 +4413,107 @@ struct Stack<std::optional<T>>
     }
 };
 
+template <class T1, class T2>
+struct Stack<std::pair<T1, T2>>
+{
+    [[nodiscard]] static Result push(lua_State* L, const std::pair<T1, T2>& t)
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 3))
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
+        StackRestore stackRestore(L);
+
+        lua_createtable(L, 2, 0);
+
+        auto result1 = push_element<0>(L, t);
+        if (! result1)
+            return result1;
+
+        auto result2 = push_element<1>(L, t);
+        if (! result2)
+            return result2;
+
+        stackRestore.reset();
+        return {};
+    }
+
+    [[nodiscard]] static TypeResult<std::pair<T1, T2>> get(lua_State* L, int index)
+    {
+        const StackRestore stackRestore(L);
+
+        if (!lua_istable(L, index))
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        if (get_length(L, index) != 2)
+            return makeErrorCode(ErrorCode::InvalidTableSizeInCast);
+
+        std::pair<T1, T2> value;
+
+        int absIndex = lua_absindex(L, index);
+        lua_pushnil(L);
+
+        auto result1 = pop_element<0>(L, absIndex, value);
+        if (! result1)
+            return result1.error();
+
+        auto result2 = pop_element<1>(L, absIndex, value);
+        if (! result2)
+            return result2.error();
+
+        return value;
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        return lua_type(L, index) == LUA_TTABLE && get_length(L, index) == 2;
+    }
+
+private:
+    template <std::size_t Index>
+    static Result push_element(lua_State* L, const std::pair<T1, T2>& p)
+    {
+        static_assert(Index < 2);
+
+        using T = std::tuple_element_t<Index, std::pair<T1, T2>>;
+
+        lua_pushinteger(L, static_cast<lua_Integer>(Index + 1));
+
+        auto result = Stack<T>::push(L, std::get<Index>(p));
+        if (! result)
+        {
+            lua_pushnil(L);
+            lua_settable(L, -3);
+            return result;
+        }
+
+        lua_settable(L, -3);
+
+        return {};
+    }
+
+    template <std::size_t Index>
+    static Result pop_element(lua_State* L, int absIndex, std::pair<T1, T2>& p)
+    {
+        static_assert(Index < 2);
+
+        using T = std::tuple_element_t<Index, std::pair<T1, T2>>;
+
+        if (lua_next(L, absIndex) == 0)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        auto result = Stack<T>::get(L, -1);
+        if (! result)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        std::get<Index>(p) = std::move(*result);
+        lua_pop(L, 1);
+
+        return {};
+    }
+};
+
 template <class... Types>
 struct Stack<std::tuple<Types...>>
 {
@@ -4477,7 +4614,7 @@ private:
         if (! result)
             return makeErrorCode(ErrorCode::InvalidTypeCast);
 
-        std::get<Index>(t) = *result;
+        std::get<Index>(t) = std::move(*result);
         lua_pop(L, 1);
 
         return pop_element<Index + 1>(L, absIndex, t);
@@ -6176,6 +6313,7 @@ public:
     {
         switch (type())
         {
+        case LUA_TNONE:
         case LUA_TNIL:
             os << "nil";
             break;
@@ -6193,23 +6331,11 @@ public:
             break;
 
         case LUA_TTABLE:
-            os << "table: " << tostring();
-            break;
-
         case LUA_TFUNCTION:
-            os << "function: " << tostring();
-            break;
-
-        case LUA_TUSERDATA:
-            os << "userdata: " << tostring();
-            break;
-
         case LUA_TTHREAD:
-            os << "thread: " << tostring();
-            break;
-
+        case LUA_TUSERDATA:
         case LUA_TLIGHTUSERDATA:
-            os << "lightuserdata: " << tostring();
+            os << tostring();
             break;
 
         default:
@@ -6837,6 +6963,48 @@ private:
     int m_ref = LUA_NOREF;
 };
 
+template <class T>
+auto operator==(const T& lhs, const LuaRef& rhs)
+    -> std::enable_if_t<!std::is_same_v<T, LuaRef> && !std::is_same_v<T, LuaRefBase<LuaRef, LuaRef>>, bool>
+{
+    return rhs == lhs;
+}
+
+template <class T>
+auto operator!=(const T& lhs, const LuaRef& rhs)
+    -> std::enable_if_t<!std::is_same_v<T, LuaRef> && !std::is_same_v<T, LuaRefBase<LuaRef, LuaRef>>, bool>
+{
+    return !(rhs == lhs);
+}
+
+template <class T>
+auto operator<(const T& lhs, const LuaRef& rhs)
+    -> std::enable_if_t<!std::is_same_v<T, LuaRef> && !std::is_same_v<T, LuaRefBase<LuaRef, LuaRef>>, bool>
+{
+    return !(rhs >= lhs);
+}
+
+template <class T>
+auto operator<=(const T& lhs, const LuaRef& rhs)
+    -> std::enable_if_t<!std::is_same_v<T, LuaRef> && !std::is_same_v<T, LuaRefBase<LuaRef, LuaRef>>, bool>
+{
+    return !(rhs > lhs);
+}
+
+template <class T>
+auto operator>(const T& lhs, const LuaRef& rhs)
+    -> std::enable_if_t<!std::is_same_v<T, LuaRef> && !std::is_same_v<T, LuaRefBase<LuaRef, LuaRef>>, bool>
+{
+    return rhs <= lhs;
+}
+
+template <class T>
+auto operator>=(const T& lhs, const LuaRef& rhs)
+    -> std::enable_if_t<!std::is_same_v<T, LuaRef> && !std::is_same_v<T, LuaRefBase<LuaRef, LuaRef>>, bool>
+{
+    return !(rhs > lhs);
+}
+
 template <>
 struct Stack<LuaRef>
 {
@@ -6875,9 +7043,15 @@ struct Stack<LuaRef::TableItem>
 }
 
 template <class T>
-[[nodiscard]] T cast(const LuaRef& ref)
+[[nodiscard]] TypeResult<T> cast(const LuaRef& ref)
 {
     return ref.cast<T>();
+}
+
+template <class T>
+[[nodiscard]] T unsafe_cast(const LuaRef& ref)
+{
+    return ref.unsafe_cast<T>();
 }
 } 
 
