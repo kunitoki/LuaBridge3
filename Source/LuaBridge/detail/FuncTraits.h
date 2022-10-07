@@ -788,23 +788,23 @@ int constructor_placement_proxy(lua_State* L)
 template <class T, class F>
 struct constructor_forwarder
 {
-    explicit constructor_forwarder(F&& f)
-        : m_func(std::forward<F>(f))
+    explicit constructor_forwarder(F f)
+        : m_func(std::move(f))
     {
     }
 
     T* operator()(lua_State* L)
     {
         std::error_code ec;
-        auto* value = detail::UserdataValue<T>::place(L, ec);
+        auto* value = UserdataValue<T>::place(L, ec);
         if (! value)
             luaL_error(L, "%s", ec.message().c_str());
 
-        using FnTraits = detail::function_traits<F>;
-        using FnArgs = detail::remove_first_type_t<typename FnTraits::argument_types>;
+        using FnTraits = function_traits<F>;
+        using FnArgs = remove_first_type_t<typename FnTraits::argument_types>;
 
         T* obj = placement_constructor<T>::construct(
-            value->getObject(), m_func, detail::make_arguments_list<FnArgs, 2>(L));
+            value->getObject(), m_func, make_arguments_list<FnArgs, 2>(L));
 
         value->commit();
 
@@ -813,6 +813,39 @@ struct constructor_forwarder
 
 private:
     F m_func;
+};
+
+//=================================================================================================
+/**
+ * @brief Constructor forwarder.
+ */
+template <class T, class Alloc, class Dealloc>
+struct factory_forwarder
+{
+    explicit factory_forwarder(Alloc alloc, Dealloc dealloc)
+        : m_alloc(std::move(alloc))
+        , m_dealloc(std::move(dealloc))
+    {
+    }
+
+    T* operator()(lua_State* L)
+    {
+        using FnTraits = function_traits<Alloc>;
+        using FnArgs = typename FnTraits::argument_types;
+
+        T* obj = external_constructor<T>::construct(m_alloc, make_arguments_list<FnArgs, 0>(L));
+
+        std::error_code ec;
+        auto* value = UserdataValueExternal<T>::place(L, obj, m_dealloc, ec);
+        if (! value)
+            luaL_error(L, "%s", ec.message().c_str());
+
+        return obj;
+    }
+
+private:
+    Alloc m_alloc;
+    Dealloc m_dealloc;
 };
 
 } // namespace detail

@@ -979,25 +979,7 @@ class Namespace : public detail::Registrar
         {
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            auto create = [allocator = std::move(allocator), deallocator = std::move(deallocator)](lua_State* L) -> T*
-            {
-                using FnTraits = detail::function_traits<Allocator>;
-                using FnArgs = typename FnTraits::argument_types;
-
-                std::unique_ptr<T> obj { detail::external_constructor<T>::construct(allocator, detail::make_arguments_list<FnArgs, 0>(L)) };
-
-                std::error_code ec;
-                auto* value = detail::UserdataValueExternal<T>::place(L, obj.get(), deallocator, ec);
-                if (! value)
-                    luaL_error(L, "%s", ec.message().c_str());
-
-                return obj.release();
-            };
-
-            using AllocatorFnType = decltype(create);
-
-            lua_newuserdata_aligned<AllocatorFnType>(L, std::move(create)); // Stack: co, cl, st, function userdata (ud)
-            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<AllocatorFnType>, 1); // Stack: co, cl, st, function
+            detail::push_function(L, detail::factory_forwarder<T, Allocator, Deallocator>(std::move(allocator), std::move(deallocator)));
             rawsetfield(L, -2, "__call"); // Stack: co, cl, st
 
             return *this;
