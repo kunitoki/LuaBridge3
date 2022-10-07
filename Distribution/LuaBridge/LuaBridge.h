@@ -640,6 +640,10 @@ enum class ErrorCode
     IntegerDoesntFitIntoLuaInteger,
     
     FloatingPointDoesntFitIntoLuaNumber,
+
+    InvalidTypeCast,
+
+    InvalidTableSizeInCast
 };
 
 //=================================================================================================
@@ -669,7 +673,13 @@ struct ErrorCategory : std::error_category
 
         case ErrorCode::FloatingPointDoesntFitIntoLuaNumber:
             return "The native floating point can't fit inside a lua number";
-                
+
+        case ErrorCode::InvalidTypeCast:
+            return "The lua object can't be casted to desired type";
+
+        case ErrorCode::InvalidTableSizeInCast:
+            return "The lua table has different size than expected";
+
         default:
             return "Unknown error";
         }
@@ -699,6 +709,1726 @@ template <> struct is_error_code_enum<luabridge::ErrorCode> : true_type {};
 } // namespace std
 
 // End File: Source/LuaBridge/detail/Errors.h
+
+// Begin File: Source/LuaBridge/detail/Expected.h
+
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+#endif
+
+namespace luabridge {
+namespace detail {
+using std::swap;
+
+template <class T, class... Args>
+T* construct_at(T* ptr, Args&&... args) noexcept(std::is_nothrow_constructible<T, Args...>::value)
+{
+    return static_cast<T*>(::new (const_cast<void*>(static_cast<const void*>(ptr))) T(std::forward<Args>(args)...));
+}
+
+template <class T, class U, class = void>
+struct is_swappable_with_impl : std::false_type
+{
+};
+
+template <class T, class U>
+struct is_swappable_with_impl<T, U, std::void_t<decltype(swap(std::declval<T>(), std::declval<U>()))>>
+    : std::true_type
+{
+};
+
+template <class T, class U>
+struct is_nothrow_swappable_with_impl
+{
+    static constexpr bool value = noexcept(swap(std::declval<T>(), std::declval<U>())) && noexcept(swap(std::declval<U>(), std::declval<T>()));
+
+    using type = std::bool_constant<value>;
+};
+
+template <class T, class U>
+struct is_swappable_with
+    : std::conjunction<
+          is_swappable_with_impl<std::add_lvalue_reference_t<T>, std::add_lvalue_reference_t<U>>,
+          is_swappable_with_impl<std::add_lvalue_reference_t<U>, std::add_lvalue_reference_t<T>>>::type
+{
+};
+
+template <class T, class U>
+struct is_nothrow_swappable_with
+    : std::conjunction<is_swappable_with<T, U>, is_nothrow_swappable_with_impl<T, U>>::type
+{
+};
+
+template <class T>
+struct is_nothrow_swappable
+    : std::is_nothrow_swappable_with<std::add_lvalue_reference_t<T>, std::add_lvalue_reference_t<T>>
+{
+};
+} // namespace detail
+
+template <class T, class E>
+class Expected;
+
+struct UnexpectType
+{
+    constexpr UnexpectType() = default;
+};
+
+static constexpr const auto& unexpect = UnexpectType();
+
+namespace detail {
+template <class T, class E, bool = std::is_default_constructible_v<T>, bool = (std::is_void_v<T> || std::is_trivial_v<T>) && std::is_trivial_v<E>>
+union expected_storage
+{
+public:
+    template <class U = T, class = std::enable_if_t<std::is_default_constructible_v<U>>>
+    constexpr expected_storage() noexcept
+        : value_()
+    {
+    }
+
+    template <class... Args>
+    constexpr explicit expected_storage(std::in_place_t, Args&&... args) noexcept
+        : value_(std::forward<Args>(args)...)
+    {
+    }
+
+    template <class... Args>
+    constexpr explicit expected_storage(UnexpectType, Args&&... args) noexcept
+        : error_(std::forward<Args>(args)...)
+    {
+    }
+
+    ~expected_storage() = default;
+
+    constexpr const T& value() const noexcept
+    {
+        return value_;
+    }
+
+    constexpr T& value() noexcept
+    {
+        return value_;
+    }
+
+    constexpr const E& error() const noexcept
+    {
+        return error_;
+    }
+
+    constexpr E& error() noexcept
+    {
+        return error_;
+    }
+
+private:
+    T value_;
+    E error_;
+};
+
+template <class E>
+union expected_storage<void, E, true, true>
+{
+public:
+    constexpr expected_storage() noexcept
+        : dummy_(0)
+    {
+    }
+
+    template <class... Args>
+    constexpr explicit expected_storage(UnexpectType, Args&&... args) noexcept
+        : error_(std::forward<Args>(args)...)
+    {
+    }
+
+    ~expected_storage() = default;
+
+    constexpr const E& error() const noexcept
+    {
+        return error_;
+    }
+
+    constexpr E& error() noexcept
+    {
+        return error_;
+    }
+
+private:
+    char dummy_;
+    E error_;
+};
+
+template <class T, class E>
+union expected_storage<T, E, true, false>
+{
+public:
+    constexpr expected_storage() noexcept(std::is_nothrow_default_constructible_v<T>)
+        : value_()
+    {
+    }
+
+    template <class... Args>
+    constexpr explicit expected_storage(std::in_place_t, Args&&... args) noexcept(std::is_nothrow_constructible_v<T, Args...>)
+        : value_(std::forward<Args>(args)...)
+    {
+    }
+
+    template <class... Args>
+    constexpr explicit expected_storage(UnexpectType, Args&&... args) noexcept(std::is_nothrow_constructible_v<E, Args...>)
+        : error_(std::forward<Args>(args)...)
+    {
+    }
+
+    ~expected_storage()
+    {
+    }
+
+    constexpr const T& value() const noexcept
+    {
+        return value_;
+    }
+
+    constexpr T& value() noexcept
+    {
+        return value_;
+    }
+
+    constexpr const E& error() const noexcept
+    {
+        return error_;
+    }
+
+    constexpr E& error() noexcept
+    {
+        return error_;
+    }
+
+private:
+    T value_;
+    E error_;
+};
+
+template <class T, class E>
+union expected_storage<T, E, false, false>
+{
+public:
+    constexpr explicit expected_storage() noexcept
+        : dummy_(0)
+    {
+    }
+
+    template <class... Args>
+    constexpr explicit expected_storage(std::in_place_t, Args&&... args) noexcept(std::is_nothrow_constructible_v<T, Args...>)
+        : value_(std::forward<Args>(args)...)
+    {
+    }
+
+    template <class... Args>
+    constexpr explicit expected_storage(UnexpectType, Args&&... args) noexcept(std::is_nothrow_constructible_v<E, Args...>)
+        : error_(std::forward<Args>(args)...)
+    {
+    }
+
+    ~expected_storage()
+    {
+    }
+
+    constexpr const T& value() const noexcept
+    {
+        return value_;
+    }
+
+    constexpr T& value() noexcept
+    {
+        return value_;
+    }
+
+    constexpr const E& error() const noexcept
+    {
+        return error_;
+    }
+
+    constexpr E& error() noexcept
+    {
+        return error_;
+    }
+
+private:
+    char dummy_;
+    T value_;
+    E error_;
+};
+
+template <class E>
+union expected_storage<void, E, true, false>
+{
+public:
+    constexpr expected_storage() noexcept
+        : dummy_(0)
+    {
+    }
+
+    template <class... Args>
+    constexpr explicit expected_storage(UnexpectType, Args&&... args) noexcept(std::is_nothrow_constructible_v<E, Args...>)
+        : error_(std::forward<Args>(args)...)
+    {
+    }
+
+    ~expected_storage()
+    {
+    }
+
+    constexpr const E& error() const noexcept
+    {
+        return error_;
+    }
+
+    constexpr E& error() noexcept
+    {
+        return error_;
+    }
+
+private:
+    char dummy_;
+    E error_;
+};
+
+template <class T, class E, bool IsCopyConstructible, bool IsMoveConstructible>
+class ExpectedBaseTrivial
+{
+    using this_type = ExpectedBaseTrivial<T, E, IsCopyConstructible, IsMoveConstructible>;
+
+protected:
+    using storage_type = expected_storage<T, E>;
+
+    constexpr ExpectedBaseTrivial() noexcept
+        : valid_(true)
+    {
+    }
+
+    template <class... Args>
+    constexpr ExpectedBaseTrivial(std::in_place_t, Args&&... args) noexcept
+        : storage_(std::in_place, std::forward<Args>(args)...)
+        , valid_(true)
+    {
+    }
+
+    template <class... Args>
+    constexpr ExpectedBaseTrivial(UnexpectType, Args&&... args) noexcept
+        : storage_(unexpect, std::forward<Args>(args)...)
+        , valid_(false)
+    {
+    }
+
+    ExpectedBaseTrivial(const ExpectedBaseTrivial& other) noexcept
+    {
+        if (other.valid_)
+        {
+            construct(std::in_place, other.value());
+        }
+        else
+        {
+            construct(unexpect, other.error());
+        }
+    }
+
+    ExpectedBaseTrivial(ExpectedBaseTrivial&& other) noexcept
+    {
+        if (other.valid_)
+        {
+            construct(std::in_place, std::move(other.value()));
+        }
+        else
+        {
+            construct(unexpect, std::move(other.error()));
+        }
+    }
+
+    ~ExpectedBaseTrivial() noexcept = default;
+
+    constexpr const T& value() const noexcept
+    {
+        return storage_.value();
+    }
+
+    constexpr T& value() noexcept
+    {
+        return storage_.value();
+    }
+
+    constexpr const E& error() const noexcept
+    {
+        return storage_.error();
+    }
+
+    constexpr E& error() noexcept
+    {
+        return storage_.error();
+    }
+
+    constexpr const T* valuePtr() const noexcept
+    {
+        return std::addressof(value());
+    }
+
+    constexpr T* valuePtr() noexcept
+    {
+        return std::addressof(value());
+    }
+
+    constexpr const E* errorPtr() const noexcept
+    {
+        return std::addressof(error());
+    }
+
+    constexpr E* errorPtr() noexcept
+    {
+        return std::addressof(error());
+    }
+
+    constexpr bool valid() const noexcept
+    {
+        return valid_;
+    }
+
+    template <class... Args>
+    inline T& construct(std::in_place_t, Args&&... args) noexcept
+    {
+        valid_ = true;
+        return *detail::construct_at(valuePtr(), std::forward<Args>(args)...);
+    }
+
+    template <class... Args>
+    inline E& construct(UnexpectType, Args&&... args) noexcept
+    {
+        valid_ = false;
+        return *detail::construct_at(errorPtr(), std::forward<Args>(args)...);
+    }
+
+    inline void destroy() noexcept
+    {
+    }
+
+private:
+    storage_type storage_;
+    bool valid_;
+};
+
+template <class T, class E, bool IsCopyConstructible, bool IsMoveConstructible>
+class ExpectedBaseNonTrivial
+{
+    using this_type = ExpectedBaseNonTrivial<T, E, IsCopyConstructible, IsMoveConstructible>;
+
+protected:
+    using storage_type = expected_storage<T, E>;
+
+    constexpr ExpectedBaseNonTrivial() noexcept(std::is_nothrow_default_constructible_v<storage_type>)
+        : valid_(true)
+    {
+    }
+
+    template <class... Args>
+    constexpr ExpectedBaseNonTrivial(std::in_place_t, Args&&... args) noexcept(std::is_nothrow_constructible_v<storage_type, std::in_place_t, Args...>)
+        : storage_(std::in_place, std::forward<Args>(args)...)
+        , valid_(true)
+    {
+    }
+
+    template <class... Args>
+    constexpr ExpectedBaseNonTrivial(UnexpectType, Args&&... args) noexcept(std::is_nothrow_constructible_v<storage_type, UnexpectType, Args...>)
+        : storage_(unexpect, std::forward<Args>(args)...)
+        , valid_(false)
+    {
+    }
+
+    ExpectedBaseNonTrivial(const ExpectedBaseNonTrivial& other)
+    {
+        if (other.valid_)
+        {
+            construct(std::in_place, other.value());
+        }
+        else
+        {
+            construct(unexpect, other.error());
+        }
+    }
+
+    ExpectedBaseNonTrivial(ExpectedBaseNonTrivial&& other)
+    {
+        if (other.valid_)
+        {
+            construct(std::in_place, std::move(other.value()));
+        }
+        else
+        {
+            construct(unexpect, std::move(other.error()));
+        }
+    }
+
+    ~ExpectedBaseNonTrivial() noexcept(noexcept(std::declval<this_type>().destroy()))
+    {
+        destroy();
+    }
+
+    constexpr const T& value() const noexcept
+    {
+        return storage_.value();
+    }
+
+    constexpr T& value() noexcept
+    {
+        return storage_.value();
+    }
+
+    constexpr const E& error() const noexcept
+    {
+        return storage_.error();
+    }
+
+    constexpr E& error() noexcept
+    {
+        return storage_.error();
+    }
+
+    constexpr const T* valuePtr() const noexcept
+    {
+        return std::addressof(value());
+    }
+
+    constexpr T* valuePtr() noexcept
+    {
+        return std::addressof(value());
+    }
+
+    constexpr const E* errorPtr() const noexcept
+    {
+        return std::addressof(error());
+    }
+
+    constexpr E* errorPtr() noexcept
+    {
+        return std::addressof(error());
+    }
+
+    constexpr bool valid() const noexcept
+    {
+        return valid_;
+    }
+
+    template <class... Args>
+    inline T& construct(std::in_place_t, Args&&... args) noexcept(std::is_nothrow_constructible_v<T, Args...>)
+    {
+        valid_ = true;
+        return *detail::construct_at(valuePtr(), std::forward<Args>(args)...);
+    }
+
+    template <class... Args>
+    inline E& construct(UnexpectType, Args&&... args) noexcept(std::is_nothrow_constructible_v<E, Args...>)
+    {
+        valid_ = false;
+        return *detail::construct_at(errorPtr(), std::forward<Args>(args)...);
+    }
+
+    inline void destroy() noexcept(std::is_nothrow_destructible_v<T>&& std::is_nothrow_destructible_v<E>)
+    {
+        if (valid_)
+        {
+            std::destroy_at(valuePtr());
+        }
+        else
+        {
+            std::destroy_at(errorPtr());
+        }
+    }
+
+private:
+    storage_type storage_;
+    bool valid_;
+};
+
+template <class T, class E, bool IsMoveConstructible>
+class ExpectedBaseNonTrivial<T, E, false, IsMoveConstructible>
+{
+    using this_type = ExpectedBaseNonTrivial<T, E, false, IsMoveConstructible>;
+
+protected:
+    using storage_type = expected_storage<T, E>;
+
+    constexpr ExpectedBaseNonTrivial() noexcept(std::is_nothrow_default_constructible_v<storage_type>)
+        : valid_(true)
+    {
+    }
+
+    template <class... Args>
+    constexpr ExpectedBaseNonTrivial(std::in_place_t, Args&&... args) noexcept(std::is_nothrow_constructible_v<storage_type, std::in_place_t, Args...>)
+        : storage_(std::in_place, std::forward<Args>(args)...)
+        , valid_(true)
+    {
+    }
+
+    template <class... Args>
+    constexpr ExpectedBaseNonTrivial(UnexpectType, Args&&... args) noexcept(std::is_nothrow_constructible_v<storage_type, UnexpectType, Args...>)
+        : storage_(unexpect, std::forward<Args>(args)...)
+        , valid_(false)
+    {
+    }
+
+    ExpectedBaseNonTrivial(const ExpectedBaseNonTrivial& other) = delete;
+
+    ExpectedBaseNonTrivial(ExpectedBaseNonTrivial&& other)
+    {
+        if (other.valid_)
+        {
+            construct(std::in_place, std::move(other.value()));
+        }
+        else
+        {
+            construct(unexpect, std::move(other.error()));
+        }
+    }
+
+    ~ExpectedBaseNonTrivial() noexcept(noexcept(std::declval<this_type>().destroy()))
+    {
+        destroy();
+    }
+
+    constexpr const T& value() const noexcept
+    {
+        return storage_.value();
+    }
+
+    constexpr T& value() noexcept
+    {
+        return storage_.value();
+    }
+
+    constexpr const E& error() const noexcept
+    {
+        return storage_.error();
+    }
+
+    constexpr E& error() noexcept
+    {
+        return storage_.error();
+    }
+
+    constexpr const T* valuePtr() const noexcept
+    {
+        return std::addressof(value());
+    }
+
+    constexpr T* valuePtr() noexcept
+    {
+        return std::addressof(value());
+    }
+
+    constexpr const E* errorPtr() const noexcept
+    {
+        return std::addressof(error());
+    }
+
+    constexpr E* errorPtr() noexcept
+    {
+        return std::addressof(error());
+    }
+
+    constexpr bool valid() const noexcept
+    {
+        return valid_;
+    }
+
+    template <class... Args>
+    inline T& construct(std::in_place_t, Args&&... args) noexcept(std::is_nothrow_constructible_v<T, Args...>)
+    {
+        valid_ = true;
+        return *detail::construct_at(valuePtr(), std::forward<Args>(args)...);
+    }
+
+    template <class... Args>
+    inline E& construct(UnexpectType, Args&&... args) noexcept(std::is_nothrow_constructible_v<E, Args...>)
+    {
+        valid_ = false;
+        return *detail::construct_at(errorPtr(), std::forward<Args>(args)...);
+    }
+
+    inline void destroy() noexcept(std::is_nothrow_destructible_v<T>&& std::is_nothrow_destructible_v<E>)
+    {
+        if (valid_)
+        {
+            std::destroy_at(valuePtr());
+        }
+        else
+        {
+            std::destroy_at(errorPtr());
+        }
+    }
+
+private:
+    storage_type storage_;
+    bool valid_;
+};
+
+template <class T, class E, bool IsCopyConstructible>
+class ExpectedBaseNonTrivial<T, E, IsCopyConstructible, false>
+{
+    using this_type = ExpectedBaseNonTrivial<T, E, IsCopyConstructible, false>;
+
+protected:
+    using storage_type = expected_storage<T, E>;
+
+    template <class U = storage_type, class = std::enable_if_t<std::is_default_constructible_v<U>>>
+    constexpr ExpectedBaseNonTrivial() noexcept(std::is_nothrow_default_constructible_v<storage_type>)
+        : valid_(true)
+    {
+    }
+
+    template <class... Args>
+    constexpr ExpectedBaseNonTrivial(std::in_place_t, Args&&... args) noexcept(std::is_nothrow_constructible_v<storage_type, std::in_place_t, Args...>)
+        : storage_(std::in_place, std::forward<Args>(args)...)
+        , valid_(true)
+    {
+    }
+
+    template <class... Args>
+    constexpr ExpectedBaseNonTrivial(UnexpectType, Args&&... args) noexcept(std::is_nothrow_constructible_v<storage_type, UnexpectType, Args...>)
+        : storage_(unexpect, std::forward<Args>(args)...)
+        , valid_(false)
+    {
+    }
+
+    ExpectedBaseNonTrivial(const ExpectedBaseNonTrivial& other)
+    {
+        if (other.valid_)
+        {
+            construct(std::in_place, other.value());
+        }
+        else
+        {
+            construct(unexpect, other.error());
+        }
+    }
+
+    ExpectedBaseNonTrivial(ExpectedBaseNonTrivial&& other) = delete;
+
+    ~ExpectedBaseNonTrivial() noexcept(noexcept(std::declval<this_type>().destroy()))
+    {
+        destroy();
+    }
+
+    constexpr const T& value() const noexcept
+    {
+        return storage_.value();
+    }
+
+    constexpr T& value() noexcept
+    {
+        return storage_.value();
+    }
+
+    constexpr const E& error() const noexcept
+    {
+        return storage_.error();
+    }
+
+    constexpr E& error() noexcept
+    {
+        return storage_.error();
+    }
+
+    constexpr const T* valuePtr() const noexcept
+    {
+        return std::addressof(value());
+    }
+
+    constexpr T* valuePtr() noexcept
+    {
+        return std::addressof(value());
+    }
+
+    constexpr const E* errorPtr() const noexcept
+    {
+        return std::addressof(error());
+    }
+
+    constexpr E* errorPtr() noexcept
+    {
+        return std::addressof(error());
+    }
+
+    constexpr bool valid() const noexcept
+    {
+        return valid_;
+    }
+
+    template <class... Args>
+    inline T& construct(std::in_place_t, Args&&... args) noexcept(std::is_nothrow_constructible_v<T, Args...>)
+    {
+        valid_ = true;
+        return *detail::construct_at(valuePtr(), std::forward<Args>(args)...);
+    }
+
+    template <class... Args>
+    inline E& construct(UnexpectType, Args&&... args) noexcept(std::is_nothrow_constructible_v<E, Args...>)
+    {
+        valid_ = false;
+        return *detail::construct_at(errorPtr(), std::forward<Args>(args)...);
+    }
+
+    inline void destroy() noexcept(std::is_nothrow_destructible_v<T>&& std::is_nothrow_destructible_v<E>)
+    {
+        if (valid_)
+        {
+            std::destroy_at(valuePtr());
+        }
+        else
+        {
+            std::destroy_at(errorPtr());
+        }
+    }
+
+private:
+    storage_type storage_;
+    bool valid_;
+};
+
+template <class T, class E>
+class ExpectedBaseNonTrivial<T, E, false, false>
+{
+    using this_type = ExpectedBaseNonTrivial<T, E, false, false>;
+
+protected:
+    using storage_type = expected_storage<T, E>;
+
+    template <class U = storage_type, class = std::enable_if_t<std::is_default_constructible_v<U>>>
+    constexpr ExpectedBaseNonTrivial() noexcept(std::is_nothrow_default_constructible_v<storage_type>)
+        : valid_(true)
+    {
+    }
+
+    template <class... Args>
+    constexpr ExpectedBaseNonTrivial(std::in_place_t, Args&&... args) noexcept(std::is_nothrow_constructible_v<storage_type, std::in_place_t, Args...>)
+        : storage_(std::in_place, std::forward<Args>(args)...)
+        , valid_(true)
+    {
+    }
+
+    template <class... Args>
+    constexpr ExpectedBaseNonTrivial(UnexpectType, Args&&... args) noexcept(std::is_nothrow_constructible_v<storage_type, UnexpectType, Args...>)
+        : storage_(unexpect, std::forward<Args>(args)...)
+        , valid_(false)
+    {
+    }
+
+    ExpectedBaseNonTrivial(const ExpectedBaseNonTrivial& other) = delete;
+
+    ExpectedBaseNonTrivial(ExpectedBaseNonTrivial&& other) = delete;
+
+    ~ExpectedBaseNonTrivial() noexcept(noexcept(std::declval<this_type>().destroy()))
+    {
+        destroy();
+    }
+
+    constexpr const T& value() const noexcept
+    {
+        return storage_.value();
+    }
+
+    constexpr T& value() noexcept
+    {
+        return storage_.value();
+    }
+
+    constexpr const E& error() const noexcept
+    {
+        return storage_.error();
+    }
+
+    constexpr E& error() noexcept
+    {
+        return storage_.error();
+    }
+
+    constexpr const T* valuePtr() const noexcept
+    {
+        return std::addressof(value());
+    }
+
+    constexpr T* valuePtr() noexcept
+    {
+        return std::addressof(value());
+    }
+
+    constexpr const E* errorPtr() const noexcept
+    {
+        return std::addressof(error());
+    }
+
+    constexpr E* errorPtr() noexcept
+    {
+        return std::addressof(error());
+    }
+
+    constexpr bool valid() const noexcept
+    {
+        return valid_;
+    }
+
+    template <class... Args>
+    inline T& construct(std::in_place_t, Args&&... args) noexcept(std::is_nothrow_constructible_v<T, Args...>)
+    {
+        valid_ = true;
+        return *detail::construct_at(valuePtr(), std::forward<Args>(args)...);
+    }
+
+    template <class... Args>
+    inline E& construct(UnexpectType, Args&&... args) noexcept(std::is_nothrow_constructible_v<E, Args...>)
+    {
+        valid_ = false;
+        return *detail::construct_at(errorPtr(), std::forward<Args>(args)...);
+    }
+
+    inline void destroy() noexcept(std::is_nothrow_destructible_v<T>&& std::is_nothrow_destructible_v<E>)
+    {
+        if (valid_)
+        {
+            std::destroy_at(valuePtr());
+        }
+        else
+        {
+            std::destroy_at(errorPtr());
+        }
+    }
+
+private:
+    storage_type storage_;
+    bool valid_;
+};
+
+template <class T, class E, bool IsCopyConstructible, bool IsMoveConstructible>
+using ExpectedBase = std::conditional_t<
+    (std::is_void_v<T> || std::is_trivially_destructible_v<T>) && std::is_trivially_destructible_v<E>,
+    ExpectedBaseTrivial<T, E, IsCopyConstructible, IsMoveConstructible>,
+    ExpectedBaseNonTrivial<T, E, IsCopyConstructible, IsMoveConstructible>>;
+
+}  // namespace detail
+
+template <class E>
+class Unexpected
+{
+    static_assert(!std::is_reference_v<E> && !std::is_void_v<E>, "Unexpected type can't be a reference or void");
+
+public:
+    Unexpected() = delete;
+
+    constexpr explicit Unexpected(E&& e) noexcept(std::is_nothrow_move_constructible_v<E>)
+        : error_(std::move(e))
+    {
+    }
+
+    constexpr explicit Unexpected(const E& e) noexcept(std::is_nothrow_copy_constructible_v<E>)
+        : error_(e)
+    {
+    }
+
+    constexpr const E& value() const& noexcept
+    {
+        return error_;
+    }
+
+    constexpr E& value() & noexcept
+    {
+        return error_;
+    }
+
+    constexpr const E&& value() const&& noexcept
+    {
+        return std::move(error_);
+    }
+
+    constexpr E&& value() && noexcept
+    {
+        return std::move(error_);
+    }
+
+private:
+    E error_;
+};
+
+template <class E>
+constexpr bool operator==(const Unexpected<E>& lhs, const Unexpected<E>& rhs) noexcept
+{
+    return lhs.value() == rhs.value();
+}
+
+template <class E>
+constexpr bool operator!=(const Unexpected<E>& lhs, const Unexpected<E>& rhs) noexcept
+{
+    return lhs.value() != rhs.value();
+}
+
+template <class E>
+constexpr inline Unexpected<std::decay_t<E>> makeUnexpected(E&& error) noexcept(std::is_nothrow_constructible_v<Unexpected<std::decay_t<E>>, E>)
+{
+    return Unexpected<std::decay_t<E>>{ std::forward<E>(error) };
+}
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+template <class E>
+class BadExpectedAccess;
+
+template <>
+class BadExpectedAccess<void> : public std::exception
+{
+public:
+    explicit BadExpectedAccess() noexcept
+    {
+    }
+};
+template <class E>
+class BadExpectedAccess : public BadExpectedAccess<void>
+{
+public:
+    explicit BadExpectedAccess(E error) noexcept(std::is_nothrow_constructible_v<E, E&&>)
+        : error_(std::move(error))
+    {
+    }
+
+    const E& error() const& noexcept
+    {
+        return error_;
+    }
+
+    E& error() & noexcept
+    {
+        return error_;
+    }
+
+    E&& error() && noexcept
+    {
+        return std::move(error_);
+    }
+
+private:
+    E error_;
+};
+#endif
+
+template <class T>
+struct is_expected : std::false_type
+{
+};
+
+template <class T, class E>
+struct is_expected<Expected<T, E>> : std::true_type
+{
+};
+template <class T>
+struct is_unexpected : std::false_type
+{
+};
+
+template <class E>
+struct is_unexpected<Unexpected<E>> : std::true_type
+{
+};
+
+template <class T, class E>
+class Expected : public detail::ExpectedBase<T, E, std::is_copy_constructible_v<T>, std::is_move_constructible_v<T>>
+{
+    static_assert(!std::is_reference_v<E> && !std::is_void_v<E>, "Unexpected type can't be a reference or void");
+
+    using base_type = detail::ExpectedBase<T, E, std::is_copy_constructible_v<T>, std::is_move_constructible_v<T>>;
+    using this_type = Expected<T, E>;
+
+public:
+    using value_type = T;
+
+    using error_type = E;
+
+    using unexpected_type = Unexpected<E>;
+
+    template <class U>
+    struct rebind
+    {
+        using type = Expected<U, error_type>;
+    };
+
+    template <class U = T, class = std::enable_if_t<std::is_default_constructible_v<U>>>
+    constexpr Expected() noexcept(std::is_nothrow_default_constructible_v<base_type>)
+        : base_type()
+    {
+    }
+
+    constexpr Expected(const Expected& other) noexcept(std::is_nothrow_copy_constructible_v<base_type>) = default;
+
+    constexpr Expected(Expected&& other) noexcept(std::is_nothrow_move_constructible_v<base_type>) = default;
+
+    template <class U, class G>
+    Expected(const Expected<U, G>& other)
+    {
+        if (other.hasValue())
+        {
+            this->construct(std::in_place, other.value());
+        }
+        else
+        {
+            this->construct(unexpect, other.error());
+        }
+    }
+
+    template <class U, class G>
+    Expected(Expected<U, G>&& other)
+    {
+        if (other.hasValue())
+        {
+            this->construct(std::in_place, std::move(other.value()));
+        }
+        else
+        {
+            this->construct(unexpect, std::move(other.error()));
+        }
+    }
+
+    template <class U = T, std::enable_if_t<!std::is_void_v<T> && std::is_constructible_v<T, U&&> && !std::is_same_v<std::decay_t<U>, std::in_place_t> && !is_expected<std::decay_t<U>>::value && !is_unexpected<std::decay_t<U>>::value, int> = 0>
+    constexpr Expected(U&& value) noexcept(std::is_nothrow_constructible_v<base_type, std::in_place_t, U>)
+        : base_type(std::in_place, std::forward<U>(value))
+    {
+    }
+
+    template <class... Args>
+    constexpr explicit Expected(std::in_place_t, Args&&... args) noexcept(std::is_nothrow_constructible_v<base_type, std::in_place_t, Args...>)
+        : base_type(std::in_place, std::forward<Args>(args)...)
+    {
+    }
+
+    template <class U, class... Args>
+    constexpr explicit Expected(std::in_place_t, std::initializer_list<U> ilist, Args&&... args) noexcept(std::is_nothrow_constructible_v<base_type, std::in_place_t, std::initializer_list<U>, Args...>)
+        : base_type(std::in_place, ilist, std::forward<Args>(args)...)
+    {
+    }
+
+    template <class G = E>
+    constexpr Expected(const Unexpected<G>& u) noexcept(std::is_nothrow_constructible_v<base_type, UnexpectType, const G&>)
+        : base_type(unexpect, u.value())
+    {
+    }
+
+    template <class G = E>
+    constexpr Expected(Unexpected<G>&& u) noexcept(std::is_nothrow_constructible_v<base_type, UnexpectType, G&&>)
+        : base_type(unexpect, std::move(u.value()))
+    {
+    }
+
+    template <class... Args>
+    constexpr explicit Expected(UnexpectType, Args&&... args) noexcept(std::is_nothrow_constructible_v<base_type, UnexpectType, Args...>)
+        : base_type(unexpect, std::forward<Args>(args)...)
+    {
+    }
+
+    template <class U, class... Args>
+    constexpr explicit Expected(UnexpectType, std::initializer_list<U> ilist, Args&&... args) noexcept(std::is_nothrow_constructible_v<base_type, UnexpectType, std::initializer_list<U>, Args...>)
+        : base_type(unexpect, ilist, std::forward<Args>(args)...)
+    {
+    }
+
+    Expected& operator=(const Expected& other)
+    {
+        if (other.hasValue())
+        {
+            assign(std::in_place, other.value());
+        }
+        else
+        {
+            assign(unexpect, other.error());
+        }
+
+        return *this;
+    }
+
+    Expected& operator=(Expected&& other)
+    {
+        if (other.hasValue())
+        {
+            assign(std::in_place, std::move(other.value()));
+        }
+        else
+        {
+            assign(unexpect, std::move(other.error()));
+        }
+
+        return *this;
+    }
+
+    template <class U = T, std::enable_if_t<!is_expected<std::decay_t<U>>::value && !is_unexpected<std::decay_t<U>>::value, int> = 0>
+    Expected& operator=(U&& value)
+    {
+        assign(std::in_place, std::forward<U>(value));
+        return *this;
+    }
+
+    template <class G = E>
+    Expected& operator=(const Unexpected<G>& u)
+    {
+        assign(unexpect, u.value());
+        return *this;
+    }
+
+    template <class G = E>
+    Expected& operator=(Unexpected<G>&& u)
+    {
+        assign(unexpect, std::move(u.value()));
+        return *this;
+    }
+
+    template <class... Args>
+    T& emplace(Args&&... args) noexcept(noexcept(std::declval<this_type>().assign(std::in_place, std::forward<Args>(args)...)))
+    {
+        return assign(std::in_place, std::forward<Args>(args)...);
+    }
+
+    template <class U, class... Args>
+    T& emplace(std::initializer_list<U> ilist, Args&&... args) noexcept(noexcept(std::declval<this_type>().assign(std::in_place, ilist, std::forward<Args>(args)...)))
+    {
+        return assign(std::in_place, ilist, std::forward<Args>(args)...);
+    }
+
+    void swap(Expected& other) noexcept(detail::is_nothrow_swappable<value_type>::value && detail::is_nothrow_swappable<error_type>::value)
+    {
+        using std::swap;
+
+        if (hasValue())
+        {
+            if (other.hasValue())
+            {
+                swap(value(), other.value());
+            }
+            else
+            {
+                E error = std::move(other.error());
+                other.assign(std::in_place, std::move(value()));
+                assign(unexpect, std::move(error));
+            }
+        }
+        else
+        {
+            if (other.hasValue())
+            {
+                other.swap(*this);
+            }
+            else
+            {
+                swap(error(), other.error());
+            }
+        }
+    }
+
+    constexpr const T* operator->() const
+    {
+        return base_type::valuePtr();
+    }
+
+    constexpr T* operator->()
+    {
+        return base_type::valuePtr();
+    }
+
+    constexpr const T& operator*() const&
+    {
+        return value();
+    }
+
+    constexpr T& operator*() &
+    {
+        return value();
+    }
+
+    constexpr const T&& operator*() const&&
+    {
+        return std::move(value());
+    }
+
+    constexpr T&& operator*() &&
+    {
+        return std::move(value());
+    }
+
+    constexpr explicit operator bool() const noexcept
+    {
+        return hasValue();
+    }
+
+    constexpr bool hasValue() const noexcept
+    {
+        return base_type::valid();
+    }
+
+    constexpr const T& value() const&
+    {
+#if LUABRIDGE_HAS_EXCEPTIONS
+        if (!hasValue())
+            throw BadExpectedAccess<E>(error());
+#endif
+
+        return base_type::value();
+    }
+
+    constexpr T& value() &
+    {
+#if LUABRIDGE_HAS_EXCEPTIONS
+        if (!hasValue())
+            throw BadExpectedAccess<E>(error());
+#endif
+
+        return base_type::value();
+    }
+
+    constexpr const T&& value() const&& noexcept
+    {
+#if LUABRIDGE_HAS_EXCEPTIONS
+        if (!hasValue())
+            throw BadExpectedAccess<E>(error());
+#endif
+
+        return std::move(base_type::value());
+    }
+
+    constexpr T&& value() &&
+    {
+#if LUABRIDGE_HAS_EXCEPTIONS
+        if (!hasValue())
+            throw BadExpectedAccess<E>(error());
+#endif
+        return std::move(base_type::value());
+    }
+
+    constexpr const E& error() const& noexcept
+    {
+        return base_type::error();
+    }
+
+    constexpr E& error() & noexcept
+    {
+        return base_type::error();
+    }
+
+    constexpr const E&& error() const&& noexcept
+    {
+        return std::move(base_type::error());
+    }
+
+    constexpr E&& error() && noexcept
+    {
+        return std::move(base_type::error());
+    }
+
+    template <class U>
+    constexpr T valueOr(U&& defaultValue) const&
+    {
+        return hasValue() ? value() : static_cast<T>(std::forward<U>(defaultValue));
+    }
+
+    template <class U>
+    T valueOr(U&& defaultValue) &&
+    {
+        return hasValue() ? std::move(value()) : static_cast<T>(std::forward<U>(defaultValue));
+    }
+
+private:
+    template <class Tag, class... Args>
+    auto assign(Tag tag, Args&&... args) noexcept(noexcept(std::declval<this_type>().destroy()) && noexcept(std::declval<this_type>().construct(tag, std::forward<Args>(args)...)))
+        -> decltype(std::declval<this_type>().construct(tag, std::forward<Args>(args)...))
+    {
+        this->destroy();
+
+        return this->construct(tag, std::forward<Args>(args)...);
+    }
+};
+
+template <class E>
+class Expected<void, E> : public detail::ExpectedBase<void, E, std::is_copy_constructible_v<E>, std::is_move_constructible_v<E>>
+{
+    static_assert(!std::is_reference_v<E> && !std::is_void_v<E>, "Unexpected type can't be a reference or void");
+
+    using base_type = detail::ExpectedBase<void, E, std::is_copy_constructible_v<E>, std::is_move_constructible_v<E>>;
+    using this_type = Expected<void, E>;
+
+public:
+    using value_type = void;
+
+    using error_type = E;
+
+    using unexpected_type = Unexpected<E>;
+
+    template <class U>
+    struct rebind
+    {
+        using type = Expected<U, error_type>;
+    };
+
+    constexpr Expected() = default;
+
+    constexpr Expected(const Expected& other) = default;
+
+    constexpr Expected(Expected&& other) = default;
+
+    template <class G>
+    Expected(const Expected<void, G>& other)
+    {
+        if (other.hasValue())
+        {
+            this->valid_ = true;
+        }
+        else
+        {
+            this->construct(unexpect, other.error());
+        }
+    }
+
+    template <class G>
+    Expected(Expected<void, G>&& other)
+    {
+        if (other.hasValue())
+        {
+            this->valid_ = true;
+        }
+        else
+        {
+            this->construct(unexpect, std::move(other.error()));
+        }
+    }
+
+    template <class G = E>
+    constexpr Expected(const Unexpected<G>& u)
+        : base_type(unexpect, u.value())
+    {
+    }
+
+    template <class G = E>
+    constexpr Expected(Unexpected<G>&& u)
+        : base_type(unexpect, std::move(u.value()))
+    {
+    }
+
+    template <class... Args>
+    constexpr explicit Expected(UnexpectType, Args&&... args)
+        : base_type(unexpect, std::forward<Args>(args)...)
+    {
+    }
+
+    template <class U, class... Args>
+    constexpr explicit Expected(UnexpectType, std::initializer_list<U> ilist, Args&&... args)
+        : base_type(unexpect, ilist, std::forward<Args>(args)...)
+    {
+    }
+
+    Expected& operator=(const Expected& other)
+    {
+        if (other.hasValue())
+        {
+            assign(std::in_place);
+        }
+        else
+        {
+            assign(unexpect, other.error());
+        }
+
+        return *this;
+    }
+
+    Expected& operator=(Expected&& other)
+    {
+        if (other.hasValue())
+        {
+            assign(std::in_place);
+        }
+        else
+        {
+            assign(unexpect, std::move(other.error()));
+        }
+
+        return *this;
+    }
+
+    template <class G = E>
+    Expected& operator=(const Unexpected<G>& u)
+    {
+        assign(unexpect, u.value());
+        return *this;
+    }
+
+    template <class G = E>
+    Expected& operator=(Unexpected<G>&& u)
+    {
+        assign(unexpect, std::move(u.value()));
+        return *this;
+    }
+
+    void swap(Expected& other) noexcept(detail::is_nothrow_swappable<error_type>::value)
+    {
+        using std::swap;
+
+        if (hasValue())
+        {
+            if (!other.hasValue())
+            {
+                assign(unexpect, std::move(other.error()));
+                other.assign(std::in_place);
+            }
+        }
+        else
+        {
+            if (other.hasValue())
+            {
+                other.swap(*this);
+            }
+            else
+            {
+                swap(error(), other.error());
+            }
+        }
+    }
+
+    constexpr explicit operator bool() const noexcept
+    {
+        return hasValue();
+    }
+
+    constexpr bool hasValue() const noexcept
+    {
+        return base_type::valid();
+    }
+
+    constexpr const E& error() const& noexcept
+    {
+        return base_type::error();
+    }
+
+    constexpr E& error() & noexcept
+    {
+        return base_type::error();
+    }
+
+    constexpr const E&& error() const&& noexcept
+    {
+        return std::move(base_type::error());
+    }
+
+    constexpr E&& error() && noexcept
+    {
+        return std::move(base_type::error());
+    }
+
+private:
+    template <class Tag, class... Args>
+    void assign(Tag tag, Args&&... args) noexcept(noexcept(std::declval<this_type>().destroy()) && noexcept(std::declval<this_type>().construct(tag, std::forward<Args>(args)...)))
+    {
+        this->destroy();
+        this->construct(tag, std::forward<Args>(args)...);
+    }
+};
+
+template <class T, class E>
+constexpr bool operator==(const Expected<T, E>& lhs, const Expected<T, E>& rhs)
+{
+    return (lhs && rhs) ? *lhs == *rhs : ((!lhs && !rhs) ? lhs.error() == rhs.error() : false);
+}
+
+template <class E>
+constexpr bool operator==(const Expected<void, E>& lhs, const Expected<void, E>& rhs)
+{
+    return (lhs && rhs) ? true : ((!lhs && !rhs) ? lhs.error() == rhs.error() : false);
+}
+
+template <class T, class E>
+constexpr bool operator!=(const Expected<T, E>& lhs, const Expected<T, E>& rhs)
+{
+    return !(lhs == rhs);
+}
+
+template <class T, class E>
+constexpr bool operator==(const Expected<T, E>& lhs, const T& rhs)
+{
+    return lhs ? *lhs == rhs : false;
+}
+
+template <class T, class E>
+constexpr bool operator==(const T& lhs, const Expected<T, E>& rhs)
+{
+    return rhs == lhs;
+}
+
+template <class T, class E>
+constexpr bool operator!=(const Expected<T, E>& lhs, const T& rhs)
+{
+    return !(lhs == rhs);
+}
+
+template <class T, class E>
+constexpr bool operator!=(const T& lhs, const Expected<T, E>& rhs)
+{
+    return rhs != lhs;
+}
+
+template <class T, class E>
+constexpr bool operator==(const Expected<T, E>& lhs, const Unexpected<E>& rhs)
+{
+    return lhs ? false : lhs.error() == rhs.value();
+}
+
+template <class T, class E>
+constexpr bool operator==(const Unexpected<E>& lhs, const Expected<T, E>& rhs)
+{
+    return rhs == lhs;
+}
+
+template <class T, class E>
+constexpr bool operator!=(const Expected<T, E>& lhs, const Unexpected<E>& rhs)
+{
+    return !(lhs == rhs);
+}
+
+template <class T, class E>
+constexpr bool operator!=(const Unexpected<E>& lhs, const Expected<T, E>& rhs)
+{
+    return rhs != lhs;
+}
+} // namespace luabridge
+
+// End File: Source/LuaBridge/detail/Expected.h
+
+// Begin File: Source/LuaBridge/detail/Result.h
+
+
+namespace luabridge {
+
+//=================================================================================================
+/**
+ * @brief Simple result class containing a result.
+ */
+struct Result
+{
+    Result() = default;
+
+    Result(std::error_code ec) noexcept
+        : m_ec(ec)
+    {
+    }
+
+    Result(const Result&) = default;
+    Result(Result&&) = default;
+    Result& operator=(const Result&) = default;
+    Result& operator=(Result&&) = default;
+
+    explicit operator bool() const noexcept
+    {
+        return !m_ec;
+    }
+
+    std::error_code error() const noexcept
+    {
+        return m_ec;
+    }
+
+    operator std::error_code() const noexcept
+    {
+        return m_ec;
+    }
+
+    std::string message() const
+    {
+        return m_ec.message();
+    }
+
+private:
+    std::error_code m_ec;
+};
+
+//=================================================================================================
+/**
+ * @brief Simple result class containing or a type T or an error code.
+ */
+template <class T>
+struct TypeResult
+{
+    TypeResult() = default;
+
+    template <class U, class = std::enable_if_t<std::is_convertible_v<U, T> && !std::is_same_v<std::decay_t<U>, std::error_code>>>
+    TypeResult(U&& value) noexcept
+        : m_value(std::in_place, std::forward<U>(value))
+    {
+    }
+
+    TypeResult(std::error_code ec) noexcept
+        : m_value(makeUnexpected(ec))
+    {
+    }
+
+    TypeResult(const TypeResult&) = default;
+    TypeResult(TypeResult&&) = default;
+    TypeResult& operator=(const TypeResult&) = default;
+    TypeResult& operator=(TypeResult&&) = default;
+
+    explicit operator bool() const
+    {
+        return m_value.hasValue();
+    }
+
+    const T& value() const
+    {
+        return m_value.value();
+    }
+
+    const T& operator*() const
+    {
+        return m_value.value();
+    }
+
+    std::error_code error() const
+    {
+        return m_value.error();
+    }
+
+    operator std::error_code() const
+    {
+        return m_value.error();
+    }
+
+    std::string message() const
+    {
+        return m_value.error().message();
+    }
+
+private:
+    Expected<T, std::error_code> m_value;
+};
+
+template <class U>
+inline bool operator==(const TypeResult<U>& lhs, const U& rhs) noexcept
+{
+    return lhs ? *lhs == rhs : false;
+}
+
+template <class U>
+inline bool operator==(const U& lhs, const TypeResult<U>& rhs) noexcept
+{
+    return rhs == lhs;
+}
+
+template <class U>
+inline bool operator!=(const TypeResult<U>& lhs, const U& rhs) noexcept
+{
+    return !(lhs == rhs);
+}
+
+template <class U>
+inline bool operator!=(const U& lhs, const TypeResult<U>& rhs) noexcept
+{
+    return !(rhs == lhs);
+}
+
+} // namespace luabridge
+
+// End File: Source/LuaBridge/detail/Result.h
 
 // Begin File: Source/LuaBridge/detail/LuaException.h
 
@@ -1474,18 +3204,19 @@ public:
      * @param ec Error code that will be set in case of failure to push on the lua stack.
      */
     template <class U>
-    static auto push(lua_State* L, const U& u, std::error_code& ec) -> std::enable_if_t<std::is_copy_constructible_v<U>, bool>
+    static auto push(lua_State* L, const U& u) -> std::enable_if_t<std::is_copy_constructible_v<U>, Result>
     {
+        std::error_code ec;
         auto* ud = place(L, ec);
 
         if (!ud)
-            return false;
+            return ec;
 
         new (ud->getObject()) U(u);
 
         ud->commit();
 
-        return true;
+        return {};
     }
 
     /**
@@ -1498,18 +3229,19 @@ public:
      * @param ec Error code that will be set in case of failure to push on the lua stack.
      */
     template <class U>
-    static auto push(lua_State* L, U&& u, std::error_code& ec) -> std::enable_if_t<std::is_move_constructible_v<U>, bool>
+    static auto push(lua_State* L, U&& u) -> std::enable_if_t<std::is_move_constructible_v<U>, Result>
     {
+        std::error_code ec;
         auto* ud = place(L, ec);
 
         if (!ud)
-            return false;
+            return ec;
 
         new (ud->getObject()) U(std::move(u));
 
         ud->commit();
 
-        return true;
+        return {};
     }
 
     /**
@@ -1561,13 +3293,13 @@ public:
      * @param ec Error code that will be set in case of failure to push on the lua stack.
      */
     template <class T>
-    static bool push(lua_State* L, T* ptr, std::error_code& ec)
+    static Result push(lua_State* L, T* ptr)
     {
         if (ptr)
-            return push(L, ptr, getClassRegistryKey<T>(), ec);
+            return push(L, ptr, getClassRegistryKey<T>());
 
         lua_pushnil(L);
-        return true;
+        return {};
     }
 
     /**
@@ -1580,20 +3312,20 @@ public:
      * @param ec Error code that will be set in case of failure to push on the lua stack.
      */
     template <class T>
-    static bool push(lua_State* L, const T* ptr, std::error_code& ec)
+    static Result push(lua_State* L, const T* ptr)
     {
         if (ptr)
-            return push(L, ptr, getConstRegistryKey<T>(), ec);
+            return push(L, ptr, getConstRegistryKey<T>());
 
         lua_pushnil(L);
-        return true;
+        return {};
     }
 
 private:
     /**
      * @brief Push a pointer to object using metatable key.
      */
-    static bool push(lua_State* L, const void* ptr, const void* key, std::error_code& ec)
+    static Result push(lua_State* L, const void* ptr, const void* key)
     {
         auto* udptr = new (lua_newuserdata_x<UserdataPtr>(L, sizeof(UserdataPtr))) UserdataPtr(const_cast<void*>(ptr));
 
@@ -1605,14 +3337,12 @@ private:
 
             udptr->~UserdataPtr();
 
-            ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
-
-            return false;
+            return throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
         }
 
         lua_setmetatable(L, -2);
 
-        return true;
+        return {};
     }
 
     explicit UserdataPtr(void* ptr)
@@ -1749,7 +3479,7 @@ struct UserdataSharedHelper
 {
     using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
 
-    static bool push(lua_State* L, const C& c, std::error_code& ec)
+    static Result push(lua_State* L, const C& c)
     {
         if (ContainerTraits<C>::get(c) != nullptr)
         {
@@ -1763,9 +3493,7 @@ struct UserdataSharedHelper
 
                 us->~UserdataShared<C>();
 
-                ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
-
-                return false;
+                return throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
             }
 
             lua_setmetatable(L, -2);
@@ -1775,10 +3503,10 @@ struct UserdataSharedHelper
             lua_pushnil(L);
         }
 
-        return true;
+        return {};
     }
 
-    static bool push(lua_State* L, T* t, std::error_code& ec)
+    static Result push(lua_State* L, T* t)
     {
         if (t)
         {
@@ -1792,9 +3520,7 @@ struct UserdataSharedHelper
 
                 us->~UserdataShared<C>();
 
-                ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
-
-                return false;
+                return throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
             }
 
             lua_setmetatable(L, -2);
@@ -1804,7 +3530,7 @@ struct UserdataSharedHelper
             lua_pushnil(L);
         }
 
-        return true;
+        return {};
     }
 };
 
@@ -1816,7 +3542,7 @@ struct UserdataSharedHelper<C, true>
 {
     using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
 
-    static bool push(lua_State* L, const C& c, std::error_code& ec)
+    static Result push(lua_State* L, const C& c)
     {
         if (ContainerTraits<C>::get(c) != nullptr)
         {
@@ -1830,9 +3556,7 @@ struct UserdataSharedHelper<C, true>
 
                 us->~UserdataShared<C>();
 
-                ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
-
-                return false;
+                return throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
             }
 
             lua_setmetatable(L, -2);
@@ -1842,10 +3566,10 @@ struct UserdataSharedHelper<C, true>
             lua_pushnil(L);
         }
 
-        return true;
+        return {};
     }
 
-    static bool push(lua_State* L, T* t, std::error_code& ec)
+    static Result push(lua_State* L, T* t)
     {
         if (t)
         {
@@ -1859,9 +3583,7 @@ struct UserdataSharedHelper<C, true>
 
                 us->~UserdataShared<C>();
 
-                ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
-
-                return false;
+                return throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
             }
 
             lua_setmetatable(L, -2);
@@ -1871,7 +3593,7 @@ struct UserdataSharedHelper<C, true>
             lua_pushnil(L);
         }
 
-        return true;
+        return {};
     }
 };
 
@@ -1885,16 +3607,22 @@ struct UserdataSharedHelper<C, true>
 template <class T, bool ByContainer>
 struct StackHelper
 {
-    using ReturnType = std::remove_const_t<typename ContainerTraits<T>::Type>;
+    using ReturnType = TypeResult<T>;
 
-    static bool push(lua_State* L, const T& t, std::error_code& ec)
+    static Result push(lua_State* L, const T& t)
     {
-        return UserdataSharedHelper<T, std::is_const_v<typename ContainerTraits<T>::Type>>::push(L, t, ec);
+        return UserdataSharedHelper<T, std::is_const_v<typename ContainerTraits<T>::Type>>::push(L, t);
     }
 
-    static T get(lua_State* L, int index)
+    static ReturnType get(lua_State* L, int index)
     {
-        return ContainerTraits<T>::construct(Userdata::get<ReturnType>(L, index, true));
+        using CastType = std::remove_const_t<typename ContainerTraits<T>::Type>;
+
+        auto* result = Userdata::get<CastType>(L, index, true);
+        if (! result)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        return ContainerTraits<T>::construct(result);
     }
 };
 
@@ -1907,19 +3635,23 @@ struct StackHelper
 template <class T>
 struct StackHelper<T, false>
 {
-    static bool push(lua_State* L, const T& t, std::error_code& ec)
+    static Result push(lua_State* L, const T& t)
     {
-        return UserdataValue<T>::push(L, t, ec);
+        return UserdataValue<T>::push(L, t);
     }
 
-    static bool push(lua_State* L, T&& t, std::error_code& ec)
+    static Result push(lua_State* L, T&& t)
     {
-        return UserdataValue<T>::push(L, std::move(t), ec);
+        return UserdataValue<T>::push(L, std::move(t));
     }
 
-    static T const& get(lua_State* L, int index)
+    static TypeResult<std::reference_wrapper<const T>> get(lua_State* L, int index)
     {
-        return *Userdata::get<T>(L, index, true);
+        auto* result = Userdata::get<T>(L, index, true);
+        if (! result)
+            return makeErrorCode(ErrorCode::InvalidTypeCast); // nil passed to reference
+
+        return std::cref(*result);
     }
 };
 
@@ -1933,38 +3665,41 @@ struct StackHelper<T, false>
 template <class C, bool ByContainer>
 struct RefStackHelper
 {
-    using ReturnType = C;
+    using ReturnType = TypeResult<C>;
     using T = std::remove_const_t<typename ContainerTraits<C>::Type>;
 
-    static bool push(lua_State* L, const C& t, std::error_code& ec)
+    static Result push(lua_State* L, const C& t)
     {
-        return UserdataSharedHelper<C, std::is_const_v<typename ContainerTraits<C>::Type>>::push(L, t, ec);
+        return UserdataSharedHelper<C, std::is_const_v<typename ContainerTraits<C>::Type>>::push(L, t);
     }
 
     static ReturnType get(lua_State* L, int index)
     {
-        return ContainerTraits<C>::construct(Userdata::get<T>(L, index, true));
+        auto* result = Userdata::get<T>(L, index, true);
+        if (! result)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        return ContainerTraits<C>::construct(result);
     }
 };
 
 template <class T>
 struct RefStackHelper<T, false>
 {
-    using ReturnType = T&;
+    using ReturnType = TypeResult<std::reference_wrapper<T>>;
 
-    static bool push(lua_State* L, const T& t, std::error_code& ec)
+    static Result push(lua_State* L, const T& t)
     {
-        return UserdataPtr::push(L, &t, ec);
+        return UserdataPtr::push(L, std::addressof(t));
     }
 
     static ReturnType get(lua_State* L, int index)
     {
-        T* t = Userdata::get<T>(L, index, true);
+        auto* result = Userdata::get<T>(L, index, true);
+        if (! result)
+            return makeErrorCode(ErrorCode::InvalidTypeCast); // nil passed to reference
 
-        if (!t)
-            luaL_error(L, "nil passed to reference");
-
-        return *t;
+        return std::ref(*result);
     }
 };
 
@@ -1975,22 +3710,30 @@ struct RefStackHelper<T, false>
 template <class T, class Enable = void>
 struct UserdataGetter
 {
-    using ReturnType = T*;
+    using ReturnType = TypeResult<T*>;
 
     static ReturnType get(lua_State* L, int index)
     {
-        return Userdata::get<T>(L, index, false);
+        auto* result = Userdata::get<T>(L, index, true);
+        if (! result)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        return result;
     }
 };
 
 template <class T>
 struct UserdataGetter<T, std::void_t<T (*)()>>
 {
-    using ReturnType = T;
+    using ReturnType = TypeResult<T>;
 
     static ReturnType get(lua_State* L, int index)
     {
-        return StackHelper<T, IsContainer<T>::value>::get(L, index);
+        auto result = StackHelper<T, IsContainer<T>::value>::get(L, index);
+        if (! result)
+            return result.error();
+
+        return *result;
     }
 };
 
@@ -2008,14 +3751,14 @@ struct Stack
     using Getter = detail::UserdataGetter<T>;
     using ReturnType = typename Getter::ReturnType;
 
-    [[nodiscard]] static bool push(lua_State* L, const T& value, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, const T& value)
     {
-        return detail::StackHelper<T, detail::IsContainer<T>::value>::push(L, value, ec);
+        return detail::StackHelper<T, detail::IsContainer<T>::value>::push(L, value);
     }
 
-    [[nodiscard]] static bool push(lua_State* L, T&& value, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, T&& value)
     {
-        return detail::StackHelper<T, detail::IsContainer<T>::value>::push(L, std::move(value), ec);
+        return detail::StackHelper<T, detail::IsContainer<T>::value>::push(L, std::move(value));
     }
 
     [[nodiscard]] static ReturnType get(lua_State* L, int index)
@@ -2058,11 +3801,11 @@ struct StackOpSelector;
 template <class T>
 struct StackOpSelector<T*, true>
 {
-    using ReturnType = T*;
+    using ReturnType = TypeResult<T*>;
 
-    static bool push(lua_State* L, T* value, std::error_code& ec) { return UserdataPtr::push(L, value, ec); }
+    static Result push(lua_State* L, T* value) { return UserdataPtr::push(L, value); }
 
-    static T* get(lua_State* L, int index) { return Userdata::get<T>(L, index, false); }
+    static ReturnType get(lua_State* L, int index) { return Userdata::get<T>(L, index, false); }
 
     static bool isInstance(lua_State* L, int index) { return Userdata::isInstance<T>(L, index); }
 };
@@ -2071,11 +3814,11 @@ struct StackOpSelector<T*, true>
 template <class T>
 struct StackOpSelector<const T*, true>
 {
-    using ReturnType = const T*;
+    using ReturnType = TypeResult<const T*>;
 
-    static bool push(lua_State* L, const T* value, std::error_code& ec) { return UserdataPtr::push(L, value, ec); }
+    static Result push(lua_State* L, const T* value) { return UserdataPtr::push(L, value); }
 
-    static const T* get(lua_State* L, int index) { return Userdata::get<T>(L, index, true); }
+    static ReturnType get(lua_State* L, int index) { return Userdata::get<T>(L, index, true); }
 
     static bool isInstance(lua_State* L, int index) { return Userdata::isInstance<T>(L, index); }
 };
@@ -2087,7 +3830,7 @@ struct StackOpSelector<T&, true>
     using Helper = RefStackHelper<T, IsContainer<T>::value>;
     using ReturnType = typename Helper::ReturnType;
 
-    static bool push(lua_State* L, T& value, std::error_code& ec) { return UserdataPtr::push(L, &value, ec); }
+    static Result push(lua_State* L, T& value) { return UserdataPtr::push(L, &value); }
 
     static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
 
@@ -2101,7 +3844,7 @@ struct StackOpSelector<const T&, true>
     using Helper = RefStackHelper<T, IsContainer<T>::value>;
     using ReturnType = typename Helper::ReturnType;
 
-    static bool push(lua_State* L, const T& value, std::error_code& ec) { return Helper::push(L, value, ec); }
+    static Result push(lua_State* L, const T& value) { return Helper::push(L, value); }
 
     static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
 
@@ -2120,6 +3863,36 @@ namespace luabridge {
 
 //=================================================================================================
 /**
+ * @brief Stack restorer.
+ */
+class StackRestore final
+{
+public:
+    StackRestore(lua_State* L)
+        : m_L(L)
+        , m_stackTop(lua_gettop(L))
+    {
+    }
+
+    ~StackRestore()
+    {
+        if (m_doRestoreStack)
+            lua_settop(m_L, m_stackTop);
+    }
+
+    void reset()
+    {
+        m_doRestoreStack = false;
+    }
+
+private:
+    lua_State* const m_L = nullptr;
+    int m_stackTop = 0;
+    bool m_doRestoreStack = true;
+};
+
+//=================================================================================================
+/**
  * @brief Lua stack traits for C++ types.
  *
  * @tparam T A C++ type.
@@ -2134,9 +3907,9 @@ struct Stack;
 template <>
 struct Stack<void>
 {
-    [[nodiscard]] static bool push(lua_State*, std::error_code&)
+    [[nodiscard]] static Result push(lua_State*)
     {
-        return true;
+        return {};
     }
 };
 
@@ -2147,22 +3920,22 @@ struct Stack<void>
 template <>
 struct Stack<std::nullptr_t>
 {
-    [[nodiscard]] static bool push(lua_State* L, std::nullptr_t, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, std::nullptr_t)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 1))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
-        
+
         lua_pushnil(L);
-        return true;
+        return {};
     }
 
-    [[nodiscard]] static std::nullptr_t get(lua_State*, int)
+    [[nodiscard]] static TypeResult<std::nullptr_t> get(lua_State* L, int index)
     {
+        if (! lua_isnil(L, index))
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
         return nullptr;
     }
 
@@ -2179,7 +3952,7 @@ struct Stack<std::nullptr_t>
 template <>
 struct Stack<lua_State*>
 {
-    [[nodiscard]] static lua_State* get(lua_State* L, int)
+    [[nodiscard]] static TypeResult<lua_State*> get(lua_State* L, int)
     {
         return L;
     }
@@ -2192,22 +3965,22 @@ struct Stack<lua_State*>
 template <>
 struct Stack<lua_CFunction>
 {
-    [[nodiscard]] static bool push(lua_State* L, lua_CFunction f, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, lua_CFunction f)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 1))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
         lua_pushcfunction_x(L, f);
-        return true;
+        return {};
     }
 
-    [[nodiscard]] static lua_CFunction get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<lua_CFunction> get(lua_State* L, int index)
     {
+        if (! lua_iscfunction(L, index))
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
         return lua_tocfunction(L, index);
     }
 
@@ -2224,21 +3997,18 @@ struct Stack<lua_CFunction>
 template <>
 struct Stack<bool>
 {
-    [[nodiscard]] static bool push(lua_State* L, bool value, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, bool value)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 1))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
         lua_pushboolean(L, value ? 1 : 0);
-        return true;
+        return {};
     }
 
-    [[nodiscard]] static bool get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<bool> get(lua_State* L, int index)
     {
         return lua_toboolean(L, index) ? true : false;
     }
@@ -2258,23 +4028,26 @@ struct Stack<std::byte>
 {
     static_assert(sizeof(std::byte) < sizeof(lua_Integer));
 
-    [[nodiscard]] static bool push(lua_State* L, std::byte value, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, std::byte value)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 1))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
         pushunsigned(L, std::to_integer<std::make_unsigned_t<lua_Integer>>(value));
-        return true;
+        return {};
     }
 
-    [[nodiscard]] static std::byte get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<std::byte> get(lua_State* L, int index)
     {
-        return static_cast<std::byte>(luaL_checkinteger(L, index));
+        if (lua_type(L, index) != LUA_TNUMBER)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        if (! is_integral_representable_by<unsigned char>(L, index))
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
+
+        return static_cast<std::byte>(lua_tointeger(L, index));
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -2293,32 +4066,29 @@ struct Stack<std::byte>
 template <>
 struct Stack<char>
 {
-    [[nodiscard]] static bool push(lua_State* L, char value, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, char value)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 1))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
         lua_pushlstring(L, &value, 1);
-        return true;
+        return {};
     }
 
-    [[nodiscard]] static char get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<char> get(lua_State* L, int index)
     {
-        if (lua_type(L, index) == LUA_TSTRING)
-        {
-            std::size_t length = 0;
-            const char* str = lua_tolstring(L, index, &length);
+        if (lua_type(L, index) != LUA_TSTRING)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
-            if (str != nullptr && length >= 1)
-                return str[0];
-        }
+        std::size_t length = 0;
+        const char* str = lua_tolstring(L, index, &length);
 
-        return char(0);
+        if (str == nullptr || length != 1)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        return str[0];
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -2329,7 +4099,7 @@ struct Stack<char>
             luaL_checklstring(L, index, &len);
             return len == 1;
         }
-        
+
         return false;
     }
 };
@@ -2343,23 +4113,26 @@ struct Stack<int8_t>
 {
     static_assert(sizeof(int8_t) < sizeof(lua_Integer));
 
-    [[nodiscard]] static bool push(lua_State* L, int8_t value, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, int8_t value)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 1))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
         lua_pushinteger(L, static_cast<lua_Integer>(value));
-        return true;
+        return {};
     }
 
-    [[nodiscard]] static int8_t get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<int8_t> get(lua_State* L, int index)
     {
-        return static_cast<int8_t>(luaL_checkinteger(L, index));
+        if (lua_type(L, index) != LUA_TNUMBER)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        if (! is_integral_representable_by<int8_t>(L, index))
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
+
+        return static_cast<int8_t>(lua_tointeger(L, index));
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -2380,23 +4153,26 @@ struct Stack<unsigned char>
 {
     static_assert(sizeof(unsigned char) < sizeof(lua_Integer));
 
-    [[nodiscard]] static bool push(lua_State* L, unsigned char value, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, unsigned char value)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 1))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
         pushunsigned(L, value);
-        return true;
+        return {};
     }
 
-    [[nodiscard]] static unsigned char get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<unsigned char> get(lua_State* L, int index)
     {
-        return static_cast<unsigned char>(luaL_checkinteger(L, index));
+        if (lua_type(L, index) != LUA_TNUMBER)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        if (! is_integral_representable_by<unsigned char>(L, index))
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
+
+        return static_cast<unsigned char>(lua_tointeger(L, index));
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -2417,23 +4193,26 @@ struct Stack<short>
 {
     static_assert(sizeof(short) < sizeof(lua_Integer));
 
-    [[nodiscard]] static bool push(lua_State* L, short value, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, short value)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 1))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
         lua_pushinteger(L, static_cast<lua_Integer>(value));
-        return true;
+        return {};
     }
 
-    [[nodiscard]] static short get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<short> get(lua_State* L, int index)
     {
-        return static_cast<short>(luaL_checkinteger(L, index));
+        if (lua_type(L, index) != LUA_TNUMBER)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        if (! is_integral_representable_by<short>(L, index))
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
+
+        return static_cast<short>(lua_tointeger(L, index));
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -2453,24 +4232,27 @@ template <>
 struct Stack<unsigned short>
 {
     static_assert(sizeof(unsigned short) < sizeof(lua_Integer));
-    
-    [[nodiscard]] static bool push(lua_State* L, unsigned short value, std::error_code& ec)
+
+    [[nodiscard]] static Result push(lua_State* L, unsigned short value)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 1))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
         pushunsigned(L, value);
-        return true;
+        return {};
     }
 
-    [[nodiscard]] static unsigned short get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<unsigned short> get(lua_State* L, int index)
     {
-        return static_cast<unsigned short>(luaL_checkinteger(L, index));
+        if (lua_type(L, index) != LUA_TNUMBER)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        if (! is_integral_representable_by<unsigned short>(L, index))
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
+
+        return static_cast<unsigned short>(lua_tointeger(L, index));
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -2489,29 +4271,29 @@ struct Stack<unsigned short>
 template <>
 struct Stack<int>
 {
-    [[nodiscard]] static bool push(lua_State* L, int value, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, int value)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 1))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
         if (! is_integral_representable_by(value))
-        {
-            ec = makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
         lua_pushinteger(L, static_cast<lua_Integer>(value));
-        return true;
+        return {};
     }
 
-    [[nodiscard]] static int get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<int> get(lua_State* L, int index)
     {
-        return static_cast<int>(luaL_checkinteger(L, index));
+        if (lua_type(L, index) != LUA_TNUMBER)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        if (! is_integral_representable_by<int>(L, index))
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
+
+        return static_cast<int>(lua_tointeger(L, index));
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -2530,29 +4312,29 @@ struct Stack<int>
 template <>
 struct Stack<unsigned int>
 {
-    [[nodiscard]] static bool push(lua_State* L, unsigned int value, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, unsigned int value)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 1))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
         if (! is_integral_representable_by(value))
-        {
-            ec = makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
-            return false;
-        }
-        
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
+
         pushunsigned(L, value);
-        return true;
+        return {};
     }
 
-    [[nodiscard]] static uint32_t get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<unsigned int> get(lua_State* L, int index)
     {
-        return static_cast<unsigned int>(luaL_checkinteger(L, index));
+        if (lua_type(L, index) != LUA_TNUMBER)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        if (! is_integral_representable_by<unsigned int>(L, index))
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
+
+        return static_cast<unsigned int>(lua_tointeger(L, index));
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -2571,29 +4353,29 @@ struct Stack<unsigned int>
 template <>
 struct Stack<long>
 {
-    [[nodiscard]] static bool push(lua_State* L, long value, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, long value)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 1))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
         if (! is_integral_representable_by(value))
-        {
-            ec = makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
         lua_pushinteger(L, static_cast<lua_Integer>(value));
-        return true;
+        return {};
     }
 
-    [[nodiscard]] static long get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<long> get(lua_State* L, int index)
     {
-        return static_cast<long>(luaL_checkinteger(L, index));
+        if (lua_type(L, index) != LUA_TNUMBER)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        if (! is_integral_representable_by<long>(L, index))
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
+
+        return static_cast<long>(lua_tointeger(L, index));
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -2612,29 +4394,29 @@ struct Stack<long>
 template <>
 struct Stack<unsigned long>
 {
-    [[nodiscard]] static bool push(lua_State* L, unsigned long value, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, unsigned long value)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 1))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
         if (! is_integral_representable_by(value))
-        {
-            ec = makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
         pushunsigned(L, value);
-        return true;
+        return {};
     }
 
-    [[nodiscard]] static unsigned long get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<unsigned long> get(lua_State* L, int index)
     {
-        return static_cast<unsigned long>(luaL_checkinteger(L, index));
+        if (lua_type(L, index) != LUA_TNUMBER)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        if (! is_integral_representable_by<unsigned long>(L, index))
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
+
+        return static_cast<unsigned long>(lua_tointeger(L, index));
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -2653,29 +4435,29 @@ struct Stack<unsigned long>
 template <>
 struct Stack<long long>
 {
-    [[nodiscard]] static bool push(lua_State* L, long long value, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, long long value)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 1))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
         if (! is_integral_representable_by(value))
-        {
-            ec = makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
         lua_pushinteger(L, static_cast<lua_Integer>(value));
-        return true;
+        return {};
     }
 
-    [[nodiscard]] static long long get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<long long> get(lua_State* L, int index)
     {
-        return static_cast<long long>(luaL_checkinteger(L, index));
+        if (lua_type(L, index) != LUA_TNUMBER)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        if (! is_integral_representable_by<long long>(L, index))
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
+
+        return static_cast<long long>(lua_tointeger(L, index));
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -2694,39 +4476,123 @@ struct Stack<long long>
 template <>
 struct Stack<unsigned long long>
 {
-    [[nodiscard]] static bool push(lua_State* L, unsigned long long value, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, unsigned long long value)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 1))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
         if (! is_integral_representable_by(value))
-        {
-            ec = makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
         pushunsigned(L, value);
-        return true;
+        return {};
     }
 
-    [[nodiscard]] static unsigned long long get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<unsigned long long> get(lua_State* L, int index)
     {
-        return static_cast<unsigned long long>(luaL_checkinteger(L, index));
+        if (lua_type(L, index) != LUA_TNUMBER)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        if (! is_integral_representable_by<unsigned long long>(L, index))
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
+
+        return static_cast<unsigned long long>(lua_tointeger(L, index));
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
     {
         if (lua_type(L, index) == LUA_TNUMBER)
             return is_integral_representable_by<unsigned long long>(L, index);
-        
+
         return false;
     }
 };
+
+#if 0 // defined(__SIZEOF_INT128__)
+//=================================================================================================
+/**
+ * @brief Stack specialization for `__int128_t`.
+ */
+template <>
+struct Stack<__int128_t>
+{
+    [[nodiscard]] static Result push(lua_State* L, __int128_t value)
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 1))
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
+        if (! is_integral_representable_by(value))
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
+
+        lua_pushinteger(L, static_cast<lua_Integer>(value));
+        return {};
+    }
+
+    [[nodiscard]] static TypeResult<__int128_t> get(lua_State* L, int index)
+    {
+        if (lua_type(L, index) != LUA_TNUMBER)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        if (! is_integral_representable_by<__int128_t>(L, index))
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
+
+        return static_cast<__int128_t>(lua_tointeger(L, index));
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        if (lua_type(L, index) == LUA_TNUMBER)
+            return is_integral_representable_by<__int128_t>(L, index);
+
+        return false;
+    }
+};
+
+//=================================================================================================
+/**
+ * @brief Stack specialization for `__uint128_t`.
+ */
+template <>
+struct Stack<__uint128_t>
+{
+    [[nodiscard]] static Result push(lua_State* L, __uint128_t value)
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 1))
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
+        if (! is_integral_representable_by(value))
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
+
+        lua_pushinteger(L, static_cast<lua_Integer>(value));
+        return {};
+    }
+
+    [[nodiscard]] static TypeResult<__uint128_t> get(lua_State* L, int index)
+    {
+        if (lua_type(L, index) != LUA_TNUMBER)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        if (! is_integral_representable_by<__uint128_t>(L, index))
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
+
+        return static_cast<__uint128_t>(lua_tointeger(L, index));
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        if (lua_type(L, index) == LUA_TNUMBER)
+            return is_integral_representable_by<__uint128_t>(L, index);
+
+        return false;
+    }
+};
+#endif
 
 //=================================================================================================
 /**
@@ -2735,29 +4601,29 @@ struct Stack<unsigned long long>
 template <>
 struct Stack<float>
 {
-    [[nodiscard]] static bool push(lua_State* L, float value, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, float value)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 1))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
         if (! is_floating_point_representable_by(value))
-        {
-            ec = makeErrorCode(ErrorCode::FloatingPointDoesntFitIntoLuaNumber);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::FloatingPointDoesntFitIntoLuaNumber);
 
         lua_pushnumber(L, static_cast<lua_Number>(value));
-        return true;
+        return {};
     }
 
-    [[nodiscard]] static float get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<float> get(lua_State* L, int index)
     {
-        return static_cast<float>(luaL_checknumber(L, index));
+        if (lua_type(L, index) != LUA_TNUMBER)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        if (! is_floating_point_representable_by<float>(L, index))
+            return makeErrorCode(ErrorCode::FloatingPointDoesntFitIntoLuaNumber);
+
+        return static_cast<float>(lua_tonumber(L, index));
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -2776,29 +4642,29 @@ struct Stack<float>
 template <>
 struct Stack<double>
 {
-    [[nodiscard]] static bool push(lua_State* L, double value, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, double value)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 1))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
         if (! is_floating_point_representable_by(value))
-        {
-            ec = makeErrorCode(ErrorCode::FloatingPointDoesntFitIntoLuaNumber);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::FloatingPointDoesntFitIntoLuaNumber);
 
         lua_pushnumber(L, static_cast<lua_Number>(value));
-        return true;
+        return {};
     }
 
-    [[nodiscard]] static double get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<double> get(lua_State* L, int index)
     {
-        return static_cast<double>(luaL_checknumber(L, index));
+        if (lua_type(L, index) != LUA_TNUMBER)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        if (! is_floating_point_representable_by<double>(L, index))
+            return makeErrorCode(ErrorCode::FloatingPointDoesntFitIntoLuaNumber);
+
+        return static_cast<double>(lua_tonumber(L, index));
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -2817,29 +4683,29 @@ struct Stack<double>
 template <>
 struct Stack<long double>
 {
-    [[nodiscard]] static bool push(lua_State* L, long double value, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, long double value)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 1))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
         if (! is_floating_point_representable_by(value))
-        {
-            ec = makeErrorCode(ErrorCode::FloatingPointDoesntFitIntoLuaNumber);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::FloatingPointDoesntFitIntoLuaNumber);
 
         lua_pushnumber(L, static_cast<lua_Number>(value));
-        return true;
+        return {};
     }
 
-    [[nodiscard]] static long double get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<long double> get(lua_State* L, int index)
     {
-        return static_cast<long double>(luaL_checknumber(L, index));
+        if (lua_type(L, index) != LUA_TNUMBER)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        if (! is_floating_point_representable_by<long double>(L, index))
+            return makeErrorCode(ErrorCode::FloatingPointDoesntFitIntoLuaNumber);
+
+        return static_cast<long double>(lua_tonumber(L, index));
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -2858,14 +4724,11 @@ struct Stack<long double>
 template <>
 struct Stack<const char*>
 {
-    [[nodiscard]] static bool push(lua_State* L, const char* str, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, const char* str)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 1))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
         if (str != nullptr)
@@ -2873,21 +4736,20 @@ struct Stack<const char*>
         else
             lua_pushlstring(L, "", 0);
 
-        return true;
+        return {};
     }
 
-    [[nodiscard]] static const char* get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<const char*> get(lua_State* L, int index)
     {
-        if (lua_type(L, index) == LUA_TSTRING)
-        {
-            std::size_t length = 0;
-            const char* str = lua_tolstring(L, index, &length);
+        if (lua_type(L, index) != LUA_TSTRING)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
-            if (str != nullptr)
-                return str;
-        }
+        std::size_t length = 0;
+        const char* str = lua_tolstring(L, index, &length);
+        if (str == nullptr)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
-        return "";
+        return str;
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -2903,32 +4765,28 @@ struct Stack<const char*>
 template <>
 struct Stack<std::string_view>
 {
-    [[nodiscard]] static bool push(lua_State* L, std::string_view str, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, std::string_view str)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 1))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
         lua_pushlstring(L, str.data(), str.size());
-        return true;
+        return {};
     }
 
-    [[nodiscard]] static std::string_view get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<std::string_view> get(lua_State* L, int index)
     {
-        if (lua_type(L, index) == LUA_TSTRING)
-        {
-            std::size_t length = 0;
-            const char* str = lua_tolstring(L, index, &length);
+        if (lua_type(L, index) != LUA_TSTRING)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
-            if (str != nullptr)
-                return { str, length };
-        }
+        std::size_t length = 0;
+        const char* str = lua_tolstring(L, index, &length);
+        if (str == nullptr)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
-        return {};
+        return std::string_view{ str, length };
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -2944,44 +4802,41 @@ struct Stack<std::string_view>
 template <>
 struct Stack<std::string>
 {
-    [[nodiscard]] static bool push(lua_State* L, const std::string& str, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, const std::string& str)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 1))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
         lua_pushlstring(L, str.data(), str.size());
-        return true;
+        return {};
     }
 
-    [[nodiscard]] static std::string get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<std::string> get(lua_State* L, int index)
     {
         std::size_t length = 0;
+        const char* str = nullptr;
 
         if (lua_type(L, index) == LUA_TSTRING)
         {
-            const char* str = lua_tolstring(L, index, &length);
-
-            if (str != nullptr)
-                return { str, length };
+            str = lua_tolstring(L, index, &length);
+        }
+        else
+        {
+            // Lua reference manual:
+            // If the value is a number, then lua_tolstring also changes the actual value in the stack
+            // to a string. (This change confuses lua_next when lua_tolstring is applied to keys during
+            // a table traversal)
+            lua_pushvalue(L, index);
+            str = lua_tolstring(L, -1, &length);
+            lua_pop(L, 1);
         }
 
-        // Lua reference manual:
-        // If the value is a number, then lua_tolstring also changes the actual value in the stack
-        // to a string. (This change confuses lua_next when lua_tolstring is applied to keys during
-        // a table traversal)
-        lua_pushvalue(L, index);
-        const char* str = lua_tolstring(L, -1, &length);
-        lua_pop(L, 1);
+        if (str == nullptr)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
-        if (str != nullptr)
-            return { str, length };
-
-        return {};
+        return std::string{ str, length };
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -2998,30 +4853,40 @@ template <class T>
 struct Stack<std::optional<T>>
 {
     using Type = std::optional<T>;
-    
-    [[nodiscard]] static bool push(lua_State* L, const Type& value, std::error_code& ec)
+
+    [[nodiscard]] static Result push(lua_State* L, const Type& value)
     {
         if (value)
-            return Stack<T>::push(L, *value, ec);
+        {
+            StackRestore stackRestore(L);
+
+            auto result = Stack<T>::push(L, *value);
+            if (! result)
+                return result;
+
+            stackRestore.reset();
+            return {};
+        }
 
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 1))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
         lua_pushnil(L);
-        return true;
+        return {};
     }
 
-    [[nodiscard]] static Type get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<Type> get(lua_State* L, int index)
     {
         if (lua_type(L, index) == LUA_TNIL)
             return std::nullopt;
-        
-        return Stack<T>::get(L, index);
+
+        auto result = Stack<T>::get(L, index);
+        if (! result)
+            return result.error();
+
+        return *result;
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -3037,35 +4902,43 @@ struct Stack<std::optional<T>>
 template <class... Types>
 struct Stack<std::tuple<Types...>>
 {
-    [[nodiscard]] static bool push(lua_State* L, const std::tuple<Types...>& t, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, const std::tuple<Types...>& t)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 3))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
+
+        StackRestore stackRestore(L);
 
         lua_createtable(L, static_cast<int>(Size), 0);
 
-        return push_element(L, t, ec);
+        auto result = push_element(L, t);
+        if (! result)
+            return result;
+
+        stackRestore.reset();
+        return {};
     }
 
-    [[nodiscard]] static std::tuple<Types...> get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<std::tuple<Types...>> get(lua_State* L, int index)
     {
+        const StackRestore stackRestore(L);
+
         if (!lua_istable(L, index))
-            luaL_error(L, "#%d argment must be a table", index);
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
         if (get_length(L, index) != static_cast<int>(Size))
-            luaL_error(L, "table size should be %d but is %d", static_cast<unsigned>(Size), get_length(L, index));
+            return makeErrorCode(ErrorCode::InvalidTableSizeInCast);
 
         std::tuple<Types...> value;
 
         int absIndex = lua_absindex(L, index);
         lua_pushnil(L);
 
-        pop_element(L, absIndex, value);
+        auto result = pop_element(L, absIndex, value);
+        if (! result)
+            return result.error();
 
         return value;
     }
@@ -3079,54 +4952,57 @@ private:
     static constexpr std::size_t Size = std::tuple_size_v<std::tuple<Types...>>;
 
     template <std::size_t Index = 0>
-    static auto push_element(lua_State*, const std::tuple<Types...>&, std::error_code&)
-        -> std::enable_if_t<Index == sizeof...(Types), bool>
+    static auto push_element(lua_State*, const std::tuple<Types...>&)
+        -> std::enable_if_t<Index == sizeof...(Types), Result>
     {
-        return true;
+        return {};
     }
 
     template <std::size_t Index = 0>
-    static auto push_element(lua_State* L, const std::tuple<Types...>& t, std::error_code& ec)
-        -> std::enable_if_t<Index < sizeof...(Types), bool>
+    static auto push_element(lua_State* L, const std::tuple<Types...>& t)
+        -> std::enable_if_t<Index < sizeof...(Types), Result>
     {
         using T = std::tuple_element_t<Index, std::tuple<Types...>>;
 
         lua_pushinteger(L, static_cast<lua_Integer>(Index + 1));
 
-        std::error_code push_ec;
-        bool result = Stack<T>::push(L, std::get<Index>(t), push_ec);
+        auto result = Stack<T>::push(L, std::get<Index>(t));
         if (! result)
         {
             lua_pushnil(L);
             lua_settable(L, -3);
-            ec = push_ec;
-            return false;
+            return result;
         }
 
         lua_settable(L, -3);
 
-        return push_element<Index + 1>(L, t, ec);
+        return push_element<Index + 1>(L, t);
     }
 
     template <std::size_t Index = 0>
     static auto pop_element(lua_State*, int, std::tuple<Types...>&)
-        -> std::enable_if_t<Index == sizeof...(Types)>
+        -> std::enable_if_t<Index == sizeof...(Types), Result>
     {
+        return {};
     }
 
     template <std::size_t Index = 0>
     static auto pop_element(lua_State* L, int absIndex, std::tuple<Types...>& t)
-        -> std::enable_if_t<Index < sizeof...(Types)>
+        -> std::enable_if_t<Index < sizeof...(Types), Result>
     {
         using T = std::tuple_element_t<Index, std::tuple<Types...>>;
 
         if (lua_next(L, absIndex) == 0)
-            return;
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
-        std::get<Index>(t) = Stack<T>::get(L, -1);
+        auto result = Stack<T>::get(L, -1);
+        if (! result)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        std::get<Index>(t) = *result;
         lua_pop(L, 1);
 
-        pop_element<Index + 1>(L, absIndex, t);
+        return pop_element<Index + 1>(L, absIndex, t);
     }
 };
 
@@ -3139,31 +5015,25 @@ struct Stack<T[N]>
 {
     static_assert(N > 0, "Unsupported zero sized array");
 
-    [[nodiscard]] static bool push(lua_State* L, const T (&value)[N], std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, const T (&value)[N])
     {
         if constexpr (std::is_same_v<T, char>)
         {
 #if LUABRIDGE_SAFE_STACK_CHECKS
             if (! lua_checkstack(L, 1))
-            {
-                ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-                return false;
-            }
+                return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
             lua_pushlstring(L, value, N - 1);
-            return true;
+            return {};
         }
 
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 2))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
-        const int initialStackSize = lua_gettop(L);
+        StackRestore stackRestore(L);
 
         lua_createtable(L, static_cast<int>(N), 0);
 
@@ -3171,19 +5041,15 @@ struct Stack<T[N]>
         {
             lua_pushinteger(L, static_cast<lua_Integer>(i + 1));
 
-            std::error_code push_ec;
-            bool result = Stack<T>::push(L, value[i], push_ec);
+            auto result = Stack<T>::push(L, value[i]);
             if (! result)
-            {
-                ec = push_ec;
-                lua_pop(L, lua_gettop(L) - initialStackSize);
-                return false;
-            }
+                return result;
 
             lua_settable(L, -3);
         }
 
-        return true;
+        stackRestore.reset();
+        return {};
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -3197,9 +5063,9 @@ namespace detail {
 template <class T>
 struct StackOpSelector<T&, false>
 {
-    using ReturnType = T;
+    using ReturnType = TypeResult<T>;
 
-    static bool push(lua_State* L, T& value, std::error_code& ec) { return Stack<T>::push(L, value, ec); }
+    static Result push(lua_State* L, T& value) { return Stack<T>::push(L, value); }
 
     static ReturnType get(lua_State* L, int index) { return Stack<T>::get(L, index); }
 
@@ -3209,11 +5075,11 @@ struct StackOpSelector<T&, false>
 template <class T>
 struct StackOpSelector<const T&, false>
 {
-    using ReturnType = T;
+    using ReturnType = TypeResult<T>;
 
-    static bool push(lua_State* L, const T& value, std::error_code& ec) { return Stack<T>::push(L, value, ec); }
+    static Result push(lua_State* L, const T& value) { return Stack<T>::push(L, value); }
 
-    static auto get(lua_State* L, int index) { return Stack<T>::get(L, index); }
+    static ReturnType get(lua_State* L, int index) { return Stack<T>::get(L, index); }
 
     static bool isInstance(lua_State* L, int index) { return Stack<T>::isInstance(L, index); }
 };
@@ -3221,9 +5087,9 @@ struct StackOpSelector<const T&, false>
 template <class T>
 struct StackOpSelector<T*, false>
 {
-    using ReturnType = T;
+    using ReturnType = TypeResult<T>;
 
-    static bool push(lua_State* L, T* value, std::error_code& ec) { return Stack<T>::push(L, *value, ec); }
+    static Result push(lua_State* L, T* value) { return Stack<T>::push(L, *value); }
 
     static ReturnType get(lua_State* L, int index) { return Stack<T>::get(L, index); }
 
@@ -3233,9 +5099,9 @@ struct StackOpSelector<T*, false>
 template <class T>
 struct StackOpSelector<const T*, false>
 {
-    using ReturnType = T;
+    using ReturnType = TypeResult<T>;
 
-    static bool push(lua_State* L, const T* value, std::error_code& ec) { return Stack<T>::push(L, *value, ec); }
+    static Result push(lua_State* L, const T* value) { return Stack<T>::push(L, *value); }
 
     static ReturnType get(lua_State* L, int index) { return Stack<T>::get(L, index); }
 
@@ -3250,7 +5116,7 @@ struct Stack<T&, std::enable_if_t<!std::is_array_v<T&>>>
     using Helper = detail::StackOpSelector<T&, detail::IsUserdata<T>::value>;
     using ReturnType = typename Helper::ReturnType;
 
-    [[nodiscard]] static bool push(lua_State* L, T& value, std::error_code& ec) { return Helper::push(L, value, ec); }
+    [[nodiscard]] static Result push(lua_State* L, T& value) { return Helper::push(L, value); }
 
     [[nodiscard]] static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
 
@@ -3263,9 +5129,9 @@ struct Stack<const T&, std::enable_if_t<!std::is_array_v<const T&>>>
     using Helper = detail::StackOpSelector<const T&, detail::IsUserdata<T>::value>;
     using ReturnType = typename Helper::ReturnType;
 
-    [[nodiscard]] static bool push(lua_State* L, const T& value, std::error_code& ec) { return Helper::push(L, value, ec); }
+    [[nodiscard]] static Result push(lua_State* L, const T& value) { return Helper::push(L, value); }
 
-    [[nodiscard]] static auto get(lua_State* L, int index) { return Helper::get(L, index); }
+    [[nodiscard]] static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index) { return Helper::template isInstance<T>(L, index); }
 };
@@ -3276,7 +5142,7 @@ struct Stack<T*>
     using Helper = detail::StackOpSelector<T*, detail::IsUserdata<T>::value>;
     using ReturnType = typename Helper::ReturnType;
 
-    [[nodiscard]] static bool push(lua_State* L, T* value, std::error_code& ec) { return Helper::push(L, value, ec); }
+    [[nodiscard]] static Result push(lua_State* L, T* value) { return Helper::push(L, value); }
 
     [[nodiscard]] static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
 
@@ -3289,7 +5155,7 @@ struct Stack<const T*>
     using Helper = detail::StackOpSelector<const T*, detail::IsUserdata<T>::value>;
     using ReturnType = typename Helper::ReturnType;
 
-    [[nodiscard]] static bool push(lua_State* L, const T* value, std::error_code& ec) { return Helper::push(L, value, ec); }
+    [[nodiscard]] static Result push(lua_State* L, const T* value) { return Helper::push(L, value); }
 
     [[nodiscard]] static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
 
@@ -3301,9 +5167,9 @@ struct Stack<const T*>
  * @brief Push an object onto the Lua stack.
  */
 template <class T>
-[[nodiscard]] bool push(lua_State* L, const T& t, std::error_code& ec)
+[[nodiscard]] Result push(lua_State* L, const T& t)
 {
-    return Stack<T>::push(L, t, ec);
+    return Stack<T>::push(L, t);
 }
 
 //=================================================================================================
@@ -3311,7 +5177,7 @@ template <class T>
  * @brief Get an object from the Lua stack.
  */
 template <class T>
-[[nodiscard]] T get(lua_State* L, int index)
+[[nodiscard]] TypeResult<T> get(lua_State* L, int index)
 {
     return Stack<T>::get(L, index);
 }
@@ -3325,29 +5191,6 @@ template <class T>
 {
     return Stack<T>::isInstance(L, index);
 }
-
-//=================================================================================================
-/**
- * @brief Stack restorer.
- */
-class StackRestore final
-{
-public:
-    StackRestore(lua_State* L)
-        : m_L(L)
-        , m_stackTop(lua_gettop(L))
-    {
-    }
-
-    ~StackRestore()
-    {
-        lua_settop(m_L, m_stackTop);
-    }
-
-private:
-    lua_State* const m_L = nullptr;
-    int m_stackTop = 0;
-};
 
 } // namespace luabridge
 
@@ -3367,46 +5210,41 @@ struct Stack<std::array<T, Size>>
 {
     using Type = std::array<T, Size>;
 
-    [[nodiscard]] static bool push(lua_State* L, const Type& array, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, const Type& array)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 3))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
-        const int initialStackSize = lua_gettop(L);
-        
+        StackRestore stackRestore(L);
+
         lua_createtable(L, static_cast<int>(Size), 0);
 
         for (std::size_t i = 0; i < Size; ++i)
         {
             lua_pushinteger(L, static_cast<lua_Integer>(i + 1));
 
-            std::error_code errorCode;
-            bool result = Stack<T>::push(L, array[i], errorCode);
-            if (!result)
-            {
-                ec = errorCode;
-                lua_pop(L, lua_gettop(L) - initialStackSize);
-                return false;
-            }
+            auto result = Stack<T>::push(L, array[i]);
+            if (! result)
+                return result;
 
             lua_settable(L, -3);
         }
         
-        return true;
+        stackRestore.reset();
+        return {};
     }
 
-    [[nodiscard]] static Type get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<Type> get(lua_State* L, int index)
     {
         if (!lua_istable(L, index))
-            luaL_error(L, "#%d argment must be a table", index);
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
         if (get_length(L, index) != Size)
-            luaL_error(L, "table size should be %d but is %d", static_cast<int>(Size), get_length(L, index));
+            return makeErrorCode(ErrorCode::InvalidTableSizeInCast);
+
+        const StackRestore stackRestore(L);
 
         Type array;
 
@@ -3416,7 +5254,11 @@ struct Stack<std::array<T, Size>>
         int arrayIndex = 0;
         while (lua_next(L, absIndex) != 0)
         {
-            array[arrayIndex++] = Stack<T>::get(L, -1);
+            auto item = Stack<T>::get(L, -1);
+            if (!item)
+                return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+            array[arrayIndex++] = *item;
             lua_pop(L, 1);
         }
 
@@ -3447,17 +5289,14 @@ struct Stack<std::list<T>>
 {
     using Type = std::list<T>;
     
-    [[nodiscard]] static bool push(lua_State* L, const Type& list, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, const Type& list)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 3))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
-        const int initialStackSize = lua_gettop(L);
+        StackRestore stackRestore(L);
 
         lua_createtable(L, static_cast<int>(list.size()), 0);
 
@@ -3466,24 +5305,23 @@ struct Stack<std::list<T>>
         {
             lua_pushinteger(L, tableIndex);
 
-            std::error_code errorCode;
-            if (! Stack<T>::push(L, *it, errorCode))
-            {
-                ec = errorCode;
-                lua_pop(L, lua_gettop(L) - initialStackSize);
-                return false;
-            }
+            auto result = Stack<T>::push(L, *it);
+            if (! result)
+                return result;
 
             lua_settable(L, -3);
         }
-        
-        return true;
+
+        stackRestore.reset();
+        return {};
     }
 
-    [[nodiscard]] static Type get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<Type> get(lua_State* L, int index)
     {
         if (!lua_istable(L, index))
-            luaL_error(L, "#%d argument must be a table", index);
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        const StackRestore stackRestore(L);
 
         Type list;
 
@@ -3492,7 +5330,11 @@ struct Stack<std::list<T>>
 
         while (lua_next(L, absIndex) != 0)
         {
-            list.emplace_back(Stack<T>::get(L, -1));
+            auto item = Stack<T>::get(L, -1);
+            if (! item)
+                return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+            list.emplace_back(*item);
             lua_pop(L, 1);
         }
 
@@ -3752,10 +5594,20 @@ constexpr auto tupleize(Types&&... types)
  * @tparam ArgsPack Arguments pack to extract from the lua stack.
  * @tparam Start Start index where stack variables are located in the lua stack.
  */
+template <class T>
+auto unwrap_argument_or_error(lua_State* L, std::size_t index)
+{
+    auto result = Stack<T>::get(L, index);
+    if (! result)
+        luaL_error(L, "Error decoding argument #%d: %s", static_cast<int>(index), result.message().c_str());
+
+    return *result;
+}
+
 template <class ArgsPack, std::size_t Start, std::size_t... Indices>
 auto make_arguments_list_impl(lua_State* L, std::index_sequence<Indices...>)
 {
-    return tupleize(Stack<std::tuple_element_t<Indices, ArgsPack>>::get(L, Start + Indices)...);
+    return tupleize(unwrap_argument_or_error<std::tuple_element_t<Indices, ArgsPack>>(L, Start + Indices)...);
 }
 
 template <class ArgsPack, std::size_t Start>
@@ -3769,27 +5621,23 @@ auto make_arguments_list(lua_State* L)
  * @brief Helpers for iterating through tuple arguments, pushing each argument to the lua stack.
  */
 template <std::size_t Index = 0, class... Types>
-auto push_arguments(lua_State*, std::tuple<Types...>, std::error_code&)
-    -> std::enable_if_t<Index == sizeof...(Types), std::size_t>
+auto push_arguments(lua_State*, std::tuple<Types...>)
+    -> std::enable_if_t<Index == sizeof...(Types), std::tuple<Result, std::size_t>>
 {
-    return Index + 1;
+    return std::make_tuple(Result(), Index + 1);
 }
 
 template <std::size_t Index = 0, class... Types>
-auto push_arguments(lua_State* L, std::tuple<Types...> t, std::error_code& ec)
-    -> std::enable_if_t<Index < sizeof...(Types), std::size_t>
+auto push_arguments(lua_State* L, std::tuple<Types...> t)
+    -> std::enable_if_t<Index < sizeof...(Types), std::tuple<Result, std::size_t>>
 {
     using T = std::tuple_element_t<Index, std::tuple<Types...>>;
 
-    std::error_code pec;
-    bool result = Stack<T>::push(L, std::get<Index>(t), pec);
+    auto result = Stack<T>::push(L, std::get<Index>(t));
     if (! result)
-    {
-        ec = pec;
-        return Index + 1;
-    }
+        return std::make_tuple(result, Index + 1);
 
-    return push_arguments<Index + 1, Types...>(L, std::move(t), ec);
+    return push_arguments<Index + 1, Types...>(L, std::move(t));
 }
 
 //=================================================================================================
@@ -3842,14 +5690,13 @@ struct function
     template <class F>
     static int call(lua_State* L, F func)
     {
-        std::error_code ec;
-        bool result = false;
+        Result result;
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
 #endif
-            result = Stack<ReturnType>::push(L, std::apply(func, make_arguments_list<ArgsPack, Start>(L)), ec);
+            result = Stack<ReturnType>::push(L, std::apply(func, make_arguments_list<ArgsPack, Start>(L)));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
@@ -3860,7 +5707,7 @@ struct function
 #endif
 
         if (! result)
-            raise_lua_error(L, "%s", ec.message().c_str());
+            raise_lua_error(L, "%s", result.message().c_str());
 
         return 1;
     }
@@ -3868,8 +5715,7 @@ struct function
     template <class T, class F>
     static int call(lua_State* L, T* ptr, F func)
     {
-        std::error_code ec;
-        bool result = false;
+        Result result;
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         try
@@ -3877,7 +5723,7 @@ struct function
 #endif
             auto f = [ptr, func](auto&&... args) -> ReturnType { return (ptr->*func)(std::forward<decltype(args)>(args)...); };
 
-            result = Stack<ReturnType>::push(L, std::apply(f, make_arguments_list<ArgsPack, Start>(L)), ec);
+            result = Stack<ReturnType>::push(L, std::apply(f, make_arguments_list<ArgsPack, Start>(L)));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
@@ -3888,7 +5734,7 @@ struct function
 #endif
 
         if (! result)
-            raise_lua_error(L, "%s", ec.message().c_str());
+            raise_lua_error(L, "%s", result.message().c_str());
 
         return 1;
     }
@@ -3971,14 +5817,14 @@ struct constructor
 {
     static T* call(const Args& args)
     {
-        auto alloc = [](auto&&... args) { return new T{ std::forward<decltype(args)>(args)... }; };
+        auto alloc = [](auto&&... args) { return new T(std::forward<decltype(args)>(args)...); };
 
         return std::apply(alloc, args);
     }
 
     static T* call(void* ptr, const Args& args)
     {
-        auto alloc = [ptr](auto&&... args) { return new (ptr) T{ std::forward<decltype(args)>(args)... }; };
+        auto alloc = [ptr](auto&&... args) { return new (ptr) T(std::forward<decltype(args)>(args)...); };
 
         return std::apply(alloc, args);
     }
@@ -4027,6 +5873,42 @@ struct external_constructor
         return func();
     }
 };
+
+//=================================================================================================
+/**
+ * @brief lua_CFunction to construct a class object wrapped in a container.
+ */
+template <class C, class Args>
+int constructor_container_proxy(lua_State* L)
+{
+    using T = typename ContainerTraits<C>::Type;
+
+    T* object = detail::constructor<T, Args>::call(detail::make_arguments_list<Args, 2>(L));
+
+    auto result = detail::UserdataSharedHelper<C, false>::push(L, object);
+    if (! result)
+        luaL_error(L, "%s", result.message().c_str());
+
+    return 1;
+}
+
+/**
+ * @brief lua_CFunction to construct a class object in-place in the userdata.
+ */
+template <class T, class Args>
+int constructor_placement_proxy(lua_State* L)
+{
+    std::error_code ec;
+    auto* value = detail::UserdataValue<T>::place(L, ec);
+    if (! value)
+        luaL_error(L, "%s", ec.message().c_str());
+
+    detail::constructor<T, Args>::call(value->getObject(), detail::make_arguments_list<Args, 2>(L));
+
+    value->commit();
+
+    return 1;
+}
 
 } // namespace detail
 } // namespace luabridge
@@ -4271,9 +6153,9 @@ struct property_getter<T, void>
         T* ptr = static_cast<T*>(lua_touserdata(L, lua_upvalueindex(1)));
         assert(ptr != nullptr);
 
-        std::error_code ec;
-        if (! Stack<T&>::push(L, *ptr, ec))
-            raise_lua_error(L, "%s", ec.message().c_str());
+        auto result = Stack<T&>::push(L, *ptr);
+        if (! result)
+            raise_lua_error(L, "%s", result.message().c_str());
 
         return 1;
     }
@@ -4290,9 +6172,9 @@ struct property_getter<std::reference_wrapper<T>, void>
         std::reference_wrapper<T>* ptr = static_cast<std::reference_wrapper<T>*>(lua_touserdata(L, lua_upvalueindex(1)));
         assert(ptr != nullptr);
 
-        std::error_code ec;
-        if (! Stack<T&>::push(L, ptr->get(), ec))
-            luaL_error(L, "%s", ec.message().c_str());
+        auto result = Stack<T&>::push(L, ptr->get());
+        if (! result)
+            luaL_error(L, "%s", result.message().c_str());
 
         return 1;
     }
@@ -4313,14 +6195,13 @@ struct property_getter
 
         T C::** mp = static_cast<T C::**>(lua_touserdata(L, lua_upvalueindex(1)));
 
-        std::error_code ec;
-        bool result = false;
+        Result result;
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
 #endif
-            result = Stack<T&>::push(L, c->**mp, ec);
+            result = Stack<T&>::push(L, c->**mp);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
@@ -4330,8 +6211,8 @@ struct property_getter
         }
 #endif
 
-        if (!result)
-            raise_lua_error(L, "%s", ec.message().c_str());
+        if (! result)
+            raise_lua_error(L, "%s", result.message().c_str());
 
         return 1;
     }
@@ -4376,7 +6257,11 @@ struct property_setter<T, void>
         T* ptr = static_cast<T*>(lua_touserdata(L, lua_upvalueindex(1)));
         assert(ptr != nullptr);
 
-        *ptr = Stack<T>::get(L, 1);
+        auto result = Stack<T>::get(L, 1);
+        if (! result)
+            raise_lua_error(L, "%s", result.error().message().c_str());
+
+        *ptr = *result;
 
         return 0;
     }
@@ -4418,7 +6303,11 @@ struct property_setter
         try
         {
 #endif
-            c->** mp = Stack<T>::get(L, 2);
+            auto result = Stack<T>::get(L, 2);
+            if (! result)
+                raise_lua_error(L, "%s", result.error().message().c_str());
+
+            c->** mp = *result;
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
@@ -4595,18 +6484,15 @@ struct LuaNil
 template <>
 struct Stack<LuaNil>
 {
-    [[nodiscard]] static bool push(lua_State* L, const LuaNil&, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, const LuaNil&)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 1))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
         lua_pushnil(L);
-        return true;
+        return {};
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -4623,67 +6509,6 @@ template <class Impl, class LuaRef>
 class LuaRefBase
 {
 protected:
-    //=============================================================================================
-    /**
-     * @brief Pop the Lua stack.
-     *
-     * Pops the specified number of stack items on destruction. We use this when returning objects, to avoid an explicit temporary
-     * variable, since the destructor executes after the return statement. For example:
-     *
-     * @code
-     *     template <class U>
-     *     U cast (lua_State* L)
-     *     {
-     *         StackPop p (L, 1);
-     *         ...
-     *         return U (); // Destructor called after this line
-     *     }
-     * @endcode
-     *
-     * @note The `StackPop` object must always be a named local variable.
-     */
-    class StackPop
-    {
-    public:
-        /**
-         * @brief Create a StackPop object.
-         *
-         * @param L  A Lua state.
-         * @param count The number of stack entries to pop on destruction.
-         */
-        StackPop(lua_State* L, int count)
-            : m_L(L)
-            , m_count(count) {
-        }
-
-        /**
-         * @brief Destroy a StackPop object.
-         *
-         * In case an exception is in flight before the destructor is called, stack is potentially cleared by lua. So we never pop more than
-         * the actual size of the stack.
-         */
-        ~StackPop()
-        {
-            const int stackSize = lua_gettop(m_L);
-
-            lua_pop(m_L, stackSize < m_count ? stackSize : m_count);
-        }
-
-        /**
-         * @brief Set a new number to pop.
-         *
-         * @param newCount The new number of stack entries to pop on destruction.
-         */
-        void popCount(int newCount)
-        {
-            m_count = newCount;
-        }
-
-    private:
-        lua_State* m_L = nullptr;
-        int m_count = 0;
-    };
-
     friend struct Stack<LuaRef>;
 
     //=============================================================================================
@@ -4726,7 +6551,7 @@ public:
             return {};
 #endif
 
-        StackPop p(m_L, 1);
+        const StackRestore stackRestore(m_L);
 
         lua_getglobal(m_L, "tostring");
 
@@ -4755,15 +6580,15 @@ public:
             break;
 
         case LUA_TNUMBER:
-            os << cast<lua_Number>();
+            os << unsafe_cast<lua_Number>();
             break;
 
         case LUA_TBOOLEAN:
-            os << (cast<bool>() ? "true" : "false");
+            os << (unsafe_cast<bool>() ? "true" : "false");
             break;
 
         case LUA_TSTRING:
-            os << '"' << cast<const char*>() << '"';
+            os << '"' << unsafe_cast<const char*>() << '"';
             break;
 
         case LUA_TTABLE:
@@ -4858,7 +6683,7 @@ public:
      */
     int type() const
     {
-        StackPop p(m_L, 1);
+        const StackRestore stackRestore(m_L);
 
         impl().push();
 
@@ -4946,14 +6771,14 @@ public:
 
     //=============================================================================================
     /**
-     * @brief Perform an explicit conversion to the type T.
+     * @brief Perform a safe explicit conversion to the type T.
      *
-     * @returns A value of the type T converted from this reference.
+     * @returns An expected holding a value of the type T converted from this reference or an error code.
      */
     template <class T>
-    T cast() const
+    TypeResult<T> cast() const
     {
-        StackPop p(m_L, 1);
+        const StackRestore stackRestore(m_L);
 
         impl().push();
 
@@ -4961,11 +6786,39 @@ public:
         {
             using U = std::underlying_type_t<T>;
 
-            return static_cast<T>(Stack<U>::get(m_L, -1));
+            auto result = Stack<U>::get(m_L, -1);
+            if (! result)
+                return result.error();
+
+            return static_cast<T>(*result);
         }
         else
         {
             return Stack<T>::get(m_L, -1);
+        }
+    }
+
+    /**
+     * @brief Perform an unsafe explicit conversion to the type T.
+     *
+     * @returns A value of the type T converted from this reference.
+     */
+    template <class T>
+    T unsafe_cast() const
+    {
+        const StackRestore stackRestore(m_L);
+
+        impl().push();
+
+        if constexpr (std::is_enum_v<T>)
+        {
+            using U = std::underlying_type_t<T>;
+
+            return static_cast<T>(*Stack<U>::get(m_L, -1));
+        }
+        else
+        {
+            return *Stack<T>::get(m_L, -1);
         }
     }
 
@@ -4978,14 +6831,14 @@ public:
     template <class T>
     bool isInstance() const
     {
-        StackPop p(m_L, 1);
+        const StackRestore stackRestore(m_L);
 
         impl().push();
 
         if constexpr (std::is_enum_v<T>)
         {
             using U = std::underlying_type_t<T>;
-            
+
             return Stack<U>::isInstance(m_L, -1);
         }
         else
@@ -4998,12 +6851,15 @@ public:
     /**
      * @brief Type cast operator.
      *
+     * This operator calls cast<T> and always dereference the returned expected instance, resulting in exceptions being thrown if the
+     * exceptions are enabled, or otherwise we'll enter the UB land (and a likely crash down the line).
+     *
      * @returns A value of the type T converted from this reference.
      */
     template <class T>
     operator T() const
     {
-        return cast<T>();
+        return cast<T>().value();
     }
 
     //=============================================================================================
@@ -5017,15 +6873,12 @@ public:
         if (isNil())
             return LuaRef(m_L);
 
-        StackPop p(m_L, 2);
+        const StackRestore stackRestore(m_L);
 
         impl().push();
 
         if (! lua_getmetatable(m_L, -1))
-        {
-            p.popCount(1);
             return LuaRef(m_L);
-        }
 
         return LuaRef::fromStack(m_L);
     }
@@ -5043,16 +6896,12 @@ public:
     template <class T>
     bool operator==(const T& rhs) const
     {
-        StackPop p(m_L, 2);
+        const StackRestore stackRestore(m_L);
 
         impl().push();
 
-        std::error_code ec;
-        if (! Stack<T>::push(m_L, rhs, ec))
-        {
-            p.popCount(1);
+        if (! Stack<T>::push(m_L, rhs))
             return false;
-        }
 
         return lua_compare(m_L, -2, -1, LUA_OPEQ) == 1;
     }
@@ -5084,16 +6933,12 @@ public:
     template <class T>
     bool operator<(const T& rhs) const
     {
-        StackPop p(m_L, 2);
+        const StackRestore stackRestore(m_L);
 
         impl().push();
 
-        std::error_code ec;
-        if (! Stack<T>::push(m_L, rhs, ec))
-        {
-            p.popCount(1);
+        if (! Stack<T>::push(m_L, rhs))
             return false;
-        }
 
         const int lhsType = lua_type(m_L, -2);
         const int rhsType = lua_type(m_L, -1);
@@ -5115,16 +6960,12 @@ public:
     template <class T>
     bool operator<=(const T& rhs) const
     {
-        StackPop p(m_L, 2);
+        const StackRestore stackRestore(m_L);
 
         impl().push();
 
-        std::error_code ec;
-        if (! Stack<T>::push(m_L, rhs, ec))
-        {
-            p.popCount(1);
+        if (! Stack<T>::push(m_L, rhs))
             return false;
-        }
 
         const int lhsType = lua_type(m_L, -2);
         const int rhsType = lua_type(m_L, -1);
@@ -5146,16 +6987,12 @@ public:
     template <class T>
     bool operator>(const T& rhs) const
     {
-        StackPop p(m_L, 2);
+        const StackRestore stackRestore(m_L);
 
         impl().push();
 
-        std::error_code ec;
-        if (! Stack<T>::push(m_L, rhs, ec))
-        {
-            p.popCount(1);
+        if (! Stack<T>::push(m_L, rhs))
             return false;
-        }
 
         const int lhsType = lua_type(m_L, -2);
         const int rhsType = lua_type(m_L, -1);
@@ -5177,16 +7014,12 @@ public:
     template <class T>
     bool operator>=(const T& rhs) const
     {
-        StackPop p(m_L, 2);
+        const StackRestore stackRestore(m_L);
 
         impl().push();
 
-        std::error_code ec;
-        if (! Stack<T>::push(m_L, rhs, ec))
-        {
-            p.popCount(1);
+        if (! Stack<T>::push(m_L, rhs))
             return false;
-        }
 
         const int lhsType = lua_type(m_L, -2);
         const int rhsType = lua_type(m_L, -1);
@@ -5208,44 +7041,16 @@ public:
     template <class T>
     bool rawequal(const T& v) const
     {
-        StackPop p(m_L, 2);
+        const StackRestore stackRestore(m_L);
 
         impl().push();
 
-        std::error_code ec;
-        if (! Stack<T>::push(m_L, v, ec))
-        {
-            p.popCount(1);
+        if (! Stack<T>::push(m_L, v))
             return false;
-        }
 
         return lua_rawequal(m_L, -1, -2) == 1;
     }
 
-    //=============================================================================================
-    /**
-     * @brief Append a value to a referred table.
-     *
-     * If the table is a sequence this will add another element to it.
-     *
-     * @param v A value to append to the table.
-     */
-#if 0
-    template <class T>
-    void append(const T& v) const
-    {
-        StackPop p(m_L, 1);
-
-        impl().push();
-
-        std::error_code ec;
-        if (! Stack<T>::push(m_L, v, ec))
-            return;
-
-        luaL_ref(m_L, -2);
-    }
-#endif
-    
     //=============================================================================================
     /**
      * @brief Return the length of a referred array.
@@ -5256,7 +7061,7 @@ public:
      */
     int length() const
     {
-        StackPop p(m_L, 1);
+        const StackRestore stackRestore(m_L);
 
         impl().push();
 
@@ -5383,13 +7188,12 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
                 return *this;
 #endif
 
-            StackPop p(m_L, 1);
+            const StackRestore stackRestore(m_L);
 
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_tableRef);
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_keyRef);
 
-            std::error_code ec;
-            if (! Stack<T>::push(m_L, v, ec))
+            if (! Stack<T>::push(m_L, v))
                 return *this;
 
             lua_settable(m_L, -3);
@@ -5416,13 +7220,12 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
                 return *this;
 #endif
 
-            StackPop p(m_L, 1);
+            const StackRestore stackRestore(m_L);
 
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_tableRef);
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_keyRef);
 
-            std::error_code ec;
-            if (! Stack<T>::push(m_L, v, ec))
+            if (! Stack<T>::push(m_L, v))
                 return *this;
 
             lua_rawset(m_L, -3);
@@ -5560,8 +7363,7 @@ public:
         : LuaRefBase(L)
         , m_ref(LUA_NOREF)
     {
-        std::error_code ec;
-        if (! Stack<T>::push(m_L, v, ec))
+        if (! Stack<T>::push(m_L, v))
             return;
 
         m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX);
@@ -5729,10 +7531,10 @@ public:
 
         m_L = rhs.m_L;
         m_ref = std::exchange(rhs.m_ref, LUA_NOREF);
-        
+
         return *this;
     }
-    
+
     //=============================================================================================
     /**
      * @brief Assign a table item reference.
@@ -5801,7 +7603,7 @@ public:
     {
         if (m_ref != LUA_NOREF)
             luaL_unref(m_L, LUA_REGISTRYINDEX, m_ref);
-        
+
         m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX);
     }
 
@@ -5818,8 +7620,7 @@ public:
     template <class T>
     TableItem operator[](const T& key) const
     {
-        std::error_code ec;
-        if (! Stack<T>::push(m_L, key, ec))
+        if (! Stack<T>::push(m_L, key))
             return TableItem(m_L, m_ref);
 
         return TableItem(m_L, m_ref);
@@ -5838,12 +7639,11 @@ public:
     template <class T>
     LuaRef rawget(const T& key) const
     {
-        StackPop(m_L, 1);
+        const StackRestore stackRestore(m_L);
 
         push(m_L);
 
-        std::error_code ec;
-        if (! Stack<T>::push(m_L, key, ec))
+        if (! Stack<T>::push(m_L, key))
             return LuaRef(m_L);
 
         lua_rawget(m_L, -2);
@@ -5864,15 +7664,15 @@ public:
             break;
 
         case LUA_TBOOLEAN:
-            value = std::hash<bool>{}(cast<bool>());
+            value = std::hash<bool>{}(unsafe_cast<bool>());
             break;
 
         case LUA_TNUMBER:
-            value = std::hash<lua_Number>{}(cast<lua_Number>());
+            value = std::hash<lua_Number>{}(unsafe_cast<lua_Number>());
             break;
 
         case LUA_TSTRING:
-            value = std::hash<const char*>{}(cast<const char*>());
+            value = std::hash<const char*>{}(unsafe_cast<const char*>());
             break;
 
         case LUA_TNIL:
@@ -5909,12 +7709,14 @@ private:
 template <>
 struct Stack<LuaRef>
 {
-    [[nodiscard]] static bool push(lua_State* L, const LuaRef& v, std::error_code&)
+    [[nodiscard]] static Result push(lua_State* L, const LuaRef& v)
     {
-        return v.push(L), true;
+        v.push(L);
+
+        return {};
     }
 
-    [[nodiscard]] static LuaRef get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<LuaRef> get(lua_State* L, int index)
     {
         return LuaRef::fromStack(L, index);
     }
@@ -5927,9 +7729,11 @@ struct Stack<LuaRef>
 template <>
 struct Stack<LuaRef::TableItem>
 {
-    [[nodiscard]] static bool push(lua_State* L, const LuaRef::TableItem& v, std::error_code&)
+    [[nodiscard]] static Result push(lua_State* L, const LuaRef::TableItem& v)
     {
-        return v.push(L), true;
+        v.push(L);
+
+        return {};
     }
 };
 
@@ -6143,12 +7947,11 @@ LuaResult call(const LuaRef& object, Args&&... args)
     object.push();
 
     {
-        std::error_code ec;
-        auto pushedArgs = detail::push_arguments(L, std::forward_as_tuple(args...), ec);
-        if (ec)
+        const auto [result, index] = detail::push_arguments(L, std::forward_as_tuple(args...));
+        if (! result)
         {
-            lua_pop(L, static_cast<int>(pushedArgs) + 1);
-            return LuaResult(L, ec, ec.message());
+            lua_pop(L, static_cast<int>(index) + 1);
+            return LuaResult(L, result, result.message());
         }
     }
 
@@ -6443,7 +8246,7 @@ private:
  * @note This works on any type specialized by `Stack`, including `LuaRef` and its table proxies.
 */
 template <class T>
-T getGlobal(lua_State* L, const char* name)
+TypeResult<T> getGlobal(lua_State* L, const char* name)
 {
     lua_getglobal(L, name);
 
@@ -6463,8 +8266,7 @@ T getGlobal(lua_State* L, const char* name)
 template <class T>
 bool setGlobal(lua_State* L, T&& t, const char* name)
 {
-    std::error_code ec;
-    if (push(L, std::forward<T>(t), ec))
+    if (auto result = push(L, std::forward<T>(t)))
     {
         lua_setglobal(L, name);
         return true;
@@ -6722,43 +8524,6 @@ class Namespace : public detail::Registrar
                 lua_pushnil(L);
                 rawsetfield(L, -2, "__metatable");
             }
-        }
-
-        //=========================================================================================
-        /**
-         * @brief lua_CFunction to construct a class object wrapped in a container.
-         */
-        template <class Args, class C>
-        static int ctorContainerProxy(lua_State* L)
-        {
-            using T = typename ContainerTraits<C>::Type;
-
-            T* object = detail::constructor<T, Args>::call(detail::make_arguments_list<Args, 2>(L));
-
-            std::error_code ec;
-            if (! detail::UserdataSharedHelper<C, false>::push(L, object, ec))
-                luaL_error(L, "%s", ec.message().c_str());
-
-            return 1;
-        }
-
-        //=========================================================================================
-        /**
-         * @brief lua_CFunction to construct a class object in-place in the userdata.
-         */
-        template <class Args, class T>
-        static int ctorPlacementProxy(lua_State* L)
-        {
-            std::error_code ec;
-            detail::UserdataValue<T>* value = detail::UserdataValue<T>::place(L, ec);
-            if (! value)
-                luaL_error(L, "%s", ec.message().c_str());
-
-            detail::constructor<T, Args>::call(value->getObject(), detail::make_arguments_list<Args, 2>(L));
-
-            value->commit();
-
-            return 1;
         }
 
         //=========================================================================================
@@ -7548,7 +9313,7 @@ class Namespace : public detail::Registrar
         {
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            lua_pushcclosure_x(L, &ctorContainerProxy<detail::function_arguments_t<MemFn>, C>, 0);
+            lua_pushcclosure_x(L, &detail::constructor_container_proxy<C, detail::function_arguments_t<MemFn>>, 0);
             rawsetfield(L, -2, "__call");
 
             return *this;
@@ -7559,7 +9324,7 @@ class Namespace : public detail::Registrar
         {
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            lua_pushcclosure_x(L, &ctorPlacementProxy<detail::function_arguments_t<MemFn>, T>, 0);
+            lua_pushcclosure_x(L, &detail::constructor_placement_proxy<T, detail::function_arguments_t<MemFn>>, 0);
             rawsetfield(L, -2, "__call");
 
             return *this;
@@ -7582,7 +9347,7 @@ class Namespace : public detail::Registrar
             auto create = [function = std::move(function)](lua_State* L) -> T*
             {
                 std::error_code ec;
-                detail::UserdataValue<T>* value = detail::UserdataValue<T>::place(L, ec);
+                auto* value = detail::UserdataValue<T>::place(L, ec);
                 if (! value)
                     luaL_error(L, "%s", ec.message().c_str());
 
@@ -8006,18 +9771,19 @@ public:
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 
-        std::error_code ec;
         if constexpr (std::is_enum_v<T>)
         {
             using U = std::underlying_type_t<T>;
-            
-            if (! Stack<U>::push(L, static_cast<U>(value), ec))
-                luaL_error(L, "%s", ec.message().c_str());
+
+            auto result = Stack<U>::push(L, static_cast<U>(value));
+            if (! result)
+                luaL_error(L, "%s", result.message().c_str());
         }
         else
         {
-            if (! Stack<T>::push(L, value, ec))
-                luaL_error(L, "%s", ec.message().c_str());
+            auto result = Stack<T>::push(L, value);
+            if (! result)
+                luaL_error(L, "%s", result.message().c_str());
         }
 
         rawsetfield(L, -2, name); // Stack: ns
@@ -8390,48 +10156,40 @@ struct Stack<std::map<K, V>>
 {
     using Type = std::map<K, V>;
 
-    [[nodiscard]] static bool push(lua_State* L, const Type& map, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, const Type& map)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 3))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
-        const int initialStackSize = lua_gettop(L);
+        StackRestore stackRestore(L);
 
         lua_createtable(L, 0, static_cast<int>(map.size()));
 
         for (auto it = map.begin(); it != map.end(); ++it)
         {
-            std::error_code errorCodeKey;
-            if (! Stack<K>::push(L, it->first, errorCodeKey))
-            {
-                ec = errorCodeKey;
-                lua_pop(L, lua_gettop(L) - initialStackSize);
-                return false;
-            }
+            auto result = Stack<K>::push(L, it->first);
+            if (! result)
+                return result;
 
-            std::error_code errorCodeValue;
-            if (! Stack<V>::push(L, it->second, errorCodeValue))
-            {
-                ec = errorCodeValue;
-                lua_pop(L, lua_gettop(L) - initialStackSize);
-                return false;
-            }
+            result = Stack<V>::push(L, it->second);
+            if (! result)
+                return result;
 
             lua_settable(L, -3);
         }
         
-        return true;
+        stackRestore.reset();
+        return {};
     }
 
-    [[nodiscard]] static Type get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<Type> get(lua_State* L, int index)
     {
         if (!lua_istable(L, index))
-            luaL_error(L, "#%d argument must be a table", index);
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        const StackRestore stackRestore(L);
 
         Type map;
 
@@ -8440,7 +10198,15 @@ struct Stack<std::map<K, V>>
 
         while (lua_next(L, absIndex) != 0)
         {
-            map.emplace(Stack<K>::get(L, -2), Stack<V>::get(L, -1));
+            auto value = Stack<V>::get(L, -1);
+            if (! value)
+                return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+            auto key = Stack<K>::get(L, -2);
+            if (! key)
+                return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+            map.emplace(*key, *value);
             lua_pop(L, 1);
         }
 
@@ -8830,53 +10596,44 @@ namespace luabridge {
 /**
  * @brief Stack specialization for `std::set`.
  */
-template <class K, class V>
-struct Stack<std::set<K, V>>
+template <class K>
+struct Stack<std::set<K>>
 {
-    using Type = std::set<K, V>;
+    using Type = std::set<K>;
     
-    [[nodiscard]] static bool push(lua_State* L, const Type& set, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, const Type& set)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 3))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
-        const int initialStackSize = lua_gettop(L);
-        
+        StackRestore stackRestore(L);
+
         lua_createtable(L, 0, static_cast<int>(set.size()));
 
-        for (auto it = set.begin(); it != set.end(); ++it)
+        auto it = set.cbegin();
+        for (lua_Integer tableIndex = 1; it != set.cend(); ++tableIndex, ++it)
         {
-            std::error_code errorCodeKey;
-            if (! Stack<K>::push(L, it->first, errorCodeKey))
-            {
-                ec = errorCodeKey;
-                lua_pop(L, lua_gettop(L) - initialStackSize);
-                return false;
-            }
+            lua_pushinteger(L, tableIndex);
 
-            std::error_code errorCodeValue;
-            if (! Stack<V>::push(L, it->second, errorCodeValue))
-            {
-                ec = errorCodeValue;
-                lua_pop(L, lua_gettop(L) - initialStackSize);
-                return false;
-            }
+            auto result = Stack<K>::push(L, *it);
+            if (! result)
+                return result;
 
             lua_settable(L, -3);
         }
-        
-        return true;
+
+        stackRestore.reset();
+        return {};
     }
 
-    [[nodiscard]] static Type get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<Type> get(lua_State* L, int index)
     {
         if (!lua_istable(L, index))
-            luaL_error(L, "#%d argument must be a table", index);
+            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+
+        const StackRestore stackRestore(L);
 
         Type set;
 
@@ -8885,7 +10642,11 @@ struct Stack<std::set<K, V>>
 
         while (lua_next(L, absIndex) != 0)
         {
-            set.emplace(Stack<K>::get(L, -2), Stack<V>::get(L, -1));
+            auto item = Stack<K>::get(L, -1);
+            if (! item)
+                return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+
+            set.emplace(*item);
             lua_pop(L, 1);
         }
 
@@ -8916,48 +10677,40 @@ struct Stack<std::unordered_map<K, V>>
 {
     using Type = std::unordered_map<K, V>;
 
-    [[nodiscard]] static bool push(lua_State* L, const Type& map, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, const Type& map)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 3))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
-        const int initialStackSize = lua_gettop(L);
-        
+        StackRestore stackRestore(L);
+
         lua_createtable(L, 0, static_cast<int>(map.size()));
 
         for (auto it = map.begin(); it != map.end(); ++it)
         {
-            std::error_code errorCodeKey;
-            if (! Stack<K>::push(L, it->first, errorCodeKey))
-            {
-                ec = errorCodeKey;
-                lua_pop(L, lua_gettop(L) - initialStackSize);
-                return false;
-            }
-            
-            std::error_code errorCodeValue;
-            if (! Stack<V>::push(L, it->second, errorCodeValue))
-            {
-                ec = errorCodeValue;
-                lua_pop(L, lua_gettop(L) - initialStackSize);
-                return false;
-            }
+            auto result = Stack<K>::push(L, it->first);
+            if (! result)
+                return result;
+
+            result = Stack<V>::push(L, it->second);
+            if (! result)
+                return result;
 
             lua_settable(L, -3);
         }
         
-        return true;
+        stackRestore.reset();
+        return {};
     }
 
-    [[nodiscard]] static Type get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<Type> get(lua_State* L, int index)
     {
         if (!lua_istable(L, index))
-            luaL_error(L, "#%d argument must be a table", index);
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        const StackRestore stackRestore(L);
 
         Type map;
 
@@ -8966,7 +10719,15 @@ struct Stack<std::unordered_map<K, V>>
 
         while (lua_next(L, absIndex) != 0)
         {
-            map.emplace(Stack<K>::get(L, -2), Stack<V>::get(L, -1));
+            auto value = Stack<V>::get(L, -1);
+            if (! value)
+                return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+            auto key = Stack<K>::get(L, -2);
+            if (! key)
+                return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+            map.emplace(*key, *value);
             lua_pop(L, 1);
         }
 
@@ -8997,42 +10758,38 @@ struct Stack<std::vector<T>>
 {
     using Type = std::vector<T>;
 
-    [[nodiscard]] static bool push(lua_State* L, const Type& vector, std::error_code& ec)
+    [[nodiscard]] static Result push(lua_State* L, const Type& vector)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 3))
-        {
-            ec = makeErrorCode(ErrorCode::LuaStackOverflow);
-            return false;
-        }
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
-        const int initialStackSize = lua_gettop(L);
-        
+        StackRestore stackRestore(L);
+
         lua_createtable(L, static_cast<int>(vector.size()), 0);
 
         for (std::size_t i = 0; i < vector.size(); ++i)
         {
             lua_pushinteger(L, static_cast<lua_Integer>(i + 1));
             
-            std::error_code errorCode;
-            if (! Stack<T>::push(L, vector[i], errorCode))
-            {
-                ec = errorCode;
-                lua_pop(L, lua_gettop(L) - initialStackSize);
-                return false;
-            }
-            
+            auto result = Stack<T>::push(L, vector[i]);
+            if (! result)
+                return result;
+
             lua_settable(L, -3);
         }
         
-        return true;
+        stackRestore.reset();
+        return {};
     }
 
-    [[nodiscard]] static Type get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<Type> get(lua_State* L, int index)
     {
         if (!lua_istable(L, index))
-            luaL_error(L, "#%d argument must be a table", index);
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        const StackRestore stackRestore(L);
 
         Type vector;
         vector.reserve(static_cast<std::size_t>(get_length(L, index)));
@@ -9042,7 +10799,11 @@ struct Stack<std::vector<T>>
 
         while (lua_next(L, absIndex) != 0)
         {
-            vector.emplace_back(Stack<T>::get(L, -1));
+            auto item = Stack<T>::get(L, -1);
+            if (! item)
+                return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+            vector.emplace_back(*item);
             lua_pop(L, 1);
         }
 
