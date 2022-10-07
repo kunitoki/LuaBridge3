@@ -869,7 +869,7 @@ class Namespace : public detail::Registrar
 
                         lua_createtable(L, 2, 0); // reserve space for: function, arity
                         lua_pushinteger(L, 1);
-                        if (detail::is_any_cfunction_pointer_v<Functions>)
+                        if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
                             lua_pushinteger(L, -1);
                         else
                             lua_pushinteger(L, static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>));
@@ -905,7 +905,7 @@ class Namespace : public detail::Registrar
 
                         lua_createtable(L, 2, 0); // reserve space for: function, arity
                         lua_pushinteger(L, 1);
-                        if (detail::is_any_cfunction_pointer_v<Functions>)
+                        if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
                             lua_pushinteger(L, -1);
                         else
                             lua_pushinteger(L, static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>));
@@ -975,6 +975,9 @@ class Namespace : public detail::Registrar
         {
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
+            static_assert(((detail::function_arity_excluding_v<Functions, lua_State*> >= 1) && ...));
+            static_assert(((std::is_same_v<detail::function_argument_t<0, Functions>, void*>) && ...));
+
             if constexpr (sizeof...(Functions) == 1)
             {
                 ([&]
@@ -997,7 +1000,7 @@ class Namespace : public detail::Registrar
                     if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
                         lua_pushinteger(L, -1);
                     else
-                        lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
+                        lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>) - 1); // 1: for void* ptr
                     lua_settable(L, -3);
                     lua_pushinteger(L, 2);
                     detail::push_function(L, detail::constructor_forwarder<T, Functions>(std::move(functions)));

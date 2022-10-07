@@ -201,6 +201,39 @@ TEST_F(OverloadTests, NoMatchingArityClass)
 #endif
 }
 
+TEST_F(OverloadTests, NoMatchingArityStaticFunctionClass)
+{
+    int x = 100;
+
+    struct X {};
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<X>("X")
+            .addStaticFunction("test",
+                [x](int v) -> int {
+                    return v + x;
+                },
+                [x](std::string v) -> int {
+                    return v.size() ? int(v[0]) : x;
+                })
+        .endClass();
+
+    X y;
+    luabridge::setGlobal(L, &y, "y");
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_ANY_THROW(runLua("result = X.test ()"));
+    EXPECT_ANY_THROW(runLua("result = X.test (255, 255)"));
+    EXPECT_ANY_THROW(runLua("result = X.test ('', '')"));
+    EXPECT_ANY_THROW(runLua("result = X.test ('0', '0')"));
+#else
+    EXPECT_FALSE(runLua("result = X.test ()"));
+    EXPECT_FALSE(runLua("result = X.test (255, 255)"));
+    EXPECT_FALSE(runLua("result = X.test ('', '')"));
+    EXPECT_FALSE(runLua("result = X.test ('0', '0')"));
+#endif
+}
+
 TEST_F(OverloadTests, NoMatchingArityWithStateClass)
 {
     int x = 100;
@@ -231,6 +264,39 @@ TEST_F(OverloadTests, NoMatchingArityWithStateClass)
     EXPECT_FALSE(runLua("result = y:test (255, 255)"));
     EXPECT_FALSE(runLua("result = y:test ('', '')"));
     EXPECT_FALSE(runLua("result = y:test ('0', '0')"));
+#endif
+}
+
+TEST_F(OverloadTests, NoMatchingArityWithStateStaticFunctionClass)
+{
+    int x = 100;
+
+    struct X {};
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<X>("X")
+            .addStaticFunction("test",
+                [x](int v, lua_State*) -> int {
+                    return v + x;
+                },
+                [x](std::string v, lua_State*) -> int {
+                    return v.size() ? int(v[0]) : x;
+                })
+        .endClass();
+
+    X y;
+    luabridge::setGlobal(L, &y, "y");
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_ANY_THROW(runLua("result = X.test ()"));
+    EXPECT_ANY_THROW(runLua("result = X.test (255, 255)"));
+    EXPECT_ANY_THROW(runLua("result = X.test ('', '')"));
+    EXPECT_ANY_THROW(runLua("result = X.test ('0', '0')"));
+#else
+    EXPECT_FALSE(runLua("result = X.test ()"));
+    EXPECT_FALSE(runLua("result = X.test (255, 255)"));
+    EXPECT_FALSE(runLua("result = X.test ('', '')"));
+    EXPECT_FALSE(runLua("result = X.test ('0', '0')"));
 #endif
 }
 
@@ -274,6 +340,50 @@ TEST_F(OverloadTests, MixedFunctionTypesClass)
     EXPECT_EQ(1337, result<int>());
 
     runLua("result = y:test ('0')");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(48, result<int>());
+}
+
+TEST_F(OverloadTests, MixedStaticFunctionTypesClass)
+{
+    int x = 100;
+
+    struct X
+    {
+        static int test()
+        {
+            return 42;
+        }
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<X>("X")
+            .addStaticFunction("test",
+                [x](int v, lua_State*) -> int {
+                    return v + x;
+                },
+                +[](std::string v, lua_State*) -> int {
+                    return v.size() ? int(v[0]) : 1337;
+                },
+                &X::test)
+        .endClass();
+
+    X y;
+    luabridge::setGlobal(L, &y, "y");
+
+    runLua("result = X.test ()");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(42, result<int>());
+
+    runLua("result = X.test (255)");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(355, result<int>());
+
+    runLua("result = X.test ('')");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(1337, result<int>());
+
+    runLua("result = X.test ('0')");
     ASSERT_TRUE(result().isNumber());
     EXPECT_EQ(48, result<int>());
 }
@@ -323,6 +433,55 @@ TEST_F(OverloadTests, LuaCFunctionFallback)
     EXPECT_EQ(3, result<int>());
 
     runLua("result = y:test ()");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(4, result<int>());
+}
+
+TEST_F(OverloadTests, LuaCStaticFunctionFallback)
+{
+    struct X
+    {
+        static int test(std::string)
+        {
+            return 3;
+        }
+
+        static int testLua(lua_State* L)
+        {
+            lua_pushnumber(L, 4);
+            return 1;
+        }
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<X>("X")
+            .addStaticFunction("test",
+                [](char v, lua_State*) -> int {
+                    return 1;
+                },
+                +[](int v) -> int {
+                    return 2;
+                },
+                &X::test,
+                &X::testLua)
+        .endClass();
+
+    X y;
+    luabridge::setGlobal(L, &y, "y");
+
+    runLua("result = X.test ('2')");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(1, result<int>());
+
+    runLua("result = X.test (1)");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(2, result<int>());
+
+    runLua("result = X.test ('123456')");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(3, result<int>());
+
+    runLua("result = X.test ()");
     ASSERT_TRUE(result().isNumber());
     EXPECT_EQ(4, result<int>());
 }
@@ -417,17 +576,31 @@ TEST_F(OverloadTests, LuaCFunctionArityCheck)
             lua_pushinteger(L, 2);
             return 1;
         }
+
+        static int test3(int)
+        {
+            return 3;
+        }
+
+        static int test4(lua_State* L)
+        {
+            lua_pushinteger(L, 4);
+            return 1;
+        }
     };
 
     luabridge::getGlobalNamespace(L)
         .beginClass<X>("X")
             .addFunction("test_a", &X::test2, &X::test1)
             .addFunction("test_b", &X::test1, &X::test2)
+            .addStaticFunction("test_c", &X::test4, &X::test3)
+            .addStaticFunction("test_d", &X::test3, &X::test4)
         .endClass();
 
     X x;
     luabridge::setGlobal(L, &x, "x");
 
+    // Non-static
     runLua("result = x:test_a ('abc')");
     ASSERT_TRUE(result().isNumber());
     EXPECT_EQ(2, result<int>());
@@ -451,4 +624,69 @@ TEST_F(OverloadTests, LuaCFunctionArityCheck)
     runLua("result = x:test_b (1, 2, 3)");
     ASSERT_TRUE(result().isNumber());
     EXPECT_EQ(2, result<int>());
+
+    // Static
+    runLua("result = X.test_c ('abc')");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(4, result<int>());
+
+    runLua("result = X.test_c (1)");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(4, result<int>());
+
+    runLua("result = X.test_c (1, 2, 3)");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(4, result<int>());
+
+    runLua("result = X.test_d ('abc')");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(4, result<int>());
+
+    runLua("result = X.test_d (1)");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(3, result<int>());
+
+    runLua("result = X.test_d (1, 2, 3)");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(4, result<int>());
+}
+
+TEST_F(OverloadTests, ConstructorOverloading)
+{
+    struct X
+    {
+        X(int x)
+            : value(x)
+        {
+        }
+
+        X(int x, int y)
+            : value(x + y)
+        {
+        }
+
+        int value = 0;
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<X>("X")
+            .addConstructor(
+                [](void* ptr, int x) { return new (ptr) X(x); },
+                [](void* ptr, int x, int y) { return new (ptr) X(x, y); })
+            .addProperty("value", &X::value)
+        .endClass();
+
+    runLua("x = X(1); result = x.value");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(1, result<int>());
+
+    runLua("x = X(1, 10); result = x.value");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(11, result<int>());
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    ASSERT_ANY_THROW(runLua("x = X(1, 10, 100); result = x.value"));
+#else
+    ASSERT_FALSE(runLua("x = X(1, 10, 100); result = x.value"));
+#endif
 }
