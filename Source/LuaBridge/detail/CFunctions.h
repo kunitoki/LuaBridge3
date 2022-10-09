@@ -10,11 +10,90 @@
 #include "Errors.h"
 #include "FuncTraits.h"
 #include "LuaHelpers.h"
+#include "Stack.h"
+#include "TypeTraits.h"
+#include "Userdata.h"
 
 #include <string>
 
 namespace luabridge {
 namespace detail {
+
+//=================================================================================================
+/**
+ * @brief Make argument lists extracting them from the lua state, starting at a stack index.
+ *
+ * @tparam ArgsPack Arguments pack to extract from the lua stack.
+ * @tparam Start Start index where stack variables are located in the lua stack.
+ */
+template <class T>
+auto unwrap_argument_or_error(lua_State* L, std::size_t index)
+{
+    auto result = Stack<T>::get(L, static_cast<int>(index));
+    if (! result)
+        luaL_error(L, "Error decoding argument #%d: %s", static_cast<int>(index), result.message().c_str());
+
+    return std::move(*result);
+}
+
+template <class ArgsPack, std::size_t Start, std::size_t... Indices>
+auto make_arguments_list_impl(lua_State* L, std::index_sequence<Indices...>)
+{
+    return tupleize(unwrap_argument_or_error<std::tuple_element_t<Indices, ArgsPack>>(L, Start + Indices)...);
+}
+
+template <class ArgsPack, std::size_t Start>
+auto make_arguments_list(lua_State* L)
+{
+    return make_arguments_list_impl<ArgsPack, Start>(L, std::make_index_sequence<std::tuple_size_v<ArgsPack>>());
+}
+
+//=================================================================================================
+/**
+ * @brief Helpers for iterating through tuple arguments, pushing each argument to the lua stack.
+ */
+template <std::size_t Index = 0, class... Types>
+auto push_arguments(lua_State*, std::tuple<Types...>)
+    -> std::enable_if_t<Index == sizeof...(Types), std::tuple<Result, std::size_t>>
+{
+    return std::make_tuple(Result(), Index + 1);
+}
+
+template <std::size_t Index = 0, class... Types>
+auto push_arguments(lua_State* L, std::tuple<Types...> t)
+    -> std::enable_if_t<Index < sizeof...(Types), std::tuple<Result, std::size_t>>
+{
+    using T = std::tuple_element_t<Index, std::tuple<Types...>>;
+
+    auto result = Stack<T>::push(L, std::get<Index>(t));
+    if (! result)
+        return std::make_tuple(result, Index + 1);
+
+    return push_arguments<Index + 1, Types...>(L, std::move(t));
+}
+
+//=================================================================================================
+/**
+ * @brief Helpers for iterating through tuple arguments, popping each argument from the lua stack.
+ */
+template <std::ptrdiff_t Start, std::ptrdiff_t Index = 0, class... Types>
+auto pop_arguments(lua_State*, std::tuple<Types...>&)
+    -> std::enable_if_t<Index == sizeof...(Types), std::size_t>
+{
+    return sizeof...(Types);
+}
+
+template <std::ptrdiff_t Start, std::ptrdiff_t Index = 0, class... Types>
+auto pop_arguments(lua_State* L, std::tuple<Types...>& t)
+    -> std::enable_if_t<Index < sizeof...(Types), std::size_t>
+{
+    using T = std::tuple_element_t<Index, std::tuple<Types...>>;
+
+    std::get<Index>(t) = Stack<T>::get(L, Start - Index);
+
+    return pop_arguments<Start, Index + 1, Types...>(L, t);
+}
+
 
 //=================================================================================================
 /**
@@ -437,6 +516,112 @@ inline void add_property_setter(lua_State* L, const char* name, int tableIndex)
 
 //=================================================================================================
 /**
+ * @brief Function generator.
+ */
+template <class ReturnType, class ArgsPack, std::size_t Start = 1u>
+struct function
+{
+    template <class F>
+    static int call(lua_State* L, F func)
+    {
+        Result result;
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        try
+        {
+#endif
+            result = Stack<ReturnType>::push(L, std::apply(func, make_arguments_list<ArgsPack, Start>(L)));
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        }
+        catch (const std::exception& e)
+        {
+            raise_lua_error(L, "%s", e.what());
+        }
+#endif
+
+        if (! result)
+            raise_lua_error(L, "%s", result.message().c_str());
+
+        return 1;
+    }
+
+    template <class T, class F>
+    static int call(lua_State* L, T* ptr, F func)
+    {
+        Result result;
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        try
+        {
+#endif
+            auto f = [ptr, func](auto&&... args) -> ReturnType { return (ptr->*func)(std::forward<decltype(args)>(args)...); };
+
+            result = Stack<ReturnType>::push(L, std::apply(f, make_arguments_list<ArgsPack, Start>(L)));
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        }
+        catch (const std::exception& e)
+        {
+            raise_lua_error(L, "%s", e.what());
+        }
+#endif
+
+        if (! result)
+            raise_lua_error(L, "%s", result.message().c_str());
+
+        return 1;
+    }
+};
+
+template <class ArgsPack, std::size_t Start>
+struct function<void, ArgsPack, Start>
+{
+    template <class F>
+    static int call(lua_State* L, F func)
+    {
+#if LUABRIDGE_HAS_EXCEPTIONS
+        try
+        {
+#endif
+            std::apply(func, make_arguments_list<ArgsPack, Start>(L));
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        }
+        catch (const std::exception& e)
+        {
+            raise_lua_error(L, "%s", e.what());
+        }
+#endif
+
+        return 0;
+    }
+
+    template <class T, class F>
+    static int call(lua_State* L, T* ptr, F func)
+    {
+#if LUABRIDGE_HAS_EXCEPTIONS
+        try
+        {
+#endif
+            auto f = [ptr, func](auto&&... args) { (ptr->*func)(std::forward<decltype(args)>(args)...); };
+
+            std::apply(f, make_arguments_list<ArgsPack, Start>(L));
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        }
+        catch (const std::exception& e)
+        {
+            raise_lua_error(L, "%s", e.what());
+        }
+#endif
+
+        return 0;
+    }
+};
+
+//=================================================================================================
+/**
  * @brief lua_CFunction to call a class member function with a return value.
  *
  * The member function pointer is in the first upvalue. The class userdata object is at the top of the Lua stack.
@@ -748,6 +933,197 @@ void push_member_function(lua_State* L, int (U::*mfp)(lua_State*) const)
     new (lua_newuserdata_x<F>(L, sizeof(F))) F(mfp);
     lua_pushcclosure_x(L, &invoke_const_member_cfunction<T>, 1);
 }
+
+//=================================================================================================
+/**
+ * @brief Constructor generators.
+ *
+ * These templates call operator new with the contents of a type/value list passed to the constructor. Two versions of call() are provided.
+ * One performs a regular new, the other performs a placement new.
+ */
+template <class T, class Args>
+struct constructor;
+
+template <class T>
+struct constructor<T, void>
+{
+    using empty = std::tuple<>;
+
+    static T* call(const empty&)
+    {
+        return new T;
+    }
+
+    static T* call(void* ptr, const empty&)
+    {
+        return new (ptr) T;
+    }
+};
+
+template <class T, class Args>
+struct constructor
+{
+    static T* call(const Args& args)
+    {
+        auto alloc = [](auto&&... args) { return new T(std::forward<decltype(args)>(args)...); };
+
+        return std::apply(alloc, args);
+    }
+
+    static T* call(void* ptr, const Args& args)
+    {
+        auto alloc = [ptr](auto&&... args) { return new (ptr) T(std::forward<decltype(args)>(args)...); };
+
+        return std::apply(alloc, args);
+    }
+};
+
+//=================================================================================================
+/**
+ * @brief Placement constructor generators.
+ */
+template <class T>
+struct placement_constructor
+{
+    template <class F, class Args>
+    static T* construct(void* ptr, const F& func, const Args& args)
+    {
+        auto alloc = [ptr, &func](auto&&... args) { return func(ptr, std::forward<decltype(args)>(args)...); };
+
+        return std::apply(alloc, args);
+    }
+
+    template <class F>
+    static T* construct(void* ptr, const F& func)
+    {
+        return func(ptr);
+    }
+};
+
+//=================================================================================================
+/**
+ * @brief External allocator generators.
+ */
+template <class T>
+struct external_constructor
+{
+    template <class F, class Args>
+    static T* construct(const F& func, const Args& args)
+    {
+        auto alloc = [&func](auto&&... args) { return func(std::forward<decltype(args)>(args)...); };
+
+        return std::apply(alloc, args);
+    }
+
+    template <class F>
+    static T* construct(const F& func)
+    {
+        return func();
+    }
+};
+
+//=================================================================================================
+/**
+ * @brief lua_CFunction to construct a class object wrapped in a container.
+ */
+template <class C, class Args>
+int constructor_container_proxy(lua_State* L)
+{
+    using T = typename ContainerTraits<C>::Type;
+
+    T* object = detail::constructor<T, Args>::call(detail::make_arguments_list<Args, 2>(L));
+
+    auto result = detail::UserdataSharedHelper<C, false>::push(L, object);
+    if (! result)
+        luaL_error(L, "%s", result.message().c_str());
+
+    return 1;
+}
+
+/**
+ * @brief lua_CFunction to construct a class object in-place in the userdata.
+ */
+template <class T, class Args>
+int constructor_placement_proxy(lua_State* L)
+{
+    std::error_code ec;
+    auto* value = detail::UserdataValue<T>::place(L, ec);
+    if (! value)
+        luaL_error(L, "%s", ec.message().c_str());
+
+    detail::constructor<T, Args>::call(value->getObject(), detail::make_arguments_list<Args, 2>(L));
+
+    value->commit();
+
+    return 1;
+}
+
+//=================================================================================================
+/**
+ * @brief Constructor forwarder.
+ */
+template <class T, class F>
+struct constructor_forwarder
+{
+    explicit constructor_forwarder(F f)
+        : m_func(std::move(f))
+    {
+    }
+
+    T* operator()(lua_State* L)
+    {
+        std::error_code ec;
+        auto* value = UserdataValue<T>::place(L, ec);
+        if (! value)
+            luaL_error(L, "%s", ec.message().c_str());
+
+        using FnTraits = function_traits<F>;
+        using FnArgs = remove_first_type_t<typename FnTraits::argument_types>;
+
+        T* obj = placement_constructor<T>::construct(
+            value->getObject(), m_func, make_arguments_list<FnArgs, 2>(L));
+
+        value->commit();
+
+        return obj;
+    }
+
+private:
+    F m_func;
+};
+
+//=================================================================================================
+/**
+ * @brief Constructor forwarder.
+ */
+template <class T, class Alloc, class Dealloc>
+struct factory_forwarder
+{
+    explicit factory_forwarder(Alloc alloc, Dealloc dealloc)
+        : m_alloc(std::move(alloc))
+        , m_dealloc(std::move(dealloc))
+    {
+    }
+
+    T* operator()(lua_State* L)
+    {
+        using FnTraits = function_traits<Alloc>;
+        using FnArgs = typename FnTraits::argument_types;
+
+        T* obj = external_constructor<T>::construct(m_alloc, make_arguments_list<FnArgs, 0>(L));
+
+        std::error_code ec;
+        auto* value = UserdataValueExternal<T>::place(L, obj, m_dealloc, ec);
+        if (! value)
+            luaL_error(L, "%s", ec.message().c_str());
+
+        return obj;
+    }
+
+private:
+    Alloc m_alloc;
+    Dealloc m_dealloc;
+};
 
 } // namespace detail
 } // namespace luabridge
