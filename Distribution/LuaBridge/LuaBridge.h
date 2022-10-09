@@ -5270,13 +5270,38 @@ constexpr auto tupleize(Types&&... types)
 }
 
 template <class T>
+struct remove_first_type
+{
+};
+
+template <class T, class... Ts>
+struct remove_first_type<std::tuple<T, Ts...>>
+{
+    using type = std::tuple<Ts...>;
+};
+
+template <class T>
+using remove_first_type_t = typename remove_first_type<T>::type;
+
+} 
+} 
+
+
+// End File: Source/LuaBridge/detail/FuncTraits.h
+
+// Begin File: Source/LuaBridge/detail/CFunctions.h
+
+namespace luabridge {
+namespace detail {
+
+template <class T>
 auto unwrap_argument_or_error(lua_State* L, std::size_t index)
 {
-    auto result = Stack<T>::get(L, index);
+    auto result = Stack<T>::get(L, static_cast<int>(index));
     if (! result)
         luaL_error(L, "Error decoding argument #%d: %s", static_cast<int>(index), result.message().c_str());
 
-    return *result;
+    return std::move(*result);
 }
 
 template <class ArgsPack, std::size_t Start, std::size_t... Indices>
@@ -5328,294 +5353,6 @@ auto pop_arguments(lua_State* L, std::tuple<Types...>& t)
 
     return pop_arguments<Start, Index + 1, Types...>(L, t);
 }
-
-template <class T>
-struct remove_first_type
-{
-};
-
-template <class T, class... Ts>
-struct remove_first_type<std::tuple<T, Ts...>>
-{
-    using type = std::tuple<Ts...>;
-};
-
-template <class T>
-using remove_first_type_t = typename remove_first_type<T>::type;
-
-template <class ReturnType, class ArgsPack, std::size_t Start = 1u>
-struct function
-{
-    template <class F>
-    static int call(lua_State* L, F func)
-    {
-        Result result;
-
-#if LUABRIDGE_HAS_EXCEPTIONS
-        try
-        {
-#endif
-            result = Stack<ReturnType>::push(L, std::apply(func, make_arguments_list<ArgsPack, Start>(L)));
-
-#if LUABRIDGE_HAS_EXCEPTIONS
-        }
-        catch (const std::exception& e)
-        {
-            raise_lua_error(L, "%s", e.what());
-        }
-#endif
-
-        if (! result)
-            raise_lua_error(L, "%s", result.message().c_str());
-
-        return 1;
-    }
-
-    template <class T, class F>
-    static int call(lua_State* L, T* ptr, F func)
-    {
-        Result result;
-
-#if LUABRIDGE_HAS_EXCEPTIONS
-        try
-        {
-#endif
-            auto f = [ptr, func](auto&&... args) -> ReturnType { return (ptr->*func)(std::forward<decltype(args)>(args)...); };
-
-            result = Stack<ReturnType>::push(L, std::apply(f, make_arguments_list<ArgsPack, Start>(L)));
-
-#if LUABRIDGE_HAS_EXCEPTIONS
-        }
-        catch (const std::exception& e)
-        {
-            raise_lua_error(L, "%s", e.what());
-        }
-#endif
-
-        if (! result)
-            raise_lua_error(L, "%s", result.message().c_str());
-
-        return 1;
-    }
-};
-
-template <class ArgsPack, std::size_t Start>
-struct function<void, ArgsPack, Start>
-{
-    template <class F>
-    static int call(lua_State* L, F func)
-    {
-#if LUABRIDGE_HAS_EXCEPTIONS
-        try
-        {
-#endif
-            std::apply(func, make_arguments_list<ArgsPack, Start>(L));
-
-#if LUABRIDGE_HAS_EXCEPTIONS
-        }
-        catch (const std::exception& e)
-        {
-            raise_lua_error(L, "%s", e.what());
-        }
-#endif
-
-        return 0;
-    }
-
-    template <class T, class F>
-    static int call(lua_State* L, T* ptr, F func)
-    {
-#if LUABRIDGE_HAS_EXCEPTIONS
-        try
-        {
-#endif
-            auto f = [ptr, func](auto&&... args) { (ptr->*func)(std::forward<decltype(args)>(args)...); };
-
-            std::apply(f, make_arguments_list<ArgsPack, Start>(L));
-
-#if LUABRIDGE_HAS_EXCEPTIONS
-        }
-        catch (const std::exception& e)
-        {
-            raise_lua_error(L, "%s", e.what());
-        }
-#endif
-
-        return 0;
-    }
-};
-
-template <class T, class Args>
-struct constructor;
-
-template <class T>
-struct constructor<T, void>
-{
-    using empty = std::tuple<>;
-
-    static T* call(const empty&)
-    {
-        return new T;
-    }
-
-    static T* call(void* ptr, const empty&)
-    {
-        return new (ptr) T;
-    }
-};
-
-template <class T, class Args>
-struct constructor
-{
-    static T* call(const Args& args)
-    {
-        auto alloc = [](auto&&... args) { return new T(std::forward<decltype(args)>(args)...); };
-
-        return std::apply(alloc, args);
-    }
-
-    static T* call(void* ptr, const Args& args)
-    {
-        auto alloc = [ptr](auto&&... args) { return new (ptr) T(std::forward<decltype(args)>(args)...); };
-
-        return std::apply(alloc, args);
-    }
-};
-
-template <class T>
-struct placement_constructor
-{
-    template <class F, class Args>
-    static T* construct(void* ptr, const F& func, const Args& args)
-    {
-        auto alloc = [ptr, &func](auto&&... args) { return func(ptr, std::forward<decltype(args)>(args)...); };
-
-        return std::apply(alloc, args);
-    }
-
-    template <class F>
-    static T* construct(void* ptr, const F& func)
-    {
-        return func(ptr);
-    }
-};
-
-template <class T>
-struct external_constructor
-{
-    template <class F, class Args>
-    static T* construct(const F& func, const Args& args)
-    {
-        auto alloc = [&func](auto&&... args) { return func(std::forward<decltype(args)>(args)...); };
-
-        return std::apply(alloc, args);
-    }
-
-    template <class F>
-    static T* construct(const F& func)
-    {
-        return func();
-    }
-};
-
-template <class C, class Args>
-int constructor_container_proxy(lua_State* L)
-{
-    using T = typename ContainerTraits<C>::Type;
-
-    T* object = detail::constructor<T, Args>::call(detail::make_arguments_list<Args, 2>(L));
-
-    auto result = detail::UserdataSharedHelper<C, false>::push(L, object);
-    if (! result)
-        luaL_error(L, "%s", result.message().c_str());
-
-    return 1;
-}
-
-template <class T, class Args>
-int constructor_placement_proxy(lua_State* L)
-{
-    std::error_code ec;
-    auto* value = detail::UserdataValue<T>::place(L, ec);
-    if (! value)
-        luaL_error(L, "%s", ec.message().c_str());
-
-    detail::constructor<T, Args>::call(value->getObject(), detail::make_arguments_list<Args, 2>(L));
-
-    value->commit();
-
-    return 1;
-}
-
-template <class T, class F>
-struct constructor_forwarder
-{
-    explicit constructor_forwarder(F f)
-        : m_func(std::move(f))
-    {
-    }
-
-    T* operator()(lua_State* L)
-    {
-        std::error_code ec;
-        auto* value = UserdataValue<T>::place(L, ec);
-        if (! value)
-            luaL_error(L, "%s", ec.message().c_str());
-
-        using FnTraits = function_traits<F>;
-        using FnArgs = remove_first_type_t<typename FnTraits::argument_types>;
-
-        T* obj = placement_constructor<T>::construct(
-            value->getObject(), m_func, make_arguments_list<FnArgs, 2>(L));
-
-        value->commit();
-
-        return obj;
-    }
-
-private:
-    F m_func;
-};
-
-template <class T, class Alloc, class Dealloc>
-struct factory_forwarder
-{
-    explicit factory_forwarder(Alloc alloc, Dealloc dealloc)
-        : m_alloc(std::move(alloc))
-        , m_dealloc(std::move(dealloc))
-    {
-    }
-
-    T* operator()(lua_State* L)
-    {
-        using FnTraits = function_traits<Alloc>;
-        using FnArgs = typename FnTraits::argument_types;
-
-        T* obj = external_constructor<T>::construct(m_alloc, make_arguments_list<FnArgs, 0>(L));
-
-        std::error_code ec;
-        auto* value = UserdataValueExternal<T>::place(L, obj, m_dealloc, ec);
-        if (! value)
-            luaL_error(L, "%s", ec.message().c_str());
-
-        return obj;
-    }
-
-private:
-    Alloc m_alloc;
-    Dealloc m_dealloc;
-};
-
-} 
-} 
-
-
-// End File: Source/LuaBridge/detail/FuncTraits.h
-
-// Begin File: Source/LuaBridge/detail/CFunctions.h
-
-namespace luabridge {
-namespace detail {
 
 inline int index_metamethod(lua_State* L)
 {
@@ -5966,6 +5703,108 @@ inline void add_property_setter(lua_State* L, const char* name, int tableIndex)
     lua_pop(L, 2); 
 }
 
+template <class ReturnType, class ArgsPack, std::size_t Start = 1u>
+struct function
+{
+    template <class F>
+    static int call(lua_State* L, F func)
+    {
+        Result result;
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        try
+        {
+#endif
+            result = Stack<ReturnType>::push(L, std::apply(func, make_arguments_list<ArgsPack, Start>(L)));
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        }
+        catch (const std::exception& e)
+        {
+            raise_lua_error(L, "%s", e.what());
+        }
+#endif
+
+        if (! result)
+            raise_lua_error(L, "%s", result.message().c_str());
+
+        return 1;
+    }
+
+    template <class T, class F>
+    static int call(lua_State* L, T* ptr, F func)
+    {
+        Result result;
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        try
+        {
+#endif
+            auto f = [ptr, func](auto&&... args) -> ReturnType { return (ptr->*func)(std::forward<decltype(args)>(args)...); };
+
+            result = Stack<ReturnType>::push(L, std::apply(f, make_arguments_list<ArgsPack, Start>(L)));
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        }
+        catch (const std::exception& e)
+        {
+            raise_lua_error(L, "%s", e.what());
+        }
+#endif
+
+        if (! result)
+            raise_lua_error(L, "%s", result.message().c_str());
+
+        return 1;
+    }
+};
+
+template <class ArgsPack, std::size_t Start>
+struct function<void, ArgsPack, Start>
+{
+    template <class F>
+    static int call(lua_State* L, F func)
+    {
+#if LUABRIDGE_HAS_EXCEPTIONS
+        try
+        {
+#endif
+            std::apply(func, make_arguments_list<ArgsPack, Start>(L));
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        }
+        catch (const std::exception& e)
+        {
+            raise_lua_error(L, "%s", e.what());
+        }
+#endif
+
+        return 0;
+    }
+
+    template <class T, class F>
+    static int call(lua_State* L, T* ptr, F func)
+    {
+#if LUABRIDGE_HAS_EXCEPTIONS
+        try
+        {
+#endif
+            auto f = [ptr, func](auto&&... args) { (ptr->*func)(std::forward<decltype(args)>(args)...); };
+
+            std::apply(f, make_arguments_list<ArgsPack, Start>(L));
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        }
+        catch (const std::exception& e)
+        {
+            raise_lua_error(L, "%s", e.what());
+        }
+#endif
+
+        return 0;
+    }
+};
+
 template <class F, class T>
 int invoke_member_function(lua_State* L)
 {
@@ -6074,7 +5913,7 @@ inline int try_overload_functions(lua_State* L)
         lua_rawgeti(L, -1, 1);
         assert(lua_isnumber(L, -1));
 
-        const int overload_arity = lua_tointeger(L, -1);
+        const int overload_arity = static_cast<int>(lua_tointeger(L, -1));
         if (overload_arity >= 0 && overload_arity != effective_args)
         {
             
@@ -6229,6 +6068,167 @@ void push_member_function(lua_State* L, int (U::*mfp)(lua_State*) const)
     new (lua_newuserdata_x<F>(L, sizeof(F))) F(mfp);
     lua_pushcclosure_x(L, &invoke_const_member_cfunction<T>, 1);
 }
+
+template <class T, class Args>
+struct constructor;
+
+template <class T>
+struct constructor<T, void>
+{
+    using empty = std::tuple<>;
+
+    static T* call(const empty&)
+    {
+        return new T;
+    }
+
+    static T* call(void* ptr, const empty&)
+    {
+        return new (ptr) T;
+    }
+};
+
+template <class T, class Args>
+struct constructor
+{
+    static T* call(const Args& args)
+    {
+        auto alloc = [](auto&&... args) { return new T(std::forward<decltype(args)>(args)...); };
+
+        return std::apply(alloc, args);
+    }
+
+    static T* call(void* ptr, const Args& args)
+    {
+        auto alloc = [ptr](auto&&... args) { return new (ptr) T(std::forward<decltype(args)>(args)...); };
+
+        return std::apply(alloc, args);
+    }
+};
+
+template <class T>
+struct placement_constructor
+{
+    template <class F, class Args>
+    static T* construct(void* ptr, const F& func, const Args& args)
+    {
+        auto alloc = [ptr, &func](auto&&... args) { return func(ptr, std::forward<decltype(args)>(args)...); };
+
+        return std::apply(alloc, args);
+    }
+
+    template <class F>
+    static T* construct(void* ptr, const F& func)
+    {
+        return func(ptr);
+    }
+};
+
+template <class T>
+struct external_constructor
+{
+    template <class F, class Args>
+    static T* construct(const F& func, const Args& args)
+    {
+        auto alloc = [&func](auto&&... args) { return func(std::forward<decltype(args)>(args)...); };
+
+        return std::apply(alloc, args);
+    }
+
+    template <class F>
+    static T* construct(const F& func)
+    {
+        return func();
+    }
+};
+
+template <class C, class Args>
+int constructor_container_proxy(lua_State* L)
+{
+    using T = typename ContainerTraits<C>::Type;
+
+    T* object = detail::constructor<T, Args>::call(detail::make_arguments_list<Args, 2>(L));
+
+    auto result = detail::UserdataSharedHelper<C, false>::push(L, object);
+    if (! result)
+        luaL_error(L, "%s", result.message().c_str());
+
+    return 1;
+}
+
+template <class T, class Args>
+int constructor_placement_proxy(lua_State* L)
+{
+    std::error_code ec;
+    auto* value = detail::UserdataValue<T>::place(L, ec);
+    if (! value)
+        luaL_error(L, "%s", ec.message().c_str());
+
+    detail::constructor<T, Args>::call(value->getObject(), detail::make_arguments_list<Args, 2>(L));
+
+    value->commit();
+
+    return 1;
+}
+
+template <class T, class F>
+struct constructor_forwarder
+{
+    explicit constructor_forwarder(F f)
+        : m_func(std::move(f))
+    {
+    }
+
+    T* operator()(lua_State* L)
+    {
+        std::error_code ec;
+        auto* value = UserdataValue<T>::place(L, ec);
+        if (! value)
+            luaL_error(L, "%s", ec.message().c_str());
+
+        using FnTraits = function_traits<F>;
+        using FnArgs = remove_first_type_t<typename FnTraits::argument_types>;
+
+        T* obj = placement_constructor<T>::construct(
+            value->getObject(), m_func, make_arguments_list<FnArgs, 2>(L));
+
+        value->commit();
+
+        return obj;
+    }
+
+private:
+    F m_func;
+};
+
+template <class T, class Alloc, class Dealloc>
+struct factory_forwarder
+{
+    explicit factory_forwarder(Alloc alloc, Dealloc dealloc)
+        : m_alloc(std::move(alloc))
+        , m_dealloc(std::move(dealloc))
+    {
+    }
+
+    T* operator()(lua_State* L)
+    {
+        using FnTraits = function_traits<Alloc>;
+        using FnArgs = typename FnTraits::argument_types;
+
+        T* obj = external_constructor<T>::construct(m_alloc, make_arguments_list<FnArgs, 0>(L));
+
+        std::error_code ec;
+        auto* value = UserdataValueExternal<T>::place(L, obj, m_dealloc, ec);
+        if (! value)
+            luaL_error(L, "%s", ec.message().c_str());
+
+        return obj;
+    }
+
+private:
+    Alloc m_alloc;
+    Dealloc m_dealloc;
+};
 
 } 
 } 
@@ -7836,7 +7836,7 @@ class Namespace : public detail::Registrar
         }
 
         template <class Getter, class = std::enable_if_t<!std::is_pointer_v<Getter>>>
-        Class<T> addStaticProperty(const char* name, Getter get)
+        Class<T>& addStaticProperty(const char* name, Getter get)
         {
             assert(name != nullptr);
             assertStackState(); 
@@ -7851,7 +7851,7 @@ class Namespace : public detail::Registrar
         }
 
         template <class Getter, class Setter, class = std::enable_if_t<!std::is_pointer_v<Getter> && !std::is_pointer_v<Setter>>>
-        Class<T> addStaticProperty(const char* name, Getter get, Setter set)
+        Class<T>& addStaticProperty(const char* name, Getter get, Setter set)
         {
             assert(name != nullptr);
             assertStackState(); 
@@ -8123,7 +8123,7 @@ class Namespace : public detail::Registrar
 
                         lua_createtable(L, 2, 0); 
                         lua_pushinteger(L, 1);
-                        if (detail::is_any_cfunction_pointer_v<Functions>)
+                        if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
                             lua_pushinteger(L, -1);
                         else
                             lua_pushinteger(L, static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>));
@@ -8158,7 +8158,7 @@ class Namespace : public detail::Registrar
 
                         lua_createtable(L, 2, 0); 
                         lua_pushinteger(L, 1);
-                        if (detail::is_any_cfunction_pointer_v<Functions>)
+                        if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
                             lua_pushinteger(L, -1);
                         else
                             lua_pushinteger(L, static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>));
@@ -8182,23 +8182,87 @@ class Namespace : public detail::Registrar
             return *this;
         }
 
-        template <class MemFn, class C>
-        Class<T>& addConstructor()
+        template <class... Functions>
+        auto addConstructor()
+            -> std::enable_if_t<(sizeof...(Functions) > 0), Class<T>&>
         {
             assertStackState(); 
 
-            lua_pushcclosure_x(L, &detail::constructor_container_proxy<C, detail::function_arguments_t<MemFn>>, 0);
+            if constexpr (sizeof...(Functions) == 1)
+            {
+                ([&]
+                {
+                    lua_pushcclosure_x(L, &detail::constructor_placement_proxy<T, detail::function_arguments_t<Functions>>, 0);
+
+                } (), ...);
+            }
+            else
+            {
+                
+                lua_createtable(L, static_cast<int>(sizeof...(Functions)), 0); 
+
+                int idx = 1;
+
+                ([&]
+                {
+                    lua_createtable(L, 2, 0); 
+                    lua_pushinteger(L, 1);
+                    lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
+                    lua_settable(L, -3);
+                    lua_pushinteger(L, 2);
+                    lua_pushcclosure_x(L, &detail::constructor_placement_proxy<T, detail::function_arguments_t<Functions>>, 0);
+                    lua_settable(L, -3);
+                    lua_rawseti(L, -2, idx);
+                    ++idx;
+
+                } (), ...);
+
+                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, 1);
+            }
+
             rawsetfield(L, -2, "__call");
 
             return *this;
         }
 
-        template <class MemFn>
-        Class<T>& addConstructor()
+        template <class C, class... Functions>
+        auto addConstructorFrom()
+            -> std::enable_if_t<(sizeof...(Functions) > 0), Class<T>&>
         {
             assertStackState(); 
 
-            lua_pushcclosure_x(L, &detail::constructor_placement_proxy<T, detail::function_arguments_t<MemFn>>, 0);
+            if constexpr (sizeof...(Functions) == 1)
+            {
+                ([&]
+                {
+                    lua_pushcclosure_x(L, &detail::constructor_container_proxy<C, detail::function_arguments_t<Functions>>, 0);
+
+                } (), ...);
+            }
+            else
+            {
+                
+                lua_createtable(L, static_cast<int>(sizeof...(Functions)), 0); 
+
+                int idx = 1;
+
+                ([&]
+                {
+                    lua_createtable(L, 2, 0); 
+                    lua_pushinteger(L, 1);
+                    lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
+                    lua_settable(L, -3);
+                    lua_pushinteger(L, 2);
+                    lua_pushcclosure_x(L, &detail::constructor_container_proxy<C, detail::function_arguments_t<Functions>>, 0);
+                    lua_settable(L, -3);
+                    lua_rawseti(L, -2, idx);
+                    ++idx;
+
+                } (), ...);
+
+                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, 1);
+            }
+
             rawsetfield(L, -2, "__call");
 
             return *this;
@@ -8208,6 +8272,9 @@ class Namespace : public detail::Registrar
         auto addConstructor(Functions... functions)
             -> std::enable_if_t<(detail::is_callable_v<Functions> && ...) && (sizeof...(Functions) > 0), Class<T>&>
         {
+            static_assert(((detail::function_arity_excluding_v<Functions, lua_State*> >= 1) && ...));
+            static_assert(((std::is_same_v<detail::function_argument_t<0, Functions>, void*>) && ...));
+
             assertStackState(); 
 
             if constexpr (sizeof...(Functions) == 1)
@@ -8232,7 +8299,7 @@ class Namespace : public detail::Registrar
                     if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
                         lua_pushinteger(L, -1);
                     else
-                        lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
+                        lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>) - 1); 
                     lua_settable(L, -3);
                     lua_pushinteger(L, 2);
                     detail::push_function(L, detail::constructor_forwarder<T, Functions>(std::move(functions)));
@@ -8251,7 +8318,7 @@ class Namespace : public detail::Registrar
         }
 
         template <class Allocator, class Deallocator>
-        Class<T> addFactory(Allocator allocator, Deallocator deallocator)
+        Class<T>& addFactory(Allocator allocator, Deallocator deallocator)
         {
             assertStackState(); 
 
@@ -8264,7 +8331,7 @@ class Namespace : public detail::Registrar
         template <class Function>
         auto addIndexMetaMethod(Function function)
             -> std::enable_if_t<!std::is_pointer_v<Function>
-                && std::is_invocable_v<Function, T&, const LuaRef&, lua_State*>, Class<T>>
+                && std::is_invocable_v<Function, T&, const LuaRef&, lua_State*>, Class<T>&>
         {
             using FnType = decltype(function);
 
@@ -8306,7 +8373,7 @@ class Namespace : public detail::Registrar
         template <class Function>
         auto addNewIndexMetaMethod(Function function)
             -> std::enable_if_t<!std::is_pointer_v<Function>
-                && std::is_invocable_v<Function, T&, const LuaRef&, const LuaRef&, lua_State*>, Class<T>>
+                && std::is_invocable_v<Function, T&, const LuaRef&, const LuaRef&, lua_State*>, Class<T>&>
         {
             using FnType = decltype(function);
 
