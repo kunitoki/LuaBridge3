@@ -168,6 +168,107 @@ TEST_F(OverloadTests, IntegerTypeFallbackOverloads)
     }
 }
 
+TEST_F(OverloadTests, UnregisteredClass)
+{
+    struct Unregistered {};
+
+    luabridge::getGlobalNamespace(L)
+        .addFunction("testUnregistered",
+            [](Unregistered*) { return 1; },
+            [](int) { return 2; });
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_ANY_THROW(runLua("result = testUnregistered ({})"));
+#else
+    EXPECT_FALSE(runLua("result = testUnregistered ({})"));
+#endif
+
+    runLua("result = testUnregistered (1)");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(2, result<int>());
+}
+
+TEST_F(OverloadTests, BaseAndDerivedClassOverloads)
+{
+    struct Base
+    {
+        virtual ~Base() {}
+
+        virtual int test1() { return 1; }
+        virtual int test2(int) { return 2; }
+
+        int test3() { return 3; }
+        int test4(int) { return 4; }
+    };
+
+    struct Derived : Base
+    {
+        int test1() override { return 5; }
+        int test2(int) override { return 6; }
+
+        int test5() { return 7; }
+        int test6(int) { return 8; }
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Base>("Base")
+            .addConstructor<void (*)()>()
+            .addFunction("testx", &Base::test1, &Base::test2)
+            .addFunction("testy", &Base::test3, &Base::test4)
+        .endClass()
+        .deriveClass<Derived, Base>("Derived")
+            .addConstructor<void (*)()>()
+            .addFunction("testx", &Derived::test1, &Derived::test2)
+            .addFunction("testz", &Derived::test5, &Derived::test6)
+        .endClass()
+        .addFunction("testBase",
+            [](Base* b) { return b->test3(); },
+            [](Derived* d) { return d->test5(); })
+        .addFunction("testDerived",
+            [](Derived* d) { return d->test5(); },
+            [](Base* b) { return b->test3(); });
+
+    runLua("b = Base(); result = b:testx ()");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(1, result<int>());
+
+    runLua("b = Base(); result = b:testx (1)");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(2, result<int>());
+
+    runLua("b = Derived(); result = b:testx ()");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(5, result<int>());
+
+    runLua("b = Derived(); result = b:testx (1)");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(6, result<int>());
+
+    runLua("b = Derived(); result = b:testy ()");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(3, result<int>());
+
+    runLua("b = Derived(); result = b:testy (1)");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(4, result<int>());
+
+    runLua("b = Base(); result = testBase (b)");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(3, result<int>());
+
+    runLua("b = Derived(); result = testBase (b)");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(3, result<int>());
+
+    runLua("b = Base(); result = testDerived (b)");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(3, result<int>());
+
+    runLua("b = Derived(); result = testDerived (b)");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(7, result<int>());
+}
+
 TEST_F(OverloadTests, NoMatchingArityClass)
 {
     int x = 100;
