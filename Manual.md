@@ -255,7 +255,7 @@ It's also possible to obtain a namespace from a table on the stack, and perform 
 lua_newtable (L);
 
 luabridge::getNamespaceFromStack (L)
-  .addFunction ("test", +[](int x) { return x; })
+  .addFunction ("test", +[] (int x) { return x; })
   .addFunction ("bar", &bar);
 ```
 
@@ -380,7 +380,7 @@ are registered using:
 ```cpp
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
-    .beginClass <A> ("A")
+    .beginClass<A> ("A")
       .addStaticProperty ("staticData", &A::staticData)
       .addStaticProperty ("staticProperty", &A::getStaticProperty, &A::setStaticProperty)
       .addStaticFunction ("staticFunc", &A::staticFunc)
@@ -392,7 +392,7 @@ luabridge::getGlobalNamespace (L)
       .addFunction ("__tostring", &A::toString)     // Metamethod
       .addFunction ("cfunc", &A::cfunc)
     .endClass ()
-    .deriveClass <B, A> ("B")
+    .deriveClass<B, A> ("B")
       .addProperty ("data", &B::dataMember2)
       .addFunction ("func1", &B::func1)
       .addFunction ("func2", &B::func2)
@@ -451,10 +451,10 @@ This helper class is only used to provide property member proxies. `Vec` continu
 ```cpp
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
-    .beginClass <Vec> ("Vec")
-      .addProperty ("x", &VecHelper::get <0>, &VecHelper::set <0>)
-      .addProperty ("y", &VecHelper::get <1>, &VecHelper::set <1>)
-      .addProperty ("z", &VecHelper::get <2>, &VecHelper::set <2>)
+    .beginClass<Vec> ("Vec")
+      .addProperty ("x", &VecHelper::get<0>, &VecHelper::set<0>)
+      .addProperty ("y", &VecHelper::get<1>, &VecHelper::set<1>)
+      .addProperty ("z", &VecHelper::get<2>, &VecHelper::set<2>)
     .endClass ()
   .endNamespace ();
 ```
@@ -462,14 +462,13 @@ luabridge::getGlobalNamespace (L)
 It is also possible to use both capturing and non capturing lambdas, as well as `std::function <>` instances as proxies:
 
 ```cpp
+std::function<float (const Vec*)> get_x = [] (const Vec* vec) { return vec->coord [0]; };
+std::function<void (Vec*, float)> set_x = [] (Vec* vec, float v) { vec->coord [0] = v; };
+
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
-    .beginClass <Vec> ("Vec")
-      .addProperty ("x",
-        std::function <float (const Vec*)> (
-          [] (const Vec* vec) { return vec->coord [0]; }),
-        std::function <void (Vec*, float)> (
-          [] (Vec* vec, float v) { vec->coord [0] = v; }))
+    .beginClass<Vec> ("Vec")
+      .addProperty ("x", get_x, set_x)
       // ... same for "y" and "z"
     .endClass ()
   .endNamespace ();
@@ -480,7 +479,7 @@ Or the more concise version (notice the `+` before the lambda is useful to conve
 ```cpp
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
-    .beginClass <Vec> ("Vec")
+    .beginClass<Vec> ("Vec")
       .addProperty ("x",
         +[] (const Vec* vec) { return vec->coord [0]; },
         +[] (Vec* vec, float v) { vec->coord [0] = v; })
@@ -518,7 +517,7 @@ Now we can register the `Vec` class with a member function `scale`:
 ```cpp
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
-    .beginClass <Vec> ("Vec")
+    .beginClass<Vec> ("Vec")
       .addFunction ("scale", &scale)
     .endClass ()
   .endNamespace ();
@@ -527,10 +526,10 @@ luabridge::getGlobalNamespace (L)
 It is also possible to use lambdas (both capturing and non capturing) as functions proxies:
 
 ```cpp
-float y = atan(1.0f) * 4.0f;
+float y = atan (1.0f) * 4.0f;
 
 luabridge::getGlobalNamespace (L)
-  .beginClass <Vec> ("Vec")
+  .beginClass<Vec> ("Vec")
     .addFunction ("scaleX", +[] (Vec* vec, float v) { vec->coord [0] *= v; })
     .addFunction ("scaleY", [y] (Vec* vec, float v) { vec->coord [1] *= v * y; })
   .endClass ()
@@ -555,7 +554,7 @@ Now we can register the `Vec` class with a member function `rotate` that will be
 ```cpp
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
-    .beginClass <Vec> ("Vec")
+    .beginClass<Vec> ("Vec")
       .addFunction ("rotate", &rotateByDegreees, &rotateByQuaternion)
     .endClass ()
   .endNamespace ();
@@ -568,24 +567,24 @@ struct Quat { float values [4]; };
 
 struct Vec
 {
-  void rotate(float degrees);
-  void rotate(const Quat& quaternion);
+  void rotate (float degrees);
+  void rotate (const Quat& quaternion);
 
-  void x(float new_value);
-  float x(float value_if_zero) const;
+  void x (float new_value);
+  float x (float value_if_zero) const;
 
   float coord [3];
 };
 
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
-    .beginClass <Vec> ("Vec")
+    .beginClass<Vec> ("Vec")
       .addFunction ("rotate",
-        luabridge::overload<float>(&Vec::rotate),
-        luabridge::overload<const Quat&>(&Vec::rotate))
+        luabridge::overload<float> (&Vec::rotate),
+        luabridge::overload<const Quat&> (&Vec::rotate))
       .addFunction ("x",
-        luabridge::nonConstOverload<float>(&Vec::x),
-        luabridge::constOverload<float>(&Vec::x))
+        luabridge::nonConstOverload<float> (&Vec::x),
+        luabridge::constOverload<float> (&Vec::x))
     .endClass ()
   .endNamespace ();
 
@@ -598,26 +597,28 @@ Special attention needs to be given to the order (priority) of the overloads, ba
 2.6 - Constructors
 ------------------
 
-A single constructor may be added for a class using `addConstructor`. LuaBridge cannot automatically determine the number and types of constructor parameters like it can for functions and methods, so you must provide them. This is done by specifying the signature of the desired constructor function as the first template parameter to `addConstructor`. The parameter types will be extracted from this (the return type is ignored). For example, these statements register constructors for the given classes:
+A single constructor may be added for a class using `addConstructor`. LuaBridge cannot automatically determine the number and types of constructor parameters like it can for functions and methods, so you must provide them. This is done by specifying the signature of the desired constructor functions as template parameters to `addConstructor`. The parameter types will be extracted from this (the return type is ignored). For example, these statements register constructors for the given classes:
 
 ```cpp
 struct A
 {
   A ();
+  A (std::string_view a);
+  A (std::string_view a, int b);
 };
 
 struct B
 {
-  explicit B (char const* s, int nChars);
+  explicit B (const char* s, int nChars);
 };
 
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
-    .beginClass <A> ("A")
-      .addConstructor <void (*) (void)> ()
+    .beginClass<A> ("A")
+      .addConstructor<void (), void (std::string_view), void (std::string_view, int)> ()
     .endClass ()
-    .beginClass <B> ("B")
-      .addConstructor <void (*) (char const*, int)> ()
+    .beginClass<B> ("B")
+      .addConstructor<void (const char*, int)> ()
     .endClass ()
   .endNamespace ();
 ```
@@ -645,8 +646,8 @@ struct HardToCreate
 
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
-    .beginClass <HardToCreate> ("HardToCreate")
-      .addConstructor ([&shouldNotSeeMe](void* ptr, int easy) { new (ptr) HardToCreate (shouldNotSeeMe, easy); })
+    .beginClass<HardToCreate> ("HardToCreate")
+      .addConstructor ([&shouldNotSeeMe] (void* ptr, int easy) { new (ptr) HardToCreate (shouldNotSeeMe, easy); })
     .endClass ()
   .endNamespace ();
 ```
@@ -662,8 +663,8 @@ The `addConstructor` overload taking a generic functor also accepts a `lua_State
 ```cpp
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
-    .beginClass <HardToCreate> ("HardToCreate")
-      .addConstructor ([](void* ptr, lua_State* L) { new (ptr) HardToCreate (shouldNotSeeMe, lua_checkinteger (L, 2)); })
+    .beginClass<HardToCreate> ("HardToCreate")
+      .addConstructor ([] (void* ptr, lua_State* L) { new (ptr) HardToCreate (shouldNotSeeMe, lua_checkinteger (L, 2)); })
     .endClass ()
   .endNamespace ();
 ```
@@ -682,14 +683,13 @@ struct HardToCreate
 
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
-    .beginClass <HardToCreate> ("HardToCreate")
+    .beginClass<HardToCreate> ("HardToCreate")
       .addConstructor (
-        [&shouldNotSeeMe](void* ptr, int easy) { new (ptr) HardToCreate (shouldNotSeeMe, easy); },
-        [&shouldNotSeeMe](void* ptr, int easy, int lessEasy) { new (ptr) HardToCreate (shouldNotSeeMe, easy, lessEasy); })
+        [&shouldNotSeeMe] (void* ptr, int easy) { new (ptr) HardToCreate (shouldNotSeeMe, easy); },
+        [&shouldNotSeeMe] (void* ptr, int easy, int lessEasy) { new (ptr) HardToCreate (shouldNotSeeMe, easy, lessEasy); })
     .endClass ()
   .endNamespace ();
 ```
-
 
 ### 2.6.2 - Constructor Factories
 
@@ -702,12 +702,12 @@ struct IObject
 };
 
 // These might be defined in a shared library, returning concrete types.
-extern "C" IObject* objectFactoryAllocator();
-extern "C" void objectFactoryDeallocator(IObject*);
+extern "C" IObject* objectFactoryAllocator ();
+extern "C" void objectFactoryDeallocator (IObject*);
 
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
-    .beginClass <IObject> ("Object")
+    .beginClass<IObject> ("Object")
       .addFactory (&objectFactoryAllocator, &objectFactoryDeallocator)
       .addFunction ("overridableMethod", &IObject::overridableMethod)
     .endClass ()
@@ -719,7 +719,7 @@ The object is the perfectly instantiable through lua:
 ```lua
 a = test.Object ()           -- Create a new Object using objectFactoryAllocator
 a = nil                      -- Remove any reference count
-collectgarbage("collect")    -- The object is garbage collected using objectFactoryDeallocator
+collectgarbage ("collect")   -- The object is garbage collected using objectFactoryDeallocator
 ```
 
 2.7 - Index and New Index Metamethods Fallback
@@ -737,9 +737,9 @@ struct FlexibleClass
 
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
-    .beginClass <FlexibleClass> ("FlexibleClass")
+    .beginClass<FlexibleClass> ("FlexibleClass")
       .addProperty ("propertyOne", &FlexibleClass::propertyOne)
-      .addIndexMetaMethod ([](FlexibleClass& self, const luabridge::LuaRef& key, lua_State* L)
+      .addIndexMetaMethod ([] (FlexibleClass& self, const luabridge::LuaRef& key, lua_State* L)
       {
         if (key.tostring () == "existingProperty")
           return luabridge::LuaRef (L, 1337);
@@ -776,8 +776,8 @@ struct FlexibleClass
 
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
-    .beginClass <FlexibleClass> ("FlexibleClass")
-      .addIndexMetaMethod ([](FlexibleClass& self, const luabridge::LuaRef& key, lua_State* L)
+    .beginClass<FlexibleClass> ("FlexibleClass")
+      .addIndexMetaMethod ([] (FlexibleClass& self, const luabridge::LuaRef& key, lua_State* L)
       {
         auto it = self.properties.find(key);
         if (it != self.properties.end())
@@ -785,7 +785,7 @@ luabridge::getGlobalNamespace (L)
 
         return luabridge::LuaRef (L, luabridge::LuaNil ()); // or luaL_error("Failed lookup of key !")
       })
-      .addNewIndexMetaMethod ([](FlexibleClass& self, const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State* L)
+      .addNewIndexMetaMethod ([] (FlexibleClass& self, const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State* L)
       {
         self.properties.emplace (std::make_pair (key, value))
         return luabridge::LuaRef (L, luabridge::LuaNil ());
@@ -1117,10 +1117,10 @@ struct A : public luabridge::RefCountedObject
 
 struct B
 {
-  RefCountedObjectPtr <A> a; // holds a reference to A
+  RefCountedObjectPtr<A> a; // holds a reference to A
 };
 
-void bar (luabridge::RefCountedObjectPtr <A> a)
+void bar (luabridge::RefCountedObjectPtr<A> a)
 {
   a->foo ();
 }
@@ -1134,16 +1134,16 @@ If you have your own container, you must provide a specialization of `ContainerT
 namespace luabridge {
 
 template <class T>
-struct ContainerTraits <CustomContainer<T>>
+struct ContainerTraits<CustomContainer<T>>
 {
   using Type = T;
 
-  static CustomContainer <T> construct (T* c)
+  static CustomContainer<T> construct (T* c)
   {
     return c;
   }
 
-  static T* get (const CustomContainer <T>& c)
+  static T* get (const CustomContainer<T>& c)
   {
     return c.getPointerToObject ();
   }
@@ -1163,20 +1163,23 @@ To overcome this issue classes that should be managed by `shared_ptr` have to pr
 ```cpp
 struct A : public std::enable_shared_from_this
 {
+  A () { }
+  A (int) { }
+
   void foo () { }
 };
 
 luabridge::getGlobalNamespace (L)
-  .beginClass <A> ("A")
-    .addConstructor <void(*)(), std::shared_ptr <A> > ()
+  .beginClass<A> ("A")
+    .addConstructorFrom<std::shared_ptr<A>, void(), void(int)> ()
     .addFunction ("foo", &A::foo)
   .endClass ();
 
-std::shared_ptr <A> a = std::make_shared <A> (1);
+std::shared_ptr<A> a = std::make_shared<A> (1);
 luabridge::setGlobal (L, a, "a");
 
-std::shared_ptr <A> retrieveA = luabridge::getGlobal <std::shared_ptr <A> > (L, "a");
-retrieveA->foo();
+std::shared_ptr<A> retrieveA = luabridge::getGlobal<std::shared_ptr<A>> (L, "a");
+retrieveA->foo ();
 ```
 
 ```lua
@@ -1184,6 +1187,9 @@ a.foo ()
 
 anotherA = A ()
 anotherA.foo ()
+
+anotherA2 = A (1)
+anotherA2.foo ()
 ```
 
 ### 3.4.4 - Container Constructors
@@ -1194,21 +1200,14 @@ When a constructor is registered for a class, there is an additional optional se
 class C : public luabridge::RefCountedObject
 {
   C () { }
-};
-
-class D
-{
-  D () { }
+  C (int) { }
 };
 
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
     .beginClass <C> ("C")
-      .addConstructor <void (*) (void), luabridge::RefCountedObjectPtr <C> > ()
+      .addConstructorFrom<luabridge::RefCountedObjectPtr<C>, void(), void(int)> ()
     .endClass ()
-    .beginClass <D> ("D")
-      .addConstructor <void (*) (void), luabridge::RefCountedPtr <D> > ()
-    .endClass ();
   .endNamespace ()
 ```
 
@@ -1531,20 +1530,9 @@ Namespace beginNamespace (const char* name);
 template <class T>
 Namespace endNamespace ();
 
-/// Registers a function.
-template <class R, class... Params>
-Namespace addFunction (const char* name, R (*fn)(Params...));
-
-/// Registers a function.
-template <class R, class... Params>
-Namespace addFunction (const char* name, std::function<R (Params...)> fn);
-
-/// Registers a function with an extra Lua state parameter.
-template <class R, class... Params>
-Namespace addFunction (const char* name, R (*fn)(Params..., lua_State*))
-
-/// Registers a C-function.
-Namespace addFunction (const char* name, int (*fn)(lua_State*));
+/// Registers one or multiple overloaded functions.
+template <class... Functions>
+Namespace addFunction (const char* name, Functions... functions);
 
 /// Registers a property with a getter and setter.
 template <class V>
@@ -1593,36 +1581,29 @@ Namespace endClass ();
 ### Constructor Registration
 
 ```cpp
-/// Registers a constructor for type T.
-template <class F>
+/// Registers one or multiple overloaded constructors for type T.
+template <class... Functions>
 Class<T> addConstructor ();
 
-/// Registers a functor to construct type T using arguments known at compile time.
-template <class... Params>
-Class<T> addConstructor (std::function<T* (void* ptr, Params...)>);
+/// Registers one or multiple overloaded constructors for type T using callable arguments.
+template <class... Functions>
+Class<T> addConstructor (Functions... functions);
 
-/// Registers a functor to construct type T using arguments known at both compile time and runtime (using lua_State as last parameter, runtime args start at index 2 of the stack).
-template <class... Params>
-Class<T> addConstructor (std::function<T* (void* ptr, Params..., lua_State*)>);
+/// Registers one or multiple overloaded constructors for type T when usable from intrusive container C.
+template <class C, class... Functions>
+Class<T> addConstructor ();
+
+/// Registers allocator and deallocators for type T.
+template <class Alloc, class Dealloc>
+Class<T> addFactory (Alloc alloc, Dealloc dealloc);
 ```
 
 ### Member Function Registration
 
 ```cpp
-/// Registers a member function.
-template <class R, class... Params>
-Class<T> addFunction (const char* name, R (T::* fn)(Params...));
-
-/// Registers a function.
-template <class R, class... Params>
-Class<T> addFunction (const char* name, std::function<R (Params...)> fn);
-
-/// Registers a function with an extra Lua state parameter.
-template <class R, class... Params>
-Class<T> addFunction (const char* name, R (T::* fn)(Params..., lua_State*))
-
-/// Registers a C-function.
-Class<T> addFunction (const char* name, int (*fn)(lua_State*));
+/// Registers one or multiple overloaded functions as member functions.
+template <class... Functions>
+Class<T> addFunction (const char* name, Functions... functions);
 ```
 
 ### Member Property Registration
@@ -1658,20 +1639,9 @@ Class<T> addProperty (const char* name, V T::* varPtr, bool isWritable = true);
 ### Static Function Registration
 
 ```cpp
-/// Registers a function.
-template <class R, class... Params>
-Class<T> addStaticFunction (const char* name, R (*fn)(Params...));
-
-/// Registers a function.
-template <class R, class... Params>
-Class<T> addStaticFunction (const char* name, std::function<R (Params...)> fn);
-
-/// Registers a function with an extra Lua state parameter.
-template <class R, class... Params>
-Class<T> addStaticFunction (const char* name, R (*fn)(Params..., lua_State*))
-
-/// Registers a C-function.
-Class<T> addStaticFunction (const char* name, int (*fn)(lua_State*));
+/// Registers one function or multiple overloads.
+template <class... Functions>
+Class<T> addStaticFunction (const char* name, Functions... functions);
 ```
 
 ### Static Property Registration

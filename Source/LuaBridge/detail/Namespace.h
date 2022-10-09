@@ -529,7 +529,7 @@ class Namespace : public detail::Registrar
          * @brief Add or replace a static property, by constructible by std::function.
          */
         template <class Getter, class = std::enable_if_t<!std::is_pointer_v<Getter>>>
-        Class<T> addStaticProperty(const char* name, Getter get)
+        Class<T>& addStaticProperty(const char* name, Getter get)
         {
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
@@ -544,7 +544,7 @@ class Namespace : public detail::Registrar
         }
 
         template <class Getter, class Setter, class = std::enable_if_t<!std::is_pointer_v<Getter> && !std::is_pointer_v<Setter>>>
-        Class<T> addStaticProperty(const char* name, Getter get, Setter set)
+        Class<T>& addStaticProperty(const char* name, Getter get, Setter set)
         {
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
@@ -938,23 +938,91 @@ class Namespace : public detail::Registrar
          * The template parameter should be a function pointer type that matches the desired Constructor (since you can't take the
          * address of a Constructor and pass it as an argument).
          */
-        template <class MemFn, class C>
-        Class<T>& addConstructor()
+        template <class... Functions>
+        auto addConstructor()
+            -> std::enable_if_t<(sizeof...(Functions) > 0), Class<T>&>
         {
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            lua_pushcclosure_x(L, &detail::constructor_container_proxy<C, detail::function_arguments_t<MemFn>>, 0);
+            if constexpr (sizeof...(Functions) == 1)
+            {
+                ([&]
+                {
+                    lua_pushcclosure_x(L, &detail::constructor_placement_proxy<T, detail::function_arguments_t<Functions>>, 0);
+
+                } (), ...);
+            }
+            else
+            {
+                // create new closure of try_overloads with new table
+                lua_createtable(L, static_cast<int>(sizeof...(Functions)), 0); // reserve space for N overloads
+
+                int idx = 1;
+
+                ([&]
+                {
+                    lua_createtable(L, 2, 0); // reserve space for: function, arity
+                    lua_pushinteger(L, 1);
+                    lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
+                    lua_settable(L, -3);
+                    lua_pushinteger(L, 2);
+                    lua_pushcclosure_x(L, &detail::constructor_placement_proxy<T, detail::function_arguments_t<Functions>>, 0);
+                    lua_settable(L, -3);
+                    lua_rawseti(L, -2, idx);
+                    ++idx;
+
+                } (), ...);
+
+                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, 1);
+            }
+
             rawsetfield(L, -2, "__call");
 
             return *this;
         }
 
-        template <class MemFn>
-        Class<T>& addConstructor()
+        //=========================================================================================
+        /**
+         * @brief Add or replace a primary Constructor when the type is used from an intrusive container C.
+         */
+        template <class C, class... Functions>
+        auto addConstructorFrom()
+            -> std::enable_if_t<(sizeof...(Functions) > 0), Class<T>&>
         {
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            lua_pushcclosure_x(L, &detail::constructor_placement_proxy<T, detail::function_arguments_t<MemFn>>, 0);
+            if constexpr (sizeof...(Functions) == 1)
+            {
+                ([&]
+                {
+                    lua_pushcclosure_x(L, &detail::constructor_container_proxy<C, detail::function_arguments_t<Functions>>, 0);
+
+                } (), ...);
+            }
+            else
+            {
+                // create new closure of try_overloads with new table
+                lua_createtable(L, static_cast<int>(sizeof...(Functions)), 0); // reserve space for N overloads
+
+                int idx = 1;
+
+                ([&]
+                {
+                    lua_createtable(L, 2, 0); // reserve space for: function, arity
+                    lua_pushinteger(L, 1);
+                    lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
+                    lua_settable(L, -3);
+                    lua_pushinteger(L, 2);
+                    lua_pushcclosure_x(L, &detail::constructor_container_proxy<C, detail::function_arguments_t<Functions>>, 0);
+                    lua_settable(L, -3);
+                    lua_rawseti(L, -2, idx);
+                    ++idx;
+
+                } (), ...);
+
+                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, 1);
+            }
+
             rawsetfield(L, -2, "__call");
 
             return *this;
@@ -973,10 +1041,10 @@ class Namespace : public detail::Registrar
         auto addConstructor(Functions... functions)
             -> std::enable_if_t<(detail::is_callable_v<Functions> && ...) && (sizeof...(Functions) > 0), Class<T>&>
         {
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
             static_assert(((detail::function_arity_excluding_v<Functions, lua_State*> >= 1) && ...));
             static_assert(((std::is_same_v<detail::function_argument_t<0, Functions>, void*>) && ...));
+
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             if constexpr (sizeof...(Functions) == 1)
             {
@@ -1028,7 +1096,7 @@ class Namespace : public detail::Registrar
          * address of a Constructor and pass it as an argument).
          */
         template <class Allocator, class Deallocator>
-        Class<T> addFactory(Allocator allocator, Deallocator deallocator)
+        Class<T>& addFactory(Allocator allocator, Deallocator deallocator)
         {
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
@@ -1047,7 +1115,7 @@ class Namespace : public detail::Registrar
         template <class Function>
         auto addIndexMetaMethod(Function function)
             -> std::enable_if_t<!std::is_pointer_v<Function>
-                && std::is_invocable_v<Function, T&, const LuaRef&, lua_State*>, Class<T>>
+                && std::is_invocable_v<Function, T&, const LuaRef&, lua_State*>, Class<T>&>
         {
             using FnType = decltype(function);
 
@@ -1095,7 +1163,7 @@ class Namespace : public detail::Registrar
         template <class Function>
         auto addNewIndexMetaMethod(Function function)
             -> std::enable_if_t<!std::is_pointer_v<Function>
-                && std::is_invocable_v<Function, T&, const LuaRef&, const LuaRef&, lua_State*>, Class<T>>
+                && std::is_invocable_v<Function, T&, const LuaRef&, const LuaRef&, lua_State*>, Class<T>&>
         {
             using FnType = decltype(function);
 

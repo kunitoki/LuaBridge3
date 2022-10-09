@@ -775,6 +775,10 @@ TEST_F(OverloadTests, ConstructorOverloading)
                 [](void* ptr, int x) { return new (ptr) X(x); },
                 [](void* ptr, int x, int y) { return new (ptr) X(x, y); })
             .addProperty("value", &X::value)
+        .endClass()
+        .beginClass<X>("Y")
+            .addConstructor<void(int), void(int, int)>()
+            .addProperty("value", &X::value)
         .endClass();
 
     runLua("x = X(1); result = x.value");
@@ -789,6 +793,20 @@ TEST_F(OverloadTests, ConstructorOverloading)
     ASSERT_ANY_THROW(runLua("x = X(1, 10, 100); result = x.value"));
 #else
     ASSERT_FALSE(runLua("x = X(1, 10, 100); result = x.value"));
+#endif
+
+    runLua("y = Y(1); result = y.value");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(1, result<int>());
+
+    runLua("y = Y(1, 10); result = y.value");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(11, result<int>());
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    ASSERT_ANY_THROW(runLua("y = Y(1, 10, 100); result = y.value"));
+#else
+    ASSERT_FALSE(runLua("y = Y(1, 10, 100); result = y.value"));
 #endif
 }
 
