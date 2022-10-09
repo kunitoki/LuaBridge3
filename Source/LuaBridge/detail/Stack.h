@@ -23,6 +23,7 @@
 #include <system_error>
 #include <type_traits>
 #include <tuple>
+#include <utility>
 
 namespace luabridge {
 
@@ -989,6 +990,11 @@ struct Stack<std::string>
         }
         else
         {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+            if (! lua_checkstack(L, 1))
+                return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
             // Lua reference manual:
             // If the value is a number, then lua_tolstring also changes the actual value in the stack
             // to a string. (This change confuses lua_next when lua_tolstring is applied to keys during
@@ -1057,6 +1063,111 @@ struct Stack<std::optional<T>>
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
     {
         return lua_isnil(L, index) || Stack<T>::isInstance(L, index);
+    }
+};
+
+//=================================================================================================
+/**
+ * @brief Stack specialization for `std::pair`.
+ */
+template <class T1, class T2>
+struct Stack<std::pair<T1, T2>>
+{
+    [[nodiscard]] static Result push(lua_State* L, const std::pair<T1, T2>& t)
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 3))
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
+        StackRestore stackRestore(L);
+
+        lua_createtable(L, 2, 0);
+
+        auto result1 = push_element<0>(L, t);
+        if (! result1)
+            return result1;
+
+        auto result2 = push_element<1>(L, t);
+        if (! result2)
+            return result2;
+
+        stackRestore.reset();
+        return {};
+    }
+
+    [[nodiscard]] static TypeResult<std::pair<T1, T2>> get(lua_State* L, int index)
+    {
+        const StackRestore stackRestore(L);
+
+        if (!lua_istable(L, index))
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        if (get_length(L, index) != 2)
+            return makeErrorCode(ErrorCode::InvalidTableSizeInCast);
+
+        std::pair<T1, T2> value;
+
+        int absIndex = lua_absindex(L, index);
+        lua_pushnil(L);
+
+        auto result1 = pop_element<0>(L, absIndex, value);
+        if (! result1)
+            return result1.error();
+
+        auto result2 = pop_element<1>(L, absIndex, value);
+        if (! result2)
+            return result2.error();
+
+        return value;
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        return lua_type(L, index) == LUA_TTABLE && get_length(L, index) == 2;
+    }
+
+private:
+    template <std::size_t Index>
+    static Result push_element(lua_State* L, const std::pair<T1, T2>& p)
+    {
+        static_assert(Index < 2);
+
+        using T = std::tuple_element_t<Index, std::pair<T1, T2>>;
+
+        lua_pushinteger(L, static_cast<lua_Integer>(Index + 1));
+
+        auto result = Stack<T>::push(L, std::get<Index>(p));
+        if (! result)
+        {
+            lua_pushnil(L);
+            lua_settable(L, -3);
+            return result;
+        }
+
+        lua_settable(L, -3);
+
+        return {};
+    }
+
+    template <std::size_t Index>
+    static Result pop_element(lua_State* L, int absIndex, std::pair<T1, T2>& p)
+    {
+        static_assert(Index < 2);
+
+        using T = std::tuple_element_t<Index, std::pair<T1, T2>>;
+
+        if (lua_next(L, absIndex) == 0)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        auto result = Stack<T>::get(L, -1);
+        if (! result)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        std::get<Index>(p) = std::move(*result);
+        lua_pop(L, 1);
+
+        return {};
     }
 };
 
@@ -1164,7 +1275,7 @@ private:
         if (! result)
             return makeErrorCode(ErrorCode::InvalidTypeCast);
 
-        std::get<Index>(t) = *result;
+        std::get<Index>(t) = std::move(*result);
         lua_pop(L, 1);
 
         return pop_element<Index + 1>(L, absIndex, t);

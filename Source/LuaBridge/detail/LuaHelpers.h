@@ -65,6 +65,17 @@ inline void lua_pushcclosure_x(lua_State* L, lua_CFunction fn, int n)
     lua_pushcclosure(L, fn, "", n);
 }
 
+inline int lua_error_x(lua_State* L)
+{
+    lua_error(L);
+    return 0;
+}
+
+inline int lua_getstack_info_x(lua_State* L, int level, const char* what, lua_Debug* ar)
+{
+    return lua_getinfo(L, level, what, ar);
+}
+
 #else
 using ::luaL_ref;
 using ::luaL_unref;
@@ -83,6 +94,17 @@ inline void lua_pushcfunction_x(lua_State *L, lua_CFunction fn)
 inline void lua_pushcclosure_x(lua_State* L, lua_CFunction fn, int n)
 {
     lua_pushcclosure(L, fn, n);
+}
+
+inline int lua_error_x(lua_State* L)
+{
+    return lua_error(L);
+}
+
+inline int lua_getstack_info_x(lua_State* L, int level, const char* what, lua_Debug* ar)
+{
+    lua_getstack(L, level, ar);
+    return lua_getinfo(L, what, ar);
 }
 
 #endif // LUABRIDGE_ON_LUAU
@@ -359,6 +381,26 @@ inline void rawsetfield(lua_State* L, int index, char const* key)
 }
 
 /**
+ * @brief Return the size of lua table, even if not a sequence { 1=x, 2=y, 3=... }.
+ */
+[[nodiscard]] inline int table_length(lua_State* L, int index)
+{
+    assert(lua_istable(L, index));
+
+    int items_count = 0;
+
+    lua_pushnil(L);
+    while (lua_next(L, index) != 0)
+    {
+        ++items_count;
+
+        lua_pop(L, 1);
+    }
+
+    return items_count;
+}
+
+/**
  * @brief Return an aligned pointer of type T.
  */
 template <class T>
@@ -462,12 +504,7 @@ inline int raise_lua_error(lua_State *L, const char *fmt, ...)
     va_end(argp);
     lua_concat(L, 2);
 
-#if LUABRIDGE_ON_LUAU
-    lua_error(L);
-    return 1;
-#else
-    return lua_error(L);
-#endif
+    return lua_error_x(L);
 }
 
 /**

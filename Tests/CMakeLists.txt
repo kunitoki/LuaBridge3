@@ -23,8 +23,10 @@ set (LUABRIDGE_TEST_SOURCE_FILES
   Source/MapTests.cpp
   Source/NamespaceTests.cpp
   Source/OptionalTests.cpp
+  Source/OverloadTests.cpp
   Source/PerformanceTests.cpp
   Source/RefCountedPtrTests.cpp
+  Source/ScopeGuardTests.cpp
   Source/StackTests.cpp
   Source/Tests.cpp
   Source/TestBase.h
@@ -257,6 +259,8 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
     target_link_libraries (${LUABRIDGE_TEST_NAME} PRIVATE ${LUABRIDGE_LIBS})
     target_link_libraries (${LUABRIDGE_TESTLIB_NAME} PRIVATE ${LUABRIDGE_LIBS})
   endif ()
+
+  add_test(NAME ${LUABRIDGE_TEST_NAME} COMMAND ${LUABRIDGE_TEST_NAME})
 
 endmacro (add_test_app)
 

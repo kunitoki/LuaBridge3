@@ -529,7 +529,7 @@ class Namespace : public detail::Registrar
          * @brief Add or replace a static property, by constructible by std::function.
          */
         template <class Getter, class = std::enable_if_t<!std::is_pointer_v<Getter>>>
-        Class<T> addStaticProperty(const char* name, Getter get)
+        Class<T>& addStaticProperty(const char* name, Getter get)
         {
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
@@ -544,7 +544,7 @@ class Namespace : public detail::Registrar
         }
 
         template <class Getter, class Setter, class = std::enable_if_t<!std::is_pointer_v<Getter> && !std::is_pointer_v<Setter>>>
-        Class<T> addStaticProperty(const char* name, Getter get, Setter set)
+        Class<T>& addStaticProperty(const char* name, Getter get, Setter set)
         {
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
@@ -565,56 +565,57 @@ class Namespace : public detail::Registrar
 
         //=========================================================================================
         /**
-         * @brief Add or replace a static member function.
-         */
-        template <class Function, class = std::enable_if_t<std::is_pointer_v<Function>>>
-        Class<T>& addStaticFunction(const char* name, Function fp)
-        {
-            assert(name != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            lua_pushlightuserdata(L, reinterpret_cast<void*>(fp)); // Stack: co, cl, st, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_proxy_function<Function>, 1); // co, cl, st, function
-            rawsetfield(L, -2, name); // co, cl, st
-
-            return *this;
-        }
-
-        //=========================================================================================
-        /**
-         * @brief Add or replace a static member function for constructible by std::function.
-         */
-        template <class Function, class = std::enable_if_t<!std::is_pointer_v<Function>>>
-        Class<T> addStaticFunction(const char* name, Function function)
-        {
-            using FnType = decltype(function);
-
-            assert(name != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: co, cl, st, function userdata (ud)
-            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: co, cl, st, function
-            rawsetfield(L, -2, name); // Stack: co, cl, st
-
-            return *this;
-        }
-
-        //=========================================================================================
-        /**
-         * @brief Add or replace a lua_CFunction.
+         * @brief Add or replace a single static function or multiple overloaded functions.
          *
-         * @param name The name of the function.
-         * @param fp   A C-function pointer.
+         * @param name The overload name.
+         * @param functions A single or set of static functions that will be invoked.
          *
          * @returns This class registration object.
          */
-        Class<T>& addStaticFunction(const char* name, lua_CFunction fp)
+        template <class... Functions>
+        auto addStaticFunction(const char* name, Functions... functions)
+            -> std::enable_if_t<(detail::is_callable_v<Functions> && ...) && (sizeof...(Functions) > 0), Class<T>&>
         {
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            lua_pushcfunction_x(L, fp); // co, cl, st, function
-            rawsetfield(L, -2, name); // co, cl, st
+            if constexpr (sizeof...(Functions) == 1)
+            {
+                ([&]
+                {
+                    detail::push_function(L, std::move(functions));
+
+                } (), ...);
+            }
+            else
+            {
+                // create new closure of try_overloads with new table
+                lua_createtable(L, static_cast<int>(sizeof...(Functions)), 0); // reserve space for N overloads
+
+                int idx = 1;
+
+                ([&]
+                {
+                    lua_createtable(L, 2, 0); // reserve space for: function, arity
+                    lua_pushinteger(L, 1);
+                    if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
+                        lua_pushinteger(L, -1);
+                    else
+                        lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
+                    lua_settable(L, -3);
+                    lua_pushinteger(L, 2);
+                    detail::push_function(L, std::move(functions));
+                    lua_settable(L, -3);
+
+                    lua_rawseti(L, -2, idx);
+                    ++idx;
+
+                } (), ...);
+
+                lua_pushcclosure_x(L, &detail::try_overload_functions<false>, 1);
+            }
+
+            rawsetfield(L, -2, name);
 
             return *this;
         }
@@ -813,16 +814,17 @@ class Namespace : public detail::Registrar
 
         //=========================================================================================
         /**
-         * @brief Add or replace a namespace function by convertible to std::function (capturing lambdas).
+         * @brief Add or replace a function that can operate on the class.
+         *
+         * @param name The function or overloaded functions name.
+         * @param functions A single or set of functions that will be invoked.
+         *
+         * @returns This class registration object.
          */
-        template <class Function, class = std::enable_if_t<detail::function_arity_v<Function> != 0>>
-        Class<T> addFunction(const char* name, Function function)
+        template <class... Functions>
+        auto addFunction(const char* name, Functions... functions)
+            -> std::enable_if_t<(detail::is_callable_v<Functions> && ...) && (sizeof...(Functions) > 0), Class<T>&>
         {
-            using FnType = decltype(function);
-
-            using FirstArg = detail::function_argument_t<0, Function>;
-            static_assert(std::is_same_v<std::decay_t<std::remove_pointer_t<FirstArg>>, T>);
-
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
@@ -832,198 +834,97 @@ class Namespace : public detail::Registrar
                 return *this;
             }
 
-            lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: co, cl, st, function userdata (ud)
-            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: co, cl, st, function
-
-            if constexpr (! std::is_const_v<std::remove_reference_t<std::remove_pointer_t<FirstArg>>>)
+            if constexpr (sizeof...(Functions) == 1)
             {
-                rawsetfield(L, -3, name); // Stack: co, cl, st
+                ([&]
+                {
+                    detail::push_member_function<T>(L, std::move(functions));
+
+                } (), ...);
+
+                if constexpr (detail::const_functions_count<T, Functions...> == 1)
+                {
+                    lua_pushvalue(L, -1); // Stack: co, cl, st, function, function
+                    rawsetfield(L, -4, name); // Stack: co, cl, st, function
+                    rawsetfield(L, -4, name); // Stack: co, cl, st
+                }
+                else
+                {
+                    rawsetfield(L, -3, name); // Stack: co, cl, st
+                }
             }
             else
             {
-                lua_pushvalue(L, -1); // Stack: co, cl, st, function, function
-                rawsetfield(L, -4, name); // Stack: co, cl, st, function
-                rawsetfield(L, -4, name); // Stack: co, cl, st
+                // create new closure of const try_overload_functions with new table
+                if constexpr (detail::const_functions_count<T, Functions...> > 0)
+                {
+                    lua_createtable(L, static_cast<int>(detail::const_functions_count<T, Functions...>), 0);
+
+                    int idx = 1;
+
+                    ([&]
+                    {
+                        if (!detail::is_const_function<T, Functions>)
+                            return;
+
+                        lua_createtable(L, 2, 0); // reserve space for: function, arity
+                        lua_pushinteger(L, 1);
+                        if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
+                            lua_pushinteger(L, -1);
+                        else
+                            lua_pushinteger(L, static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>));
+                        lua_settable(L, -3);
+                        lua_pushinteger(L, 2);
+                        detail::push_member_function<T>(L, std::move(functions));
+                        lua_settable(L, -3);
+
+                        lua_rawseti(L, -2, idx);
+                        ++idx;
+
+                    } (), ...);
+
+                    assert(idx > 1);
+
+                    lua_pushcclosure_x(L, &detail::try_overload_functions<true>, 1);
+                    lua_pushvalue(L, -1); // Stack: co, cl, st, function, function
+                    rawsetfield(L, -4, name); // Stack: co, cl, st, function
+                    rawsetfield(L, -4, name); // Stack: co, cl, st
+                }
+
+                // create new closure of non const try_overload_functions with new table
+                if constexpr (detail::non_const_functions_count<T, Functions...> > 0)
+                {
+                    lua_createtable(L, static_cast<int>(detail::non_const_functions_count<T, Functions...>), 0);
+
+                    int idx = 1;
+
+                    ([&]
+                    {
+                        if (detail::is_const_function<T, Functions>)
+                            return;
+
+                        lua_createtable(L, 2, 0); // reserve space for: function, arity
+                        lua_pushinteger(L, 1);
+                        if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
+                            lua_pushinteger(L, -1);
+                        else
+                            lua_pushinteger(L, static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>));
+                        lua_settable(L, -3);
+                        lua_pushinteger(L, 2);
+                        detail::push_member_function<T>(L, std::move(functions));
+                        lua_settable(L, -3);
+
+                        lua_rawseti(L, -2, idx);
+                        ++idx;
+
+                    } (), ...);
+
+                    assert(idx > 1);
+
+                    lua_pushcclosure_x(L, &detail::try_overload_functions<true>, 1);
+                    rawsetfield(L, -3, name); // Stack: co, cl, st
+                }
             }
-
-            return *this;
-        }
-
-        //=========================================================================================
-        /**
-         * @brief Add or replace a member function.
-         */
-        template <class U, class ReturnType, class... Params>
-        Class<T>& addFunction(const char* name, ReturnType (U::*mf)(Params...))
-        {
-            static_assert(std::is_base_of_v<U, T>);
-
-            using MemFn = decltype(mf);
-
-            assert(name != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            if (name == std::string_view("__gc"))
-            {
-                throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
-                return *this;
-            }
-
-            new (lua_newuserdata_x<MemFn>(L, sizeof(MemFn))) MemFn(mf);
-            lua_pushcclosure_x(L, &detail::invoke_member_function<MemFn, T>, 1);
-            rawsetfield(L, -3, name); // class table
-
-            return *this;
-        }
-
-        template <class U, class ReturnType, class... Params>
-        Class<T>& addFunction(const char* name, ReturnType (U::*mf)(Params...) const)
-        {
-            static_assert(std::is_base_of_v<U, T>);
-
-            using MemFn = decltype(mf);
-
-            assert(name != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            if (name == std::string_view("__gc"))
-            {
-                throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
-                return *this;
-            }
-
-            new (lua_newuserdata_x<MemFn>(L, sizeof(MemFn))) MemFn(mf);
-            lua_pushcclosure_x(L, &detail::invoke_const_member_function<MemFn, T>, 1);
-            lua_pushvalue(L, -1);
-            rawsetfield(L, -5, name); // const table
-            rawsetfield(L, -3, name); // class table
-
-            return *this;
-        }
-
-        //=========================================================================================
-        /**
-         * @brief Add or replace a proxy function.
-         */
-        template <class ReturnType, class... Params>
-        Class<T>& addFunction(const char* name, ReturnType (*proxyFn)(T* object, Params...))
-        {
-            using FnType = decltype(proxyFn);
-
-            assert(name != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            if (name == std::string_view("__gc"))
-            {
-                throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
-                return *this;
-            }
-
-            lua_pushlightuserdata(L, reinterpret_cast<void*>(proxyFn)); // Stack: co, cl, st, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_proxy_function<FnType>, 1); // Stack: co, cl, st, function
-            rawsetfield(L, -3, name); // Stack: co, cl, st
-
-            return *this;
-        }
-
-        template <class ReturnType, class... Params>
-        Class<T>& addFunction(const char* name, ReturnType (*proxyFn)(const T* object, Params...))
-        {
-            using FnType = decltype(proxyFn);
-
-            assert(name != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            if (name == std::string_view("__gc"))
-            {
-                throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
-                return *this;
-            }
-
-            lua_pushlightuserdata(L, reinterpret_cast<void*>(proxyFn)); // Stack: co, cl, st, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_proxy_function<FnType>, 1); // Stack: co, cl, st, function
-            lua_pushvalue(L, -1); // Stack: co, cl, st, function, function
-            rawsetfield(L, -4, name); // Stack: co, cl, st, function
-            rawsetfield(L, -4, name); // Stack: co, cl, st
-
-            return *this;
-        }
-
-        //=========================================================================================
-        /**
-         * @brief Add or replace a member lua_CFunction.
-         */
-        template <class U>
-        Class<T>& addFunction(const char* name, int (U::*mfp)(lua_State*))
-        {
-            static_assert(std::is_base_of_v<U, T>);
-
-            using F = decltype(mfp);
-
-            assert(name != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            if (name == std::string_view("__gc"))
-            {
-                throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
-                return *this;
-            }
-
-            new (lua_newuserdata_x<F>(L, sizeof(mfp))) F(mfp); // Stack: co, cl, st, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_member_cfunction<T>, 1); // Stack: co, cl, st, function
-            rawsetfield(L, -3, name); // Stack: co, cl, st
-
-            return *this;
-        }
-
-        //=========================================================================================
-        /**
-         * @brief Add or replace a const member lua_CFunction.
-         */
-        template <class U>
-        Class<T>& addFunction(const char* name, int (U::*mfp)(lua_State*) const)
-        {
-            static_assert(std::is_base_of_v<U, T>);
-
-            using F = decltype(mfp);
-
-            assert(name != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            if (name == std::string_view("__gc"))
-            {
-                throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
-                return *this;
-            }
-
-            new (lua_newuserdata_x<F>(L, sizeof(mfp))) F(mfp);
-            lua_pushcclosure_x(L, &detail::invoke_const_member_cfunction<T>, 1);
-            lua_pushvalue(L, -1); // Stack: co, cl, st, function, function
-            rawsetfield(L, -4, name); // Stack: co, cl, st, function
-            rawsetfield(L, -4, name); // Stack: co, cl, st
-
-            return *this;
-        }
-
-        //=========================================================================================
-        /**
-         * @brief Add or replace a free lua_CFunction that works as a member.
-         *
-         * This object is at top of the stack, then all other arguments.
-         */
-        Class<T>& addFunction(const char* name, lua_CFunction fp)
-        {
-            assert(name != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            if (name == std::string_view("__gc"))
-            {
-                throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
-                return *this;
-            }
-
-            lua_pushcfunction_x(L, fp); // Stack: co, cl, st, function
-            rawsetfield(L, -3, name); // Stack: co, cl, st
 
             return *this;
         }
@@ -1037,23 +938,91 @@ class Namespace : public detail::Registrar
          * The template parameter should be a function pointer type that matches the desired Constructor (since you can't take the
          * address of a Constructor and pass it as an argument).
          */
-        template <class MemFn, class C>
-        Class<T>& addConstructor()
+        template <class... Functions>
+        auto addConstructor()
+            -> std::enable_if_t<(sizeof...(Functions) > 0), Class<T>&>
         {
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            lua_pushcclosure_x(L, &detail::constructor_container_proxy<C, detail::function_arguments_t<MemFn>>, 0);
+            if constexpr (sizeof...(Functions) == 1)
+            {
+                ([&]
+                {
+                    lua_pushcclosure_x(L, &detail::constructor_placement_proxy<T, detail::function_arguments_t<Functions>>, 0);
+
+                } (), ...);
+            }
+            else
+            {
+                // create new closure of try_overloads with new table
+                lua_createtable(L, static_cast<int>(sizeof...(Functions)), 0); // reserve space for N overloads
+
+                int idx = 1;
+
+                ([&]
+                {
+                    lua_createtable(L, 2, 0); // reserve space for: function, arity
+                    lua_pushinteger(L, 1);
+                    lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
+                    lua_settable(L, -3);
+                    lua_pushinteger(L, 2);
+                    lua_pushcclosure_x(L, &detail::constructor_placement_proxy<T, detail::function_arguments_t<Functions>>, 0);
+                    lua_settable(L, -3);
+                    lua_rawseti(L, -2, idx);
+                    ++idx;
+
+                } (), ...);
+
+                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, 1);
+            }
+
             rawsetfield(L, -2, "__call");
 
             return *this;
         }
 
-        template <class MemFn>
-        Class<T>& addConstructor()
+        //=========================================================================================
+        /**
+         * @brief Add or replace a primary Constructor when the type is used from an intrusive container C.
+         */
+        template <class C, class... Functions>
+        auto addConstructorFrom()
+            -> std::enable_if_t<(sizeof...(Functions) > 0), Class<T>&>
         {
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            lua_pushcclosure_x(L, &detail::constructor_placement_proxy<T, detail::function_arguments_t<MemFn>>, 0);
+            if constexpr (sizeof...(Functions) == 1)
+            {
+                ([&]
+                {
+                    lua_pushcclosure_x(L, &detail::constructor_container_proxy<C, detail::function_arguments_t<Functions>>, 0);
+
+                } (), ...);
+            }
+            else
+            {
+                // create new closure of try_overloads with new table
+                lua_createtable(L, static_cast<int>(sizeof...(Functions)), 0); // reserve space for N overloads
+
+                int idx = 1;
+
+                ([&]
+                {
+                    lua_createtable(L, 2, 0); // reserve space for: function, arity
+                    lua_pushinteger(L, 1);
+                    lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
+                    lua_settable(L, -3);
+                    lua_pushinteger(L, 2);
+                    lua_pushcclosure_x(L, &detail::constructor_container_proxy<C, detail::function_arguments_t<Functions>>, 0);
+                    lua_settable(L, -3);
+                    lua_rawseti(L, -2, idx);
+                    ++idx;
+
+                } (), ...);
+
+                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, 1);
+            }
+
             rawsetfield(L, -2, "__call");
 
             return *this;
@@ -1068,32 +1037,50 @@ class Namespace : public detail::Registrar
          * The provider of the Function argument is responsible of doing placement new of the type T over the void* pointer provided to
          * the method as first argument.
          */
-        template <class Function>
-        Class<T> addConstructor(Function function)
+        template <class... Functions>
+        auto addConstructor(Functions... functions)
+            -> std::enable_if_t<(detail::is_callable_v<Functions> && ...) && (sizeof...(Functions) > 0), Class<T>&>
         {
+            static_assert(((detail::function_arity_excluding_v<Functions, lua_State*> >= 1) && ...));
+            static_assert(((std::is_same_v<detail::function_argument_t<0, Functions>, void*>) && ...));
+
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            auto create = [function = std::move(function)](lua_State* L) -> T*
+            if constexpr (sizeof...(Functions) == 1)
             {
-                std::error_code ec;
-                auto* value = detail::UserdataValue<T>::place(L, ec);
-                if (! value)
-                    luaL_error(L, "%s", ec.message().c_str());
+                ([&]
+                {
+                    detail::push_function(L, detail::constructor_forwarder<T, Functions>(std::move(functions))); // Stack: co, cl, st, function
 
-                using FnTraits = detail::function_traits<Function>;
-                using FnArgs = detail::remove_first_type_t<typename FnTraits::argument_types>;
+                } (), ...);
+            }
+            else
+            {
+                // create new closure of try_overloads with new table
+                lua_createtable(L, static_cast<int>(sizeof...(Functions)), 0); // reserve space for N overloads
 
-                T* obj = detail::placement_constructor<T>::construct(value->getObject(), function, detail::make_arguments_list<FnArgs, 2>(L));
+                int idx = 1;
 
-                value->commit();
+                ([&]
+                {
+                    lua_createtable(L, 2, 0); // reserve space for: function, arity
+                    lua_pushinteger(L, 1);
+                    if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
+                        lua_pushinteger(L, -1);
+                    else
+                        lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>) - 1); // 1: for void* ptr
+                    lua_settable(L, -3);
+                    lua_pushinteger(L, 2);
+                    detail::push_function(L, detail::constructor_forwarder<T, Functions>(std::move(functions)));
+                    lua_settable(L, -3);
+                    lua_rawseti(L, -2, idx);
+                    ++idx;
 
-                return obj;
-            };
+                } (), ...);
 
-            using AllocatorFnType = decltype(create);
+                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, 1);
+            }
 
-            lua_newuserdata_aligned<AllocatorFnType>(L, std::move(create)); // Stack: co, cl, st, function userdata (ud)
-            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<AllocatorFnType>, 1); // Stack: co, cl, st, function
             rawsetfield(L, -2, "__call"); // Stack: co, cl, st
 
             return *this;
@@ -1109,29 +1096,11 @@ class Namespace : public detail::Registrar
          * address of a Constructor and pass it as an argument).
          */
         template <class Allocator, class Deallocator>
-        Class<T> addFactory(Allocator allocator, Deallocator deallocator)
+        Class<T>& addFactory(Allocator allocator, Deallocator deallocator)
         {
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            auto create = [allocator = std::move(allocator), deallocator = std::move(deallocator)](lua_State* L) -> T*
-            {
-                using FnTraits = detail::function_traits<Allocator>;
-                using FnArgs = typename FnTraits::argument_types;
-
-                std::unique_ptr<T> obj { detail::external_constructor<T>::construct(allocator, detail::make_arguments_list<FnArgs, 0>(L)) };
-
-                std::error_code ec;
-                auto* value = detail::UserdataValueExternal<T>::place(L, obj.get(), deallocator, ec);
-                if (! value)
-                    luaL_error(L, "%s", ec.message().c_str());
-
-                return obj.release();
-            };
-
-            using AllocatorFnType = decltype(create);
-
-            lua_newuserdata_aligned<AllocatorFnType>(L, std::move(create)); // Stack: co, cl, st, function userdata (ud)
-            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<AllocatorFnType>, 1); // Stack: co, cl, st, function
+            detail::push_function(L, detail::factory_forwarder<T, Allocator, Deallocator>(std::move(allocator), std::move(deallocator)));
             rawsetfield(L, -2, "__call"); // Stack: co, cl, st
 
             return *this;
@@ -1146,7 +1115,7 @@ class Namespace : public detail::Registrar
         template <class Function>
         auto addIndexMetaMethod(Function function)
             -> std::enable_if_t<!std::is_pointer_v<Function>
-                && std::is_invocable_v<Function, T&, const LuaRef&, lua_State*>, Class<T>>
+                && std::is_invocable_v<Function, T&, const LuaRef&, lua_State*>, Class<T>&>
         {
             using FnType = decltype(function);
 
@@ -1194,7 +1163,7 @@ class Namespace : public detail::Registrar
         template <class Function>
         auto addNewIndexMetaMethod(Function function)
             -> std::enable_if_t<!std::is_pointer_v<Function>
-                && std::is_invocable_v<Function, T&, const LuaRef&, const LuaRef&, lua_State*>, Class<T>>
+                && std::is_invocable_v<Function, T&, const LuaRef&, const LuaRef&, lua_State*>, Class<T>&>
         {
             using FnType = decltype(function);
 
@@ -1712,58 +1681,57 @@ public:
 
     //=============================================================================================
     /**
-     * @brief Add or replace a namespace function by convertible to std::function.
-     */
-    template <class Function, class = std::enable_if<!std::is_pointer_v<Function>>>
-    Namespace& addFunction(const char* name, Function function)
-    {
-        using FnType = decltype(function);
-
-        assert(name != nullptr);
-        assert(lua_istable(L, -1)); // Stack: namespace table (ns)
-
-        lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: ns, function userdata (ud)
-        lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: ns, function
-        rawsetfield(L, -2, name); // Stack: ns
-
-        return *this;
-    }
-
-    //=============================================================================================
-    /**
-     * @brief Add or replace a free function.
-     */
-    template <class ReturnType, class... Params>
-    Namespace& addFunction(const char* name, ReturnType (*fp)(Params...))
-    {
-        using FnType = decltype(fp);
-
-        assert(name != nullptr);
-        assert(lua_istable(L, -1)); // Stack: namespace table (ns)
-
-        lua_pushlightuserdata(L, reinterpret_cast<void*>(fp)); // Stack: ns, function ptr
-        lua_pushcclosure_x(L, &detail::invoke_proxy_function<FnType>, 1); // Stack: ns, function
-        rawsetfield(L, -2, name); // Stack: ns
-
-        return *this;
-    }
-
-    //=============================================================================================
-    /**
-     * @brief Add or replace a lua_CFunction.
+     * @brief Add or replace a single function or multiple overloaded functions.
      *
-     * @param name The function name.
-     * @param fp   A C-function pointer.
+     * @param name The overload name.
+     * @param functions A single or set of functions that will be invoked.
      *
      * @returns This namespace registration object.
      */
-    Namespace& addFunction(const char* name, lua_CFunction fp)
+    template <class... Functions>
+    auto addFunction(const char* name, Functions... functions)
+        -> std::enable_if_t<(detail::is_callable_v<Functions> && ...) && (sizeof...(Functions) > 0), Namespace&>
     {
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 
-        lua_pushcfunction_x(L, fp); // Stack: ns, function
-        rawsetfield(L, -2, name); // Stack: ns
+        if constexpr (sizeof...(Functions) == 1)
+        {
+            ([&]
+            {
+                detail::push_function(L, std::move(functions));
+
+            } (), ...);
+        }
+        else
+        {
+            // create new closure of try_overloads with new table
+            lua_createtable(L, static_cast<int>(sizeof...(Functions)), 0); // reserve space for N overloads
+
+            int idx = 1;
+
+            ([&]
+            {
+                lua_createtable(L, 2, 0); // reserve space for: function, arity
+                lua_pushinteger(L, 1);
+                if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
+                    lua_pushinteger(L, -1);
+                else
+                    lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
+                lua_settable(L, -3);
+                lua_pushinteger(L, 2);
+                detail::push_function(L, std::move(functions));
+                lua_settable(L, -3);
+
+                lua_rawseti(L, -2, idx);
+                ++idx;
+
+            } (), ...);
+
+            lua_pushcclosure_x(L, &detail::try_overload_functions<false>, 1);
+        }
+
+        rawsetfield(L, -2, name);
 
         return *this;
     }

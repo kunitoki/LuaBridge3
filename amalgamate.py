@@ -1,6 +1,7 @@
 import os
 import re
 import argparse
+import datetime
 from collections import deque
 
 PARSE_FILE = 0
@@ -22,19 +23,25 @@ def AdjustFileExtension(ext):
 		ext = '.' + ext
 
 def RemoveComments(text):
-    def replacer(match):
-        s = match.group(0)
-        if s.startswith('/'):
-            return " " # note: a space and not an empty string
-        else:
-            return s
+	def BlotOutNonNewlines(strIn):
+		if strIn.startswith("/*"):
+			return "\n"
+		else:
+			return ""
 
-    pattern = re.compile(
-        r'//.*?$|/\*.*?\*/|\'(?:\\.|[^\\\'])*\'|"(?:\\.|[^\\"])*"',
-        re.DOTALL | re.MULTILINE
-    )
+	def Replacer(match):
+		s = match.group(0)
+		if s.startswith('/'):
+			return BlotOutNonNewlines(s)
+		else:
+			return s
 
-    return re.sub(pattern, replacer, text)
+	pattern = re.compile(
+		r'//.*?$|/\*.*?\*/|\'(?:\\.|[^\\\'])*\'|"(?:\\.|[^\\"])*"',
+		re.DOTALL | re.MULTILINE
+	)
+
+	return re.sub(pattern, Replacer, text)
 
 class SourceInfo:
 	def __init__(self, baseDir , outputDir, outputName):
@@ -121,7 +128,7 @@ class SourceInfo:
 	def ParseDirectories(self):
 		all_files = []
 
-		for sourceDirectory in 	self.includeDirs:
+		for sourceDirectory in self.includeDirs:
 			for root, _, files in os.walk(sourceDirectory):
 				for filename in files:
 					all_files.append(os.path.join(root, filename))
@@ -131,10 +138,10 @@ class SourceInfo:
 
 
 	def WriteBeginFileHeader(self, filename, stream):
-		stream.write(f"// Begin File: {filename}\n\n")
+		stream.write(f"\n// Begin File: {filename}\n")
 
 	def WriteEndFileHeader(self, filename, stream):
-		stream.write(f"\n// End File: {filename}\n\n")
+		stream.write(f"\n// End File: {filename}\n")
 
 	def AddFileToQueue(self, filename, ext):
 		if IsCppHeaderFile(ext):
@@ -154,15 +161,10 @@ class SourceInfo:
 
 			lastLineWasEmpty = False
 
-			lines = source.readlines()
+			text = RemoveComments(source.read())
+			lines = text.replace("\r", "\n").split("\n")
 
-			first_non_comment_line_index = 0
-			for line_index, line in enumerate(lines):
-				if not line.strip().startswith("//"):
-					first_non_comment_line_index = line_index
-					break
-
-			for line in lines[first_non_comment_line_index:]:
+			for line in lines:
 				result = INCLUDE_FILE_MATCHER.findall(line)
 				if result:
 					continue
@@ -173,8 +175,7 @@ class SourceInfo:
 
 				stripped_line = line.strip()
 				if stripped_line or not lastLineWasEmpty:
-					if not stripped_line.startswith("// clang-format"):
-						stream.write(line)
+					stream.write(f"{line}\n")
 
 				lastLineWasEmpty = not stripped_line
 
@@ -186,11 +187,12 @@ class SourceInfo:
 		self.LogMessage(f"Creating source Amalgamation: {headerPath}")
 
 		with open (headerPath , 'w') as headerAmalgamation:
-			headerAmalgamation.write("// https://github.com/kunitoki/LuaBridge3\n")
-			headerAmalgamation.write("// Copyright 2021, Lucio Asnaghi\n")
-			headerAmalgamation.write("// SPDX-License-Identifier: MIT\n\n")
-			headerAmalgamation.write("// clang-format off\n\n")
-			headerAmalgamation.write("#pragma once\n\n")
+			current_year = datetime.date.today().year
+			headerAmalgamation.write(f"// https://github.com/kunitoki/LuaBridge3\n")
+			headerAmalgamation.write(f"// Copyright {current_year}, Lucio Asnaghi\n")
+			headerAmalgamation.write(f"// SPDX-License-Identifier: MIT\n\n")
+			headerAmalgamation.write(f"// clang-format off\n\n")
+			headerAmalgamation.write(f"#pragma once\n\n")
 
 			for header in sorted(list(self.systemHeaders)):
 				headerAmalgamation.write(f"#include <{header}>\n")
@@ -207,17 +209,9 @@ if __name__ == "__main__":
 	parser.add_argument('--base', action='store', default="Source/LuaBridge/")
 	parser.add_argument('--output', action='store', default="Distribution/LuaBridge/")
 	parser.add_argument('--name', action='store', default="LuaBridge")
-	parser.add_argument('--strip', action='store_true', default=False)
 
 	args = parser.parse_args()
 
 	sourceInfo = SourceInfo(args.base, args.output, args.name)
 	sourceInfo.ParseDirectories()
-	amalgamatedHeader = sourceInfo.WriteAlgamationFiles()
-
-	if args.strip:
-		with open (amalgamatedHeader , 'r') as f:
-			text = f.read()
-
-		with open (amalgamatedHeader , 'w') as f:
-			f.write(RemoveComments(text))
+	sourceInfo.WriteAlgamationFiles()

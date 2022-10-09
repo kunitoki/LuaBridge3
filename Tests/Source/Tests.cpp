@@ -453,7 +453,7 @@ TEST_F(LuaBridgeTest, StdSharedPtr)
     luabridge::getGlobalNamespace(L)
         .beginNamespace("test")
             .beginClass<A>("A")
-                .addConstructor<void(*)(int), std::shared_ptr<A>>()
+                .addConstructorFrom<std::shared_ptr<A>, void(*)(int)>()
             .endClass()
         .endNamespace();
     

@@ -311,7 +311,11 @@ public:
 
             ud->~UserdataValue<T>();
 
+#if LUABRIDGE_RAISE_UNREGISTERED_CLASS_USAGE
             ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
+#else
+            ec = makeErrorCode(ErrorCode::ClassNotRegistered);
+#endif
 
             return nullptr;
         }
@@ -464,7 +468,11 @@ private:
 
             udptr->~UserdataPtr();
 
+#if LUABRIDGE_RAISE_UNREGISTERED_CLASS_USAGE
             return throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
+#else
+            return makeErrorCode(ErrorCode::ClassNotRegistered);
+#endif
         }
 
         lua_setmetatable(L, -2);
@@ -522,7 +530,11 @@ public:
 
             ud->~UserdataValueExternal<T>();
 
+#if LUABRIDGE_RAISE_UNREGISTERED_CLASS_USAGE
             ec = throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
+#else
+            ec = makeErrorCode(ErrorCode::ClassNotRegistered);
+#endif
 
             return nullptr;
         }
@@ -620,7 +632,11 @@ struct UserdataSharedHelper
 
                 us->~UserdataShared<C>();
 
+#if LUABRIDGE_RAISE_UNREGISTERED_CLASS_USAGE
                 return throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
+#else
+                return makeErrorCode(ErrorCode::ClassNotRegistered);
+#endif
             }
 
             lua_setmetatable(L, -2);
@@ -647,7 +663,11 @@ struct UserdataSharedHelper
 
                 us->~UserdataShared<C>();
 
+#if LUABRIDGE_RAISE_UNREGISTERED_CLASS_USAGE
                 return throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
+#else
+                return makeErrorCode(ErrorCode::ClassNotRegistered);
+#endif
             }
 
             lua_setmetatable(L, -2);
@@ -683,7 +703,11 @@ struct UserdataSharedHelper<C, true>
 
                 us->~UserdataShared<C>();
 
+#if LUABRIDGE_RAISE_UNREGISTERED_CLASS_USAGE
                 return throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
+#else
+                return makeErrorCode(ErrorCode::ClassNotRegistered);
+#endif
             }
 
             lua_setmetatable(L, -2);
@@ -710,7 +734,11 @@ struct UserdataSharedHelper<C, true>
 
                 us->~UserdataShared<C>();
 
+#if LUABRIDGE_RAISE_UNREGISTERED_CLASS_USAGE
                 return throw_or_error_code<LuaException>(L, ErrorCode::ClassNotRegistered);
+#else
+                return makeErrorCode(ErrorCode::ClassNotRegistered);
+#endif
             }
 
             lua_setmetatable(L, -2);

@@ -91,9 +91,16 @@ struct ErrorCategory : std::error_category
  */
 inline std::error_code makeErrorCode(ErrorCode e)
 {
-  return { static_cast<int>(e), detail::ErrorCategory::getInstance() };
+    return { static_cast<int>(e), detail::ErrorCategory::getInstance() };
 }
 
+/**
+ * @brief Supports std::error_code construction.
+ */
+inline std::error_code make_error_code(ErrorCode e)
+{
+    return { static_cast<int>(e), detail::ErrorCategory::getInstance() };
+}
 } // namespace luabridge
 
 namespace std {

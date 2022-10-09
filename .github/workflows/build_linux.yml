@@ -14,56 +14,48 @@ jobs:
       with:
         submodules: true
 
+    - uses: seanmiddleditch/gha-setup-ninja@master
+
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
 
     - name: Configure
       working-directory: ${{runner.workspace}}/build
-      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -G Ninja
 
     - name: Build
       working-directory: ${{runner.workspace}}/build
-      run: cmake --build . --config $BUILD_TYPE -- -j4
+      run: cmake --build . --config $BUILD_TYPE
 
     - name: Test Lua 5.1
       working-directory: ${{runner.workspace}}/build/Tests
-      run: ./LuaBridgeTests51
-
-    - name: Test Lua 5.1 - No Exceptions
-      working-directory: ${{runner.workspace}}/build/Tests
-      run: ./LuaBridgeTests51Noexcept
+      run: |
+        ./LuaBridgeTests51
+        ./LuaBridgeTests51Noexcept
 
     - name: Test Lua 5.2
       working-directory: ${{runner.workspace}}/build/Tests
-      run: ./LuaBridgeTests52
-
-    - name: Test Lua 5.2 - No Exceptions
-      working-directory: ${{runner.workspace}}/build/Tests
-      run: ./LuaBridgeTests52Noexcept
+      run: |
+        ./LuaBridgeTests52
+        ./LuaBridgeTests52Noexcept
 
     - name: Test Lua 5.3
       working-directory: ${{runner.workspace}}/build/Tests
-      run: ./LuaBridgeTests53
-
-    - name: Test Lua 5.3 - No Exceptions
-      working-directory: ${{runner.workspace}}/build/Tests
-      run: ./LuaBridgeTests53Noexcept
+      run: |
+        ./LuaBridgeTests53
+        ./LuaBridgeTests53Noexcept
 
     - name: Test Lua 5.4
       working-directory: ${{runner.workspace}}/build/Tests
-      run: ./LuaBridgeTests54
-
-    - name: Test Lua 5.4 - No Exceptions
-      working-directory: ${{runner.workspace}}/build/Tests
-      run: ./LuaBridgeTests54Noexcept
+      run: |
+        ./LuaBridgeTests54
+        ./LuaBridgeTests54Noexcept
 
     - name: Test LuaJIT
       working-directory: ${{runner.workspace}}/build/Tests
-      run: ./LuaBridgeTestsLuaJIT
-
-    - name: Test LuaJIT - No Exceptions
-      working-directory: ${{runner.workspace}}/build/Tests
-      run: ./LuaBridgeTestsLuaJITNoexcept
+      run: |
+        ./LuaBridgeTestsLuaJIT
+        ./LuaBridgeTestsLuaJITNoexcept
 
     - name: Test Luau
       working-directory: ${{runner.workspace}}/build/Tests

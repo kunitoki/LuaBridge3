@@ -2053,6 +2053,104 @@ TEST_F(StackTests, OptionalStackOverflow)
     ASSERT_FALSE(luabridge::push(L, value));
 }
 
+TEST_F(StackTests, Pair)
+{
+    {
+        auto value = std::make_pair(1, "one");
+        ASSERT_TRUE(luabridge::push(L, value));
+
+        auto result = luabridge::get<decltype(value)>(L, -1);
+        ASSERT_TRUE(result);
+        EXPECT_EQ(1, std::get<0>(*result));
+        EXPECT_STREQ("one", std::get<1>(*result));
+    }
+
+    {
+        auto value = std::make_pair(1, std::string("one"));
+        ASSERT_TRUE(luabridge::push(L, value));
+
+        auto result = luabridge::get<std::pair<std::string, int>>(L, -1);
+        ASSERT_FALSE(result);
+        EXPECT_EQ(luabridge::ErrorCode::InvalidTypeCast, result.error());
+    }
+
+    {
+        auto value = std::make_tuple(1, 2, 3);
+        ASSERT_TRUE(luabridge::push(L, value));
+
+        auto result = luabridge::get<std::pair<int, int>>(L, -1);
+        ASSERT_FALSE(result);
+        EXPECT_EQ(luabridge::ErrorCode::InvalidTableSizeInCast, result.error());
+    }
+}
+
+TEST_F(StackTests, PairNesting)
+{
+    auto value = std::make_pair(1, std::make_pair(1, std::make_pair(1, std::string("one"))));
+    ASSERT_TRUE(luabridge::push(L, value));
+
+    auto result = luabridge::get<decltype(value)>(L, -1);
+    ASSERT_TRUE(result);
+    EXPECT_EQ(1, std::get<0>(*result));
+    EXPECT_EQ(1, std::get<0>(std::get<1>(*result)));
+    EXPECT_EQ(1, std::get<0>(std::get<1>(std::get<1>(*result))));
+    EXPECT_EQ("one", std::get<1>(std::get<1>(std::get<1>(*result))));
+}
+
+TEST_F(StackTests, PairStackOverflow)
+{
+    exhaustStackSpace();
+
+    auto value = std::make_pair(1, "one");
+
+    ASSERT_FALSE(luabridge::push(L, value));
+}
+
+TEST_F(StackTests, Tuple)
+{
+    {
+        auto value = std::make_tuple(1, 1.0f, "one");
+        ASSERT_TRUE(luabridge::push(L, value));
+
+        auto result = luabridge::get<decltype(value)>(L, -1);
+        ASSERT_TRUE(result);
+        EXPECT_EQ(1, std::get<0>(*result));
+        EXPECT_FLOAT_EQ(1.0f, std::get<1>(*result));
+        EXPECT_STREQ("one", std::get<2>(*result));
+    }
+
+    {
+        auto value = std::make_tuple(1, std::string("one"));
+        ASSERT_TRUE(luabridge::push(L, value));
+
+        auto result = luabridge::get<std::tuple<std::string, int>>(L, -1);
+        ASSERT_FALSE(result);
+        EXPECT_EQ(luabridge::ErrorCode::InvalidTypeCast, result.error());
+    }
+
+    {
+        auto value = std::make_tuple(1, 2, 3);
+        ASSERT_TRUE(luabridge::push(L, value));
+
+        auto result = luabridge::get<std::tuple<int, int>>(L, -1);
+        ASSERT_FALSE(result);
+        EXPECT_EQ(luabridge::ErrorCode::InvalidTableSizeInCast, result.error());
+    }
+}
+
+TEST_F(StackTests, TupleNesting)
+{
+    auto value = std::make_tuple(1, std::make_tuple(1, std::make_tuple(1, std::string("one"))));
+    ASSERT_TRUE(luabridge::push(L, value));
+
+    auto result = luabridge::get<decltype(value)>(L, -1);
+    ASSERT_TRUE(result);
+    EXPECT_EQ(1, std::get<0>(*result));
+    EXPECT_EQ(1, std::get<0>(std::get<1>(*result)));
+    EXPECT_EQ(1, std::get<0>(std::get<1>(std::get<1>(*result))));
+    EXPECT_EQ("one", std::get<1>(std::get<1>(std::get<1>(*result))));
+}
+
 TEST_F(StackTests, TupleStackOverflow)
 {
     exhaustStackSpace();
@@ -2193,4 +2291,28 @@ TEST_F(StackTests, StdStringView)
     ASSERT_STREQ("abc", *luabridge::get<const char*>(L, -1));
     ASSERT_EQ("abc", *luabridge::get<std::string>(L, -1));
     ASSERT_EQ("abc", *luabridge::get<std::string_view>(L, -1));
+}
+
+TEST_F(StackTests, ResultCheck)
+{
+    struct Unregistered {};
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_ANY_THROW(luabridge::push(L, std::optional<Unregistered>(Unregistered{})).error());
+#else
+    EXPECT_EQ(luabridge::ErrorCode::ClassNotRegistered, luabridge::push(L, std::optional<Unregistered>(Unregistered{})).error());
+#endif
+}
+
+TEST_F(StackTests, TypeResultCheck)
+{
+    (void)luabridge::push(L, std::string_view("abc"));
+
+    EXPECT_EQ(std::string{ "abc" }, luabridge::get<std::string>(L, -1));
+    EXPECT_EQ(luabridge::get<std::string>(L, -1), std::string{ "abc" });
+    EXPECT_NE(std::string{ "123" }, luabridge::get<std::string>(L, -1));
+    EXPECT_NE(luabridge::get<std::string>(L, -1), std::string{ "123" });
+
+    EXPECT_EQ(luabridge::ErrorCode::InvalidTypeCast, luabridge::get<int>(L, -1).error());
+    EXPECT_EQ(luabridge::ErrorCode::InvalidTypeCast, static_cast<std::error_code>(luabridge::get<int>(L, -1)));
 }
