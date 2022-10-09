@@ -791,3 +791,26 @@ TEST_F(OverloadTests, ConstructorOverloading)
     ASSERT_FALSE(runLua("x = X(1, 10, 100); result = x.value"));
 #endif
 }
+
+TEST_F(OverloadTests, FunctionFailureVsArgumentConversion)
+{
+    luabridge::getGlobalNamespace(L)
+        .addFunction("test",
+            +[](int, lua_State* L) -> int {
+                lua_pushinteger(L, 1);
+                luaL_error(L, "failure");
+                return 1;
+            },
+            +[](lua_State* L) -> int {
+                lua_pushinteger(L, 2);
+                return 1;
+            });
+
+    runLua("result = test ('abcdefg')");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(2, result<int>());
+
+    runLua("result = test (1)");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(2, result<int>());
+}
