@@ -489,6 +489,45 @@ TEST_F(OverloadTests, MixedStaticFunctionTypesClass)
     EXPECT_EQ(48, result<int>());
 }
 
+TEST_F(OverloadTests, OverloadOperatorClass)
+{
+    struct X
+    {
+        X(int x) : value(x) {}
+
+        X operator*(const X& rhs) const
+        {
+            return { value * rhs.value };
+        }
+
+        X operator*(int x) const
+        {
+            return { value * x };
+        }
+
+        int value = 0;
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<X>("X")
+            .addConstructor<void(int)>()
+            .addProperty("value", &X::value)
+            .addFunction("__mul",
+                luabridge::overload<const X&>(&X::operator*),
+                luabridge::overload<int>(&X::operator*))
+        .endClass();
+
+    runLua("x1 = X(2); x2 = X(3); result = x1 * x2");
+    ASSERT_TRUE(result().isUserdata());
+    auto result1 = result<X>();
+    EXPECT_EQ(6, result1.value);
+
+    runLua("x1 = X(2); result = x1 * 3");
+    ASSERT_TRUE(result().isUserdata());
+    auto result2 = result<X>();
+    EXPECT_EQ(6, result2.value);
+}
+
 TEST_F(OverloadTests, LuaCFunctionFallback)
 {
     struct X
