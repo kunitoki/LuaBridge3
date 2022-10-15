@@ -8,8 +8,7 @@ set (LUABRIDGE_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/RefCountedObject.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/Set.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/UnorderedMap.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/Vector.h
-)
+  ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/Vector.h)
 source_group ("LuaBridge" FILES ${LUABRIDGE_HEADERS})
 
 set (LUABRIDGE_DETAIL_HEADERS
@@ -32,20 +31,21 @@ set (LUABRIDGE_DETAIL_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Security.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Stack.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/TypeTraits.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Userdata.h
-)
+  ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Userdata.h)
 source_group ("LuaBridgeDetail" FILES ${LUABRIDGE_DETAIL_HEADERS})
 
 add_library (LuaBridge INTERFACE)
 target_sources (LuaBridge INTERFACE
   ${LUABRIDGE_HEADERS}
-  ${LUABRIDGE_DETAIL_HEADERS}
-)
+  ${LUABRIDGE_DETAIL_HEADERS})
 target_include_directories (LuaBridge INTERFACE .)
+
+if (CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+  install(DIRECTORY LuaBridge DESTINATION "LuaBridge3")
+endif ()
 
 if (MSVC AND CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
   add_custom_target (LuaBridgeSources SOURCES
     ${LUABRIDGE_HEADERS}
-    ${LUABRIDGE_DETAIL_HEADERS}
-  )
+    ${LUABRIDGE_DETAIL_HEADERS})
 endif ()

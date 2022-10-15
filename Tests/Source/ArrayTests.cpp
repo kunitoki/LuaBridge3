@@ -8,6 +8,7 @@
 
 #include "LuaBridge/Array.h"
 
+#include <algorithm>
 #include <array>
 
 namespace {
