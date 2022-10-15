@@ -85,7 +85,17 @@ struct TypeResult
         return m_value.value();
     }
 
-    const T& operator*() const
+    T& operator*() &
+    {
+        return m_value.value();
+    }
+
+    T operator*() &&
+    {
+        return std::move(m_value.value());
+    }
+
+    const T& operator*() const&
     {
         return m_value.value();
     }
