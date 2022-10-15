@@ -9,7 +9,7 @@
 #include "TestBase.h"
 #include "LegacyTests.h"
 
-#include "LuaBridge/RefCountedPtr.h"
+#include "LuaBridge/RefCountedObject.h"
 
 #include <cstring>
 #include <iostream>
@@ -125,10 +125,10 @@ public:
         testStaticProp = x;
     }
 
-    RefCountedPtr<A> operator+(A const& other)
+    A operator+(A const& other)
     {
         A_functions.called[FN_OPERATOR] = true;
-        return new A(name + " + " + other.name);
+        return A(name + " + " + other.name);
     }
 };
 
@@ -216,23 +216,6 @@ void testParamConstAPtr(const A* a)
     a->setSuccess();
 }
 
-void testParamSharedPtrA(RefCountedPtr<A> a)
-{
-    a->setSuccess();
-}
-
-RefCountedPtr<A> testRetSharedPtrA()
-{
-    static RefCountedPtr<A> sp_A(new A("from C"));
-    return sp_A;
-}
-
-RefCountedPtr<A const> testRetSharedPtrConstA()
-{
-    static RefCountedPtr<A> sp_A(new A("const A"));
-    return sp_A;
-}
-
 // add our own functions and classes to a Lua environment
 void addToState(lua_State* L)
 {
@@ -251,7 +234,7 @@ void addToState(lua_State* L)
         .addFunction("testParamStdString", &testParamStdString)
         .addFunction("testParamStdStringRef", &testParamStdStringRef)
         .beginClass<A>("A")
-        .addConstructor<void (*)(const string&), RefCountedPtr<A>>()
+        .addConstructor<void (*)(const string&)>()
         .addFunction("testVirtual", &A::testVirtual)
         .addFunction("getName", &A::getName)
         .addFunction("testSucceeded", &A::testSucceeded)
@@ -259,19 +242,16 @@ void addToState(lua_State* L)
         .addProperty("testProp", &A::testProp)
         .addProperty("testProp2", &A::testPropGet, &A::testPropSet)
         .addStaticFunction("testStatic", &A::testStatic)
-        .addStaticData("testStaticProp", &A::testStaticProp)
+        .addStaticProperty("testStaticProp", &A::testStaticProp)
         .addStaticProperty("testStaticProp2", &A::testStaticPropGet, &A::testStaticPropSet)
         .endClass()
         .deriveClass<B, A>("B")
-        .addConstructor<void (*)(const string&), RefCountedPtr<B>>()
+        .addConstructor<void (*)(const string&)>()
         .addStaticFunction("testStatic2", &B::testStatic2)
         .endClass()
         .addFunction("testParamAPtr", &testParamAPtr)
         .addFunction("testParamAPtrConst", &testParamAPtrConst)
-        .addFunction("testParamConstAPtr", &testParamConstAPtr)
-        .addFunction("testParamSharedPtrA", &testParamSharedPtrA)
-        .addFunction("testRetSharedPtrA", &testRetSharedPtrA)
-        .addFunction("testRetSharedPtrConstA", &testRetSharedPtrConstA);
+        .addFunction("testParamConstAPtr", &testParamConstAPtr);
 }
 
 void resetTests()
@@ -314,14 +294,5 @@ TEST_F(LegacyTests, AllTests)
     LuaBridgeTests::addToState(L);
 
     // Execute lua files in order
-    if (luaL_loadstring(L, BinaryData::Tests_lua) != 0)
-    {
-        // compile-time error
-        FAIL() << lua_tostring(L, -1);
-    }
-    if (lua_pcall(L, 0, 0, -2) != 0)
-    {
-        // runtime error
-        FAIL() << lua_tostring(L, -1);
-    }
+    runLua(BinaryData::Tests_lua);
 }

@@ -14,41 +14,64 @@ namespace luabridge {
 /**
  * @brief Stack specialization for `std::set`.
  */
-template <class K, class V>
-struct Stack<std::set<K, V>>
+template <class K>
+struct Stack<std::set<K>>
 {
-    static void push(lua_State* L, const std::set<K, V>& set)
+    using Type = std::set<K>;
+    
+    [[nodiscard]] static Result push(lua_State* L, const Type& set)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 3))
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
+        StackRestore stackRestore(L);
+
         lua_createtable(L, 0, static_cast<int>(set.size()));
 
-        for (auto it = set.begin(); it != set.end(); ++it)
+        auto it = set.cbegin();
+        for (lua_Integer tableIndex = 1; it != set.cend(); ++tableIndex, ++it)
         {
-            Stack<K>::push(L, it->first);
-            Stack<V>::push(L, it->second);
+            lua_pushinteger(L, tableIndex);
+
+            auto result = Stack<K>::push(L, *it);
+            if (! result)
+                return result;
+
             lua_settable(L, -3);
         }
+
+        stackRestore.reset();
+        return {};
     }
 
-    static std::set<K, V> get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<Type> get(lua_State* L, int index)
     {
         if (!lua_istable(L, index))
-            luaL_error(L, "#%d argument must be a table", index);
+            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
 
-        std::set<K, V> set;
+        const StackRestore stackRestore(L);
+
+        Type set;
 
         int absIndex = lua_absindex(L, index);
         lua_pushnil(L);
 
         while (lua_next(L, absIndex) != 0)
         {
-            set.emplace(Stack<K>::get(L, -2), Stack<V>::get(L, -1));
+            auto item = Stack<K>::get(L, -1);
+            if (! item)
+                return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+
+            set.emplace(*item);
             lua_pop(L, 1);
         }
 
         return set;
     }
 
-    static bool isInstance(lua_State* L, int index)
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
     {
         return lua_istable(L, index);
     }

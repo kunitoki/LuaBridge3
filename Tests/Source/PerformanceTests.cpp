@@ -49,6 +49,8 @@ struct A
 {
     A() : data(0), prop(0) {}
 
+    virtual ~A() = default;
+
     void mf1() {}
 
     void mf2(A*) {}
@@ -82,6 +84,7 @@ void addToState(lua_State* L)
 
 void runTests(lua_State* L)
 {
+#if 0 // TODO
     cout.precision(4);
 
     int result;
@@ -111,6 +114,7 @@ void runTests(lua_State* L)
 
         cout << "Elapsed time: " << seconds << endl;
     }
+#endif
 }
 
 void runPerformanceTests()

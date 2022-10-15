@@ -1,8 +1,7 @@
 import os
-import sys
 import re
-import shutil
 import argparse
+import datetime
 from collections import deque
 
 PARSE_FILE = 0
@@ -18,59 +17,79 @@ LOCAL_INCLUDE_FILE_MATCHER = re.compile(r'#include\s*\"([\w.\\/]*)\"')
 
 def IsCppHeaderFile(ext):
 	return  ext in CPP_HEADER_FILE_EXT
-		
+
 def AdjustFileExtension(ext):
 	if ext[0] != '.':
 		ext = '.' + ext
-	
+
+def RemoveComments(text):
+	def BlotOutNonNewlines(strIn):
+		if strIn.startswith("/*"):
+			return "\n"
+		else:
+			return ""
+
+	def Replacer(match):
+		s = match.group(0)
+		if s.startswith('/'):
+			return BlotOutNonNewlines(s)
+		else:
+			return s
+
+	pattern = re.compile(
+		r'//.*?$|/\*.*?\*/|\'(?:\\.|[^\\\'])*\'|"(?:\\.|[^\\"])*"',
+		re.DOTALL | re.MULTILINE
+	)
+
+	return re.sub(pattern, Replacer, text)
 
 class SourceInfo:
-	def __init__(self, baseDir , outputDir, outputName):		
+	def __init__(self, baseDir , outputDir, outputName):
 		self.includeDirs = list()
-		self.headerQueue = deque()		
+		self.headerQueue = deque()
 		self.systemHeaders = set()
 		self.scannedFiles = set()
-		
-		self.baseDir = baseDir		
+
+		self.baseDir = baseDir
 		self.outputDir = outputDir
-		
+
 		self.outputName = outputName
 		self.headerFileExt = ".h"
-		
+
 		self.AddIncludeDirectory(self.baseDir)
 		self.AddIncludeDirectory(os.path.join(self.baseDir, "detail"))
-		
+
 	def LogMessage(self, message):
 		print(message)
-	
+
 	def AddIncludeDirectory(self, path):
 		if not os.path.exists(path):
 			return False
-		
+
 		self.LogMessage(f"Include Directory Added: {path}")
 
 		self.includeDirs.append(path)
 		return True
-                                
+
 	def GetAbsoluteSourcePath(self, pwd, include):
 		if os.path.isabs(include):
 			return include
-		
+
 		for includeDir in self.includeDirs:
 			absPath = os.path.normpath(os.path.join(includeDir, include))
 			if os.path.exists(absPath):
 				return absPath
-		
+
 		return None
-		
+
 	def ShouldParseFile(self , path , ext):
 		if (path in self.scannedFiles): return ALREADY_SCANNED
-		
-		if not IsCppHeaderFile(ext) or not os.path.exists(path): 
+
+		if not IsCppHeaderFile(ext) or not os.path.exists(path):
 			return EXTERNAL_FILE
-		
+
 		return PARSE_FILE
-		
+
 	def ScanSourceFile(self, path , depth):
 		dirpath, filename = os.path.split(path)
 		ext = os.path.splitext(filename)[1]
@@ -78,12 +97,13 @@ class SourceInfo:
 		info = self.ShouldParseFile(path, ext)
 		if info != PARSE_FILE:
 			return info
-		                                 
-		self.LogMessage(f"Scan file: {path}")     
+
+		self.LogMessage(f"Scan file: {path}")
 		self.scannedFiles.add(path)
-		
-		with open (path , 'r') as src:
+
+		with open (path , "r") as src:
 			lines = src.readlines()
+
 			for line in lines:
 				includeResult = INCLUDE_FILE_MATCHER.findall(line)
 				if not includeResult:
@@ -94,47 +114,56 @@ class SourceInfo:
 					includeFile = self.GetAbsoluteSourcePath(dirpath, localResult[0])
 					if includeFile is None:
 						continue
-					
-					call = self.ScanSourceFile(includeFile , depth + 1)				
+
+					call = self.ScanSourceFile(includeFile , depth + 1)
 					if call == EXTERNAL_FILE:
 						self.scannedFiles.add(includeFile)
 				else:
 					self.systemHeaders.add(includeResult[0])
-		
+
 		self.AddFileToQueue(path, ext)
-		
+
 		return info
 
 	def ParseDirectories(self):
-		for sourceDirectory in 	self.includeDirs:
+		all_files = []
+
+		for sourceDirectory in self.includeDirs:
 			for root, _, files in os.walk(sourceDirectory):
 				for filename in files:
-					path =  os.path.join(root, filename)
-					self.ScanSourceFile(path, 0)
-		
+					all_files.append(os.path.join(root, filename))
+
+		for path in sorted(all_files):
+			self.ScanSourceFile(path, 0)
+
+
 	def WriteBeginFileHeader(self, filename, stream):
-		stream.write(f"// Begin File: {filename}\n\n")
-	
+		stream.write(f"\n// Begin File: {filename}\n")
+
 	def WriteEndFileHeader(self, filename, stream):
-		stream.write(f"\n// End File: {filename}\n\n")
-		
+		stream.write(f"\n// End File: {filename}\n")
+
 	def AddFileToQueue(self, filename, ext):
 		if IsCppHeaderFile(ext):
 			self.LogMessage(f"Enqueue header file: {filename}")
 			self.headerQueue.append(filename)
-				
+
 	def AmalgamateQueue(self, queue, stream):
 		while (len(queue) > 0):
 			path = queue.popleft()
 			self.WriteFileToStream(path, stream)
 
 	def WriteFileToStream(self, path, stream):
-		self.LogMessage(f"Write File: {path}") 
+		self.LogMessage(f"Write File: {path}")
 
 		with open (path, 'r') as source:
 			self.WriteBeginFileHeader(path, stream)
-		
-			lines = source.readlines()
+
+			lastLineWasEmpty = False
+
+			text = RemoveComments(source.read())
+			lines = text.replace("\r", "\n").split("\n")
+
 			for line in lines:
 				result = INCLUDE_FILE_MATCHER.findall(line)
 				if result:
@@ -144,26 +173,36 @@ class SourceInfo:
 				if result:
 					continue
 
-				stream.write(line)
-		
+				stripped_line = line.strip()
+				if stripped_line or not lastLineWasEmpty:
+					stream.write(f"{line}\n")
+
+				lastLineWasEmpty = not stripped_line
+
 			self.WriteEndFileHeader(path, stream)
-	
+
 	def WriteAlgamationFiles(self):
 		headerPath = os.path.join(self.outputDir, self.outputName + self.headerFileExt)
 
 		self.LogMessage(f"Creating source Amalgamation: {headerPath}")
-		
+
 		with open (headerPath , 'w') as headerAmalgamation:
-			headerAmalgamation.write("// https://github.com/kunitoki/LuaBridge3\n")
-			headerAmalgamation.write("// Copyright 2020, Lucio Asnaghi\n")
-			headerAmalgamation.write("// SPDX-License-Identifier: MIT\n\n")
-			headerAmalgamation.write("#pragma once\n\n")
+			current_year = datetime.date.today().year
+			headerAmalgamation.write(f"// https://github.com/kunitoki/LuaBridge3\n")
+			headerAmalgamation.write(f"// Copyright {current_year}, Lucio Asnaghi\n")
+			headerAmalgamation.write(f"// SPDX-License-Identifier: MIT\n\n")
+			headerAmalgamation.write(f"// clang-format off\n\n")
+			headerAmalgamation.write(f"#pragma once\n\n")
 
 			for header in sorted(list(self.systemHeaders)):
 				headerAmalgamation.write(f"#include <{header}>\n")
 			headerAmalgamation.write("\n")
 
 			self.AmalgamateQueue(self.headerQueue, headerAmalgamation)
+
+			headerAmalgamation.write("// clang-format on\n\n")
+
+		return headerPath
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Amalgamate LuaBridge.')

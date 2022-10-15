@@ -1,0 +1,62 @@
+name: Build Linux
+
+on: [push]
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+
+    - uses: seanmiddleditch/gha-setup-ninja@master
+
+    - name: Create Build Environment
+      run: cmake -E make_directory ${{runner.workspace}}/build
+
+    - name: Configure
+      working-directory: ${{runner.workspace}}/build
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -G Ninja
+
+    - name: Build
+      working-directory: ${{runner.workspace}}/build
+      run: cmake --build . --config $BUILD_TYPE
+
+    - name: Test Lua 5.1
+      working-directory: ${{runner.workspace}}/build/Tests
+      run: |
+        ./LuaBridgeTests51
+        ./LuaBridgeTests51Noexcept
+
+    - name: Test Lua 5.2
+      working-directory: ${{runner.workspace}}/build/Tests
+      run: |
+        ./LuaBridgeTests52
+        ./LuaBridgeTests52Noexcept
+
+    - name: Test Lua 5.3
+      working-directory: ${{runner.workspace}}/build/Tests
+      run: |
+        ./LuaBridgeTests53
+        ./LuaBridgeTests53Noexcept
+
+    - name: Test Lua 5.4
+      working-directory: ${{runner.workspace}}/build/Tests
+      run: |
+        ./LuaBridgeTests54
+        ./LuaBridgeTests54Noexcept
+
+    - name: Test LuaJIT
+      working-directory: ${{runner.workspace}}/build/Tests
+      run: |
+        ./LuaBridgeTestsLuaJIT
+        ./LuaBridgeTestsLuaJITNoexcept
+
+    - name: Test Luau
+      working-directory: ${{runner.workspace}}/build/Tests
+      run: ./LuaBridgeTestsLuau

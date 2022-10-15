@@ -1,4 +1,5 @@
 // https://github.com/kunitoki/LuaBridge3
+// Copyright 2021, Lucio Asnaghi
 // Copyright 2019, Dmitry Tarakanov
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // Copyright 2007, Nathan Reed
@@ -8,6 +9,9 @@
 
 #include "TestBase.h"
 
+#include "LuaBridge/Set.h"
+#include "LuaBridge/List.h"
+
 #include <gtest/gtest.h>
 
 #include <cstring>
@@ -15,55 +19,39 @@
 #include <memory>
 #include <string>
 
-void printValue(lua_State* L, int index)
-{
-    int type = lua_type(L, index);
-    switch (type)
-    {
-    case LUA_TBOOLEAN:
-        std::cerr << std::boolalpha << (lua_toboolean(L, index) != 0);
-        break;
-    case LUA_TSTRING:
-        std::cerr << lua_tostring(L, index);
-        break;
-    case LUA_TNUMBER:
-        std::cerr << lua_tonumber(L, index);
-        break;
-    case LUA_TTABLE:
-    case LUA_TTHREAD:
-    case LUA_TFUNCTION:
-        std::cerr << lua_topointer(L, index);
-        break;
-    }
-    std::cerr << ": " << lua_typename(L, type) << " (" << type << ")" << std::endl;
-}
-
-struct LuaBridgeTest : TestBase
-{
-};
-
-template<class T>
+namespace {
+template <class T>
 T identityCFunction(T value)
 {
     return value;
 }
+} // namespace
+
+struct LuaBridgeTest : TestBase
+{
+};
 
 TEST_F(LuaBridgeTest, LambdaGlobalNamespace)
 {
     int x = 100;
     
     luabridge::getGlobalNamespace(L)
-        .addFunction("test", [x](int v) -> int { return v + x; })
-        .addFunction("test2", [x](lua_State* L, int v) -> int { return v + (L != nullptr ? x : 0); });
+        .addFunction("test", [x](int v) -> int {
+            return v + x;
+        })
+        .addFunction("test2", [x](lua_State* L, int v) -> int {
+            return v + (L != nullptr ? x : 0);
+        });
 
     runLua("result = test (255)");
+    
     ASSERT_EQ(true, result().isNumber());
-    ASSERT_EQ(355, result<int>());
+    EXPECT_EQ(355, result<int>());
 
     resetResult();
     runLua("result = test2 (nil, 255)");
     ASSERT_EQ(true, result().isNumber());
-    ASSERT_EQ(355, result<int>());
+    EXPECT_EQ(355, result<int>());
 }
 
 TEST_F(LuaBridgeTest, LambdaClassMethods)
@@ -73,6 +61,9 @@ TEST_F(LuaBridgeTest, LambdaClassMethods)
     struct Inner
     {
         Inner() = default;
+        
+        int normalMethod0() const { return 42; }
+        int normalMethod1(int) const { return 42; }
     };
     
     luabridge::getGlobalNamespace(L)
@@ -80,16 +71,18 @@ TEST_F(LuaBridgeTest, LambdaClassMethods)
         .addConstructor<void (*)()>()
         .addFunction("test", [x](Inner*, int v) -> int { return v + x; })
         .addFunction("test2", [x](const Inner*, int v) -> int { return v + x; })
+        .addFunction("normalMethod0", &Inner::normalMethod0)
+        .addFunction("normalMethod1", &Inner::normalMethod1)
         .endClass();
 
     runLua("x = Inner () result = x:test (255)");
-    ASSERT_EQ(true, result().isNumber());
-    ASSERT_EQ(355, result<int>());
+    EXPECT_EQ(true, result().isNumber());
+    EXPECT_EQ(355, result<int>());
 
     resetResult();
     runLua("x = Inner () result = x:test (255)");
-    ASSERT_EQ(true, result().isNumber());
-    ASSERT_EQ(355, result<int>());
+    EXPECT_EQ(true, result().isNumber());
+    EXPECT_EQ(355, result<int>());
 }
 
 TEST_F(LuaBridgeTest, CFunction)
@@ -113,96 +106,96 @@ TEST_F(LuaBridgeTest, CFunction)
 
     {
         runLua("result = ucharFn (255)");
-        ASSERT_EQ(true, result().isNumber());
-        ASSERT_EQ(255u, result<unsigned char>());
+        EXPECT_EQ(true, result().isNumber());
+        EXPECT_EQ(255u, result<unsigned char>());
     }
 
     {
         runLua("result = boolFn (false)");
-        ASSERT_EQ(true, result().isBool());
-        ASSERT_EQ(false, result<bool>());
+        EXPECT_EQ(true, result().isBool());
+        EXPECT_EQ(false, result<bool>());
     }
     {
         runLua("result = boolFn (true)");
-        ASSERT_EQ(true, result().isBool());
-        ASSERT_EQ(true, result<bool>());
+        EXPECT_EQ(true, result().isBool());
+        EXPECT_EQ(true, result<bool>());
     }
 
     {
         runLua("result = shortFn (-32768)");
-        ASSERT_EQ(true, result().isNumber());
-        ASSERT_EQ(-32768, result<int>());
+        EXPECT_EQ(true, result().isNumber());
+        EXPECT_EQ(-32768, result<int>());
     }
 
     {
         runLua("result = ushortFn (32767)");
-        ASSERT_EQ(true, result().isNumber());
-        ASSERT_EQ(32767u, result<unsigned int>());
+        EXPECT_EQ(true, result().isNumber());
+        EXPECT_EQ(32767u, result<unsigned int>());
     }
     {
         runLua("result = intFn (-500)");
-        ASSERT_EQ(true, result().isNumber());
-        ASSERT_EQ(-500, result<int>());
+        EXPECT_EQ(true, result().isNumber());
+        EXPECT_EQ(-500, result<int>());
     }
 
     {
         runLua("result = uintFn (42)");
-        ASSERT_EQ(true, result().isNumber());
-        ASSERT_EQ(42u, result<unsigned int>());
+        EXPECT_EQ(true, result().isNumber());
+        EXPECT_EQ(42u, result<unsigned int>());
     }
 
     {
         runLua("result = longFn (-8000)");
-        ASSERT_EQ(true, result().isNumber());
-        ASSERT_EQ(-8000, result<long>());
+        EXPECT_EQ(true, result().isNumber());
+        EXPECT_EQ(-8000, result<long>());
     }
 
     {
         runLua("result = ulongFn (9000)");
-        ASSERT_EQ(true, result().isNumber());
-        ASSERT_EQ(9000u, result<unsigned long>());
+        EXPECT_EQ(true, result().isNumber());
+        EXPECT_EQ(9000u, result<unsigned long>());
     }
 
     {
         runLua("result = longlongFn (-8000)");
-        ASSERT_EQ(true, result().isNumber());
-        ASSERT_EQ(-8000, result<long long>());
+        EXPECT_EQ(true, result().isNumber());
+        EXPECT_EQ(-8000, result<long long>());
     }
 
     {
         runLua("result = ulonglongFn (9000)");
-        ASSERT_EQ(true, result().isNumber());
-        ASSERT_EQ(9000u, result<unsigned long long>());
+        EXPECT_EQ(true, result().isNumber());
+        EXPECT_EQ(9000u, result<unsigned long long>());
     }
 
     {
         runLua("result = floatFn (3.14)");
-        ASSERT_EQ(true, result().isNumber());
-        ASSERT_FLOAT_EQ(3.14f, result<float>());
+        EXPECT_EQ(true, result().isNumber());
+        EXPECT_FLOAT_EQ(3.14f, result<float>());
     }
 
     {
         runLua("result = doubleFn (-12.3)");
-        ASSERT_EQ(true, result().isNumber());
-        ASSERT_DOUBLE_EQ(-12.3, result<double>());
+        EXPECT_EQ(true, result().isNumber());
+        EXPECT_DOUBLE_EQ(-12.3, result<double>());
     }
 
     {
         runLua("result = charFn ('a')");
-        ASSERT_EQ(true, result().isString());
-        ASSERT_EQ('a', result<char>());
+        EXPECT_EQ(true, result().isString());
+        EXPECT_EQ('a', result<char>());
     }
 
     {
         runLua("result = cstringFn ('abc')");
-        ASSERT_EQ(true, result().isString());
-        ASSERT_STREQ("abc", result<const char*>());
+        EXPECT_EQ(true, result().isString());
+        EXPECT_STREQ("abc", result<const char*>());
     }
 
     {
         runLua("result = stringFn ('lua')");
-        ASSERT_EQ(true, result().isString());
-        ASSERT_EQ("lua", result<std::string>());
+        EXPECT_EQ(true, result().isString());
+        EXPECT_EQ("lua", result<std::string>());
     }
 }
 
@@ -218,7 +211,7 @@ TEST_F(LuaBridgeTest, Tuple)
     {
         resetResult();
         runLua("result = { 1, 2 }");
-        ASSERT_EQ(true, result().isTable());
+        EXPECT_EQ(true, result().isTable());
         EXPECT_EQ((std::make_tuple(1, 2)), (result<std::tuple<int, int>>()));
     }
 
@@ -232,10 +225,30 @@ TEST_F(LuaBridgeTest, Tuple)
     {
         resetResult();
         runLua("result = tuple.t");
-        ASSERT_EQ(true, result().isTable());
+        EXPECT_EQ(true, result().isTable());
         EXPECT_EQ(2, std::get<0>(result<std::tuple<int, float>>()));
         EXPECT_FLOAT_EQ(4.0f, std::get<1>(result<std::tuple<int, float>>()));
     }
+}
+
+TEST_F(LuaBridgeTest, TupleAsFunctionReturnValue)
+{
+    int x = 100;
+        
+    struct Inner
+    {
+        Inner() = default;
+    };
+    
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Inner>("Inner")
+        .addConstructor<void (*)()>()
+        .addFunction("test", [x](Inner*) { return std::make_tuple(x, 42); })
+        .endClass();
+
+    runLua("x = Inner () result = x:test ()");
+    EXPECT_EQ(true, result().isTable());
+    EXPECT_EQ(std::make_tuple(x, 42), (result<std::tuple<int, int>>()));
 }
 
 template<class T>
@@ -287,37 +300,225 @@ TEST_F(LuaBridgeTest, ClassFunction)
 
     outer.data.data = 0;
     runLua("outer:getValue ().data = 1");
-    ASSERT_EQ(0, outer.data.data);
+    EXPECT_EQ(0, outer.data.data);
 
     outer.data.data = 1;
     runLua("outer:getPtr ().data = 10");
-    ASSERT_EQ(10, outer.data.data);
+    EXPECT_EQ(10, outer.data.data);
 
     outer.data.data = 2;
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("outer:getConstPtr ().data = 20"), std::runtime_error);
+#else
+    EXPECT_FALSE(runLua("outer:getConstPtr ().data = 20"));
+#endif
 
     outer.data.data = 3;
     runLua("outer:getRef().data = 30");
-    ASSERT_EQ(30, outer.data.data);
+    EXPECT_EQ(30, outer.data.data);
 
     outer.data.data = 4;
-    ASSERT_THROW(runLua("outer:getConstPtr ().data = 40"), std::runtime_error);
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_THROW(runLua("outer:getConstPtr ().data = 40"), std::runtime_error);
+#else
+    EXPECT_FALSE(runLua("outer:getConstPtr ().data = 40"));
+#endif
 
     outer.data.data = 5;
     runLua("outer:getValueConst ().data = 50");
-    ASSERT_EQ(5, outer.data.data);
+    EXPECT_EQ(5, outer.data.data);
 
     outer.data.data = 6;
     runLua("outer:getPtrConst ().data = 60");
-    ASSERT_EQ(60, outer.data.data);
+    EXPECT_EQ(60, outer.data.data);
 
     outer.data.data = 7;
-    ASSERT_THROW(runLua("outer:getConstPtr ().data = 70"), std::runtime_error);
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_THROW(runLua("outer:getConstPtr ().data = 70"), std::runtime_error);
+#else
+    EXPECT_FALSE(runLua("outer:getConstPtr ().data = 70"));
+#endif
 
     outer.data.data = 8;
     runLua("outer:getRef().data = 80");
-    ASSERT_EQ(80, outer.data.data);
+    EXPECT_EQ(80, outer.data.data);
 
     outer.data.data = 9;
-    ASSERT_THROW(runLua("outer:getConstPtr ().data = 90"), std::runtime_error);
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_THROW(runLua("outer:getConstPtr ().data = 90"), std::runtime_error);
+#else
+    EXPECT_FALSE(runLua("outer:getConstPtr ().data = 90"));
+#endif
 }
+
+TEST_F(LuaBridgeTest, PropertyGetterFailOnUnregistredClass)
+{
+    struct Clazz {} clazz;
+    
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("ns")
+            .addProperty("clazz", &clazz)
+        .endNamespace();
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_THROW(runLua("result = ns.clazz"), std::runtime_error);
+#else
+    EXPECT_FALSE(runLua("result = ns.clazz"));
+#endif
+}
+
+TEST_F(LuaBridgeTest, CallReturnLuaResult)
+{
+    runLua("function f1 (arg0, arg1) end");
+    runLua("function f2 (arg0, arg1) return arg0; end");
+    runLua("function f3 (arg0, arg1) return arg0, arg1; end");
+    runLua("function f4 () error('Something bad happened'); return arg0, arg1; end");
+
+    {
+        auto f1 = luabridge::getGlobal(L, "f1");
+        auto result = luabridge::call(f1, 1, 2);
+        EXPECT_FALSE(result.hasFailed());
+        EXPECT_TRUE(result.wasOk());
+        EXPECT_EQ(std::error_code(), result.errorCode());
+    }
+
+    {
+        auto f2 = luabridge::getGlobal(L, "f2");
+        auto result = luabridge::call(f2, 1, 2);
+        EXPECT_FALSE(result.hasFailed());
+        EXPECT_TRUE(result.wasOk());
+        EXPECT_EQ(std::error_code(), result.errorCode());
+        EXPECT_EQ(1u, result.size());
+        EXPECT_EQ(result[0], 1);
+    }
+
+    {
+        auto f3 = luabridge::getGlobal(L, "f3");
+        auto result = luabridge::call(f3, 1, 2);
+        EXPECT_FALSE(result.hasFailed());
+        EXPECT_TRUE(result.wasOk());
+        EXPECT_EQ(std::error_code(), result.errorCode());
+        EXPECT_EQ(2u, result.size());
+        EXPECT_EQ(result[0], 1);
+        EXPECT_EQ(result[1], 2);
+    }
+
+#if ! LUABRIDGE_HAS_EXCEPTIONS
+    {
+        auto f3 = luabridge::getGlobal(L, "f4");
+        auto result = luabridge::call(f3);
+        EXPECT_TRUE(result.hasFailed());
+        EXPECT_FALSE(result.wasOk());
+        EXPECT_EQ(0u, result.size());
+        EXPECT_NE(std::error_code(), result.errorCode());
+        EXPECT_NE(std::string::npos, result.errorMessage().find("Something bad happened"));
+    }
+#endif
+}
+
+TEST_F(LuaBridgeTest, InvokePassingUnregisteredClassShouldThrowAndRestoreStack)
+{
+    class Unregistered {} unregistered;
+
+    {
+        runLua("function f1 (unregistered) end");
+
+        auto f1 = luabridge::getGlobal(L, "f1");
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        EXPECT_THROW(luabridge::call(f1, unregistered), luabridge::LuaException);
+#else
+        int stackTop = lua_gettop(L);
+        
+        auto result = luabridge::call(f1, unregistered);
+        EXPECT_TRUE(result.hasFailed());
+        EXPECT_FALSE(result.wasOk());
+        EXPECT_EQ(luabridge::makeErrorCode(luabridge::ErrorCode::ClassNotRegistered), result.errorCode());
+
+        EXPECT_EQ(stackTop, lua_gettop(L));
+#endif
+    }
+}
+
+class A : public std::enable_shared_from_this<A>
+{
+public:
+    A(int newX) : x(newX) {}
+    
+    int x = 42;
+};
+
+TEST_F(LuaBridgeTest, StdSharedPtr)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("test")
+            .beginClass<A>("A")
+                .addConstructorFrom<std::shared_ptr<A>, void(*)(int)>()
+            .endClass()
+        .endNamespace();
+    
+    std::shared_ptr<A> a = std::make_shared<A>(1);
+    luabridge::setGlobal(L, a, "a");
+    
+    std::shared_ptr<A> a2 = *luabridge::getGlobal<std::shared_ptr<A>>(L, "a");
+    EXPECT_EQ(1, a2->x);
+
+    EXPECT_TRUE(runLua("result = a"));
+    auto a3 = result<std::shared_ptr<A>>();
+    EXPECT_EQ(1, a3->x);
+
+    EXPECT_TRUE(runLua("result = test.A(2)"));
+    auto a4 = result<std::shared_ptr<A>>();
+    EXPECT_EQ(2, a4->x);
+}
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+namespace {
+template <class... Args>
+std::string call_callback_get_exception(const luabridge::LuaRef& fn, Args&&... args)
+{
+    assert(fn.isCallable());
+
+    try {
+        fn(std::forward<Args>(args)...);
+        return {};
+    } catch (const std::exception& e) {
+        return e.what();
+    }
+}
+} // namespace
+
+TEST_F(LuaBridgeTest, Exception)
+{
+    luabridge::LuaRef cb1(L);
+    luabridge::LuaRef cb2(L);
+
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("ns")
+            .addProperty("cb1", &cb1)
+            .addProperty("cb2", &cb2)
+        .endNamespace();
+
+    auto text = R"(
+        function ns.cb1()
+            local x = 42
+            return x - 1337
+        end
+
+        function ns.cb2()
+            local y = 42
+            this.will.fail()
+            return y - 1337
+        end
+    )";
+
+    EXPECT_TRUE(runLua(text));
+
+    EXPECT_EQ("", call_callback_get_exception(cb1));
+
+    const auto error = call_callback_get_exception(cb2);
+    EXPECT_NE(std::string::npos, error.find("The lua function invocation raised an error"));
+    EXPECT_NE(std::string::npos, error.find("attempt to index"));
+    EXPECT_NE(std::string::npos, error.find(" nil "));
+}
+#endif

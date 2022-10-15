@@ -1,0 +1,30 @@
+name: Amalgamate
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  run:
+    name: Create Amalgamation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+
+      - name: Create amalgamation file
+        run: python amalgamate.py
+
+      - name: Commit changes
+        uses: EndBug/add-and-commit@v9
+        with:
+          committer_name: GitHub Actions
+          committer_email: actions@github.com
+          message: Update amalgamation file
+          add: 'Distribution/LuaBridge/*.h'

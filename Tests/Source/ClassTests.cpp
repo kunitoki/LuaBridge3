@@ -8,6 +8,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <unordered_map>
 
 struct ClassTests : TestBase
 {
@@ -94,10 +95,14 @@ struct Class : Base
 
     mutable T data;
     static T staticData;
+    static const T staticConstData;
 };
 
-template<class T, class Base>
+template <class T, class Base>
 T Class<T, Base>::staticData = {};
+
+template <class T, class Base>
+const T Class<T, Base>::staticConstData = {};
 
 } // namespace
 
@@ -116,13 +121,16 @@ TEST_F(ClassTests, IsInstance)
         .endClass();
 
     BaseClass base;
-    luabridge::push(L, base);
+    auto result1 = luabridge::push(L, base);
+    ASSERT_TRUE(result1);
 
     DerivedClass derived;
-    luabridge::push(L, derived);
+    auto result2 = luabridge::push(L, derived);
+    ASSERT_TRUE(result2);
 
     OtherClass other;
-    luabridge::push(L, other);
+    auto result3 = luabridge::push(L, other);
+    ASSERT_TRUE(result3);
 
     ASSERT_TRUE(luabridge::isInstance<BaseClass>(L, -3));
     ASSERT_FALSE(luabridge::isInstance<DerivedClass>(L, -3)); // BaseClass is not DerivedClass
@@ -148,10 +156,18 @@ TEST_F(ClassTests, PassingUnregisteredClassToLuaThrows)
 
     Unregistered value(1);
     const Unregistered constValue(2);
+    
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(process_fn(value), std::exception);
     ASSERT_THROW(process_fn(constValue), std::exception);
     ASSERT_THROW(process_fn(&value), std::exception);
     ASSERT_THROW(process_fn(&constValue), std::exception);
+#else
+    EXPECT_FALSE(process_fn(value));
+    EXPECT_FALSE(process_fn(constValue));
+    EXPECT_FALSE(process_fn(&value));
+    EXPECT_FALSE(process_fn(&constValue));
+#endif
 }
 
 TEST_F(ClassTests, PassWrongClassFromLuaThrows)
@@ -171,7 +187,12 @@ TEST_F(ClassTests, PassWrongClassFromLuaThrows)
         .addFunction("processRight", &Right::staticFunction);
 
     // bad argument #1 to 'processRight' (Right expected, got Wrong)
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("result = processRight (Wrong (5))"), std::exception);
+#else
+    ASSERT_FALSE(runLua("result = processRight (Wrong (5))"));
+#endif
+
     ASSERT_TRUE(result().isNil());
 }
 
@@ -218,7 +239,12 @@ TEST_F(ClassTests, PassConstClassInsteadOfNonConstThrows)
     luabridge::setGlobal(L, &constObject, "constObject");
 
     // bad argument #1 to 'processNonConst' (Derived expected, got const Derived)
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("result = processNonConst (constObject)"), std::exception);
+#else
+    ASSERT_FALSE(runLua("result = processNonConst (constObject)"));
+#endif
+
     ASSERT_TRUE(result().isNil());
 }
 
@@ -233,7 +259,12 @@ TEST_F(ClassTests, PassOtherTypeInsteadOfNonConstThrows)
         .addFunction("processNonConst", &processNonConst<int, EmptyBase>);
 
     // bad argument #1 to 'processNonConst' (Int expected, got number)
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("result = processNonConst (1)"), std::exception);
+#else
+    ASSERT_FALSE(runLua("result = processNonConst (1)"));
+#endif
+
     ASSERT_TRUE(result().isNil());
 }
 
@@ -249,7 +280,12 @@ TEST_F(ClassTests, PassRegisteredClassInsteadOfUnregisteredThrows)
         .addFunction("processUnregisteredInt", &Int::staticFunction);
 
     // bad argument #1 to 'processUnregisteredInt' (unregistered class expected, got Float)
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("result = processUnregisteredInt (Float (1.2))"), std::exception);
+#else
+    ASSERT_FALSE(runLua("result = processUnregisteredInt (Float (1.2))"));
+#endif
+
     ASSERT_TRUE(result().isNil());
 }
 
@@ -295,27 +331,36 @@ void addHelperFunctions(lua_State* L)
 
 TEST_F(ClassTests, PassingUnregisteredClassFromLuaThrows)
 {
-    using Unregistered = Class<int, EmptyBase>;
-
     addHelperFunctions(L);
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("result = returnRef ()"), std::exception);
     ASSERT_THROW(runLua("result = returnConstRef ()"), std::exception);
     ASSERT_THROW(runLua("result = returnPtr ()"), std::exception);
     ASSERT_THROW(runLua("result = returnConstPtr ()"), std::exception);
     ASSERT_THROW(runLua("result = returnValue ()"), std::exception);
+#else
+    ASSERT_FALSE(runLua("result = returnRef ()"));
+    ASSERT_FALSE(runLua("result = returnConstRef ()"));
+    ASSERT_FALSE(runLua("result = returnPtr ()"));
+    ASSERT_FALSE(runLua("result = returnConstPtr ()"));
+    ASSERT_FALSE(runLua("result = returnValue ()"));
+#endif
 }
 
+#if LUABRIDGE_HAS_EXCEPTIONS
 TEST_F(ClassTests, DeriveFromUnregisteredClassThrows)
 {
     using Base = Class<int, EmptyBase>;
     using Derived = Class<float, Base>;
 
-    ASSERT_THROW((luabridge::getGlobalNamespace(L).deriveClass<Derived, Base>("Derived")),
-                 std::exception);
+    EXPECT_EQ(0, lua_gettop(L));
 
-    ASSERT_EQ(1, lua_gettop(L));
+    EXPECT_THROW((luabridge::getGlobalNamespace(L).deriveClass<Derived, Base>("Derived")), std::exception);
+
+    EXPECT_EQ(0, lua_gettop(L));
 }
+#endif
 
 struct ClassFunctions : ClassTests
 {
@@ -424,6 +469,25 @@ T proxyConstFunction(const Class<T, Base>* object, T value)
     return value;
 }
 
+int proxyCFunctionState(lua_State* L)
+{
+    using Int = Class<int, EmptyBase>;
+    
+    auto ref = luabridge::LuaRef::fromStack(L, 1);
+    if (!ref.isUserdata() || !ref.isInstance<Int>()) {
+        return 0;
+    }
+    
+    auto arg = luabridge::LuaRef::fromStack(L, 2);
+    if (!arg.isNumber()) {
+        return 0;
+    }
+    
+    [[maybe_unused]] auto result = luabridge::push(L, arg.unsafe_cast<int>() + 1000);
+
+    return 1;
+}
+
 } // namespace
 
 TEST_F(ClassFunctions, ProxyFunctions)
@@ -507,6 +571,21 @@ TEST_F(ClassFunctions, ConstProxyFunctions)
     ASSERT_EQ(5, result<int>());
 }
 
+TEST_F(ClassFunctions, ProxyCFunction)
+{
+    using Int = Class<int, EmptyBase>;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addFunction("method", &proxyCFunctionState)
+        .endClass();
+
+    addHelperFunctions(L);
+
+    runLua("result = returnRef ():method (1000)");
+    ASSERT_EQ(2000, result<int>());
+}
+
 TEST_F(ClassFunctions, StdFunctions)
 {
     using Int = Class<int, EmptyBase>;
@@ -546,8 +625,7 @@ TEST_F(ClassFunctions, StdFunctions)
     ASSERT_EQ(3, result<int>());
 
     runLua("result = nil");
-    lua_close(L); // Force garbage collection
-    L = nullptr;
+    closeLuaState(); // Force garbage collection
 
     ASSERT_TRUE(data.expired());
 }
@@ -592,8 +670,7 @@ TEST_F(ClassFunctions, StdFunctions_PassState)
     ASSERT_EQ(3, result<int>());
 
     runLua("result = nil");
-    lua_close(L); // Force garbage collection
-    L = nullptr;
+    closeLuaState(); // Force garbage collection
 
     ASSERT_TRUE(data.expired());
 }
@@ -637,8 +714,7 @@ TEST_F(ClassFunctions, ConstStdFunctions)
     ASSERT_EQ(5, result<int>());
 
     runLua("result = nil");
-    lua_close(L); // Force garbage collection
-    L = nullptr;
+    closeLuaState(); // Force garbage collection
 
     ASSERT_TRUE(data.expired());
 }
@@ -684,7 +760,11 @@ TEST_F(ClassProperties, FieldPointers_ReadOnly)
     ASSERT_TRUE(result()["data"].isNumber());
     ASSERT_EQ(501, result()["data"].cast<int>());
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("result.data = 2"), std::exception);
+#else
+    ASSERT_FALSE(runLua("result.data = 2"));
+#endif
 
     runLua("result = Int (42).data");
     ASSERT_TRUE(result().isNumber());
@@ -743,7 +823,12 @@ TEST_F(ClassProperties, MemberFunctions_ReadOnly)
     ASSERT_TRUE(result()["data"].isNumber());
     ASSERT_EQ(501, result()["data"].cast<int>());
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("result.data = -2"), std::exception);
+#else
+    ASSERT_FALSE(runLua("result.data = -2"));
+#endif
+
     ASSERT_EQ(501, result()["data"].cast<int>());
 }
 
@@ -860,7 +945,12 @@ TEST_F(ClassProperties, ProxyFunctions_ReadOnly)
     ASSERT_TRUE(result()["data"].isNumber());
     ASSERT_EQ(501, result()["data"].cast<int>());
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("result.data = -2"), std::exception);
+#else
+    ASSERT_FALSE(runLua("result.data = -2"));
+#endif
+
     ASSERT_EQ(501, result()["data"].cast<int>());
 }
 
@@ -934,8 +1024,10 @@ template<class T, class BaseClass>
 int getDataC(lua_State* L)
 {
     auto objectRef = luabridge::LuaRef::fromStack(L, 1);
-    auto* object = objectRef.cast<const Class<T, BaseClass>*>();
-    luabridge::Stack<T>::push(L, object->data);
+    auto* object = objectRef.unsafe_cast<const Class<T, BaseClass>*>();
+
+    [[maybe_unused]] auto result = luabridge::Stack<T>::push(L, object->data);
+
     return 1;
 }
 
@@ -943,9 +1035,9 @@ template<class T, class BaseClass>
 int setDataC(lua_State* L)
 {
     auto objectRef = luabridge::LuaRef::fromStack(L, 1);
-    auto* object = objectRef.cast<const Class<T, BaseClass>*>();
+    auto* object = objectRef.unsafe_cast<const Class<T, BaseClass>*>();
     auto valueRef = luabridge::LuaRef::fromStack(L, 2);
-    T value = valueRef.cast<T>();
+    T value = valueRef.unsafe_cast<T>();
     object->data = value;
     return 0;
 }
@@ -985,7 +1077,12 @@ TEST_F(ClassProperties, ProxyCFunctions_ReadOnly)
     ASSERT_TRUE(result()["data"].isNumber());
     ASSERT_EQ(501, result()["data"].cast<int>());
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("result.data = -2"), std::exception);
+#else
+    ASSERT_FALSE(runLua("result.data = -2"));
+#endif
+
     ASSERT_EQ(501, result()["data"].cast<int>());
 }
 
@@ -1071,10 +1168,13 @@ TEST_F(ClassProperties, StdFunctions)
         object->data = value;
     };
 
+    int data2 = 1;
+
     luabridge::getGlobalNamespace(L)
         .beginClass<Int>("Int")
         .addConstructor<void (*)(int)>()
         .addProperty("data", std::move(getter), std::move(setter))
+        .addProperty("data2", [&data2](const Int*) { return data2; }, [data2 = std::addressof(data2)](Int*, int v) { *data2 = v; })
         .endClass();
 
     getter = nullptr;
@@ -1092,9 +1192,12 @@ TEST_F(ClassProperties, StdFunctions)
     ASSERT_TRUE(result()["data"].isNumber());
     ASSERT_EQ(-2, result()["data"].cast<int>());
 
+    runLua("result.data2 = -2");
+    ASSERT_TRUE(result()["data2"].isNumber());
+    ASSERT_EQ(-2, result()["data2"].cast<int>());
+
     runLua("result = nil");
-    lua_close(L); // Force garbage collection
-    L = nullptr;
+    closeLuaState(); // Force garbage collection
 
     ASSERT_TRUE(getterData.expired());
     ASSERT_TRUE(setterData.expired());
@@ -1125,12 +1228,16 @@ TEST_F(ClassProperties, StdFunctions_ReadOnly)
     ASSERT_TRUE(result()["data"].isNumber());
     ASSERT_EQ(501, result()["data"].cast<int>());
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("result.data = -2"), std::exception);
+#else
+    ASSERT_FALSE(runLua("result.data = -2"));
+#endif
+
     ASSERT_EQ(501, result()["data"].cast<int>());
 
     runLua("result = nil");
-    lua_close(L); // Force garbage collection
-    L = nullptr;
+    closeLuaState(); // Force garbage collection
 
     ASSERT_TRUE(getterData.expired());
 }
@@ -1229,6 +1336,28 @@ TEST_F(ClassStaticProperties, FieldPointers)
     ASSERT_EQ(20, Int::staticData);
 }
 
+TEST_F(ClassStaticProperties, FieldPointers_Const)
+{
+    using Int = Class<int, EmptyBase>;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addStaticProperty("staticConstData", &Int::staticConstData)
+        .endClass();
+
+    runLua("result = Int.staticConstData");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(0, result<int>());
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    ASSERT_THROW(runLua("Int.staticConstData = 20"), std::exception);
+#else
+    ASSERT_FALSE(runLua("Int.staticConstData = 20"));
+#endif
+
+    ASSERT_EQ(0, Int::staticConstData);
+}
+
 TEST_F(ClassStaticProperties, FieldPointers_ReadOnly)
 {
     using Int = Class<int, EmptyBase>;
@@ -1244,8 +1373,64 @@ TEST_F(ClassStaticProperties, FieldPointers_ReadOnly)
     ASSERT_TRUE(result().isNumber());
     ASSERT_EQ(10, result<int>());
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("Int.staticData = 20"), std::exception);
+#else
+    ASSERT_FALSE(runLua("Int.staticData = 20"));
+#endif
+
     ASSERT_EQ(10, Int::staticData);
+}
+
+TEST_F(ClassStaticProperties, FieldPointers_GetterOnly)
+{
+    using Int = Class<int, EmptyBase>;
+
+    int value = 10;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addStaticProperty("staticData", [&value] { return value; })
+        .endClass();
+
+    runLua("result = Int.staticData");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(10, result<int>());
+    ASSERT_EQ(10, value);
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    ASSERT_THROW(runLua("Int.staticData = 20"), std::exception);
+#else
+    ASSERT_FALSE(runLua("Int.staticData = 20"));
+#endif
+
+    runLua("result = Int.staticData");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(10, result<int>());
+    ASSERT_EQ(10, value);
+}
+
+TEST_F(ClassStaticProperties, FieldPointers_GetterSetter)
+{
+    using Int = Class<int, EmptyBase>;
+
+    int value = 10;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addStaticProperty("staticData", [&value] { return value; }, [&value](int x) { value = x; })
+        .endClass();
+
+    runLua("result = Int.staticData");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(10, result<int>());
+    ASSERT_EQ(10, value);
+
+    runLua("Int.staticData = 20");
+    runLua("result = Int.staticData");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(20, result<int>());
+    ASSERT_EQ(20, value);
 }
 
 TEST_F(ClassStaticProperties, FieldPointers_Derived)
@@ -1531,7 +1716,11 @@ TEST_F(ClassMetaMethods, __concat)
         .addFunction("__concat", &String::operator+)
         .endClass();
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("result = String ('a') + String ('b')"), std::exception);
+#else
+    ASSERT_FALSE(runLua("result = String ('a') + String ('b')"));
+#endif
 
     runLua("result = String ('ab') .. String ('cd')");
     ASSERT_TRUE(result().isUserdata());
@@ -1561,9 +1750,20 @@ namespace {
 
 struct Table
 {
-    int index(const std::string& key) { return map.at(key); }
+    int index(const std::string& key)
+    {
+#if LUABRIDGE_HAS_EXCEPTIONS
+        return map.at(key);
+#else
+        auto it = map.find(key);
+        return it != map.end() ? it->second : -1;
+#endif
+    }
 
-    void newIndex(const std::string& key, int value) { map.emplace(key, value); }
+    void newIndex(const std::string& key, int value)
+    {
+        map.emplace(key, value);
+    }
 
     std::map<std::string, int> map;
 };
@@ -1589,13 +1789,17 @@ TEST_F(ClassMetaMethods, __index)
     ASSERT_TRUE(result().isNumber());
     ASSERT_EQ(2, result<int>());
 
+#if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("result = t.c"), std::exception); // at ("c") throws
+#else
+    ASSERT_TRUE(runLua("result = t.c"));
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(-1, result<int>());
+#endif
 }
 
 TEST_F(ClassMetaMethods, __newindex)
 {
-    typedef Class<int, EmptyBase> Int;
-
     luabridge::getGlobalNamespace(L)
         .beginClass<Table>("Table")
         .addFunction("__newindex", &Table::newIndex)
@@ -1611,15 +1815,53 @@ TEST_F(ClassMetaMethods, __newindex)
     ASSERT_EQ((std::map<std::string, int>{{"a", 1}, {"b", 2}}), t.map);
 }
 
+#if LUABRIDGE_HAS_EXCEPTIONS
 TEST_F(ClassMetaMethods, __gcForbidden)
 {
-    typedef Class<int, EmptyBase> Int;
+    using Int = Class<int, EmptyBase>;
 
     ASSERT_THROW(luabridge::getGlobalNamespace(L)
                      .beginClass<Int>("Int")
                      .addFunction("__gc", &Int::method)
                      .endClass(),
                  std::exception);
+}
+#endif
+
+TEST_F(ClassMetaMethods, SimulateArray)
+{
+    using ContainerType = std::vector<std::string>;
+
+    ContainerType data(1);
+    data[0] = "abcdefg";
+
+    luabridge::getGlobalNamespace(L)
+        .beginTable("xyz")
+            .addFunction("a", +[] { return "abcdefg"; })
+            .addMetaFunction("__index", [&data](luabridge::LuaRef, int index, lua_State* L)
+            {
+                if (index < 0 || index >= static_cast<int>(data.size()))
+                    luaL_error(L, "Invalid index access in table %d", index);
+
+                return data[index];
+            })
+            .addMetaFunction("__newindex", [&data](luabridge::LuaRef, int index, luabridge::LuaRef ref, lua_State* L)
+            {
+                if (index < 0)
+                    luaL_error(L, "Invalid index access in table %d", index);
+                
+                if (! ref.isString())
+                    luaL_error(L, "Invalid value provided to set table at index %d", index);
+
+                if (index >= static_cast<int>(data.size()))
+                    data.resize(index + 1);
+                
+                data[index] = ref.unsafe_cast<std::string>();
+            })
+        .endTable();
+
+    runLua("xyz[0] = '123'; result = xyz[0]");
+    ASSERT_EQ("123", result<std::string>());
 }
 
 TEST_F(ClassTests, EnclosedClassProperties)
@@ -1659,7 +1901,12 @@ unsigned InnerClass::destructorCallCount;
 
 struct OuterClass
 {
-    OuterClass() { throw std::runtime_error("Exception"); }
+    OuterClass()
+    {
+#if LUABRIDGE_HAS_EXCEPTIONS
+        throw std::runtime_error("Exception");
+#endif
+    }
 
     ~OuterClass() { ++destructorCallCount; }
 
@@ -1671,8 +1918,35 @@ unsigned OuterClass::destructorCallCount;
 
 //} // namespace
 
+TEST_F(ClassTests, ConstructorWithReferences)
+{
+    struct InnerClass
+    {
+        InnerClass() = default;
+    };
+
+    struct OuterClass
+    {
+        OuterClass(const InnerClass& x) : y(x) {}
+        
+    private:
+        [[maybe_unused]] InnerClass y;
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<InnerClass>("InnerClass")
+            .addConstructor<void (*)()>()
+        .endClass()
+        .beginClass<OuterClass>("OuterClass")
+            .addConstructor<void (*)(const InnerClass&)>()
+        .endClass();
+
+    runLua("x = InnerClass () result = OuterClass (x)");
+}
+
 TEST_F(ClassTests, DestructorIsNotCalledIfConstructorThrows)
 {
+#if LUABRIDGE_HAS_EXCEPTIONS
     luabridge::getGlobalNamespace(L)
         .beginClass<OuterClass>("OuterClass")
         .addConstructor<void (*)()>()
@@ -1683,10 +1957,11 @@ TEST_F(ClassTests, DestructorIsNotCalledIfConstructorThrows)
     ASSERT_THROW(runLua("result = OuterClass ()"), std::exception);
     ASSERT_EQ(1, InnerClass::destructorCallCount);
 
-    lua_close(L);
-    L = nullptr;
+    closeLuaState(); // Force garbage collection
+
     ASSERT_EQ(1, InnerClass::destructorCallCount);
     ASSERT_EQ(0, OuterClass::destructorCallCount);
+#endif
 }
 
 TEST_F(ClassTests, DestructorIsCalledOnce)
@@ -1699,8 +1974,8 @@ TEST_F(ClassTests, DestructorIsCalledOnce)
     InnerClass::destructorCallCount = 0;
     runLua("result = InnerClass ()");
 
-    lua_close(L);
-    L = nullptr;
+    closeLuaState(); // Force garbage collection
+
     ASSERT_EQ(1, InnerClass::destructorCallCount);
 }
 
@@ -1743,9 +2018,6 @@ TEST_F(ClassTests, ConstructorTakesMoreThanEightArgs)
     ASSERT_EQ(8, result<WideClass>().a8_);
     ASSERT_EQ(9, result<WideClass>().a9_);
     ASSERT_EQ(10, result<WideClass>().a10_);
-
-    lua_close(L);
-    L = nullptr;
 }
 
 TEST_F(ClassTests, MethodTakesMoreThanEightArgs)
@@ -1790,15 +2062,63 @@ TEST_F(ClassTests, MethodTakesMoreThanEightArgs)
     ASSERT_EQ(8, result<WideClass>().a8_);
     ASSERT_EQ(9, result<WideClass>().a9_);
     ASSERT_EQ(10, result<WideClass>().a10_);
+}
 
-    lua_close(L);
-    L = nullptr;
+TEST_F(ClassTests, ConstructorFactory)
+{
+    struct FactoryConstructibleClass
+    {
+        FactoryConstructibleClass() = default;
+        FactoryConstructibleClass(int x) : x_(x) {}
+
+        int x_ = 33;
+    };
+
+    {
+        luabridge::getGlobalNamespace(L)
+            .beginClass<FactoryConstructibleClass>("FactoryConstructibleClass")
+            .addConstructor([](void* ptr) { return new(ptr) FactoryConstructibleClass(); })
+            .addProperty("x", &FactoryConstructibleClass::x_)
+            .endClass();
+
+        runLua("obj = FactoryConstructibleClass (); result = obj.x");
+
+        ASSERT_TRUE(result().isNumber());
+        ASSERT_EQ(33, result<int>());
+    }
+
+    {
+        luabridge::getGlobalNamespace(L)
+            .beginClass<FactoryConstructibleClass>("FactoryConstructibleClass2")
+            .addConstructor([](void* ptr, int x) { return new(ptr) FactoryConstructibleClass(x); })
+            .addProperty("x", &FactoryConstructibleClass::x_)
+            .endClass();
+
+        runLua("obj = FactoryConstructibleClass2 (42); result = obj.x");
+
+        ASSERT_TRUE(result().isNumber());
+        ASSERT_EQ(42, result<int>());
+    }
+
+    {
+        luabridge::getGlobalNamespace(L)
+            .beginClass<FactoryConstructibleClass>("FactoryConstructibleClass3")
+            .addConstructor([](void* ptr, lua_State* L) { return new(ptr) FactoryConstructibleClass(static_cast<int>(luaL_checkinteger(L, 2))); })
+            .addProperty("x", &FactoryConstructibleClass::x_)
+            .endClass();
+
+        runLua("obj = FactoryConstructibleClass3 (42); result = obj.x");
+
+        ASSERT_TRUE(result().isNumber());
+        ASSERT_EQ(42, result<int>());
+    }
 }
 
 class BaseExampleClass
 {
 public:
     BaseExampleClass() = default;
+    virtual ~BaseExampleClass() = default;
     
     virtual void virtualFunction(int arg) = 0;
     virtual int virtualCFunction(lua_State*) = 0;
@@ -1882,9 +2202,195 @@ TEST_F(ClassTests, NonVirtualMethodInBaseClassCannotBeExposed)
     ASSERT_EQ(1, result<DerivedExampleClass>().virtualCFunction_);
     ASSERT_EQ(1, result<DerivedExampleClass>().virtualFunctionConst_);
     ASSERT_EQ(1, result<DerivedExampleClass>().virtualCFunctionConst_);
+}
 
-    lua_close(L);
-    L = nullptr;
+TEST_F(ClassTests, NilCanBeConvertedToNullptrButNotToReference)
+{
+    struct X {};
+
+    bool result = false, resultConst = false, called = false;
+    
+    luabridge::getGlobalNamespace(L)
+        .addFunction("TakeNullptr", [&result](X* iAmNullptr) { result = (iAmNullptr == nullptr); })
+        .addFunction("TakeConstNullptr", [&resultConst](const X* iAmNullptr) { resultConst = (iAmNullptr == nullptr); })
+        .addFunction("TakeReference", [&called](const X& iAmNullptr) { called = true; })
+        .beginClass<X>("X")
+        .endClass();
+
+    runLua("TakeNullptr(nil)");
+    EXPECT_TRUE(result);
+    
+    runLua("TakeConstNullptr(nil)");
+    EXPECT_TRUE(resultConst);
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_THROW(runLua("TakeReference(nil)"), std::exception);
+#else
+    EXPECT_FALSE(runLua("TakeReference(nil)"));
+#endif
+    EXPECT_FALSE(called);
+}
+
+namespace {
+struct OverridableX
+{
+    luabridge::LuaRef indexMetaMethod(const luabridge::LuaRef& key, lua_State* L);
+    luabridge::LuaRef newIndexMetaMethod(const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State* L);
+
+    std::unordered_map<luabridge::LuaRef, luabridge::LuaRef> data;
+};
+
+luabridge::LuaRef indexMetaMethodFunction(OverridableX& x, const luabridge::LuaRef& key, lua_State* L)
+{
+    if (key.tostring() == "xyz")
+    {
+        if (!luabridge::push(L, "123"))
+            lua_pushnil(L);
+    }
+    else
+    {
+        auto it = x.data.find(key);
+        if (it != x.data.end())
+            return it->second;
+
+        lua_pushnil(L);
+    }
+
+    return luabridge::LuaRef::fromStack(L);
+}
+
+luabridge::LuaRef OverridableX::indexMetaMethod(const luabridge::LuaRef& key, lua_State* L)
+{
+    return indexMetaMethodFunction(*this, key, L);
+}
+
+luabridge::LuaRef newIndexMetaMethodFunction(OverridableX& x, const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State* L)
+{
+    x.data.emplace(std::make_pair(key, value));
+    return value;
+}
+
+luabridge::LuaRef OverridableX::newIndexMetaMethod(const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State* L)
+{
+    return newIndexMetaMethodFunction(*this, key, value, L);
+}
+} // namespace
+
+TEST_F(ClassTests, IndexFallbackMetaMethodMemberFptr)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<OverridableX>("X")
+            .addIndexMetaMethod(&OverridableX::indexMetaMethod)
+        .endClass();
+
+    OverridableX x;
+    luabridge::setGlobal(L, &x, "x");
+
+    runLua("result = x.xyz");
+    ASSERT_EQ("123", result<std::string_view>());
+}
+
+TEST_F(ClassTests, IndexFallbackMetaMethodFunctionPtr)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<OverridableX>("X")
+            .addIndexMetaMethod(&indexMetaMethodFunction)
+        .endClass();
+
+    OverridableX x;
+    luabridge::setGlobal(L, &x, "x");
+
+    runLua("result = x.xyz");
+    ASSERT_EQ("123", result<std::string_view>());
+}
+
+TEST_F(ClassTests, IndexFallbackMetaMethodFreeFunctor)
+{
+    std::string capture = "123";
+
+    auto indexMetaMethod = [&capture](OverridableX&, luabridge::LuaRef key, lua_State* L) -> luabridge::LuaRef
+    {
+        if (key.tostring() == "xyz")
+        {
+            if (!luabridge::push(L, capture + "123"))
+                lua_pushnil(L);
+        }
+        else
+        {
+            if (!luabridge::push(L, 456))
+                lua_pushnil(L);
+        }
+
+        return luabridge::LuaRef::fromStack(L);
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<OverridableX>("X")
+            .addIndexMetaMethod(indexMetaMethod)
+        .endClass();
+
+    OverridableX x;
+    luabridge::setGlobal(L, &x, "x");
+
+    runLua("result = x.xyz");
+    ASSERT_EQ("123123", result<std::string_view>());
+}
+
+TEST_F(ClassTests, NewIndexFallbackMetaMethodMemberFptr)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<OverridableX>("X")
+            .addIndexMetaMethod(&OverridableX::indexMetaMethod)
+            .addNewIndexMetaMethod(&OverridableX::newIndexMetaMethod)
+        .endClass();
+
+    OverridableX x;
+    luabridge::setGlobal(L, &x, "x");
+
+    runLua("x.qwertyuiop = 123; result = x.qwertyuiop");
+    ASSERT_EQ(123, result<int>());
+}
+
+TEST_F(ClassTests, NewIndexFallbackMetaMethodFunctionPtr)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<OverridableX>("X")
+            .addIndexMetaMethod(&indexMetaMethodFunction)
+            .addNewIndexMetaMethod(&newIndexMetaMethodFunction)
+        .endClass();
+
+    OverridableX x;
+    luabridge::setGlobal(L, &x, "x");
+
+    runLua("x.qwertyuiop = 123; result = x.qwertyuiop");
+    ASSERT_EQ(123, result<int>());
+}
+
+TEST_F(ClassTests, NewIndexFallbackMetaMethodFreeFunctor)
+{
+    int capture = 123;
+
+    auto newIndexMetaMethod = [&capture](OverridableX& x, const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State* L) -> luabridge::LuaRef
+    {
+        if (!luabridge::push(L, capture + value.unsafe_cast<int>()))
+            lua_pushnil(L);
+
+        auto v = luabridge::LuaRef::fromStack(L);
+        x.data.emplace(std::make_pair(key, v));
+        return v;
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<OverridableX>("X")
+            .addIndexMetaMethod(&indexMetaMethodFunction)
+            .addNewIndexMetaMethod(newIndexMetaMethod)
+        .endClass();
+
+    OverridableX x;
+    luabridge::setGlobal(L, &x, "x");
+
+    runLua("x.qwertyuiop = 123; result = x.qwertyuiop");
+    ASSERT_EQ(246, result<int>());
 }
 
 TEST_F(ClassTests, ReferenceWrapper)

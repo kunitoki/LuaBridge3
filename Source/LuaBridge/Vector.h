@@ -18,24 +18,42 @@ namespace luabridge {
 template <class T>
 struct Stack<std::vector<T>>
 {
-    static void push(lua_State* L, const std::vector<T>& vector)
+    using Type = std::vector<T>;
+
+    [[nodiscard]] static Result push(lua_State* L, const Type& vector)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 3))
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
+        StackRestore stackRestore(L);
+
         lua_createtable(L, static_cast<int>(vector.size()), 0);
 
         for (std::size_t i = 0; i < vector.size(); ++i)
         {
             lua_pushinteger(L, static_cast<lua_Integer>(i + 1));
-            Stack<T>::push(L, vector[i]);
+            
+            auto result = Stack<T>::push(L, vector[i]);
+            if (! result)
+                return result;
+
             lua_settable(L, -3);
         }
+        
+        stackRestore.reset();
+        return {};
     }
 
-    static std::vector<T> get(lua_State* L, int index)
+    [[nodiscard]] static TypeResult<Type> get(lua_State* L, int index)
     {
         if (!lua_istable(L, index))
-            luaL_error(L, "#%d argument must be a table", index);
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
-        std::vector<T> vector;
+        const StackRestore stackRestore(L);
+
+        Type vector;
         vector.reserve(static_cast<std::size_t>(get_length(L, index)));
 
         int absIndex = lua_absindex(L, index);
@@ -43,14 +61,18 @@ struct Stack<std::vector<T>>
 
         while (lua_next(L, absIndex) != 0)
         {
-            vector.emplace_back(Stack<T>::get(L, -1));
+            auto item = Stack<T>::get(L, -1);
+            if (! item)
+                return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+            vector.emplace_back(*item);
             lua_pop(L, 1);
         }
 
         return vector;
     }
 
-    static bool isInstance(lua_State* L, int index)
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
     {
         return lua_istable(L, index);
     }
