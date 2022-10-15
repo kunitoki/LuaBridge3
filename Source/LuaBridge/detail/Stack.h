@@ -1341,9 +1341,9 @@ struct Stack<T[N]>
 template <class T>
 struct Stack<std::reference_wrapper<T>>
 {
-    static Result push(lua_State* L, const std::reference_wrapper<T>& ref)
+    static Result push(lua_State* L, const std::reference_wrapper<T>& reference)
     {
-        lua_newuserdata_pointer(L, new std::reference_wrapper<T>(ref.get()));
+        lua_newuserdata_pointer(L, new std::reference_wrapper<T>(reference.get()));
 
         luaL_newmetatable(L, typeName());
         lua_pushcclosure_x(L, &get_reference_value<T>, 0);
@@ -1359,11 +1359,11 @@ struct Stack<std::reference_wrapper<T>>
         if (ptr == nullptr)
             return makeErrorCode(ErrorCode::InvalidTypeCast);
 
-        std::reference_wrapper<T>** ref = reinterpret_cast<std::reference_wrapper<T>**>(ptr);
-        if (ref == nullptr || *ref == nullptr)
+        auto reference = reinterpret_cast<std::reference_wrapper<T>**>(ptr);
+        if (reference == nullptr || *reference == nullptr)
             return makeErrorCode(ErrorCode::InvalidTypeCast);
 
-        return **ref;
+        return **reference;
     }
     
     static bool isInstance(lua_State* L, int index)
