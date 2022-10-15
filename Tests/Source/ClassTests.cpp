@@ -2393,7 +2393,7 @@ TEST_F(ClassTests, NewIndexFallbackMetaMethodFreeFunctor)
     ASSERT_EQ(246, result<int>());
 }
 
-TEST_F(ClassTests, ReferenceWrapper)
+TEST_F(ClassTests, ReferenceWrapperRead)
 {
     int x = 13;
     std::reference_wrapper<int> ref_wrap_x(x);
@@ -2410,9 +2410,87 @@ TEST_F(ClassTests, ReferenceWrapper)
     )");
 
     EXPECT_TRUE(result().isUserdata());
-    EXPECT_EQ(x, result().cast<std::reference_wrapper<int>>().get());
+    EXPECT_EQ(x, result().unsafe_cast<std::reference_wrapper<int>>().get());
     EXPECT_EQ(100, x);
+}
 
-    lua_close(L);
-    L = nullptr;
+TEST_F(ClassTests, ReferenceWrapperWrite)
+{
+    int x = 13;
+    std::reference_wrapper<int> ref_wrap_x(x);
+
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("test")
+        .addProperty("ref_wrap_x", &ref_wrap_x)
+        .endNamespace();
+
+    runLua(R"(
+        test.ref_wrap_x = 100
+        result = test.ref_wrap_x
+    )");
+
+    EXPECT_TRUE(result().isUserdata());
+    EXPECT_EQ(x, result().unsafe_cast<std::reference_wrapper<int>>().get());
+    EXPECT_EQ(100, x);
+}
+
+TEST_F(ClassTests, ReferenceWrapperRedirect)
+{
+    int x = 13;
+    int y = 100;
+    std::reference_wrapper<int> ref_wrap_x(x);
+    std::reference_wrapper<int> ref_wrap_y(y);
+
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("test")
+        .addProperty("ref_wrap_x", &ref_wrap_x)
+        .addProperty("ref_wrap_y", &ref_wrap_y)
+        .endNamespace();
+
+    runLua(R"(
+        test.ref_wrap_x = test.ref_wrap_y
+        result = test.ref_wrap_x
+    )");
+
+    EXPECT_TRUE(result().isUserdata());
+    EXPECT_EQ(y, result().unsafe_cast<std::reference_wrapper<int>>().get());
+}
+
+TEST_F(ClassTests, ReferenceWrapperDecaysToType)
+{
+    int x = 13;
+    std::reference_wrapper<int> ref_wrap_x(x);
+
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("test")
+        .addProperty("ref_wrap_x", &ref_wrap_x)
+        .addFunction("takeReference", [](int r) { return r * 10; })
+        .endNamespace();
+
+    runLua(R"(
+        result = test.takeReference(test.ref_wrap_x)
+    )");
+
+    EXPECT_EQ(130, result().unsafe_cast<int>());
+}
+
+TEST_F(ClassTests, ReferenceWrapperDecaysToLuaType)
+{
+    int x = 13;
+    std::reference_wrapper<int> ref_wrap_x(x);
+
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("test")
+        .addProperty("ref_wrap_x", &ref_wrap_x)
+        .endNamespace();
+
+    runLua(R"(
+        function xyz(x)
+            return x() * 10
+        end
+
+        result = xyz(test.ref_wrap_x)
+    )");
+
+    EXPECT_EQ(130, result().unsafe_cast<int>());
 }

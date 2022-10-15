@@ -30,10 +30,21 @@ template <class T>
 auto unwrap_argument_or_error(lua_State* L, std::size_t index)
 {
     auto result = Stack<T>::get(L, static_cast<int>(index));
-    if (! result)
-        luaL_error(L, "Error decoding argument #%d: %s", static_cast<int>(index), result.message().c_str());
+    if (result)
+        return std::move(*result);
 
-    return std::move(*result);
+    if constexpr (! std::is_lvalue_reference_v<T>)
+    {
+        using U = std::reference_wrapper<std::remove_reference_t<T>>;
+
+        auto resultRef = Stack<U>::get(L, static_cast<int>(index));
+        if (resultRef)
+            return (*resultRef).get();
+    }
+
+    luaL_error(L, "Error decoding argument #%d: %s", static_cast<int>(index), result.message().c_str());
+
+    unreachable();
 }
 
 template <class ArgsPack, std::size_t Start, std::size_t... Indices>
@@ -335,26 +346,6 @@ struct property_getter<T, void>
     }
 };
 
-#if 0
-template <class T>
-struct property_getter<std::reference_wrapper<T>, void>
-{
-    static int call(lua_State* L)
-    {
-        assert(lua_islightuserdata(L, lua_upvalueindex(1)));
-
-        std::reference_wrapper<T>* ptr = static_cast<std::reference_wrapper<T>*>(lua_touserdata(L, lua_upvalueindex(1)));
-        assert(ptr != nullptr);
-
-        auto result = Stack<T&>::push(L, ptr->get());
-        if (! result)
-            luaL_error(L, "%s", result.message().c_str());
-
-        return 1;
-    }
-};
-#endif
-
 /**
  * @brief lua_CFunction to get a class data member.
  *
@@ -441,7 +432,6 @@ struct property_setter<T, void>
     }
 };
 
-#if 0
 template <class T>
 struct property_setter<std::reference_wrapper<T>, void>
 {
@@ -452,12 +442,22 @@ struct property_setter<std::reference_wrapper<T>, void>
         std::reference_wrapper<T>* ptr = static_cast<std::reference_wrapper<T>*>(lua_touserdata(L, lua_upvalueindex(1)));
         assert(ptr != nullptr);
 
-        ptr->get() = Stack<T>::get(L, 1);
+        auto result = Stack<std::reference_wrapper<T>*>::get(L, 1);
+        if (result && *result)
+        {
+            *ptr = (*result).get();
+            return 0;
+        }
+        else
+        {
+            auto result = Stack<T>::get(L, 1);
+            if (result)
+                ptr->get() = std::move(*result);
 
-        return 0;
+            return 0;
+        }
     }
 };
-#endif
 
 /**
  * @brief lua_CFunction to set a class data member.

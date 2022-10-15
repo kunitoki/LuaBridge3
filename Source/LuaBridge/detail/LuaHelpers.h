@@ -427,12 +427,23 @@ template <class T>
  * @brief Deallocate lua userdata taking into account alignment.
  */
 template <class T>
-int lua_deleteuserdata_aligned(lua_State* L)
+int lua_destroyuserdata_aligned(lua_State* L)
 {
     assert(isfulluserdata(L, 1));
 
     T* aligned = align<T>(lua_touserdata(L, 1));
     aligned->~T();
+
+    return 0;
+}
+
+template <class T>
+int lua_deleteuserdata_aligned(lua_State* L)
+{
+    assert(isfulluserdata(L, 1));
+
+    T** aligned = align<T*>(lua_touserdata(L, 1));
+    delete *aligned;
 
     return 0;
 }
@@ -455,7 +466,7 @@ void* lua_newuserdata_aligned(lua_State* L, Args&&... args)
     void* pointer = lua_newuserdata_x<T>(L, maximum_space_needed_to_align<T>());
 
     lua_newtable(L);
-    lua_pushcfunction_x(L, &lua_deleteuserdata_aligned<T>);
+    lua_pushcfunction_x(L, &lua_destroyuserdata_aligned<T>);
     rawsetfield(L, -2, "__gc");
     lua_setmetatable(L, -2);
 #endif
