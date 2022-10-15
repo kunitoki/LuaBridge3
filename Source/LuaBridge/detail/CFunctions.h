@@ -426,7 +426,7 @@ struct property_setter<T, void>
         if (! result)
             raise_lua_error(L, "%s", result.error().message().c_str());
 
-        *ptr = *result;
+        *ptr = std::move(*result);
 
         return 0;
     }
@@ -481,7 +481,7 @@ struct property_setter
             if (! result)
                 raise_lua_error(L, "%s", result.error().message().c_str());
 
-            c->** mp = *result;
+            c->** mp = std::move(*result);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }

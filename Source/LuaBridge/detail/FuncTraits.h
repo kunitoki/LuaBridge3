@@ -14,6 +14,23 @@
 
 namespace luabridge {
 namespace detail {
+
+//=================================================================================================
+/**
+ * @brief Invokes undefined behavior when an unreachable part of the code is reached.
+ *
+ * An implementation may use this to optimize impossible code branches away (typically, in optimized builds) or to trap them to prevent
+ * further execution (typically, in debug builds).
+ */
+[[noreturn]] inline void unreachable()
+{
+#if __GNUC__ // GCC, Clang, ICC
+    __builtin_unreachable();
+#elif _MSC_VER // MSVC
+    __assume(false);
+#endif
+}
+
 //=================================================================================================
 /**
  * @brief Provides the member typedef type which is the type referred to by T with its topmost cv-qualifiers removed.
