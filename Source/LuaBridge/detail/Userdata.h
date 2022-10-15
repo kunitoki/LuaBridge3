@@ -120,7 +120,7 @@ private:
             lua_remove(L, -2); // Stack: rt, pot
         }
 
-        // no return
+        unreachable();
     }
 
     static bool isInstance(lua_State* L, int index, const void* registryClassKey)
@@ -159,6 +159,8 @@ private:
 
             lua_remove(L, -2); // Stack: rt, pot
         }
+
+        unreachable();
     }
 
     static Userdata* throwBadArg(lua_State* L, int index)

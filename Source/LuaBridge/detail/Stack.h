@@ -1341,17 +1341,14 @@ struct Stack<T[N]>
 template <class T>
 struct Stack<std::reference_wrapper<T>>
 {
-    using storage_type = std::reference_wrapper<T>*;
 
     static Result push(lua_State* L, const std::reference_wrapper<T>& ref)
     {
-        lua_newuserdata_aligned<storage_type>(L, new std::reference_wrapper<T>(ref.get()));
+        lua_newuserdata_pointer(L, new std::reference_wrapper<T>(ref.get()));
 
-        lua_newtable(L);
+        luaL_newmetatable(L, typeName());
         lua_pushcclosure_x(L, &get_reference_value<T>, 0);
         rawsetfield(L, -2, "__call");
-        lua_pushcfunction(L, &lua_deleteuserdata_aligned<storage_type>);
-        rawsetfield(L, -2, "__gc");
         lua_setmetatable(L, -2);
 
         return {};
@@ -1359,10 +1356,10 @@ struct Stack<std::reference_wrapper<T>>
 
     static TypeResult<std::reference_wrapper<T>> get(lua_State* L, int index)
     {
-        if (! lua_isuserdata(L, index))
+        if (luaL_testudata(L, index, typeName()) == nullptr)
             return makeErrorCode(ErrorCode::InvalidTypeCast);
 
-        storage_type* ptr = reinterpret_cast<storage_type*>(lua_touserdata(L, index));
+        std::reference_wrapper<T>** ptr = reinterpret_cast<std::reference_wrapper<T>**>(lua_touserdata(L, index));
         if (ptr == nullptr || *ptr == nullptr)
             return makeErrorCode(ErrorCode::InvalidTypeCast);
 
@@ -1371,10 +1368,16 @@ struct Stack<std::reference_wrapper<T>>
     
     static bool isInstance(lua_State* L, int index)
     {
-        return lua_type(L, index) == LUA_TUSERDATA;
+        return luaL_testudata(L, index, typeName()) != nullptr;
     }
 
 private:
+    static const char* typeName()
+    {
+        static const std::string s{ detail::typeName<std::reference_wrapper<T>>() };
+        return s.c_str();
+    }
+
     template <class U>
     static int get_reference_value(lua_State* L)
     {
@@ -1392,7 +1395,6 @@ private:
 };
 
 namespace detail {
-
 template <class T>
 struct StackOpSelector<T&, false>
 {
@@ -1440,7 +1442,6 @@ struct StackOpSelector<const T*, false>
 
     static bool isInstance(lua_State* L, int index) { return Stack<T>::isInstance(L, index); }
 };
-
 } // namespace detail
 
 template <class T>

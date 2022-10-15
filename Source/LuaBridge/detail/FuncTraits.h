@@ -24,9 +24,9 @@ namespace detail {
  */
 [[noreturn]] inline void unreachable()
 {
-#if __GNUC__ // GCC, Clang, ICC
+#if __GNUC__
     __builtin_unreachable();
-#elif _MSC_VER // MSVC
+#elif _MSC_VER
     __assume(false);
 #endif
 }

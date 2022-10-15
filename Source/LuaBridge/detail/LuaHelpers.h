@@ -199,6 +199,25 @@ inline int lua_compare(lua_State* L, int idx1, int idx2, int op)
     }
 }
 
+#if ! LUABRIDGE_ON_LUAJIT
+inline void* luaL_testudata(lua_State* L, int ud, const char* tname)
+{
+    void* p = lua_touserdata(L, ud);
+    if (p == nullptr)
+        return nullptr;
+
+    if (! lua_getmetatable(L, ud))
+        return nullptr;
+
+    luaL_getmetatable(L, tname);
+    if (! lua_rawequal(L, -1, -2))
+        p = nullptr;
+
+    lua_pop(L, 2);
+    return p;
+}
+#endif
+
 inline int get_length(lua_State* L, int idx)
 {
     return static_cast<int>(lua_objlen(L, idx));
@@ -427,23 +446,12 @@ template <class T>
  * @brief Deallocate lua userdata taking into account alignment.
  */
 template <class T>
-int lua_destroyuserdata_aligned(lua_State* L)
+int lua_deleteuserdata_aligned(lua_State* L)
 {
     assert(isfulluserdata(L, 1));
 
     T* aligned = align<T>(lua_touserdata(L, 1));
     aligned->~T();
-
-    return 0;
-}
-
-template <class T>
-int lua_deleteuserdata_aligned(lua_State* L)
-{
-    assert(isfulluserdata(L, 1));
-
-    T** aligned = align<T*>(lua_touserdata(L, 1));
-    delete *aligned;
 
     return 0;
 }
@@ -466,7 +474,7 @@ void* lua_newuserdata_aligned(lua_State* L, Args&&... args)
     void* pointer = lua_newuserdata_x<T>(L, maximum_space_needed_to_align<T>());
 
     lua_newtable(L);
-    lua_pushcfunction_x(L, &lua_destroyuserdata_aligned<T>);
+    lua_pushcfunction_x(L, &lua_deleteuserdata_aligned<T>);
     rawsetfield(L, -2, "__gc");
     lua_setmetatable(L, -2);
 #endif
@@ -474,6 +482,47 @@ void* lua_newuserdata_aligned(lua_State* L, Args&&... args)
     T* aligned = align<T>(pointer);
 
     new (aligned) T(std::forward<Args>(args)...);
+
+    return pointer;
+}
+
+/**
+ * @brief Deallocate lua userdata from pointer.
+ */
+template <class T>
+int lua_deleteuserdata_pointer(lua_State* L)
+{
+    assert(isfulluserdata(L, 1));
+
+    T** aligned = align<T*>(lua_touserdata(L, 1));
+    delete *aligned;
+
+    return 0;
+}
+
+/**
+ * @brief Allocate lua userdata from pointer.
+ */
+template <class T>
+void* lua_newuserdata_pointer(lua_State* L, T* ptr)
+{
+#if LUABRIDGE_ON_LUAU
+    void* pointer = lua_newuserdatadtor(L, maximum_space_needed_to_align<T*>(), [](void* x)
+    {
+        T** aligned = align<T*>(x);
+        delete *aligned;
+    });
+#else
+    void* pointer = lua_newuserdata_x<T*>(L, maximum_space_needed_to_align<T*>());
+
+    lua_newtable(L);
+    lua_pushcfunction_x(L, &lua_deleteuserdata_pointer<T*>);
+    rawsetfield(L, -2, "__gc");
+    lua_setmetatable(L, -2);
+#endif
+
+    T** aligned = align<T*>(pointer);
+    *aligned = ptr;
 
     return pointer;
 }
