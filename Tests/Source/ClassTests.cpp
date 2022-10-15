@@ -2474,7 +2474,38 @@ TEST_F(ClassTests, ReferenceWrapperDecaysToType)
     EXPECT_EQ(130, result().unsafe_cast<int>());
 }
 
-TEST_F(ClassTests, ReferenceWrapperDecaysToLuaType)
+TEST_F(ClassTests, ReferenceWrapperFailsOnInvalidType)
+{
+    int x = 13;
+    std::reference_wrapper ref_wrap_x(x);
+
+    float y = 1.0f;
+    std::reference_wrapper ref_wrap_y(y);
+
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("test")
+        .addProperty("ref_wrap_x", &ref_wrap_x)
+        .addProperty("ref_wrap_y", &ref_wrap_y)
+        .addFunction("takeReference1", [](float r) { return r * 10; })
+        .addFunction("takeReference2", [](int r) { return r * 10; })
+        .addFunction("takeReference3", [](std::reference_wrapper<float> r) { return r.get() * 10; })
+        .addFunction("takeReference4", [](std::reference_wrapper<int> r) { return r.get() * 10; })
+        .endNamespace();
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_THROW(runLua("result = test.takeReference1(test.ref_wrap_x)"), std::exception);
+    EXPECT_THROW(runLua("result = test.takeReference2(test.ref_wrap_y)"), std::exception);
+    EXPECT_THROW(runLua("result = test.takeReference3(test.ref_wrap_x)"), std::exception);
+    EXPECT_THROW(runLua("result = test.takeReference4(test.ref_wrap_y)"), std::exception);
+#else
+    EXPECT_FALSE(runLua("result = test.takeReference1(test.ref_wrap_x)"));
+    EXPECT_FALSE(runLua("result = test.takeReference2(test.ref_wrap_y)"));
+    EXPECT_FALSE(runLua("result = test.takeReference3(test.ref_wrap_x)"));
+    EXPECT_FALSE(runLua("result = test.takeReference4(test.ref_wrap_y)"));
+#endif
+}
+
+TEST_F(ClassTests, ReferenceWrapperAccessFromLua)
 {
     int x = 13;
     std::reference_wrapper<int> ref_wrap_x(x);
