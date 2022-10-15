@@ -2335,7 +2335,17 @@ struct TypeResult
         return m_value.value();
     }
 
-    const T& operator*() const
+    T& operator*() &
+    {
+        return m_value.value();
+    }
+
+    T operator*() &&
+    {
+        return std::move(m_value.value());
+    }
+
+    const T& operator*() const&
     {
         return m_value.value();
     }
@@ -4948,6 +4958,15 @@ struct Stack<std::list<T>>
 namespace luabridge {
 namespace detail {
 
+[[noreturn]] inline void unreachable()
+{
+#if __GNUC__ 
+    __builtin_unreachable();
+#elif _MSC_VER 
+    __assume(false);
+#endif
+}
+
 template< class T >
 struct remove_cvref
 {
@@ -5633,7 +5652,7 @@ struct property_setter<T, void>
         if (! result)
             raise_lua_error(L, "%s", result.error().message().c_str());
 
-        *ptr = *result;
+        *ptr = std::move(*result);
 
         return 0;
     }
@@ -5674,7 +5693,7 @@ struct property_setter
             if (! result)
                 raise_lua_error(L, "%s", result.error().message().c_str());
 
-            c->** mp = *result;
+            c->** mp = std::move(*result);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
