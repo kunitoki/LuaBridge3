@@ -647,7 +647,7 @@ struct HardToCreate
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
     .beginClass<HardToCreate> ("HardToCreate")
-      .addConstructor ([&shouldNotSeeMe] (void* ptr, int easy) { new (ptr) HardToCreate (shouldNotSeeMe, easy); })
+      .addConstructor ([&shouldNotSeeMe] (void* ptr, int easy) { return new (ptr) HardToCreate (shouldNotSeeMe, easy); })
     .endClass ()
   .endNamespace ();
 ```
@@ -664,7 +664,7 @@ The `addConstructor` overload taking a generic functor also accepts a `lua_State
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
     .beginClass<HardToCreate> ("HardToCreate")
-      .addConstructor ([] (void* ptr, lua_State* L) { new (ptr) HardToCreate (shouldNotSeeMe, lua_checkinteger (L, 2)); })
+      .addConstructor ([] (void* ptr, lua_State* L) { return new (ptr) HardToCreate (shouldNotSeeMe, lua_checkinteger (L, 2)); })
     .endClass ()
   .endNamespace ();
 ```
@@ -685,8 +685,8 @@ luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
     .beginClass<HardToCreate> ("HardToCreate")
       .addConstructor (
-        [&shouldNotSeeMe] (void* ptr, int easy) { new (ptr) HardToCreate (shouldNotSeeMe, easy); },
-        [&shouldNotSeeMe] (void* ptr, int easy, int lessEasy) { new (ptr) HardToCreate (shouldNotSeeMe, easy, lessEasy); })
+        [&shouldNotSeeMe] (void* ptr, int easy) { return new (ptr) HardToCreate (shouldNotSeeMe, easy); },
+        [&shouldNotSeeMe] (void* ptr, int easy, int lessEasy) { return new (ptr) HardToCreate (shouldNotSeeMe, easy, lessEasy); })
     .endClass ()
   .endNamespace ();
 ```
