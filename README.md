@@ -21,10 +21,12 @@ LuaBridge3 is usable from a compliant C++17 compiler and offers the following fe
 * Headers-only: No Makefile, no .cpp files, just one `#include` and one header file (optional) !
 * Works with ANY lua version out there (PUC-Lua, LuaJIT, Luau, you name it).
 * Simple, light, and nothing else needed.
+* Fast to compile (even in release mode), scaling linearly with the size of your binded code.
 * No macros, settings, or configuration scripts needed.
 * Supports different object lifetime management models.
 * Convenient, type-safe access to the Lua stack.
 * Automatic function parameter type binding.
+* Functions and constructors overloading support.
 * Easy access to Lua objects like tables and functions.
 * Expose C++ classes allowing them to use the flexibility of lua property lookup.
 * Interoperable with most common c++ standard library container types.
