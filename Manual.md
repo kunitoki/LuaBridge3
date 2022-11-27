@@ -961,7 +961,7 @@ luabridge::getGlobalNamespace (L).addFunction ("useStateAndArgs", &useStateAndAr
 
 When the script calls `useStateAndArgs`, it passes only the integer and string parameters. LuaBridge takes care of inserting the `lua_State*` into the argument list for the corresponding C++ function. This will work correctly even for the state created by coroutines. Undefined behavior results if the `lua_State*` is not the last parameter.
 
-The same is applicable for properies.
+The same is applicable for properties.
 
 3 - Passing Objects
 ===================
