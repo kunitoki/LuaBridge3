@@ -15,8 +15,7 @@
 
 #if LUABRIDGE_ON_LUAU
 #include "../../ThirdParty/luau/Compiler/include/luacode.h"
-#include "../../ThirdParty/luau/Ast/include/Luau/Common.h"
-LUAU_FASTFLAG(LuauActivateBeforeExec)
+#include "../../ThirdParty/luau/Common/include/Luau/Common.h"
 #endif
 
 #if LUABRIDGE_HAS_EXCEPTIONS
@@ -66,8 +65,6 @@ inline int traceback(lua_State* L)
 #if LUABRIDGE_ON_LUAU
 inline int luaL_loadstring(lua_State *L, const char *s)
 {
-    FFlag::LuauActivateBeforeExec.value = true;
-
     std::size_t bytecodeSize = 0;
 
     auto bytecode = std::shared_ptr<char>(
