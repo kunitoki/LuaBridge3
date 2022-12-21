@@ -2,7 +2,7 @@ cmake_minimum_required (VERSION 3.5)
 
 # ====================================================== Locations
 
-set (LUABRIDGE_LUAJIT_LOCATION "${CMAKE_CURRENT_LIST_DIR}/Lua/LuaJIT.2.1.0-beta3")
+set (LUABRIDGE_LUAJIT_LOCATION "${CMAKE_CURRENT_LIST_DIR}/Lua/LuaJIT.2.1")
 set (LUABRIDGE_LUAU_LOCATION "${CMAKE_CURRENT_LIST_DIR}/../ThirdParty/luau")
 
 add_subdirectory(${LUABRIDGE_LUAJIT_LOCATION})
