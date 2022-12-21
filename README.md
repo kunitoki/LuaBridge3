@@ -11,7 +11,9 @@
 [LuaBridge3][1] is a lightweight and dependency-free library for mapping data,
 functions, and classes back and forth between C++ and [Lua][2] (a powerful,
 fast, lightweight, embeddable scripting language). LuaBridge has been tested
-and works with Lua 5.1.5, 5.2.4, 5.3.6 and 5.4.4 as well as [LuaJit][3] 2.1.x and [Luau][4] 0.556.
+and works with Lua 5.1.5, 5.2.4, 5.3.6 and 5.4.4 as well as [LuaJit][3] 2.1
+(from the upstream v2.1 branch only) and for the first time also with [Luau][4]
+0.556 (from the upstream tag).
 
 ## Features
 
@@ -95,8 +97,8 @@ There are 11 unit test flavors:
 * `LuaBridgeTests53Noexcept` - uses Lua 5.3 without exceptions enabled
 * `LuaBridgeTests54` - uses Lua 5.4
 * `LuaBridgeTests54Noexcept` - uses Lua 5.4 without exceptions enabled
-* `LuaBridgeTestsLuaJIT` - uses LuaJIT 2.1.0
-* `LuaBridgeTestsLuaJITNoexcept` - uses LuaJIT 2.1.0 without exceptions enabled
+* `LuaBridgeTestsLuaJIT` - uses LuaJIT 2.1
+* `LuaBridgeTestsLuaJITNoexcept` - uses LuaJIT 2.1 without exceptions enabled
 * `LuaBridgeTestsLuau` - uses Luau
 
 (Luau compiler needs exceptions, so there are no test targets on Luau without exceptions)

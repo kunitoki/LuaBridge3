@@ -4,6 +4,3 @@
 [submodule "ThirdParty/googletest"]
 	path = ThirdParty/googletest
 	url = https://github.com/kunitoki/googletest.git
-#[submodule "ThirdParty/LuaJIT"]
-#	path = ThirdParty/LuaJIT
-#	url = https://github.com/LuaJIT/LuaJIT.git
