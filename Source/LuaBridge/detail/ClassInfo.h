@@ -25,8 +25,20 @@
 namespace luabridge {
 namespace detail {
 
-[[nodiscard]] static constexpr auto fnv1a(const char* s, std::size_t count) noexcept
+[[nodiscard]] constexpr auto fnv1a(const char* s, std::size_t count) noexcept
 {
+#if LUABRIDGE_ON_LUAJIT
+    uint32_t seed = 2166136261u;
+
+    for (std::size_t i = 0; i < count; ++i)
+        seed ^= static_cast<uint32_t>(*s++) * 16777619u;
+
+    if constexpr (sizeof(void*) == 8)
+        return static_cast<uint64_t>(seed);
+    else
+        return seed;
+
+#else
     if constexpr (sizeof(void*) == 4)
     {
         uint32_t seed = 2166136261u;
@@ -45,6 +57,8 @@ namespace detail {
 
         return seed;
     }
+
+#endif
 }
 
 template <class T>
@@ -69,7 +83,7 @@ template <class T, auto = typeName<T>().find_first_of('.')>
 /**
  * @brief A unique key for a type name in a metatable.
  */
-inline const void* getTypeKey() noexcept
+[[nodiscard]] inline const void* getTypeKey() noexcept
 {
     return reinterpret_cast<void*>(0x71);
 }
@@ -78,7 +92,7 @@ inline const void* getTypeKey() noexcept
 /**
  * @brief The key of a const table in another metatable.
  */
-inline const void* getConstKey() noexcept
+[[nodiscard]] inline const void* getConstKey() noexcept
 {
     return reinterpret_cast<void*>(0xc07);
 }
@@ -87,7 +101,7 @@ inline const void* getConstKey() noexcept
 /**
  * @brief The key of a class table in another metatable.
  */
-inline const void* getClassKey() noexcept
+[[nodiscard]] inline const void* getClassKey() noexcept
 {
     return reinterpret_cast<void*>(0xc1a);
 }
@@ -96,7 +110,7 @@ inline const void* getClassKey() noexcept
 /**
  * @brief The key of a propget table in another metatable.
  */
-inline const void* getPropgetKey() noexcept
+[[nodiscard]] inline const void* getPropgetKey() noexcept
 {
     return reinterpret_cast<void*>(0x6e7);
 }
@@ -105,7 +119,7 @@ inline const void* getPropgetKey() noexcept
 /**
  * @brief The key of a propset table in another metatable.
  */
-inline const void* getPropsetKey() noexcept
+[[nodiscard]] inline const void* getPropsetKey() noexcept
 {
     return reinterpret_cast<void*>(0x5e7);
 }
@@ -114,7 +128,7 @@ inline const void* getPropsetKey() noexcept
 /**
  * @brief The key of a static table in another metatable.
  */
-inline const void* getStaticKey() noexcept
+[[nodiscard]] inline const void* getStaticKey() noexcept
 {
     return reinterpret_cast<void*>(0x57a);
 }
@@ -123,7 +137,7 @@ inline const void* getStaticKey() noexcept
 /**
  * @brief The key of a parent table in another metatable.
  */
-inline const void* getParentKey() noexcept
+[[nodiscard]] inline const void* getParentKey() noexcept
 {
     return reinterpret_cast<void*>(0xdad);
 }
@@ -132,7 +146,7 @@ inline const void* getParentKey() noexcept
 /**
  * The key of the index fall back in another metatable.
  */
-inline const void* getIndexFallbackKey()
+[[nodiscard]] inline const void* getIndexFallbackKey()
 {
   return reinterpret_cast<void*>(0x81ca);
 }
@@ -141,7 +155,7 @@ inline const void* getIndexFallbackKey()
 /**
  * The key of the new index fall back in another metatable.
  */
-inline const void* getNewIndexFallbackKey()
+[[nodiscard]] inline const void* getNewIndexFallbackKey()
 {
   return reinterpret_cast<void*>(0x8107);
 }
@@ -153,7 +167,7 @@ inline const void* getNewIndexFallbackKey()
  * The static table holds the static data members, static properties, and static member functions for a class.
  */
 template <class T>
-const void* getStaticRegistryKey() noexcept
+[[nodiscard]] const void* getStaticRegistryKey() noexcept
 {
     static auto value = typeHash<T>();
 
@@ -168,7 +182,7 @@ const void* getStaticRegistryKey() noexcept
  * member functions are also placed here (to save a lookup in the const table).
  */
 template <class T>
-const void* getClassRegistryKey() noexcept
+[[nodiscard]] const void* getClassRegistryKey() noexcept
 {
     static auto value = typeHash<T>() ^ 1;
 
@@ -182,7 +196,7 @@ const void* getClassRegistryKey() noexcept
  * The const table holds read-only data members and properties, and const member functions of a class.
  */
 template <class T>
-const void* getConstRegistryKey() noexcept
+[[nodiscard]] const void* getConstRegistryKey() noexcept
 {
     static auto value = typeHash<T>() ^ 2;
 
