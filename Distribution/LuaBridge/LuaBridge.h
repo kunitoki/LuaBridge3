@@ -2554,26 +2554,17 @@ inline void enableExceptions(lua_State* L) noexcept
 namespace luabridge {
 namespace detail {
 
-[[nodiscard]] static constexpr auto fnv1a(const char* s, std::size_t count) noexcept
+[[nodiscard]] constexpr auto fnv1a(const char* s, std::size_t count) noexcept
 {
-    if constexpr (sizeof(void*) == 4)
-    {
-        uint32_t seed = 2166136261u;
+    uint32_t seed = 2166136261u;
 
-        for (std::size_t i = 0; i < count; ++i)
-            seed ^= static_cast<uint32_t>(*s++) * 16777619u;
+    for (std::size_t i = 0; i < count; ++i)
+        seed ^= static_cast<uint32_t>(*s++) * 16777619u;
 
-        return seed;
-    }
+    if constexpr (sizeof(void*) == 8)
+        return static_cast<uint64_t>(seed);
     else
-    {
-        uint64_t seed = 14695981039346656037ull;
-
-        for (std::size_t i = 0; i < count; ++i)
-            seed ^= static_cast<uint64_t>(*s++) * 1099511628211ull;
-
         return seed;
-    }
 }
 
 template <class T>
@@ -2594,53 +2585,53 @@ template <class T, auto = typeName<T>().find_first_of('.')>
     return fnv1a(stripped.data(), stripped.size());
 }
 
-inline const void* getTypeKey() noexcept
+[[nodiscard]] inline const void* getTypeKey() noexcept
 {
     return reinterpret_cast<void*>(0x71);
 }
 
-inline const void* getConstKey() noexcept
+[[nodiscard]] inline const void* getConstKey() noexcept
 {
     return reinterpret_cast<void*>(0xc07);
 }
 
-inline const void* getClassKey() noexcept
+[[nodiscard]] inline const void* getClassKey() noexcept
 {
     return reinterpret_cast<void*>(0xc1a);
 }
 
-inline const void* getPropgetKey() noexcept
+[[nodiscard]] inline const void* getPropgetKey() noexcept
 {
     return reinterpret_cast<void*>(0x6e7);
 }
 
-inline const void* getPropsetKey() noexcept
+[[nodiscard]] inline const void* getPropsetKey() noexcept
 {
     return reinterpret_cast<void*>(0x5e7);
 }
 
-inline const void* getStaticKey() noexcept
+[[nodiscard]] inline const void* getStaticKey() noexcept
 {
     return reinterpret_cast<void*>(0x57a);
 }
 
-inline const void* getParentKey() noexcept
+[[nodiscard]] inline const void* getParentKey() noexcept
 {
     return reinterpret_cast<void*>(0xdad);
 }
 
-inline const void* getIndexFallbackKey()
+[[nodiscard]] inline const void* getIndexFallbackKey()
 {
   return reinterpret_cast<void*>(0x81ca);
 }
 
-inline const void* getNewIndexFallbackKey()
+[[nodiscard]] inline const void* getNewIndexFallbackKey()
 {
   return reinterpret_cast<void*>(0x8107);
 }
 
 template <class T>
-const void* getStaticRegistryKey() noexcept
+[[nodiscard]] const void* getStaticRegistryKey() noexcept
 {
     static auto value = typeHash<T>();
 
@@ -2648,7 +2639,7 @@ const void* getStaticRegistryKey() noexcept
 }
 
 template <class T>
-const void* getClassRegistryKey() noexcept
+[[nodiscard]] const void* getClassRegistryKey() noexcept
 {
     static auto value = typeHash<T>() ^ 1;
 
@@ -2656,7 +2647,7 @@ const void* getClassRegistryKey() noexcept
 }
 
 template <class T>
-const void* getConstRegistryKey() noexcept
+[[nodiscard]] const void* getConstRegistryKey() noexcept
 {
     static auto value = typeHash<T>() ^ 2;
 
