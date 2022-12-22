@@ -27,7 +27,6 @@ namespace detail {
 
 [[nodiscard]] constexpr auto fnv1a(const char* s, std::size_t count) noexcept
 {
-#if LUABRIDGE_ON_LUAJIT
     uint32_t seed = 2166136261u;
 
     for (std::size_t i = 0; i < count; ++i)
@@ -37,28 +36,6 @@ namespace detail {
         return static_cast<uint64_t>(seed);
     else
         return seed;
-
-#else
-    if constexpr (sizeof(void*) == 4)
-    {
-        uint32_t seed = 2166136261u;
-
-        for (std::size_t i = 0; i < count; ++i)
-            seed ^= static_cast<uint32_t>(*s++) * 16777619u;
-
-        return seed;
-    }
-    else
-    {
-        uint64_t seed = 14695981039346656037ull;
-
-        for (std::size_t i = 0; i < count; ++i)
-            seed ^= static_cast<uint64_t>(*s++) * 1099511628211ull;
-
-        return seed;
-    }
-
-#endif
 }
 
 template <class T>
