@@ -86,12 +86,16 @@ struct Class : Base
     T constMethod(T value) const { return value; }
 
     T getData() const { return data; }
+    T getDataNoexcept() const noexcept { return data; }
 
     void setData(T data) { this->data = data; }
+    void setDataNoexcept(T data) noexcept { this->data = data; }
 
     T getDataState(lua_State*) const { return data; }
+    T getDataStateNoexcept(lua_State*) const noexcept { return data; }
 
     void setDataState(T data, lua_State*) { this->data = data; }
+    void setDataStateNoexcept(T data, lua_State*) noexcept { this->data = data; }
 
     mutable T data;
     static T staticData;
@@ -448,9 +452,30 @@ TEST_F(ClassFunctions, ConstMemberFunctions)
 }
 
 namespace {
+struct ClassWithTemplateMembers
+{
+    template <class T, class... Args>
+    int templateMethod(Args&&...)
+    {
+        return static_cast<int>(sizeof...(Args));
+    }
+
+    template <class T, class... Args>
+    int templateMethodNoexcept(Args&&...) noexcept
+    {
+        return static_cast<int>(sizeof...(Args));
+    }
+};
 
 template<class T, class Base>
 T proxyFunction(Class<T, Base>* object, T value)
+{
+    object->data = value;
+    return value;
+}
+
+template<class T, class Base>
+T proxyFunctionNoexcept(Class<T, Base>* object, T value) noexcept
 {
     object->data = value;
     return value;
@@ -464,7 +489,20 @@ T proxyFunctionState(Class<T, Base>* object, T value, lua_State*)
 }
 
 template<class T, class Base>
+T proxyFunctionStateNoexcept(Class<T, Base>* object, T value, lua_State*) noexcept
+{
+    object->data = value;
+    return value;
+}
+
+template<class T, class Base>
 T proxyConstFunction(const Class<T, Base>* object, T value)
+{
+    return value;
+}
+
+template<class T, class Base>
+T proxyConstFunctionNoexcept(const Class<T, Base>* object, T value) noexcept
 {
     return value;
 }
@@ -487,8 +525,23 @@ int proxyCFunctionState(lua_State* L)
 
     return 1;
 }
-
 } // namespace
+
+TEST_F(ClassFunctions, ClassWithTemplateMembers)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<ClassWithTemplateMembers>("ClassWithTemplateMembers")
+            .addConstructor<void()>()
+            .addFunction("method", &ClassWithTemplateMembers::templateMethod<int>)
+            .addFunction("methodNoexcept", &ClassWithTemplateMembers::templateMethodNoexcept<int>)
+        .endClass();
+
+    runLua("local a = ClassWithTemplateMembers(); result = a:method()");
+    ASSERT_EQ(0, result<int>());
+
+    runLua("local a = ClassWithTemplateMembers(); result = a:methodNoexcept()");
+    ASSERT_EQ(0, result<int>());
+}
 
 TEST_F(ClassFunctions, ProxyFunctions)
 {
@@ -497,6 +550,7 @@ TEST_F(ClassFunctions, ProxyFunctions)
     luabridge::getGlobalNamespace(L)
         .beginClass<Int>("Int")
         .addFunction("method", &proxyFunction<int, EmptyBase>)
+        .addFunction("methodNoexcept", &proxyFunctionNoexcept<int, EmptyBase>)
         .endClass();
 
     addHelperFunctions(L);
@@ -514,6 +568,21 @@ TEST_F(ClassFunctions, ProxyFunctions)
     ASSERT_TRUE(result().isNil());
 
     runLua("result = returnValue ():method (3)");
+    ASSERT_EQ(3, result<int>());
+
+    runLua("result = returnRef ():methodNoexcept (1)");
+    ASSERT_EQ(1, result<int>());
+
+    runLua("result = returnConstRef ().methodNoexcept"); // Don't call, just get
+    ASSERT_TRUE(result().isNil());
+
+    runLua("result = returnPtr ():methodNoexcept (2)");
+    ASSERT_EQ(2, result<int>());
+
+    runLua("result = returnConstPtr ().methodNoexcept"); // Don't call, just get
+    ASSERT_TRUE(result().isNil());
+
+    runLua("result = returnValue ():methodNoexcept (3)");
     ASSERT_EQ(3, result<int>());
 }
 
@@ -524,6 +593,7 @@ TEST_F(ClassFunctions, ProxyFunctions_PassState)
     luabridge::getGlobalNamespace(L)
         .beginClass<Int>("Int")
         .addFunction("method", &proxyFunctionState<int, EmptyBase>)
+        .addFunction("methodNoexcept", &proxyFunctionStateNoexcept<int, EmptyBase>)
         .endClass();
 
     addHelperFunctions(L);
@@ -542,6 +612,21 @@ TEST_F(ClassFunctions, ProxyFunctions_PassState)
 
     runLua("result = returnValue ():method (3)");
     ASSERT_EQ(3, result<int>());
+
+    runLua("result = returnRef ():methodNoexcept (1)");
+    ASSERT_EQ(1, result<int>());
+
+    runLua("result = returnConstRef ().methodNoexcept"); // Don't call, just get
+    ASSERT_TRUE(result().isNil());
+
+    runLua("result = returnPtr ():methodNoexcept (2)");
+    ASSERT_EQ(2, result<int>());
+
+    runLua("result = returnConstPtr ().methodNoexcept"); // Don't call, just get
+    ASSERT_TRUE(result().isNil());
+
+    runLua("result = returnValue ():methodNoexcept (3)");
+    ASSERT_EQ(3, result<int>());
 }
 
 TEST_F(ClassFunctions, ConstProxyFunctions)
@@ -551,6 +636,7 @@ TEST_F(ClassFunctions, ConstProxyFunctions)
     luabridge::getGlobalNamespace(L)
         .beginClass<Int>("Int")
         .addFunction("constMethod", &proxyConstFunction<int, EmptyBase>)
+        .addFunction("constMethodNoexcept", &proxyConstFunctionNoexcept<int, EmptyBase>)
         .endClass();
 
     addHelperFunctions(L);
@@ -568,6 +654,21 @@ TEST_F(ClassFunctions, ConstProxyFunctions)
     ASSERT_EQ(4, result<int>());
 
     runLua("result = returnValue ():constMethod (5)");
+    ASSERT_EQ(5, result<int>());
+
+    runLua("result = returnRef ():constMethodNoexcept (1)");
+    ASSERT_EQ(1, result<int>());
+
+    runLua("result = returnConstRef ():constMethodNoexcept (2)");
+    ASSERT_EQ(2, result<int>());
+
+    runLua("result = returnPtr ():constMethodNoexcept (3)");
+    ASSERT_EQ(3, result<int>());
+
+    runLua("result = returnConstPtr ():constMethodNoexcept (4)");
+    ASSERT_EQ(4, result<int>());
+
+    runLua("result = returnValue ():constMethodNoexcept (5)");
     ASSERT_EQ(5, result<int>());
 }
 
@@ -779,15 +880,22 @@ TEST_F(ClassProperties, MemberFunctions)
         .beginClass<Int>("Int")
         .addConstructor<void (*)(int)>()
         .addProperty("data", &Int::getData, &Int::setData)
+        .addProperty("dataNoexcept", &Int::getDataNoexcept, &Int::setDataNoexcept)
         .endClass();
 
     runLua("result = Int (501)");
     ASSERT_TRUE(result()["data"].isNumber());
     ASSERT_EQ(501, result()["data"].cast<int>());
+    ASSERT_TRUE(result()["dataNoexcept"].isNumber());
+    ASSERT_EQ(501, result()["dataNoexcept"].cast<int>());
 
     runLua("result.data = -2");
     ASSERT_TRUE(result()["data"].isNumber());
     ASSERT_EQ(-2, result()["data"].cast<int>());
+
+    runLua("result.dataNoexcept = -2");
+    ASSERT_TRUE(result()["dataNoexcept"].isNumber());
+    ASSERT_EQ(-2, result()["dataNoexcept"].cast<int>());
 }
 
 TEST_F(ClassProperties, MemberFunctions_PassState)
@@ -798,15 +906,22 @@ TEST_F(ClassProperties, MemberFunctions_PassState)
         .beginClass<Int>("Int")
         .addConstructor<void (*)(int)>()
         .addProperty("data", &Int::getDataState, &Int::setDataState)
+        .addProperty("dataNoexcept", &Int::getDataStateNoexcept, &Int::setDataStateNoexcept)
         .endClass();
 
     runLua("result = Int (501)");
     ASSERT_TRUE(result()["data"].isNumber());
     ASSERT_EQ(501, result()["data"].cast<int>());
+    ASSERT_TRUE(result()["dataNoexcept"].isNumber());
+    ASSERT_EQ(501, result()["dataNoexcept"].cast<int>());
 
     runLua("result.data = -2");
     ASSERT_TRUE(result()["data"].isNumber());
     ASSERT_EQ(-2, result()["data"].cast<int>());
+
+    runLua("result.dataNoexcept = -2");
+    ASSERT_TRUE(result()["dataNoexcept"].isNumber());
+    ASSERT_EQ(-2, result()["dataNoexcept"].cast<int>());
 }
 
 TEST_F(ClassProperties, MemberFunctions_ReadOnly)
