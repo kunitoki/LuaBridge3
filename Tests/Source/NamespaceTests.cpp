@@ -18,7 +18,7 @@ struct NamespaceTests : TestBase
 
 namespace {
 enum class A { x, y };
-}
+} // namespace
 
 TEST_F(NamespaceTests, Variables)
 {
@@ -111,28 +111,38 @@ TEST_F(NamespaceTests, ReadOnlyVariables)
 }
 
 namespace {
-
-template<class T>
+template <class T>
 struct Property
 {
     static T value;
 };
 
-template<class T>
+template <class T>
 T Property<T>::value;
 
-template<class T>
+template <class T>
 void setProperty(const T& value)
 {
     Property<T>::value = value;
 }
 
-template<class T>
+template <class T>
+void setPropertyNoexcept(const T& value) noexcept
+{
+    Property<T>::value = value;
+}
+
+template <class T>
 const T& getProperty()
 {
     return Property<T>::value;
 }
 
+template <class T>
+const T& getPropertyNoexcept() noexcept
+{
+    return Property<T>::value;
+}
 } // namespace
 
 TEST_F(NamespaceTests, Properties)
@@ -151,12 +161,17 @@ TEST_F(NamespaceTests, Properties)
     luabridge::getGlobalNamespace(L)
         .beginNamespace("ns")
         .addProperty("int", &getProperty<int>, &setProperty<int>)
+        .addProperty("int2", &getPropertyNoexcept<int>, &setPropertyNoexcept<int>)
         .endNamespace();
 
     ASSERT_EQ(-10, variable<int>("ns.int"));
+    ASSERT_EQ(-10, variable<int>("ns.int2"));
 
     runLua("ns.int = -20");
     ASSERT_EQ(-20, getProperty<int>());
+
+    runLua("ns.int2 = -20");
+    ASSERT_EQ(-20, getPropertyNoexcept<int>());
 }
 
 TEST_F(NamespaceTests, ReadOnlyProperties)
@@ -174,17 +189,21 @@ TEST_F(NamespaceTests, ReadOnlyProperties)
     luabridge::getGlobalNamespace(L)
         .beginNamespace("ns")
         .addProperty("int", &getProperty<int>)
+        .addProperty("int2", &getPropertyNoexcept<int>)
         .endNamespace();
 
     ASSERT_EQ(-10, variable<int>("ns.int"));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("ns.int = -20"), std::runtime_error);
+    ASSERT_THROW(runLua("ns.int2 = -20"), std::runtime_error);
 #else
     ASSERT_FALSE(runLua("ns.int = -20"));
+    ASSERT_FALSE(runLua("ns.int2 = -20"));
 #endif
 
     ASSERT_EQ(-10, getProperty<int>());
+    ASSERT_EQ(-10, getPropertyNoexcept<int>());
 }
 
 TEST_F(NamespaceTests, AddVariable)
@@ -235,7 +254,6 @@ TEST_F(NamespaceTests, AddVariable)
 }
 
 namespace {
-
 template<class T>
 struct Storage
 {
@@ -264,7 +282,6 @@ int setDataC(lua_State* L)
 
     return 0;
 }
-
 } // namespace
 
 TEST_F(NamespaceTests, NamespaceFromStack)
@@ -351,9 +368,7 @@ TEST_F(NamespaceTests, Properties_ProxyCFunctions_ReadOnly)
 }
 
 namespace {
-struct Class
-{
-};
+struct Class {};
 } // namespace
 
 TEST_F(NamespaceTests, LuaStackIntegrity)
@@ -436,7 +451,6 @@ TEST_F(NamespaceTests, LuaStackIntegrity)
 }
 
 namespace {
-
 template<class T>
 T Function(T param)
 {
@@ -448,7 +462,6 @@ int LuaFunction(lua_State* L)
     lua_pushnumber(L, 42);
     return 1;
 }
-
 } // namespace
 
 TEST_F(NamespaceTests, Functions)
@@ -492,12 +505,10 @@ TEST_F(NamespaceTests, CapturingLambdas)
 #ifdef _M_IX86 // Windows 32bit only
 
 namespace {
-
 int __stdcall StdCall(int i)
 {
     return i + 10;
 }
-
 } // namespace
 
 TEST_F(NamespaceTests, StdCallFunctions)

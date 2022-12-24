@@ -16,10 +16,10 @@
 #include <memory>
 #include <string>
 
-namespace LuaBridgeTests {
-
 using namespace std;
 using namespace luabridge;
+
+namespace {
 
 //==============================================================================
 
@@ -253,37 +253,7 @@ void addToState(lua_State* L)
         .addFunction("testParamAPtrConst", &testParamAPtrConst)
         .addFunction("testParamConstAPtr", &testParamConstAPtr);
 }
-
-void resetTests()
-{
-    g_success = true;
-    A::testStaticProp = 47;
-}
-
-void printValue(lua_State* L, int index)
-{
-    int type = lua_type(L, index);
-    switch (type)
-    {
-    case LUA_TBOOLEAN:
-        std::cerr << std::boolalpha << (lua_toboolean(L, index) != 0);
-        break;
-    case LUA_TSTRING:
-        std::cerr << lua_tostring(L, index);
-        break;
-    case LUA_TNUMBER:
-        std::cerr << lua_tonumber(L, index);
-        break;
-    case LUA_TTABLE:
-    case LUA_TTHREAD:
-    case LUA_TFUNCTION:
-        std::cerr << lua_topointer(L, index);
-        break;
-    }
-    std::cerr << ": " << lua_typename(L, type) << " (" << type << ")" << std::endl;
-}
-
-} // namespace LuaBridgeTests
+} // namespace
 
 struct LegacyTests : TestBase
 {
@@ -291,7 +261,7 @@ struct LegacyTests : TestBase
 
 TEST_F(LegacyTests, AllTests)
 {
-    LuaBridgeTests::addToState(L);
+    addToState(L);
 
     // Execute lua files in order
     runLua(BinaryData::Tests_lua);

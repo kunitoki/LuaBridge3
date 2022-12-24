@@ -794,7 +794,7 @@ class Namespace : public detail::Registrar
          * Both the get and the set functions require a T const* and T* in the first argument respectively.
          */
         template <class TG, class TS = TG>
-        Class<T>& addProperty(const char* name, TG (*get)(T const*), void (*set)(T*, TS) = nullptr)
+        Class<T>& addProperty(const char* name, TG (*get)(const T*), void (*set)(T*, TS) = nullptr)
         {
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
@@ -816,7 +816,7 @@ class Namespace : public detail::Registrar
         }
 
         template <class TG, class TS = TG>
-        Class<T>& addProperty(const char* name, TG (*get)(T const*) noexcept, void (*set)(T*, TS) noexcept = nullptr)
+        Class<T>& addProperty(const char* name, TG (*get)(const T*) noexcept, void (*set)(T*, TS) noexcept = nullptr)
         {
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)

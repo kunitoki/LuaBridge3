@@ -10,7 +10,6 @@
 #include <vector>
 
 namespace {
-
 template <class T>
 void checkEquals(const std::vector<T>& expected, const std::vector<T>& actual)
 {
@@ -36,7 +35,6 @@ void checkEquals(const std::vector<T>& expected, const std::vector<T>& actual)
         ASSERT_EQ(expected, actual);
     }
 }
-
 } // namespace
 
 template<class T>
@@ -63,7 +61,6 @@ REGISTER_TYPED_TEST_SUITE_P(VectorTest, LuaRef);
 INSTANTIATE_TYPED_TEST_SUITE_P(VectorTest, VectorTest, TestTypes);
 
 namespace {
-
 struct Data
 {
     /* explicit */ Data(int i) : i(i) {}
@@ -96,7 +93,6 @@ std::vector<Data> processPointers(const std::vector<const Data*>& data)
     }
     return result;
 }
-
 } // namespace
 
 struct VectorTests : TestBase

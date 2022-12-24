@@ -10,7 +10,6 @@
 #include <list>
 
 namespace {
-
 template <class T>
 std::list<T> toList(const std::vector<T>& vector)
 {
@@ -42,7 +41,6 @@ void checkEquals(const std::list<T>& expected, const std::list<T>& actual)
         ASSERT_EQ(expected, actual);
     }
 }
-
 } // namespace
 
 template<class T>
