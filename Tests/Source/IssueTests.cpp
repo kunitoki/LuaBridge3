@@ -205,7 +205,7 @@ struct SomeClass
     luabridge::LuaRef override_;
 
     SomeClass(lua_State* L)
-        : override_(L)
+        : override_(luabridge::main_thread(L))
     {
     }
 

@@ -1594,6 +1594,28 @@ TEST_F(ClassStaticProperties, FieldPointers_StaticMembers)
     ASSERT_EQ(20, result<int>());
 }
 
+TEST_F(ClassStaticProperties, FieldPointers_StaticMembersReadOnly)
+{
+    using Int = Class<int, EmptyBase>;
+
+    Int::staticData = 10;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addStaticProperty("staticData", &Int::getStaticData)
+        .endClass();
+
+    runLua("result = Int.staticData");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(10, result<int>());
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    ASSERT_THROW(runLua("Int.staticData = 20"), std::exception);
+#else
+    ASSERT_FALSE(runLua("Int.staticData = 20"));
+#endif
+}
+
 TEST_F(ClassStaticProperties, FieldPointers_StaticMembersNoexcept)
 {
     using Int = Class<int, EmptyBase>;
@@ -1612,6 +1634,28 @@ TEST_F(ClassStaticProperties, FieldPointers_StaticMembersNoexcept)
     runLua("Int.staticData = 20; result = Int.staticData");
     ASSERT_TRUE(result().isNumber());
     ASSERT_EQ(20, result<int>());
+}
+
+TEST_F(ClassStaticProperties, FieldPointers_StaticMembersReadonlyNoexcept)
+{
+    using Int = Class<int, EmptyBase>;
+
+    Int::staticData = 10;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addStaticProperty("staticData", &Int::getStaticDataNoexcept)
+        .endClass();
+
+    runLua("result = Int.staticData");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(10, result<int>());
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    ASSERT_THROW(runLua("Int.staticData = 20"), std::exception);
+#else
+    ASSERT_FALSE(runLua("Int.staticData = 20"));
+#endif
 }
 
 TEST_F(ClassStaticProperties, FieldPointers_Derived)

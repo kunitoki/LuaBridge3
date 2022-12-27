@@ -1944,7 +1944,7 @@ inline Namespace getNamespaceFromStack(lua_State* L)
  *
  * This is a backward compatibility mitigation for lua 5.1 not supporting LUA_RIDX_MAINTHREAD.
  *
- * @param L The main Lua state that will be regstered as main thread.
+ * @param L The main Lua state that will be registered as main thread.
  *
  * @returns A namespace registration object.
  */

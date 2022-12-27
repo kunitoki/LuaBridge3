@@ -450,6 +450,15 @@ TEST_F(NamespaceTests, LuaStackIntegrity)
     EXPECT_EQ(initialStackIndex, lua_gettop(L)); // Stack: ...
 }
 
+TEST_F(NamespaceTests, LuaStackAdditionalIntegrity)
+{
+    [[maybe_unused]] auto globalNs = luabridge::getGlobalNamespace(L);
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_THROW(globalNs.endNamespace(), std::exception);
+#endif
+}
+
 namespace {
 template<class T>
 T Function(T param)

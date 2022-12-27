@@ -84,7 +84,7 @@ protected:
     };
 
     LuaRefBase(lua_State* L)
-        : m_L(main_thread(L))
+        : m_L(L)
     {
     }
 
