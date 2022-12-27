@@ -299,6 +299,18 @@ struct is_const_member_function_pointer<R (T::*)(Args...) const>
     static constexpr bool value = true;
 };
 
+template <class T, class R, class... Args>
+struct is_const_member_function_pointer<R (T::*)(Args...) noexcept>
+{
+    static constexpr bool value = false;
+};
+
+template <class T, class R, class... Args>
+struct is_const_member_function_pointer<R (T::*)(Args...) const noexcept>
+{
+    static constexpr bool value = true;
+};
+
 template <class T>
 inline static constexpr bool is_const_member_function_pointer_v = is_const_member_function_pointer<T>::value;
 

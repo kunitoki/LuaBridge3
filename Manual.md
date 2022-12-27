@@ -55,8 +55,8 @@ Contents
 *   [4 - Accessing Lua from C++](#4---accessing-lua-from-c)
 
     *   [4.1 - Class LuaRef](#41---class-luaref)
-        *   [4.1.1 - Type Conversions](#411---type-conversions)
-        *   [4.1.2 - Visual Studio 2010, 2012](#412---visual-studio-2010-2012)
+        *   [4.1.1 - Lifetime, States and Lua Threads](#411---lifetime-states-and-lua-threads)
+        *   [4.1.2 - Type Conversions](#412---type-conversions)
     *   [4.2 - Table Proxies](#42---table-proxies)
     *   [4.3 - Calling Lua](#43---calling-lua)
         *   [4.3.1 - Exceptions](#431---exceptions)
@@ -1270,7 +1270,7 @@ v = "string";                   // A string. The prevous value becomes
                                 // eligible for garbage collection.
 ```
 
-A `LuaRef` is itself a convertible type, and the convertible type `Nil` can be used to represent a Lua **nil**.
+A `LuaRef` is itself a convertible type, and the convertible type `LuaNil` can be used to represent a Lua **nil**.
 
 ```cpp
 luabridge::LuaRef v1 (L, "x");  // assign "x"
@@ -1285,7 +1285,13 @@ v1 = luabridge::LuaNil ();      // v1 becomes nil, table is still
 
 Values stored in a `LuaRef` object obey the same rules as variables in Lua: tables, functions, threads, and full userdata values are _objects_. The `LuaRef` does not actually _contain_ these values, only _references_ to them. Assignment, parameter passing, and function returns always manipulate references to such values; these operations do not imply any kind of copy.
 
-### 4.1.1 - Type Conversions
+### 4.1.1 - Lifetime, States and Lua Threads
+
+Lifetime of `LuaRef` is bound to the lua state or thread passed in when constructing the reference. It is responsibility of the developer to keep the passed lua state/thread alive for the duration of the usage of the `LuaRef`. In case of storing objects in those references that might be created in lua threads that could be destroyed during the application lifetime, it is advised to pass `luabridge::main_thread (L)` in place of `L` when constructing a `LuaRef`, to make sure the reference is kept in the main lua state instead of the volatile lua thread where it has been created.
+
+In order to have `luabridge::main_thread` method working in all lua versions, one have to call `luabridge::registerMainThread` function at the beginning of the usage of luabridge (lua 5.1 doesn't store the main thread in the registry, and this needs to be manually setup by the developer).
+
+### 4.1.2 - Type Conversions
 
 A universal C++ conversion operator is provided for implicit conversions which allow a `LuaRef` to be used where any convertible type is expected. These operations will all compile:
 

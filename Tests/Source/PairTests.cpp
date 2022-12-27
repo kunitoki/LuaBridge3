@@ -13,6 +13,7 @@ struct PairTest : TestBase
 
 TYPED_TEST_SUITE_P(PairTest);
 
+namespace {
 template <typename T>
 std::string toLuaSrcString(T const& value)
 {
@@ -30,6 +31,7 @@ std::string toLuaSrcString(std::string const& value)
 {
     return "'" + value + "'";
 }
+} // namespace
 
 TYPED_TEST_P(PairTest, push)
 {

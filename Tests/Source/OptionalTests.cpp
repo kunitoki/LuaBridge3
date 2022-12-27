@@ -9,7 +9,6 @@
 #include <optional>
 
 namespace {
-
 template <typename T>
 std::string toLuaSrcString(const T& value)
 {
@@ -75,7 +74,6 @@ void checkEquals(T expected, T actual)
         ASSERT_EQ(expected, actual);
     }
 }
-
 } // namespace
 
 template<class T>
@@ -159,7 +157,6 @@ REGISTER_TYPED_TEST_SUITE_P(OptionalTest,
 INSTANTIATE_TYPED_TEST_SUITE_P(OptionalTest, OptionalTest, TestTypes);
 
 namespace {
-
 struct Data
 {
     explicit Data(int i) : i(i) {}
@@ -205,7 +202,6 @@ std::optional<Data> processPointer(std::optional<const Data*> const& data)
     }
     return result;
 }
-
 } // namespace
 
 struct OptionalTests : TestBase

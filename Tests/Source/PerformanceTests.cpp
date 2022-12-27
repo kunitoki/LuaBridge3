@@ -16,6 +16,8 @@
 using namespace std;
 using namespace luabridge;
 
+namespace {
+
 //------------------------------------------------------------------------------
 /**
   Simple stopwatch for measuring elapsed time.
@@ -116,17 +118,7 @@ void runTests(lua_State* L)
     }
 #endif
 }
-
-void runPerformanceTests()
-{
-    lua_State* L = luaL_newstate();
-    luaL_openlibs(L);
-
-    addToState(L);
-    runTests(L);
-
-    lua_close(L);
-}
+} // namespace
 
 struct PerformanceTests : TestBase
 {

@@ -12,7 +12,6 @@
 #include <array>
 
 namespace {
-
 template <class T, std::size_t N>
 void checkEquals(const std::array<T, N>& expected, const std::array<T, N>& actual)
 {
@@ -38,7 +37,6 @@ void checkEquals(const std::array<T, N>& expected, const std::array<T, N>& actua
         ASSERT_EQ(expected, actual);
     }
 }
-
 } // namespace
 
 template<class T>
@@ -67,7 +65,6 @@ REGISTER_TYPED_TEST_SUITE_P(ArrayTest, LuaRef);
 INSTANTIATE_TYPED_TEST_SUITE_P(ArrayTest, ArrayTest, TestTypes);
 
 namespace {
-
 struct Data
 {
     /* explicit */ Data(int i = -1000) : i(i) {}
@@ -104,7 +101,6 @@ std::array<Data, S> processPointers(const std::array<const Data*, S>& data)
     }
     return result;
 }
-
 } // namespace
 
 struct ArrayTests : TestBase
