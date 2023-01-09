@@ -1162,7 +1162,7 @@ public:
 
     //=============================================================================================
     /**
-     * @brief Move the reference to the a separate coroutine (lua_State).
+     * @brief Move the reference to a separate coroutine (lua_State).
      */
     void moveTo(lua_State* newL)
     {
