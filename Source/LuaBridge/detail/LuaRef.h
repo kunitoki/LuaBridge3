@@ -1162,6 +1162,23 @@ public:
 
     //=============================================================================================
     /**
+     * @brief Move the reference to the a separate coroutine (lua_State).
+     */
+    void moveTo(lua_State* newL)
+    {
+        push();
+
+        lua_xmove(m_L, newL, 1);
+
+        if (m_ref != LUA_NOREF)
+            luaL_unref(m_L, LUA_REGISTRYINDEX, m_ref);
+
+        m_L = newL;
+        m_ref = luaL_ref(newL, LUA_REGISTRYINDEX);
+    }
+
+    //=============================================================================================
+    /**
      * @brief Access a table value using a key.
      *
      * This invokes metamethods.
