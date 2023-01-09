@@ -1,5 +1,5 @@
 // https://github.com/kunitoki/LuaBridge3
-// Copyright 2022, Lucio Asnaghi
+// Copyright 2023, Lucio Asnaghi
 // SPDX-License-Identifier: MIT
 
 // clang-format off
