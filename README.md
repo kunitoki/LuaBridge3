@@ -11,7 +11,8 @@
 [LuaBridge3][1] is a lightweight and dependency-free library for mapping data,
 functions, and classes back and forth between C++ and [Lua][2] (a powerful,
 fast, lightweight, embeddable scripting language). LuaBridge has been tested
-and works with Lua 5.1.5, 5.2.4, 5.3.6 and 5.4.4 as well as [LuaJit][3] and [Luau][4].
+and works with Lua 5.1.5, 5.2.4, 5.3.6 and 5.4.4 as well as [LuaJit][3] 2.x onwards
+and for the first time also with [Luau][4] 0.556 onwards.
 
 ## Features
 
@@ -21,10 +22,12 @@ LuaBridge3 is usable from a compliant C++17 compiler and offers the following fe
 * Headers-only: No Makefile, no .cpp files, just one `#include` and one header file (optional) !
 * Works with ANY lua version out there (PUC-Lua, LuaJIT, Luau, you name it).
 * Simple, light, and nothing else needed.
+* Fast to compile (even in release mode), scaling linearly with the size of your binded code.
 * No macros, settings, or configuration scripts needed.
 * Supports different object lifetime management models.
 * Convenient, type-safe access to the Lua stack.
 * Automatic function parameter type binding.
+* Functions and constructors overloading support.
 * Easy access to Lua objects like tables and functions.
 * Expose C++ classes allowing them to use the flexibility of lua property lookup.
 * Interoperable with most common c++ standard library container types.
@@ -57,7 +60,7 @@ LuaBridge3 offers a set of improvements compared to vanilla LuaBridge:
 ![Build Linux](https://github.com/kunitoki/LuaBridge3/workflows/Build%20Linux/badge.svg?branch=master)
 
 ## Code Coverage
-[![Coverage Status](https://coveralls.io/repos/github/kunitoki/LuaBridge3/badge.svg?branch=master)](https://coveralls.io/github/kunitoki/LuaBridge3?branch=master)
+[![Coverage Status](https://coveralls.io/repos/github/kunitoki/LuaBridge3/badge.svg?branch=master&kill_cache=1)](https://coveralls.io/github/kunitoki/LuaBridge3?branch=master)
 
 ## Documentation
 
@@ -93,8 +96,8 @@ There are 11 unit test flavors:
 * `LuaBridgeTests53Noexcept` - uses Lua 5.3 without exceptions enabled
 * `LuaBridgeTests54` - uses Lua 5.4
 * `LuaBridgeTests54Noexcept` - uses Lua 5.4 without exceptions enabled
-* `LuaBridgeTestsLuaJIT` - uses LuaJIT 2.1.0
-* `LuaBridgeTestsLuaJITNoexcept` - uses LuaJIT 2.1.0 without exceptions enabled
+* `LuaBridgeTestsLuaJIT` - uses LuaJIT 2.1
+* `LuaBridgeTestsLuaJITNoexcept` - uses LuaJIT 2.1 without exceptions enabled
 * `LuaBridgeTestsLuau` - uses Luau
 
 (Luau compiler needs exceptions, so there are no test targets on Luau without exceptions)

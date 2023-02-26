@@ -39,9 +39,15 @@
 #endif
 
 // Compiler
+#include "../../ThirdParty/luau/Compiler/src/BuiltinFolding.cpp"
+#include "../../ThirdParty/luau/Compiler/src/Builtins.cpp"
 #include "../../ThirdParty/luau/Compiler/src/BytecodeBuilder.cpp"
 #include "../../ThirdParty/luau/Compiler/src/Compiler.cpp"
+#include "../../ThirdParty/luau/Compiler/src/ConstantFolding.cpp"
+#include "../../ThirdParty/luau/Compiler/src/CostModel.cpp"
 #include "../../ThirdParty/luau/Compiler/src/lcode.cpp"
+#include "../../ThirdParty/luau/Compiler/src/TableShape.cpp"
+#include "../../ThirdParty/luau/Compiler/src/ValueTracking.cpp"
 
 // Ast
 #include "../../ThirdParty/luau/Ast/src/Ast.cpp"

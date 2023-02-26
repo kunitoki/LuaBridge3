@@ -837,6 +837,15 @@ inline void push_function(lua_State* L, ReturnType (*fp)(Params...))
     lua_pushcclosure_x(L, &invoke_proxy_function<FnType>, 1);
 }
 
+template <class ReturnType, class... Params>
+inline void push_function(lua_State* L, ReturnType (*fp)(Params...) noexcept)
+{
+    using FnType = decltype(fp);
+
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType>, 1);
+}
+
 // Callable object (lambdas)
 template <class F, class = std::enable_if<is_callable_v<F> && !std::is_pointer_v<F> && !std::is_member_function_pointer_v<F>>>
 inline void push_function(lua_State* L, F&& f)
@@ -864,7 +873,25 @@ void push_member_function(lua_State* L, ReturnType (*fp)(T*, Params...))
 }
 
 template <class T, class ReturnType, class... Params>
+void push_member_function(lua_State* L, ReturnType (*fp)(T*, Params...) noexcept)
+{
+    using FnType = decltype(fp);
+
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType>, 1);
+}
+
+template <class T, class ReturnType, class... Params>
 void push_member_function(lua_State* L, ReturnType (*fp)(const T*, Params...))
+{
+    using FnType = decltype(fp);
+
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType>, 1);
+}
+
+template <class T, class ReturnType, class... Params>
+void push_member_function(lua_State* L, ReturnType (*fp)(const T*, Params...) noexcept)
 {
     using FnType = decltype(fp);
 
@@ -898,9 +925,31 @@ void push_member_function(lua_State* L, ReturnType (U::*mfp)(Params...))
     lua_pushcclosure_x(L, &invoke_member_function<F, T>, 1);
 }
 
+template <class T, class U, class ReturnType, class... Params>
+void push_member_function(lua_State* L, ReturnType (U::*mfp)(Params...) noexcept)
+{
+    static_assert(std::is_same_v<T, U> || std::is_base_of_v<U, T>);
+
+    using F = decltype(mfp);
+
+    new (lua_newuserdata_x<F>(L, sizeof(F))) F(mfp);
+    lua_pushcclosure_x(L, &invoke_member_function<F, T>, 1);
+}
+
 // Const member function pointer
 template <class T, class U, class ReturnType, class... Params>
 void push_member_function(lua_State* L, ReturnType (U::*mfp)(Params...) const)
+{
+    static_assert(std::is_same_v<T, U> || std::is_base_of_v<U, T>);
+
+    using F = decltype(mfp);
+
+    new (lua_newuserdata_x<F>(L, sizeof(F))) F(mfp);
+    lua_pushcclosure_x(L, &detail::invoke_const_member_function<F, T>, 1);
+}
+
+template <class T, class U, class ReturnType, class... Params>
+void push_member_function(lua_State* L, ReturnType (U::*mfp)(Params...) const noexcept)
 {
     static_assert(std::is_same_v<T, U> || std::is_base_of_v<U, T>);
 

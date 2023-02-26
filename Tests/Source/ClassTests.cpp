@@ -21,7 +21,6 @@ struct ClassTests : TestBase
 };
 
 namespace {
-
 struct EmptyBase
 {
 };
@@ -86,12 +85,22 @@ struct Class : Base
     T constMethod(T value) const { return value; }
 
     T getData() const { return data; }
+    T getDataNoexcept() const noexcept { return data; }
 
     void setData(T data) { this->data = data; }
+    void setDataNoexcept(T data) noexcept { this->data = data; }
 
     T getDataState(lua_State*) const { return data; }
+    T getDataStateNoexcept(lua_State*) const noexcept { return data; }
 
     void setDataState(T data, lua_State*) { this->data = data; }
+    void setDataStateNoexcept(T data, lua_State*) noexcept { this->data = data; }
+
+    static T getStaticData() { return staticData; }
+    static void setStaticData(T data) { staticData = data; }
+
+    static T getStaticDataNoexcept() noexcept { return staticData; }
+    static void setStaticDataNoexcept(T data) noexcept { staticData = data; }
 
     mutable T data;
     static T staticData;
@@ -103,7 +112,6 @@ T Class<T, Base>::staticData = {};
 
 template <class T, class Base>
 const T Class<T, Base>::staticConstData = {};
-
 } // namespace
 
 TEST_F(ClassTests, IsInstance)
@@ -214,13 +222,11 @@ TEST_F(ClassTests, PassDerivedClassInsteadOfBase)
 }
 
 namespace {
-
 template<class T, class Base>
 T processNonConst(Class<T, Base>* object)
 {
     return object->data;
 }
-
 } // namespace
 
 TEST_F(ClassTests, PassConstClassInsteadOfNonConstThrows)
@@ -254,7 +260,7 @@ TEST_F(ClassTests, PassOtherTypeInsteadOfNonConstThrows)
 
     luabridge::getGlobalNamespace(L)
         .beginClass<Int>("Int")
-        .addConstructor<void (*)(int)>() // Show that it does't matter
+        .addConstructor<void (*)(int)>() // Show that it doesn't matter
         .endClass()
         .addFunction("processNonConst", &processNonConst<int, EmptyBase>);
 
@@ -290,7 +296,6 @@ TEST_F(ClassTests, PassRegisteredClassInsteadOfUnregisteredThrows)
 }
 
 namespace {
-
 Class<int, EmptyBase>& returnRef()
 {
     static Class<int, EmptyBase> value(1);
@@ -326,7 +331,6 @@ void addHelperFunctions(lua_State* L)
         .addFunction("returnConstPtr", &returnConstPtr)
         .addFunction("returnValue", &returnValue);
 }
-
 } // namespace
 
 TEST_F(ClassTests, PassingUnregisteredClassFromLuaThrows)
@@ -448,9 +452,30 @@ TEST_F(ClassFunctions, ConstMemberFunctions)
 }
 
 namespace {
+struct ClassWithTemplateMembers
+{
+    template <class T, class... Args>
+    int templateMethod(Args&&...)
+    {
+        return static_cast<int>(sizeof...(Args));
+    }
+
+    template <class T, class... Args>
+    int templateMethodNoexcept(Args&&...) noexcept
+    {
+        return static_cast<int>(sizeof...(Args));
+    }
+};
 
 template<class T, class Base>
 T proxyFunction(Class<T, Base>* object, T value)
+{
+    object->data = value;
+    return value;
+}
+
+template<class T, class Base>
+T proxyFunctionNoexcept(Class<T, Base>* object, T value) noexcept
 {
     object->data = value;
     return value;
@@ -464,7 +489,20 @@ T proxyFunctionState(Class<T, Base>* object, T value, lua_State*)
 }
 
 template<class T, class Base>
+T proxyFunctionStateNoexcept(Class<T, Base>* object, T value, lua_State*) noexcept
+{
+    object->data = value;
+    return value;
+}
+
+template<class T, class Base>
 T proxyConstFunction(const Class<T, Base>* object, T value)
+{
+    return value;
+}
+
+template<class T, class Base>
+T proxyConstFunctionNoexcept(const Class<T, Base>* object, T value) noexcept
 {
     return value;
 }
@@ -487,8 +525,23 @@ int proxyCFunctionState(lua_State* L)
 
     return 1;
 }
-
 } // namespace
+
+TEST_F(ClassFunctions, ClassWithTemplateMembers)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<ClassWithTemplateMembers>("ClassWithTemplateMembers")
+            .addConstructor<void()>()
+            .addFunction("method", &ClassWithTemplateMembers::templateMethod<int>)
+            .addFunction("methodNoexcept", &ClassWithTemplateMembers::templateMethodNoexcept<int>)
+        .endClass();
+
+    runLua("local a = ClassWithTemplateMembers(); result = a:method()");
+    ASSERT_EQ(0, result<int>());
+
+    runLua("local a = ClassWithTemplateMembers(); result = a:methodNoexcept()");
+    ASSERT_EQ(0, result<int>());
+}
 
 TEST_F(ClassFunctions, ProxyFunctions)
 {
@@ -497,6 +550,7 @@ TEST_F(ClassFunctions, ProxyFunctions)
     luabridge::getGlobalNamespace(L)
         .beginClass<Int>("Int")
         .addFunction("method", &proxyFunction<int, EmptyBase>)
+        .addFunction("methodNoexcept", &proxyFunctionNoexcept<int, EmptyBase>)
         .endClass();
 
     addHelperFunctions(L);
@@ -514,6 +568,21 @@ TEST_F(ClassFunctions, ProxyFunctions)
     ASSERT_TRUE(result().isNil());
 
     runLua("result = returnValue ():method (3)");
+    ASSERT_EQ(3, result<int>());
+
+    runLua("result = returnRef ():methodNoexcept (1)");
+    ASSERT_EQ(1, result<int>());
+
+    runLua("result = returnConstRef ().methodNoexcept"); // Don't call, just get
+    ASSERT_TRUE(result().isNil());
+
+    runLua("result = returnPtr ():methodNoexcept (2)");
+    ASSERT_EQ(2, result<int>());
+
+    runLua("result = returnConstPtr ().methodNoexcept"); // Don't call, just get
+    ASSERT_TRUE(result().isNil());
+
+    runLua("result = returnValue ():methodNoexcept (3)");
     ASSERT_EQ(3, result<int>());
 }
 
@@ -524,6 +593,7 @@ TEST_F(ClassFunctions, ProxyFunctions_PassState)
     luabridge::getGlobalNamespace(L)
         .beginClass<Int>("Int")
         .addFunction("method", &proxyFunctionState<int, EmptyBase>)
+        .addFunction("methodNoexcept", &proxyFunctionStateNoexcept<int, EmptyBase>)
         .endClass();
 
     addHelperFunctions(L);
@@ -542,6 +612,21 @@ TEST_F(ClassFunctions, ProxyFunctions_PassState)
 
     runLua("result = returnValue ():method (3)");
     ASSERT_EQ(3, result<int>());
+
+    runLua("result = returnRef ():methodNoexcept (1)");
+    ASSERT_EQ(1, result<int>());
+
+    runLua("result = returnConstRef ().methodNoexcept"); // Don't call, just get
+    ASSERT_TRUE(result().isNil());
+
+    runLua("result = returnPtr ():methodNoexcept (2)");
+    ASSERT_EQ(2, result<int>());
+
+    runLua("result = returnConstPtr ().methodNoexcept"); // Don't call, just get
+    ASSERT_TRUE(result().isNil());
+
+    runLua("result = returnValue ():methodNoexcept (3)");
+    ASSERT_EQ(3, result<int>());
 }
 
 TEST_F(ClassFunctions, ConstProxyFunctions)
@@ -551,6 +636,7 @@ TEST_F(ClassFunctions, ConstProxyFunctions)
     luabridge::getGlobalNamespace(L)
         .beginClass<Int>("Int")
         .addFunction("constMethod", &proxyConstFunction<int, EmptyBase>)
+        .addFunction("constMethodNoexcept", &proxyConstFunctionNoexcept<int, EmptyBase>)
         .endClass();
 
     addHelperFunctions(L);
@@ -568,6 +654,21 @@ TEST_F(ClassFunctions, ConstProxyFunctions)
     ASSERT_EQ(4, result<int>());
 
     runLua("result = returnValue ():constMethod (5)");
+    ASSERT_EQ(5, result<int>());
+
+    runLua("result = returnRef ():constMethodNoexcept (1)");
+    ASSERT_EQ(1, result<int>());
+
+    runLua("result = returnConstRef ():constMethodNoexcept (2)");
+    ASSERT_EQ(2, result<int>());
+
+    runLua("result = returnPtr ():constMethodNoexcept (3)");
+    ASSERT_EQ(3, result<int>());
+
+    runLua("result = returnConstPtr ():constMethodNoexcept (4)");
+    ASSERT_EQ(4, result<int>());
+
+    runLua("result = returnValue ():constMethodNoexcept (5)");
     ASSERT_EQ(5, result<int>());
 }
 
@@ -779,15 +880,22 @@ TEST_F(ClassProperties, MemberFunctions)
         .beginClass<Int>("Int")
         .addConstructor<void (*)(int)>()
         .addProperty("data", &Int::getData, &Int::setData)
+        .addProperty("dataNoexcept", &Int::getDataNoexcept, &Int::setDataNoexcept)
         .endClass();
 
     runLua("result = Int (501)");
     ASSERT_TRUE(result()["data"].isNumber());
     ASSERT_EQ(501, result()["data"].cast<int>());
+    ASSERT_TRUE(result()["dataNoexcept"].isNumber());
+    ASSERT_EQ(501, result()["dataNoexcept"].cast<int>());
 
     runLua("result.data = -2");
     ASSERT_TRUE(result()["data"].isNumber());
     ASSERT_EQ(-2, result()["data"].cast<int>());
+
+    runLua("result.dataNoexcept = -2");
+    ASSERT_TRUE(result()["dataNoexcept"].isNumber());
+    ASSERT_EQ(-2, result()["dataNoexcept"].cast<int>());
 }
 
 TEST_F(ClassProperties, MemberFunctions_PassState)
@@ -798,15 +906,22 @@ TEST_F(ClassProperties, MemberFunctions_PassState)
         .beginClass<Int>("Int")
         .addConstructor<void (*)(int)>()
         .addProperty("data", &Int::getDataState, &Int::setDataState)
+        .addProperty("dataNoexcept", &Int::getDataStateNoexcept, &Int::setDataStateNoexcept)
         .endClass();
 
     runLua("result = Int (501)");
     ASSERT_TRUE(result()["data"].isNumber());
     ASSERT_EQ(501, result()["data"].cast<int>());
+    ASSERT_TRUE(result()["dataNoexcept"].isNumber());
+    ASSERT_EQ(501, result()["dataNoexcept"].cast<int>());
 
     runLua("result.data = -2");
     ASSERT_TRUE(result()["data"].isNumber());
     ASSERT_EQ(-2, result()["data"].cast<int>());
+
+    runLua("result.dataNoexcept = -2");
+    ASSERT_TRUE(result()["dataNoexcept"].isNumber());
+    ASSERT_EQ(-2, result()["dataNoexcept"].cast<int>());
 }
 
 TEST_F(ClassProperties, MemberFunctions_ReadOnly)
@@ -897,7 +1012,6 @@ TEST_F(ClassProperties, MemberFunctions_Overridden)
 }
 
 namespace {
-
 template<class T, class BaseClass>
 T getData(const Class<T, BaseClass>* object)
 {
@@ -910,6 +1024,17 @@ void setData(Class<T, BaseClass>* object, T data)
     object->data = data;
 }
 
+template<class T, class BaseClass>
+T getDataNoexcept(const Class<T, BaseClass>* object) noexcept
+{
+    return object->data;
+}
+
+template<class T, class BaseClass>
+void setDataNoexcept(Class<T, BaseClass>* object, T data) noexcept
+{
+    object->data = data;
+}
 } // namespace
 
 TEST_F(ClassProperties, ProxyFunctions)
@@ -920,6 +1045,25 @@ TEST_F(ClassProperties, ProxyFunctions)
         .beginClass<Int>("Int")
         .addConstructor<void (*)(int)>()
         .addProperty("data", &getData<int, EmptyBase>, &setData<int, EmptyBase>)
+        .endClass();
+
+    runLua("result = Int (501)");
+    ASSERT_TRUE(result()["data"].isNumber());
+    ASSERT_EQ(501, result()["data"].cast<int>());
+
+    runLua("result.data = -2");
+    ASSERT_TRUE(result()["data"].isNumber());
+    ASSERT_EQ(-2, result()["data"].cast<int>());
+}
+
+TEST_F(ClassProperties, ProxyFunctionsNoexcept)
+{
+    using Int = Class<int, EmptyBase>;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addConstructor<void (*)(int)>()
+        .addProperty("data", &getDataNoexcept<int, EmptyBase>, &setDataNoexcept<int, EmptyBase>)
         .endClass();
 
     runLua("result = Int (501)");
@@ -1019,7 +1163,6 @@ TEST_F(ClassProperties, ProxyFunctions_Overridden)
 }
 
 namespace {
-
 template<class T, class BaseClass>
 int getDataC(lua_State* L)
 {
@@ -1041,7 +1184,6 @@ int setDataC(lua_State* L)
     object->data = value;
     return 0;
 }
-
 } // namespace
 
 TEST_F(ClassProperties, ProxyCFunctions)
@@ -1426,11 +1568,94 @@ TEST_F(ClassStaticProperties, FieldPointers_GetterSetter)
     ASSERT_EQ(10, result<int>());
     ASSERT_EQ(10, value);
 
-    runLua("Int.staticData = 20");
-    runLua("result = Int.staticData");
+    runLua("Int.staticData = 20; result = Int.staticData");
     ASSERT_TRUE(result().isNumber());
     ASSERT_EQ(20, result<int>());
     ASSERT_EQ(20, value);
+}
+
+TEST_F(ClassStaticProperties, FieldPointers_StaticMembers)
+{
+    using Int = Class<int, EmptyBase>;
+
+    Int::staticData = 10;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addStaticProperty("staticData", &Int::getStaticData, &Int::setStaticData)
+        .endClass();
+
+    runLua("result = Int.staticData");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(10, result<int>());
+
+    runLua("Int.staticData = 20; result = Int.staticData");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(20, result<int>());
+}
+
+TEST_F(ClassStaticProperties, FieldPointers_StaticMembersReadOnly)
+{
+    using Int = Class<int, EmptyBase>;
+
+    Int::staticData = 10;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addStaticProperty("staticData", &Int::getStaticData)
+        .endClass();
+
+    runLua("result = Int.staticData");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(10, result<int>());
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    ASSERT_THROW(runLua("Int.staticData = 20"), std::exception);
+#else
+    ASSERT_FALSE(runLua("Int.staticData = 20"));
+#endif
+}
+
+TEST_F(ClassStaticProperties, FieldPointers_StaticMembersNoexcept)
+{
+    using Int = Class<int, EmptyBase>;
+
+    Int::staticData = 10;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addStaticProperty("staticData", &Int::getStaticDataNoexcept, &Int::setStaticDataNoexcept)
+        .endClass();
+
+    runLua("result = Int.staticData");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(10, result<int>());
+
+    runLua("Int.staticData = 20; result = Int.staticData");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(20, result<int>());
+}
+
+TEST_F(ClassStaticProperties, FieldPointers_StaticMembersReadonlyNoexcept)
+{
+    using Int = Class<int, EmptyBase>;
+
+    Int::staticData = 10;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addStaticProperty("staticData", &Int::getStaticDataNoexcept)
+        .endClass();
+
+    runLua("result = Int.staticData");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(10, result<int>());
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    ASSERT_THROW(runLua("Int.staticData = 20"), std::exception);
+#else
+    ASSERT_FALSE(runLua("Int.staticData = 20"));
+#endif
 }
 
 TEST_F(ClassStaticProperties, FieldPointers_Derived)
@@ -1747,7 +1972,6 @@ TEST_F(ClassMetaMethods, __len)
 }
 
 namespace {
-
 struct Table
 {
     int index(const std::string& key)
@@ -1767,7 +1991,6 @@ struct Table
 
     std::map<std::string, int> map;
 };
-
 } // namespace
 
 TEST_F(ClassMetaMethods, __index)
@@ -1888,8 +2111,7 @@ TEST_F(ClassTests, EnclosedClassProperties)
     ASSERT_EQ(10, result<int>());
 }
 
-// namespace {
-
+namespace {
 struct InnerClass
 {
     ~InnerClass() { ++destructorCallCount; }
@@ -1915,8 +2137,7 @@ struct OuterClass
 };
 
 unsigned OuterClass::destructorCallCount;
-
-//} // namespace
+} // namespace
 
 TEST_F(ClassTests, ConstructorWithReferences)
 {
@@ -2114,6 +2335,7 @@ TEST_F(ClassTests, ConstructorFactory)
     }
 }
 
+namespace {
 class BaseExampleClass
 {
 public:
@@ -2165,6 +2387,7 @@ public:
         return virtualCFunctionConst_ = 1;
     }
 };
+} // namespace
 
 TEST_F(ClassTests, NonVirtualMethodInBaseClassCannotBeExposed)
 {
@@ -2525,3 +2748,55 @@ TEST_F(ClassTests, ReferenceWrapperAccessFromLua)
 
     EXPECT_EQ(130, result().unsafe_cast<int>());
 }
+
+namespace {
+class ExampleStringifiableClass
+{
+public:
+    ExampleStringifiableClass()
+        : a(0), b(0), c(0)
+    {
+    }
+
+    std::string tostring() const
+    {
+        return "whatever";
+    }
+
+    int a, b, c;
+};
+} // namespace
+
+TEST_F(ClassTests, MetatableSecurityNotHidden)
+{
+    luabridge::setHideMetatables(false);
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<ExampleStringifiableClass>("ExampleStringifiableClass")
+            .addConstructor<void(*) ()>()
+            .addFunction("__tostring", &ExampleStringifiableClass::tostring)
+        .endClass();
+
+    runLua("local t = ExampleStringifiableClass(); result = getmetatable(t); print(result);");
+
+    const auto res = result();
+    ASSERT_TRUE(res.isTable());
+}
+
+TEST_F(ClassTests, MetatableSecurity)
+{
+    luabridge::setHideMetatables(true);
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<ExampleStringifiableClass>("ExampleStringifiableClass")
+            .addConstructor<void(*) ()>()
+            .addFunction("__tostring", &ExampleStringifiableClass::tostring)
+        .endClass();
+
+    runLua("local t = ExampleStringifiableClass(); result = getmetatable(t); print(result);");
+
+    const auto res = result();
+    ASSERT_TRUE(res.isBool());
+    EXPECT_FALSE(res.unsafe_cast<bool>());
+}
+

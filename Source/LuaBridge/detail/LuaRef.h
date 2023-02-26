@@ -84,7 +84,7 @@ protected:
     };
 
     LuaRefBase(lua_State* L)
-        : m_L(main_thread(L))
+        : m_L(L)
     {
     }
 
@@ -727,7 +727,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
          *
          * This may invoke metamethods.
          *
-         * @tparam T The type of a value to assing.
+         * @tparam T The type of a value to assign.
          *
          * @param v A value to assign.
          *
@@ -759,7 +759,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
          *
          * The assignment is raw, no metamethods are invoked.
          *
-         * @tparam T The type of a value to assing.
+         * @tparam T The type of a value to assign.
          *
          * @param v A value to assign.
          *

@@ -2,7 +2,7 @@ cmake_minimum_required (VERSION 3.5)
 
 # ====================================================== Locations
 
-set (LUABRIDGE_LUAJIT_LOCATION "${CMAKE_CURRENT_LIST_DIR}/Lua/LuaJIT.2.1.0-beta3")
+set (LUABRIDGE_LUAJIT_LOCATION "${CMAKE_CURRENT_LIST_DIR}/Lua/LuaJIT.2.1")
 set (LUABRIDGE_LUAU_LOCATION "${CMAKE_CURRENT_LIST_DIR}/../ThirdParty/luau")
 
 add_subdirectory(${LUABRIDGE_LUAJIT_LOCATION})
@@ -24,6 +24,7 @@ set (LUABRIDGE_TEST_SOURCE_FILES
   Source/NamespaceTests.cpp
   Source/OptionalTests.cpp
   Source/OverloadTests.cpp
+  Source/PairTests.cpp
   Source/PerformanceTests.cpp
   Source/RefCountedPtrTests.cpp
   Source/ScopeGuardTests.cpp
@@ -33,6 +34,7 @@ set (LUABRIDGE_TEST_SOURCE_FILES
   Source/TestTypes.h
   Source/TestsMain.cpp
   Source/UnorderedMapTests.cpp
+  Source/UserdataTests.cpp
   Source/VectorTests.cpp
 )
 
@@ -172,7 +174,7 @@ endfunction ()
 macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_FILES LUABRIDGE_EXCEPTIONS LUABRIDGE_LIBS)
   get_filename_component (SOURCE_LOCATION "${CMAKE_CURRENT_LIST_DIR}/../Source" ABSOLUTE)
 
-  if (MSVC)
+  if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++17 /W3 /MP")
   else ()
     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
@@ -213,11 +215,13 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
     target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/VM/include")
     target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/Ast/include")
     target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/Compiler/include")
+    target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/Common/include")
     target_compile_definitions (${LUABRIDGE_TEST_NAME} PRIVATE LUABRIDGEDEMO_LUAU=1)
 
     target_include_directories (${LUABRIDGE_TESTLIB_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/VM/include")
     target_include_directories (${LUABRIDGE_TESTLIB_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/Ast/include")
     target_include_directories (${LUABRIDGE_TESTLIB_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/Compiler/include")
+    target_include_directories (${LUABRIDGE_TESTLIB_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/Common/include")
     target_compile_definitions (${LUABRIDGE_TESTLIB_NAME} PRIVATE LUABRIDGEDEMO_LUAU=1)
   elseif (${LUA_VERSION} STREQUAL "LUAJIT")
     target_compile_definitions (${LUABRIDGE_TEST_NAME} PRIVATE LUABRIDGEDEMO_LUAJIT=1)

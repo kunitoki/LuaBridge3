@@ -251,6 +251,7 @@ TEST_F(LuaBridgeTest, TupleAsFunctionReturnValue)
     EXPECT_EQ(std::make_tuple(x, 42), (result<std::tuple<int, int>>()));
 }
 
+namespace {
 template<class T>
 struct TestClass
 {
@@ -270,6 +271,7 @@ struct TestClass
     mutable T data;
     mutable T constData;
 };
+} // namespace
 
 TEST_F(LuaBridgeTest, ClassFunction)
 {
@@ -440,15 +442,22 @@ TEST_F(LuaBridgeTest, InvokePassingUnregisteredClassShouldThrowAndRestoreStack)
     }
 }
 
+namespace {
 class A : public std::enable_shared_from_this<A>
 {
 public:
-    A(int newX) : x(newX) {}
+    A() = default;
+
+    A(int newX)
+        : x(newX)
+    {
+    }
     
     int x = 42;
 };
+} // namespace
 
-TEST_F(LuaBridgeTest, StdSharedPtr)
+TEST_F(LuaBridgeTest, StdSharedPtrSingle)
 {
     luabridge::getGlobalNamespace(L)
         .beginNamespace("test")
@@ -470,6 +479,24 @@ TEST_F(LuaBridgeTest, StdSharedPtr)
     EXPECT_TRUE(runLua("result = test.A(2)"));
     auto a4 = result<std::shared_ptr<A>>();
     EXPECT_EQ(2, a4->x);
+}
+
+TEST_F(LuaBridgeTest, StdSharedPtrMultiple)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("test")
+            .beginClass<A>("A")
+                .addConstructorFrom<std::shared_ptr<A>, void(*)(), void(*)(int)>()
+            .endClass()
+        .endNamespace();
+
+    EXPECT_TRUE(runLua("result = test.A()"));
+    auto a1 = result<std::shared_ptr<A>>();
+    EXPECT_EQ(42, a1->x);
+
+    EXPECT_TRUE(runLua("result = test.A(2)"));
+    auto a2 = result<std::shared_ptr<A>>();
+    EXPECT_EQ(2, a2->x);
 }
 
 #if LUABRIDGE_HAS_EXCEPTIONS

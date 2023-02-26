@@ -55,8 +55,8 @@ Contents
 *   [4 - Accessing Lua from C++](#4---accessing-lua-from-c)
 
     *   [4.1 - Class LuaRef](#41---class-luaref)
-        *   [4.1.1 - Type Conversions](#411---type-conversions)
-        *   [4.1.2 - Visual Studio 2010, 2012](#412---visual-studio-2010-2012)
+        *   [4.1.1 - Lifetime, States and Lua Threads](#411---lifetime-states-and-lua-threads)
+        *   [4.1.2 - Type Conversions](#412---type-conversions)
     *   [4.2 - Table Proxies](#42---table-proxies)
     *   [4.3 - Calling Lua](#43---calling-lua)
         *   [4.3.1 - Exceptions](#431---exceptions)
@@ -69,7 +69,7 @@ Contents
 1 - Introduction
 ================
 
-[LuaBridge](https://github.com/kunitoki/LuaBridge3) is a lightweight and dependency-free library for mapping data, functions, and classes back and forth between C++ and [Lua](http://wwww.lua.org), a powerful, fast, lightweight, embeddable scripting language. LuaBridge has been tested and works with Lua 5.1.5, 5.2.4, 5.3.6 and 5.4.4. It also works transparently with [LuaJIT](http://luajit.org/) and for the first time also with [Luau](https://luau-lang.org/).
+[LuaBridge](https://github.com/kunitoki/LuaBridge3) is a lightweight and dependency-free library for mapping data, functions, and classes back and forth between C++ and [Lua](http://wwww.lua.org), a powerful, fast, lightweight, embeddable scripting language. LuaBridge has been tested and works with Lua 5.1.5, 5.2.4, 5.3.6 and 5.4.4. It also works transparently with [LuaJIT](http://luajit.org/) 2.x onwards and for the first time also with [Luau](https://luau-lang.org/) 0.556 onwards.
 
 LuaBridge is usable from a compliant C++17 and offers the following features:
 
@@ -115,12 +115,10 @@ To expose Lua objects to C++, a class called `LuaRef` is provided. The implement
 
 LuaBridge tries to be efficient as possible when creating the "glue" that exposes C++ data and functions to Lua. At the same time, the code was written with the intention that it is all as simple and clear as possible, without resorting to obscure C++ idioms, ugly preprocessor macros, or configuration settings. Furthermore, it is designed to be "header-only", making it very easy to integrate into your projects.
 
-Because LuaBridge was written with simplicity in mind there are some features that are not available. Although it comes close to the highest possible performance, LuaBridge is not quite the fastest, [OOLua](http://code.google.com/p/oolua/) and [sol2](https://github.com/ThePhD/sol2) outperforms LuaBridge in some tests, but they are also bigger and slower to compile. While being powerful, LuaBridge is pretty compact and simpler to understand and debug, and also does not try to implement every possible feature: [LuaBind](http://www.rasterbar.com/products/luabind.html) (requires Boost) and [sol2](https://github.com/ThePhD/sol2) explore every corner of the C++ language.
+Because LuaBridge was written with simplicity in mind there are some features that are not available. Although it comes close to the highest possible performance, LuaBridge is not quite the fastest, [OOLua](http://code.google.com/p/oolua/) and [sol2](https://github.com/ThePhD/sol2) outperforms LuaBridge in some tests, but they are also bigger and slower to compile. While being powerful, LuaBridge is pretty compact and simpler to understand and debug, and also does not try to implement every possible feature: [LuaBind](http://www.rasterbar.com/products/luabind.html) (requires Boost) and [sol2](https://github.com/ThePhD/sol2) explores every corner of the C++ language.
 
 LuaBridge does not support:
 
-*   Enumerated constants
-*   Overloaded functions, methods, or constructors.
 *   Global types (types must be registered in a named scope).
 *   Automatic conversion between STL container types and Lua tables (but conversion can be enabled for `std::array`, `std::vector`, `std::map`, `std::unordered_map`, `std::set` `std::list`, `std::optional`, by including `LuaBridge/Array.h`, `LuaBridge/Vector.h`, `LuaBridge/Map`, `LuaBridge/UnorderedMap.h`, `LuaBridge/Set.h`, `LuaBridge/List.h`, `LuaBridge/Optional.h` respectively)
 *   Inheriting Lua classes from C++ classes.
@@ -411,13 +409,13 @@ local a = A ()
 
 a.func1 ()  -- error: func1 expects an object of a registered class
 a.func1 (a) -- okay, verbose, this how OOP works in Lua
-a:func1 ()  -- okay, less verbose, equvalent to the previous
+a:func1 ()  -- okay, less verbose, equivalent to the previous
 ```
 
 2.4 - Property Member Proxies
 -----------------------------
 
-Sometimes when registering a class which comes from a third party library, the data is not exposed in a way that can be expressed as a pointer to member, there are no get or set functions, or the get and set functons do not have the right function signature. Since the class declaration is closed for changes, LuaBridge allows for a _property member proxy_. This is a pair of get and set flat functions which take as their first parameter a pointer to the object. This is easily understood with the following example:
+Sometimes when registering a class which comes from a third party library, the data is not exposed in a way that can be expressed as a pointer to member, there are no get or set functions, or the get and set functions do not have the right function signature. Since the class declaration is closed for changes, LuaBridge allows for a _property member proxy_. This is a pair of get and set flat functions which take as their first parameter a pointer to the object. This is easily understood with the following example:
 
 ```cpp
 // Third party declaration, can't be changed
@@ -647,7 +645,7 @@ struct HardToCreate
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
     .beginClass<HardToCreate> ("HardToCreate")
-      .addConstructor ([&shouldNotSeeMe] (void* ptr, int easy) { new (ptr) HardToCreate (shouldNotSeeMe, easy); })
+      .addConstructor ([&shouldNotSeeMe] (void* ptr, int easy) { return new (ptr) HardToCreate (shouldNotSeeMe, easy); })
     .endClass ()
   .endNamespace ();
 ```
@@ -664,7 +662,7 @@ The `addConstructor` overload taking a generic functor also accepts a `lua_State
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
     .beginClass<HardToCreate> ("HardToCreate")
-      .addConstructor ([] (void* ptr, lua_State* L) { new (ptr) HardToCreate (shouldNotSeeMe, lua_checkinteger (L, 2)); })
+      .addConstructor ([] (void* ptr, lua_State* L) { return new (ptr) HardToCreate (shouldNotSeeMe, lua_checkinteger (L, 2)); })
     .endClass ()
   .endNamespace ();
 ```
@@ -685,8 +683,8 @@ luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
     .beginClass<HardToCreate> ("HardToCreate")
       .addConstructor (
-        [&shouldNotSeeMe] (void* ptr, int easy) { new (ptr) HardToCreate (shouldNotSeeMe, easy); },
-        [&shouldNotSeeMe] (void* ptr, int easy, int lessEasy) { new (ptr) HardToCreate (shouldNotSeeMe, easy, lessEasy); })
+        [&shouldNotSeeMe] (void* ptr, int easy) { return new (ptr) HardToCreate (shouldNotSeeMe, easy); },
+        [&shouldNotSeeMe] (void* ptr, int easy, int lessEasy) { return new (ptr) HardToCreate (shouldNotSeeMe, easy, lessEasy); })
     .endClass ()
   .endNamespace ();
 ```
@@ -961,7 +959,7 @@ luabridge::getGlobalNamespace (L).addFunction ("useStateAndArgs", &useStateAndAr
 
 When the script calls `useStateAndArgs`, it passes only the integer and string parameters. LuaBridge takes care of inserting the `lua_State*` into the argument list for the corresponding C++ function. This will work correctly even for the state created by coroutines. Undefined behavior results if the `lua_State*` is not the last parameter.
 
-The same is applicable for properies.
+The same is applicable for properties.
 
 3 - Passing Objects
 ===================
@@ -1102,7 +1100,7 @@ When a pointer or pointer to const is passed to Lua and the pointer is null (zer
 3.4 - Shared Lifetime
 ---------------------
 
-LuaBridge supports a _shared lifetime_ model: dynamically allocated and reference counted objects whose ownership is shared by both Lua and C++. The object remains in existence until there are no remaining C++ or Lua references, and Lua performs its usual garbage collection cycle. A container is recognized by a specialization of the `ContainerTraits` template class. LuaBridge will automatically recognize when a data type is a container when the correspoding specialization is present. Two styles of containers come with LuaBridge, including the necessary specializations.
+LuaBridge supports a _shared lifetime_ model: dynamically allocated and reference counted objects whose ownership is shared by both Lua and C++. The object remains in existence until there are no remaining C++ or Lua references, and Lua performs its usual garbage collection cycle. A container is recognized by a specialization of the `ContainerTraits` template class. LuaBridge will automatically recognize when a data type is a container when the corresponding specialization is present. Two styles of containers come with LuaBridge, including the necessary specializations.
 
 ### 3.4.1 - Class RefCountedObjectPtr
 
@@ -1268,11 +1266,11 @@ Any convertible type may be assigned to an already-existing `LuaRef`:
 ```cpp
 luabridge::LuaRef v (L);        // Nil
 v = luabridge::newTable (L);    // An empty table
-v = "string";                   // A string. The prevous value becomes
+v = "string";                   // A string. The previous value becomes
                                 // eligible for garbage collection.
 ```
 
-A `LuaRef` is itself a convertible type, and the convertible type `Nil` can be used to represent a Lua **nil**.
+A `LuaRef` is itself a convertible type, and the convertible type `LuaNil` can be used to represent a Lua **nil**.
 
 ```cpp
 luabridge::LuaRef v1 (L, "x");  // assign "x"
@@ -1287,7 +1285,13 @@ v1 = luabridge::LuaNil ();      // v1 becomes nil, table is still
 
 Values stored in a `LuaRef` object obey the same rules as variables in Lua: tables, functions, threads, and full userdata values are _objects_. The `LuaRef` does not actually _contain_ these values, only _references_ to them. Assignment, parameter passing, and function returns always manipulate references to such values; these operations do not imply any kind of copy.
 
-### 4.1.1 - Type Conversions
+### 4.1.1 - Lifetime, States and Lua Threads
+
+Lifetime of `LuaRef` is bound to the lua state or thread passed in when constructing the reference. It is responsibility of the developer to keep the passed lua state/thread alive for the duration of the usage of the `LuaRef`. In case of storing objects in those references that might be created in lua threads that could be destroyed during the application lifetime, it is advised to pass `luabridge::main_thread (L)` in place of `L` when constructing a `LuaRef`, to make sure the reference is kept in the main lua state instead of the volatile lua thread where it has been created.
+
+In order to have `luabridge::main_thread` method working in all lua versions, one have to call `luabridge::registerMainThread` function at the beginning of the usage of luabridge (lua 5.1 doesn't store the main thread in the registry, and this needs to be manually setup by the developer).
+
+### 4.1.2 - Type Conversions
 
 A universal C++ conversion operator is provided for implicit conversions which allow a `LuaRef` to be used where any convertible type is expected. These operations will all compile:
 

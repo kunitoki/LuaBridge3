@@ -181,7 +181,7 @@ class Namespace : public detail::Registrar
 
             if (Security::hideMetatables())
             {
-                lua_pushnil(L);
+                lua_pushboolean(L, 0);
                 rawsetfield(L, -2, "__metatable");
             }
         }
@@ -250,7 +250,7 @@ class Namespace : public detail::Registrar
 
             if (Security::hideMetatables())
             {
-                lua_pushnil(L);
+                lua_pushboolean(L, 0);
                 rawsetfield(L, -2, "__metatable");
             }
         }
@@ -524,6 +524,32 @@ class Namespace : public detail::Registrar
             return *this;
         }
 
+        template <class U>
+        Class<T>& addStaticProperty(const char* name, U (*get)() noexcept, void (*set)(U) noexcept = nullptr)
+        {
+            assert(name != nullptr);
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); // Stack: co, cl, st, function ptr
+            lua_pushcclosure_x(L, &detail::invoke_proxy_function<U (*)() noexcept>, 1); // Stack: co, cl, st, getter
+            detail::add_property_getter(L, name, -2); // Stack: co, cl, st
+
+            if (set != nullptr)
+            {
+                lua_pushlightuserdata(L, reinterpret_cast<void*>(set)); // Stack: co, cl, st, function ptr
+                lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(U) noexcept>, 1); // Stack: co, cl, st, setter
+            }
+            else
+            {
+                lua_pushstring(L, name); // Stack: co, cl, st, ps, name
+                lua_pushcclosure_x(L, &detail::read_only_error, 1); // Stack: co, cl, st, function
+            }
+
+            detail::add_property_setter(L, name, -2); // Stack: co, cl, st
+
+            return *this;
+        }
+
         //=========================================================================================
         /**
          * @brief Add or replace a static property, by constructible by std::function.
@@ -663,7 +689,32 @@ class Namespace : public detail::Registrar
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); // Stack: co, cl, st, funcion ptr
+            new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); // Stack: co, cl, st, function ptr
+            lua_pushcclosure_x(L, &detail::invoke_const_member_function<GetType, T>, 1); // Stack: co, cl, st, getter
+            lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
+            detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
+            detail::add_property_getter(L, name, -3); // Stack: co, cl, st
+
+            if (set != nullptr)
+            {
+                new (lua_newuserdata_x<SetType>(L, sizeof(SetType))) SetType(set); // Stack: co, cl, st, function ptr
+                lua_pushcclosure_x(L, &detail::invoke_member_function<SetType, T>, 1); // Stack: co, cl, st, setter
+                detail::add_property_setter(L, name, -3); // Stack: co, cl, st
+            }
+
+            return *this;
+        }
+
+        template <class TG, class TS = TG>
+        Class<T>& addProperty(const char* name, TG (T::*get)() const noexcept, void (T::*set)(TS) noexcept = nullptr)
+        {
+            using GetType = TG (T::*)() const noexcept;
+            using SetType = void (T::*)(TS) noexcept;
+
+            assert(name != nullptr);
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); // Stack: co, cl, st, function ptr
             lua_pushcclosure_x(L, &detail::invoke_const_member_function<GetType, T>, 1); // Stack: co, cl, st, getter
             lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
             detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
@@ -692,7 +743,32 @@ class Namespace : public detail::Registrar
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); // Stack: co, cl, st, funcion ptr
+            new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); // Stack: co, cl, st, function ptr
+            lua_pushcclosure_x(L, &detail::invoke_const_member_function<GetType, T>, 1); // Stack: co, cl, st, getter
+            lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
+            detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
+            detail::add_property_getter(L, name, -3); // Stack: co, cl, st
+
+            if (set != nullptr)
+            {
+                new (lua_newuserdata_x<SetType>(L, sizeof(SetType))) SetType(set); // Stack: co, cl, st, function ptr
+                lua_pushcclosure_x(L, &detail::invoke_member_function<SetType, T>, 1); // Stack: co, cl, st, setter
+                detail::add_property_setter(L, name, -3); // Stack: co, cl, st
+            }
+
+            return *this;
+        }
+
+        template <class TG, class TS = TG>
+        Class<T>& addProperty(const char* name, TG (T::*get)(lua_State*) const noexcept, void (T::*set)(TS, lua_State*) noexcept = nullptr)
+        {
+            using GetType = TG (T::*)(lua_State*) const noexcept;
+            using SetType = void (T::*)(TS, lua_State*) noexcept;
+
+            assert(name != nullptr);
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); // Stack: co, cl, st, function ptr
             lua_pushcclosure_x(L, &detail::invoke_const_member_function<GetType, T>, 1); // Stack: co, cl, st, getter
             lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
             detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
@@ -718,7 +794,7 @@ class Namespace : public detail::Registrar
          * Both the get and the set functions require a T const* and T* in the first argument respectively.
          */
         template <class TG, class TS = TG>
-        Class<T>& addProperty(const char* name, TG (*get)(T const*), void (*set)(T*, TS) = nullptr)
+        Class<T>& addProperty(const char* name, TG (*get)(const T*), void (*set)(T*, TS) = nullptr)
         {
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
@@ -733,6 +809,28 @@ class Namespace : public detail::Registrar
             {
                 lua_pushlightuserdata( L, reinterpret_cast<void*>(set)); // Stack: co, cl, st, function ptr
                 lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(T*, TS)>, 1); // Stack: co, cl, st, setter
+                detail::add_property_setter(L, name, -3); // Stack: co, cl, st
+            }
+
+            return *this;
+        }
+
+        template <class TG, class TS = TG>
+        Class<T>& addProperty(const char* name, TG (*get)(const T*) noexcept, void (*set)(T*, TS) noexcept = nullptr)
+        {
+            assert(name != nullptr);
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); // Stack: co, cl, st, function ptr
+            lua_pushcclosure_x(L, &detail::invoke_proxy_function<TG (*)(const T*) noexcept>, 1); // Stack: co, cl, st, getter
+            lua_pushvalue(L, -1); // Stack: co, cl, st,, getter, getter
+            detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
+            detail::add_property_getter(L, name, -3); // Stack: co, cl, st
+
+            if (set != nullptr)
+            {
+                lua_pushlightuserdata( L, reinterpret_cast<void*>(set)); // Stack: co, cl, st, function ptr
+                lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(T*, TS) noexcept>, 1); // Stack: co, cl, st, setter
                 detail::add_property_setter(L, name, -3); // Stack: co, cl, st
             }
 
@@ -1305,6 +1403,12 @@ private:
 
             lua_newtable(L); // Stack: ns, mt, propset table (ps)
             lua_rawsetp(L, -2, detail::getPropsetKey()); // ns [propsetKey] = ps. Stack: ns
+
+            if (Security::hideMetatables())
+            {
+                lua_pushboolean(L, 0);
+                rawsetfield(L, -2, "__metatable");
+            }
         }
 
         ++m_stackSize;
@@ -1352,6 +1456,12 @@ private:
 
             lua_newtable(L); // Stack: pns, ns, propset table (ps)
             lua_rawsetp(L, -2, detail::getPropsetKey()); // ns [propsetKey] = ps. Stack: pns, ns
+
+            if (Security::hideMetatables())
+            {
+                lua_pushboolean(L, 0);
+                rawsetfield(L, -2, "__metatable");
+            }
 
             // pns [name] = ns
             lua_pushvalue(L, -1); // Stack: pns, ns, ns
@@ -1565,6 +1675,39 @@ public:
         {
             lua_pushlightuserdata(L, reinterpret_cast<void*>(set)); // Stack: ns, function ptr
             lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(TS)>, 1);
+        }
+        else
+        {
+            lua_pushstring(L, name);
+            lua_pushcclosure_x(L, &detail::read_only_error, 1);
+        }
+
+        detail::add_property_setter(L, name, -2);
+
+        return *this;
+    }
+
+    template <class TG, class TS = TG>
+    Namespace& addProperty(const char* name, TG (*get)() noexcept, void (*set)(TS) noexcept = nullptr)
+    {
+        if (m_stackSize == 1)
+        {
+            throw_or_assert<std::logic_error>("addProperty() called on global namespace");
+
+            return *this;
+        }
+
+        assert(name != nullptr);
+        assert(lua_istable(L, -1)); // Stack: namespace table (ns)
+
+        lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); // Stack: ns, function ptr
+        lua_pushcclosure_x(L, &detail::invoke_proxy_function<TG (*)() noexcept>, 1); // Stack: ns, getter
+        detail::add_property_getter(L, name, -2);
+
+        if (set != nullptr)
+        {
+            lua_pushlightuserdata(L, reinterpret_cast<void*>(set)); // Stack: ns, function ptr
+            lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(TS) noexcept>, 1);
         }
         else
         {
@@ -1813,7 +1956,7 @@ inline Namespace getNamespaceFromStack(lua_State* L)
  *
  * This is a backward compatibility mitigation for lua 5.1 not supporting LUA_RIDX_MAINTHREAD.
  *
- * @param L The main Lua state that will be regstered as main thread.
+ * @param L The main Lua state that will be registered as main thread.
  *
  * @returns A namespace registration object.
  */

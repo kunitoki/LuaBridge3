@@ -8,6 +8,7 @@ struct IssueTests : TestBase
 {
 };
 
+namespace {
 struct AbstractClass
 {
     virtual int sum(int a, int b) = 0;
@@ -23,6 +24,7 @@ struct ConcreteClass : AbstractClass
         return instance;
     }
 };
+} // namespace
 
 TEST_F(IssueTests, Issue87)
 {
@@ -53,6 +55,7 @@ TEST_F(IssueTests, Issue121)
     ASSERT_EQ(0, first["second"].length());
 }
 
+namespace {
 void pushArgs(lua_State*)
 {
 }
@@ -86,6 +89,7 @@ std::vector<luabridge::LuaRef> callFunction(const luabridge::LuaRef& function, A
     }
     return results;
 }
+} // namespace
 
 TEST_F(IssueTests, Issue160)
 {
@@ -104,6 +108,7 @@ TEST_F(IssueTests, Issue160)
     ASSERT_EQ("abc", v[4].unsafe_cast<std::string>());
 }
 
+namespace {
 struct Vector
 {
     float getX() const { return x; }
@@ -115,6 +120,7 @@ struct WideVector : Vector
 {
     WideVector(float, float, float, float w) { x = w; }
 };
+} // namespace
 
 TEST_F(IssueTests, Issue178)
 {
@@ -130,6 +136,7 @@ TEST_F(IssueTests, Issue178)
     ASSERT_EQ(3.f, result<float>());
 }
 
+namespace {
 enum class MyEnum
 {
     VALUE0,
@@ -150,14 +157,13 @@ struct EnumWrapper
         return static_cast<T>(lua_tointeger(L, index));
     }
 };
+} // namespace
 
 namespace luabridge {
-
 template<>
 struct Stack<MyEnum> : EnumWrapper<MyEnum>
 {
 };
-
 } // namespace luabridge
 
 TEST_F(IssueTests, Issue127)
@@ -199,7 +205,7 @@ struct SomeClass
     luabridge::LuaRef override_;
 
     SomeClass(lua_State* L)
-        : override_(L)
+        : override_(luabridge::main_thread(L))
     {
     }
 

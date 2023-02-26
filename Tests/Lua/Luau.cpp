@@ -68,6 +68,8 @@
 #include "../../ThirdParty/luau/VM/src/lmathlib.cpp"
 #include "../../ThirdParty/luau/VM/src/lbuiltins.cpp"
 #include "../../ThirdParty/luau/VM/src/ldblib.cpp"
+#include "../../ThirdParty/luau/VM/src/lnumprint.cpp"
+#include "../../ThirdParty/luau/VM/src/ludata.cpp"
 
 /* lperf.cpp includes Windows.h, which defines the min and max macro,
    so include it last to prevent errors.
