@@ -60,7 +60,7 @@ LuaBridge3 offers a set of improvements compared to vanilla LuaBridge:
 ![Build Linux](https://github.com/kunitoki/LuaBridge3/workflows/Build%20Linux/badge.svg?branch=master)
 
 ## Code Coverage
-[![Coverage Status](https://coveralls.io/repos/github/kunitoki/LuaBridge3/badge.svg?branch=master)](https://coveralls.io/github/kunitoki/LuaBridge3?branch=master)
+[![Coverage Status](https://coveralls.io/repos/github/kunitoki/LuaBridge3/badge.svg?branch=master&kill_cache=1)](https://coveralls.io/github/kunitoki/LuaBridge3?branch=master)
 
 ## Documentation
 

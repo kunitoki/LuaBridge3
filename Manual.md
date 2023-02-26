@@ -409,13 +409,13 @@ local a = A ()
 
 a.func1 ()  -- error: func1 expects an object of a registered class
 a.func1 (a) -- okay, verbose, this how OOP works in Lua
-a:func1 ()  -- okay, less verbose, equvalent to the previous
+a:func1 ()  -- okay, less verbose, equivalent to the previous
 ```
 
 2.4 - Property Member Proxies
 -----------------------------
 
-Sometimes when registering a class which comes from a third party library, the data is not exposed in a way that can be expressed as a pointer to member, there are no get or set functions, or the get and set functons do not have the right function signature. Since the class declaration is closed for changes, LuaBridge allows for a _property member proxy_. This is a pair of get and set flat functions which take as their first parameter a pointer to the object. This is easily understood with the following example:
+Sometimes when registering a class which comes from a third party library, the data is not exposed in a way that can be expressed as a pointer to member, there are no get or set functions, or the get and set functions do not have the right function signature. Since the class declaration is closed for changes, LuaBridge allows for a _property member proxy_. This is a pair of get and set flat functions which take as their first parameter a pointer to the object. This is easily understood with the following example:
 
 ```cpp
 // Third party declaration, can't be changed
@@ -1100,7 +1100,7 @@ When a pointer or pointer to const is passed to Lua and the pointer is null (zer
 3.4 - Shared Lifetime
 ---------------------
 
-LuaBridge supports a _shared lifetime_ model: dynamically allocated and reference counted objects whose ownership is shared by both Lua and C++. The object remains in existence until there are no remaining C++ or Lua references, and Lua performs its usual garbage collection cycle. A container is recognized by a specialization of the `ContainerTraits` template class. LuaBridge will automatically recognize when a data type is a container when the correspoding specialization is present. Two styles of containers come with LuaBridge, including the necessary specializations.
+LuaBridge supports a _shared lifetime_ model: dynamically allocated and reference counted objects whose ownership is shared by both Lua and C++. The object remains in existence until there are no remaining C++ or Lua references, and Lua performs its usual garbage collection cycle. A container is recognized by a specialization of the `ContainerTraits` template class. LuaBridge will automatically recognize when a data type is a container when the corresponding specialization is present. Two styles of containers come with LuaBridge, including the necessary specializations.
 
 ### 3.4.1 - Class RefCountedObjectPtr
 
@@ -1266,7 +1266,7 @@ Any convertible type may be assigned to an already-existing `LuaRef`:
 ```cpp
 luabridge::LuaRef v (L);        // Nil
 v = luabridge::newTable (L);    // An empty table
-v = "string";                   // A string. The prevous value becomes
+v = "string";                   // A string. The previous value becomes
                                 // eligible for garbage collection.
 ```
 
