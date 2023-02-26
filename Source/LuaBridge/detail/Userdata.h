@@ -241,12 +241,11 @@ public:
         if (lua_isnil(L, index))
             return nullptr;
 
-        return static_cast<T*>(getClass(L,
-                                        index,
-                                        detail::getConstRegistryKey<T>(),
-                                        detail::getClassRegistryKey<T>(),
-                                        canBeConst)
-                                   ->getPointer());
+        auto* clazz = getClass(L, index, detail::getConstRegistryKey<T>(), detail::getClassRegistryKey<T>(), canBeConst);
+        if (! clazz)
+            return nullptr;
+
+        return static_cast<T*>(clazz->getPointer());
     }
 
     template <class T>

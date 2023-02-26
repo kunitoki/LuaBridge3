@@ -260,7 +260,7 @@ TEST_F(ClassTests, PassOtherTypeInsteadOfNonConstThrows)
 
     luabridge::getGlobalNamespace(L)
         .beginClass<Int>("Int")
-        .addConstructor<void (*)(int)>() // Show that it does't matter
+        .addConstructor<void (*)(int)>() // Show that it doesn't matter
         .endClass()
         .addFunction("processNonConst", &processNonConst<int, EmptyBase>);
 
@@ -2614,4 +2614,55 @@ TEST_F(ClassTests, NewIndexFallbackMetaMethodFreeFunctor)
 
     runLua("x.qwertyuiop = 123; result = x.qwertyuiop");
     ASSERT_EQ(246, result<int>());
+}
+
+namespace {
+class ExampleStringifiableClass
+{
+public:
+    ExampleStringifiableClass()
+        : a(0), b(0), c(0)
+    {
+    }
+
+    std::string tostring() const
+    {
+        return "whatever";
+    }
+
+    int a, b, c;
+};
+} // namespace
+
+TEST_F(ClassTests, MetatableSecurityNotHidden)
+{
+    luabridge::setHideMetatables(false);
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<ExampleStringifiableClass>("ExampleStringifiableClass")
+            .addConstructor<void(*) ()>()
+            .addFunction("__tostring", &ExampleStringifiableClass::tostring)
+        .endClass();
+
+    runLua("local t = ExampleStringifiableClass(); result = getmetatable(t); print(result);");
+
+    const auto res = result();
+    ASSERT_TRUE(res.isTable());
+}
+
+TEST_F(ClassTests, MetatableSecurity)
+{
+    luabridge::setHideMetatables(true);
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<ExampleStringifiableClass>("ExampleStringifiableClass")
+            .addConstructor<void(*) ()>()
+            .addFunction("__tostring", &ExampleStringifiableClass::tostring)
+        .endClass();
+
+    runLua("local t = ExampleStringifiableClass(); result = getmetatable(t); print(result);");
+
+    const auto res = result();
+    ASSERT_TRUE(res.isBool());
+    EXPECT_FALSE(res.unsafe_cast<bool>());
 }

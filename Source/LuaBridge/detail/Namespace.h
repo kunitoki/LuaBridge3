@@ -181,7 +181,7 @@ class Namespace : public detail::Registrar
 
             if (Security::hideMetatables())
             {
-                lua_pushnil(L);
+                lua_pushboolean(L, 0);
                 rawsetfield(L, -2, "__metatable");
             }
         }
@@ -250,7 +250,7 @@ class Namespace : public detail::Registrar
 
             if (Security::hideMetatables())
             {
-                lua_pushnil(L);
+                lua_pushboolean(L, 0);
                 rawsetfield(L, -2, "__metatable");
             }
         }
@@ -689,7 +689,7 @@ class Namespace : public detail::Registrar
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); // Stack: co, cl, st, funcion ptr
+            new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); // Stack: co, cl, st, function ptr
             lua_pushcclosure_x(L, &detail::invoke_const_member_function<GetType, T>, 1); // Stack: co, cl, st, getter
             lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
             detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
@@ -714,7 +714,7 @@ class Namespace : public detail::Registrar
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); // Stack: co, cl, st, funcion ptr
+            new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); // Stack: co, cl, st, function ptr
             lua_pushcclosure_x(L, &detail::invoke_const_member_function<GetType, T>, 1); // Stack: co, cl, st, getter
             lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
             detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
@@ -743,7 +743,7 @@ class Namespace : public detail::Registrar
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); // Stack: co, cl, st, funcion ptr
+            new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); // Stack: co, cl, st, function ptr
             lua_pushcclosure_x(L, &detail::invoke_const_member_function<GetType, T>, 1); // Stack: co, cl, st, getter
             lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
             detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
@@ -768,7 +768,7 @@ class Namespace : public detail::Registrar
             assert(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); // Stack: co, cl, st, funcion ptr
+            new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); // Stack: co, cl, st, function ptr
             lua_pushcclosure_x(L, &detail::invoke_const_member_function<GetType, T>, 1); // Stack: co, cl, st, getter
             lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
             detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
@@ -1403,6 +1403,12 @@ private:
 
             lua_newtable(L); // Stack: ns, mt, propset table (ps)
             lua_rawsetp(L, -2, detail::getPropsetKey()); // ns [propsetKey] = ps. Stack: ns
+
+            if (Security::hideMetatables())
+            {
+                lua_pushboolean(L, 0);
+                rawsetfield(L, -2, "__metatable");
+            }
         }
 
         ++m_stackSize;
@@ -1450,6 +1456,12 @@ private:
 
             lua_newtable(L); // Stack: pns, ns, propset table (ps)
             lua_rawsetp(L, -2, detail::getPropsetKey()); // ns [propsetKey] = ps. Stack: pns, ns
+
+            if (Security::hideMetatables())
+            {
+                lua_pushboolean(L, 0);
+                rawsetfield(L, -2, "__metatable");
+            }
 
             // pns [name] = ns
             lua_pushvalue(L, -1); // Stack: pns, ns, ns
