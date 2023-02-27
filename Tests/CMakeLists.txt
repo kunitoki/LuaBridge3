@@ -13,6 +13,7 @@ set (LUABRIDGE_TEST_SOURCE_FILES
   Source/AmalgamateTests.cpp
   Source/ArrayTests.cpp
   Source/ClassTests.cpp
+  Source/CoroutineTests.cpp
   Source/ExceptionTests.cpp
   Source/IssueTests.cpp
   Source/IteratorTests.cpp

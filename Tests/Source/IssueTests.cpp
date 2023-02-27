@@ -223,18 +223,18 @@ TEST_F(IssueTests, IssueMainThread)
         .beginClass<SomeClass>("SomeClass")
         .addConstructor<void (*)(lua_State*)>()
         .addFunction("SomeMember", &SomeClass::SomeMember)
-        .addProperty("SomeMemberOveride", &SomeClass::override_)
+        .addProperty("SomeMemberOverride", &SomeClass::override_)
         .endClass();
 
     const char* source = R"(
         function test()
             c:SomeMember()
-            c.SomeMemberOveride = MyHandler
+            c.SomeMemberOverride = MyHandler
             c:SomeMember()
             --This is pretty cool too!
-            c:SomeMemberOveride()
+            c:SomeMemberOverride()
             --Revert to C++ version
-            c.SomeMemberOveride = nil
+            c.SomeMemberOverride = nil
             c:SomeMember()
             return
         end
