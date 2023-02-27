@@ -455,6 +455,17 @@ public:
     
     int x = 42;
 };
+
+class B : public A
+{
+public:
+    B() = default;
+
+    B(int newX)
+        : A(newX)
+    {
+    }
+};
 } // namespace
 
 TEST_F(LuaBridgeTest, StdSharedPtrSingle)
@@ -497,6 +508,33 @@ TEST_F(LuaBridgeTest, StdSharedPtrMultiple)
     EXPECT_TRUE(runLua("result = test.A(2)"));
     auto a2 = result<std::shared_ptr<A>>();
     EXPECT_EQ(2, a2->x);
+}
+
+TEST_F(LuaBridgeTest, StdSharedPtrDerived)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("test")
+            .beginClass<A>("A")
+                .addConstructorFrom<std::shared_ptr<A>, void(*)(int)>()
+            .endClass()
+            .deriveClass<B, A>("B")
+                .addConstructorFrom<std::shared_ptr<B>, void(*)(int)>()
+            .endClass()
+        .endNamespace();
+
+    auto b = std::make_shared<B>(1);
+    luabridge::setGlobal(L, b, "b");
+
+    auto a2 = *luabridge::getGlobal<std::shared_ptr<A>>(L, "b");
+    EXPECT_EQ(1, a2->x);
+
+    EXPECT_TRUE(runLua("result = b"));
+    auto a3 = result<std::shared_ptr<A>>();
+    EXPECT_EQ(1, a3->x);
+
+    EXPECT_TRUE(runLua("result = test.B(2)"));
+    auto a4 = result<std::shared_ptr<A>>();
+    EXPECT_EQ(2, a4->x);
 }
 
 #if LUABRIDGE_HAS_EXCEPTIONS

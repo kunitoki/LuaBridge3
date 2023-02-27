@@ -11,6 +11,19 @@
 #include <memory>
 
 namespace luabridge {
+namespace detail {
+template <template <class...> class C, class... Ts>
+std::true_type is_base_of_template_impl(const C<Ts...>*);
+
+template <template <class...> class C>
+std::false_type is_base_of_template_impl(...);
+
+template <class T, template <class...> class C>
+using is_base_of_template = decltype(is_base_of_template_impl<C>(std::declval<T*>()));
+
+template <class T, template <class...> class C>
+static inline constexpr bool is_base_of_template_v = is_base_of_template<T, C>::value;
+} // namespace detail
 
 //=================================================================================================
 /**
@@ -60,7 +73,7 @@ struct ContainerTraits
 template <class T>
 struct ContainerTraits<std::shared_ptr<T>>
 {
-    static_assert(std::is_base_of_v<std::enable_shared_from_this<T>, T>);
+    static_assert(detail::is_base_of_template_v<T, std::enable_shared_from_this>);
     
     using Type = T;
 
