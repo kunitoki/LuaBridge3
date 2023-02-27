@@ -6963,6 +6963,19 @@ public:
         m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX);
     }
 
+    void moveTo(lua_State* newL)
+    {
+        push();
+
+        lua_xmove(m_L, newL, 1);
+
+        if (m_ref != LUA_NOREF)
+            luaL_unref(m_L, LUA_REGISTRYINDEX, m_ref);
+
+        m_L = newL;
+        m_ref = luaL_ref(newL, LUA_REGISTRYINDEX);
+    }
+
     template <class T>
     TableItem operator[](const T& key) const
     {
