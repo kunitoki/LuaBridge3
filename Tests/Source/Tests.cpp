@@ -466,6 +466,57 @@ public:
     {
     }
 };
+
+class VirtualA : public std::enable_shared_from_this<VirtualA>
+{
+public:
+    VirtualA() = default;
+    virtual ~VirtualA() = default;
+
+    VirtualA(int newX)
+        : x(newX)
+    {
+    }
+
+    virtual std::string myNameIs() const
+    {
+        return "VirtualA";
+    }
+
+    int x = 42;
+};
+
+class VirtualB : public VirtualA
+{
+public:
+    VirtualB() = default;
+
+    VirtualB(int newX)
+        : VirtualA(newX)
+    {
+    }
+
+    std::string myNameIs() const override
+    {
+        return "VirtualB";
+    }
+};
+
+class VirtualC : public VirtualB
+{
+public:
+    VirtualC() = default;
+
+    VirtualC(int newX)
+        : VirtualB(newX)
+    {
+    }
+
+    std::string myNameIs() const override
+    {
+        return "VirtualC";
+    }
+};
 } // namespace
 
 TEST_F(LuaBridgeTest, StdSharedPtrSingle)
@@ -525,16 +576,101 @@ TEST_F(LuaBridgeTest, StdSharedPtrDerived)
     auto b = std::make_shared<B>(1);
     luabridge::setGlobal(L, b, "b");
 
-    auto a2 = *luabridge::getGlobal<std::shared_ptr<A>>(L, "b");
-    EXPECT_EQ(1, a2->x);
+    {
+        auto a1 = *luabridge::getGlobal<std::shared_ptr<A>>(L, "b");
+        EXPECT_EQ(1, a1->x);
 
-    EXPECT_TRUE(runLua("result = b"));
-    auto a3 = result<std::shared_ptr<A>>();
-    EXPECT_EQ(1, a3->x);
+        EXPECT_TRUE(runLua("result = b"));
+        auto a2 = result<std::shared_ptr<A>>();
+        EXPECT_EQ(1, a2->x);
 
-    EXPECT_TRUE(runLua("result = test.B(2)"));
-    auto a4 = result<std::shared_ptr<A>>();
-    EXPECT_EQ(2, a4->x);
+        EXPECT_TRUE(runLua("result = test.B(2)"));
+        auto a3 = result<std::shared_ptr<A>>();
+        EXPECT_EQ(2, a3->x);
+    }
+
+    {
+        auto b1 = *luabridge::getGlobal<std::shared_ptr<B>>(L, "b");
+        EXPECT_EQ(1, b1->x);
+
+        EXPECT_TRUE(runLua("result = b"));
+        auto b2 = result<std::shared_ptr<B>>();
+        EXPECT_EQ(1, b2->x);
+
+        EXPECT_TRUE(runLua("result = test.B(2)"));
+        auto b3 = result<std::shared_ptr<B>>();
+        EXPECT_EQ(2, b3->x);
+    }
+}
+
+TEST_F(LuaBridgeTest, StdSharedPtrDerivedPolymorphic)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("test")
+            .beginClass<VirtualA>("A")
+                .addConstructorFrom<std::shared_ptr<VirtualA>, void(*)(int)>()
+                .addFunction("myNameIs", &VirtualA::myNameIs)
+            .endClass()
+            .deriveClass<VirtualB, VirtualA>("B")
+                .addConstructorFrom<std::shared_ptr<VirtualB>, void(*)(int)>()
+                .addFunction("myNameIs", &VirtualB::myNameIs)
+            .endClass()
+            .deriveClass<VirtualC, VirtualB>("C")
+                .addConstructorFrom<std::shared_ptr<VirtualC>, void(*)(int)>()
+                .addFunction("myNameIs", &VirtualC::myNameIs)
+            .endClass()
+        .endNamespace();
+
+    auto b = std::make_shared<VirtualB>(1);
+    luabridge::setGlobal(L, b, "b");
+
+    {
+        auto a1 = *luabridge::getGlobal<std::shared_ptr<VirtualA>>(L, "b");
+        EXPECT_EQ(1, a1->x);
+
+        EXPECT_TRUE(runLua("result = b"));
+        auto a2 = result<std::shared_ptr<VirtualA>>();
+        EXPECT_EQ(1, a2->x);
+
+        EXPECT_TRUE(runLua("result = test.B(2)"));
+        auto a3 = result<std::shared_ptr<VirtualA>>();
+        EXPECT_EQ(2, a3->x);
+    }
+
+    {
+        auto b1 = *luabridge::getGlobal<std::shared_ptr<VirtualB>>(L, "b");
+        EXPECT_EQ(1, b1->x);
+
+        EXPECT_TRUE(runLua("result = b"));
+        auto b2 = result<std::shared_ptr<VirtualB>>();
+        EXPECT_EQ(1, b2->x);
+
+        EXPECT_TRUE(runLua("result = test.B(2)"));
+        auto b3 = result<std::shared_ptr<VirtualB>>();
+        EXPECT_EQ(2, b3->x);
+    }
+
+    {
+#if LUABRIDGE_HAS_EXCEPTIONS
+        ASSERT_ANY_THROW(luabridge::getGlobal<std::shared_ptr<VirtualC>>(L, "b"));
+#else
+        // TODO - Userdata::get is still not safe to use outside of lua, as it will call the panic handler.
+        //auto c1 = luabridge::getGlobal<std::shared_ptr<VirtualC>>(L, "b");
+        //EXPECT_FALSE(!!c1);
+#endif
+    }
+
+    EXPECT_TRUE(runLua("local x = test.A(2); result = x:myNameIs()"));
+    auto x1 = result<std::string>();
+    EXPECT_EQ("VirtualA", x1);
+
+    EXPECT_TRUE(runLua("local x = test.B(2); result = x:myNameIs()"));
+    auto x2 = result<std::string>();
+    EXPECT_EQ("VirtualB", x2);
+
+    EXPECT_TRUE(runLua("local x = test.C(2); result = x:myNameIs()"));
+    auto x3 = result<std::string>();
+    EXPECT_EQ("VirtualC", x3);
 }
 
 #if LUABRIDGE_HAS_EXCEPTIONS
