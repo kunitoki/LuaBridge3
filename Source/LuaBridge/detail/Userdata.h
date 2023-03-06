@@ -842,6 +842,11 @@ struct RefStackHelper<T, false>
 {
     using ReturnType = TypeResult<std::reference_wrapper<T>>;
 
+    static Result push(lua_State* L, T& t)
+    {
+        return UserdataPtr::push(L, std::addressof(t));
+    }
+
     static Result push(lua_State* L, const T& t)
     {
         return UserdataPtr::push(L, std::addressof(t));
@@ -984,7 +989,7 @@ struct StackOpSelector<T&, true>
     using Helper = RefStackHelper<T, IsContainer<T>::value>;
     using ReturnType = typename Helper::ReturnType;
 
-    static Result push(lua_State* L, T& value) { return UserdataPtr::push(L, &value); }
+    static Result push(lua_State* L, T& value) { return Helper::push(L, value); }
 
     static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
 

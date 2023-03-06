@@ -2693,10 +2693,7 @@ struct ContainerTraits<std::shared_ptr<T>>
 
     static std::shared_ptr<T> construct(T* t)
     {
-        if constexpr (std::is_polymorphic_v<T>)
-            return std::dynamic_pointer_cast<T>(t->shared_from_this());
-        else
-            return std::static_pointer_cast<T>(t->shared_from_this());
+        return std::static_pointer_cast<T>(t->shared_from_this());
     }
 
     static T* get(const std::shared_ptr<T>& c)
@@ -3356,6 +3353,11 @@ struct RefStackHelper<T, false>
 {
     using ReturnType = TypeResult<std::reference_wrapper<T>>;
 
+    static Result push(lua_State* L, T& t)
+    {
+        return UserdataPtr::push(L, std::addressof(t));
+    }
+
     static Result push(lua_State* L, const T& t)
     {
         return UserdataPtr::push(L, std::addressof(t));
@@ -3477,7 +3479,7 @@ struct StackOpSelector<T&, true>
     using Helper = RefStackHelper<T, IsContainer<T>::value>;
     using ReturnType = typename Helper::ReturnType;
 
-    static Result push(lua_State* L, T& value) { return UserdataPtr::push(L, &value); }
+    static Result push(lua_State* L, T& value) { return Helper::push(L, value); }
 
     static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
 
@@ -9148,7 +9150,7 @@ class ScopeGuard
 {
 public:
     template <class V>
-    ScopeGuard(V&& v)
+    explicit ScopeGuard(V&& v)
         : m_func(std::forward<V>(v))
         , m_shouldRun(true)
     {
@@ -9160,7 +9162,7 @@ public:
             m_func();
     }
 
-    void reset()
+    void reset() noexcept
     {
         m_shouldRun = false;
     }
