@@ -673,6 +673,53 @@ TEST_F(LuaBridgeTest, StdSharedPtrDerivedPolymorphic)
     EXPECT_EQ("VirtualC", x3);
 }
 
+namespace {
+class TestClassInner : public std::enable_shared_from_this<TestClassInner>
+{
+public:
+    inline int getValue() const { return 42; }
+};
+
+class TestClassOuter
+{
+public:
+    TestClassOuter()
+        : sharedPointerNested(std::make_shared<TestClassInner>())
+    {
+    }
+
+    inline std::shared_ptr<TestClassInner> getNested() const { return sharedPointerNested; }
+
+    TestClassInner valueNested;
+    std::shared_ptr<TestClassInner> sharedPointerNested;
+};
+} // namespace
+
+TEST_F(LuaBridgeTest, StdSharedPtrAsProperty)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("test")
+            .beginClass<TestClassInner>("TestClassInner")
+                .addFunction("getValue", &TestClassInner::getValue)
+            .endClass()
+            .beginClass<TestClassOuter>("TestClassOuter")
+                .addConstructor<void()>()
+                .addProperty("getNested", &TestClassOuter::getNested)
+                .addProperty("valueNested", &TestClassOuter::valueNested)
+                .addProperty("sharedPointerNested", &TestClassOuter::sharedPointerNested)
+            .endClass()
+        .endNamespace();
+
+    ASSERT_TRUE(runLua("local x = test.TestClassOuter(); result = x.getNested:getValue()"));
+    EXPECT_EQ(42, result<int>());
+
+    ASSERT_TRUE(runLua("local x = test.TestClassOuter(); result = x.valueNested:getValue()"));
+    EXPECT_EQ(42, result<int>());
+
+    ASSERT_TRUE(runLua("local x = test.TestClassOuter(); result = x.sharedPointerNested:getValue()"));
+    EXPECT_EQ(42, result<int>());
+}
+
 #if LUABRIDGE_HAS_EXCEPTIONS
 namespace {
 template <class... Args>
