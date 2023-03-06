@@ -431,7 +431,7 @@ class Namespace : public detail::Registrar
          *
          * @returns This class registration object.
          */
-        template <class U, class = std::enable_if_t<!std::is_invocable_v<U>>>
+        template <class U, class = std::enable_if_t<std::is_base_of_v<U, LuaRef> || !std::is_invocable_v<U>>>
         Class<T>& addStaticProperty(const char* name, const U* value)
         {
             assert(name != nullptr);
@@ -460,7 +460,7 @@ class Namespace : public detail::Registrar
          *
          * @returns This class registration object.
          */
-        template <class U, class = std::enable_if_t<!std::is_invocable_v<U>>>
+        template <class U, class = std::enable_if_t<std::is_base_of_v<U, LuaRef> || !std::is_invocable_v<U>>>
         Class<T>& addStaticProperty(const char* name, U* value, bool isWritable = true)
         {
             assert(name != nullptr);
@@ -1609,7 +1609,7 @@ public:
      *
      * @returns This namespace registration object.
      */
-    template <class T>
+    template <class T, class = std::enable_if_t<std::is_base_of_v<T, LuaRef> || !std::is_invocable_v<T>>>
     Namespace& addProperty(const char* name, T* value, bool isWritable = true)
     {
         if (m_stackSize == 1)
@@ -1651,7 +1651,7 @@ public:
      *
      * @returns This namespace registration object.
      */
-    template <class T>
+    template <class T, class = std::enable_if_t<std::is_base_of_v<T, LuaRef> || !std::is_invocable_v<T>>>
     Namespace& addProperty(const char* name, const T* value)
     {
         if (m_stackSize == 1)
