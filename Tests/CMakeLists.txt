@@ -14,6 +14,7 @@ set (LUABRIDGE_TEST_SOURCE_FILES
   Source/ArrayTests.cpp
   Source/ClassTests.cpp
   Source/CoroutineTests.cpp
+  Source/EnumTests.cpp
   Source/ExceptionTests.cpp
   Source/IssueTests.cpp
   Source/IteratorTests.cpp
