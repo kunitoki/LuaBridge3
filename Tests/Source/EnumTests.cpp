@@ -139,11 +139,23 @@ TEST_F(EnumTests, MethodTakingEnumAsMapKey)
             .addVariable("C_TWO", C::C_TWO)
             .addVariable("C_THREE", C::C_THREE)
         .endNamespace()
+        .beginNamespace("C1")
+            .addProperty("C_ZERO", +[] { return C::C_ZERO; })
+            .addProperty("C_ONE", +[] { return C::C_ONE; })
+            .addProperty("C_TWO", +[] { return C::C_TWO; })
+            .addProperty("C_THREE", +[] { return C::C_THREE; })
+        .endNamespace()
         .beginNamespace("D")
             .addVariable("D_ZERO", D::D_ZERO)
             .addVariable("D_ONE", D::D_ONE)
             .addVariable("D_TWO", D::D_TWO)
             .addVariable("D_THREE", D::D_THREE)
+        .endNamespace()
+        .beginNamespace("D1")
+            .addProperty("D_ZERO", +[] { return D::D_ZERO; })
+            .addProperty("D_ONE", +[] { return D::D_ONE; })
+            .addProperty("D_TWO", +[] { return D::D_TWO; })
+            .addProperty("D_THREE", +[] { return D::D_THREE; })
         .endNamespace();
 
     luabridge::setGlobal(L, map_of_c, "map_of_c");
@@ -155,10 +167,16 @@ TEST_F(EnumTests, MethodTakingEnumAsMapKey)
     ASSERT_TRUE(runLua("result = map_of_c[C.C_ZERO]"));
     EXPECT_EQ("0", result<std::string>());
 
+    ASSERT_TRUE(runLua("result = map_of_c[C1.C_ZERO]"));
+    EXPECT_EQ("0", result<std::string>());
+
     ASSERT_TRUE(runLua("result = map_of_c[1]"));
     EXPECT_EQ("1", result<std::string>());
 
     ASSERT_TRUE(runLua("result = map_of_c[C.C_ONE]"));
+    EXPECT_EQ("1", result<std::string>());
+
+    ASSERT_TRUE(runLua("result = map_of_c[C1.C_ONE]"));
     EXPECT_EQ("1", result<std::string>());
 
     ASSERT_TRUE(runLua("result = map_of_d[0]"));
@@ -167,9 +185,15 @@ TEST_F(EnumTests, MethodTakingEnumAsMapKey)
     ASSERT_TRUE(runLua("result = map_of_d[D.D_ZERO]"));
     EXPECT_EQ("0", result<std::string>());
 
+    ASSERT_TRUE(runLua("result = map_of_d[D1.D_ZERO]"));
+    EXPECT_EQ("0", result<std::string>());
+
     ASSERT_TRUE(runLua("result = map_of_d[1]"));
     EXPECT_EQ("1", result<std::string>());
 
     ASSERT_TRUE(runLua("result = map_of_d[D.D_ONE]"));
+    EXPECT_EQ("1", result<std::string>());
+
+    ASSERT_TRUE(runLua("result = map_of_d[D1.D_ONE]"));
     EXPECT_EQ("1", result<std::string>());
 }
