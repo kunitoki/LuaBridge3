@@ -2693,10 +2693,7 @@ struct ContainerTraits<std::shared_ptr<T>>
 
     static std::shared_ptr<T> construct(T* t)
     {
-        if constexpr (std::is_polymorphic_v<T>)
-            return std::dynamic_pointer_cast<T>(t->shared_from_this());
-        else
-            return std::static_pointer_cast<T>(t->shared_from_this());
+        return std::static_pointer_cast<T>(t->shared_from_this());
     }
 
     static T* get(const std::shared_ptr<T>& c)
@@ -9148,7 +9145,7 @@ class ScopeGuard
 {
 public:
     template <class V>
-    ScopeGuard(V&& v)
+    explicit ScopeGuard(V&& v)
         : m_func(std::forward<V>(v))
         , m_shouldRun(true)
     {
@@ -9160,7 +9157,7 @@ public:
             m_func();
     }
 
-    void reset()
+    void reset() noexcept
     {
         m_shouldRun = false;
     }
