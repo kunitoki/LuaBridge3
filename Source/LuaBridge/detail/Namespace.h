@@ -1664,7 +1664,7 @@ public:
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 
-        lua_pushlightuserdata(L, value); // Stack: ns, pointer
+        lua_pushlightuserdata(L, const_cast<T*>(value)); // Stack: ns, pointer
         lua_pushcclosure_x(L, &detail::property_getter<T>::call, 1); // Stack: ns, getter
         detail::add_property_getter(L, name, -2); // Stack: ns
 
