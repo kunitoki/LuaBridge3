@@ -92,25 +92,9 @@ TEST_F(EnumTests, RegisteredStack)
 
 TEST_F(EnumTests, RegisteredStackInvalidValue)
 {
-    {
-        ASSERT_TRUE(luabridge::push(L, 4));
-
-#if LUABRIDGE_HAS_EXCEPTIONS
-        ASSERT_ANY_THROW([[maybe_unused]] auto result = luabridge::get<C>(L, 1));
-#else
-        ASSERT_FALSE(luabridge::get<C>(L, 1));
-#endif
-    }
-
-    {
-        ASSERT_TRUE(luabridge::push(L, 4));
-
-#if LUABRIDGE_HAS_EXCEPTIONS
-        ASSERT_ANY_THROW([[maybe_unused]] auto result = luabridge::get<D>(L, 1));
-#else
-        ASSERT_FALSE(luabridge::get<D>(L, 1));
-#endif
-    }
+    ASSERT_TRUE(luabridge::push(L, 4));
+    ASSERT_FALSE(luabridge::get<C>(L, 1));
+    ASSERT_FALSE(luabridge::get<D>(L, 1));
 }
 
 TEST_F(EnumTests, MethodTakingEnum)
