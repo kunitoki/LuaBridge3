@@ -4,6 +4,8 @@
 
 #include "TestBase.h"
 
+#include "LuaBridge/Map.h"
+
 #include <string>
 
 namespace {
@@ -38,22 +40,6 @@ enum class D
     D_TWO,
     D_THREE
 };
-
-enum E
-{
-    E_ZERO,
-    E_ONE,
-    E_TWO,
-    E_THREE
-};
-
-enum class F
-{
-    F_ZERO,
-    F_ONE,
-    F_TWO,
-    F_THREE
-};
 } // namespace
 
 struct EnumTests : TestBase
@@ -61,22 +47,12 @@ struct EnumTests : TestBase
 };
 
 template <>
-struct luabridge::Stack<C> : luabridge::Enum<C>
+struct luabridge::Stack<C> : luabridge::Enum<C, C::C_ZERO, C::C_ONE, C::C_TWO, C::C_THREE>
 {
 };
 
 template <>
-struct luabridge::Stack<D> : luabridge::Enum<D>
-{
-};
-
-template <>
-struct luabridge::Stack<E> : luabridge::EnumType<E>
-{
-};
-
-template <>
-struct luabridge::Stack<F> : luabridge::EnumType<F>
+struct luabridge::Stack<D> : luabridge::Enum<D, D::D_ZERO, D::D_ONE, D::D_TWO, D::D_THREE>
 {
 };
 
@@ -114,12 +90,35 @@ TEST_F(EnumTests, RegisteredStack)
     }
 }
 
+TEST_F(EnumTests, RegisteredStackInvalidValue)
+{
+    {
+        ASSERT_TRUE(luabridge::push(L, 4));
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        ASSERT_ANY_THROW([[maybe_unused]] auto result = luabridge::get<C>(L, 1));
+#else
+        ASSERT_FALSE(luabridge::get<C>(L, 1));
+#endif
+    }
+
+    {
+        ASSERT_TRUE(luabridge::push(L, 4));
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        ASSERT_ANY_THROW([[maybe_unused]] auto result = luabridge::get<D>(L, 1));
+#else
+        ASSERT_FALSE(luabridge::get<D>(L, 1));
+#endif
+    }
+}
+
 TEST_F(EnumTests, MethodTakingEnum)
 {
     luabridge::getGlobalNamespace(L)
         .beginNamespace("test")
-        .addFunction("takeEnum", +[](C value) { return static_cast<int>(value); })
-        .addFunction("takeEnumClass", +[](D value) { return static_cast<int>(value); })
+            .addFunction("takeEnum", +[](C value) { return static_cast<int>(value); })
+            .addFunction("takeEnumClass", +[](D value) { return static_cast<int>(value); })
         .endNamespace();
 
     luabridge::setGlobal(L, C::C_ONE, "C_ONE");
@@ -144,36 +143,49 @@ TEST_F(EnumTests, MethodTakingEnum)
     EXPECT_EQ(C::C_ONE, result<C>());
 }
 
-TEST_F(EnumTests, MethodTakingEnumType)
+TEST_F(EnumTests, MethodTakingEnumAsMapKey)
 {
+    std::map<C, std::string> map_of_c { { C::C_ZERO, "0" }, { C::C_ONE, "1" } };
+    std::map<D, std::string> map_of_d { { D::D_ZERO, "0" }, { D::D_ONE, "1" } };
+
     luabridge::getGlobalNamespace(L)
-        .beginNamespace("test")
-        .addFunction("takeEnum", +[](E value) { return static_cast<int>(value); })
-        .addFunction("takeEnumClass", +[](F value) { return static_cast<int>(value); })
+        .beginNamespace("C")
+            .addVariable("C_ZERO", C::C_ZERO)
+            .addVariable("C_ONE", C::C_ONE)
+            .addVariable("C_TWO", C::C_TWO)
+            .addVariable("C_THREE", C::C_THREE)
+        .endNamespace()
+        .beginNamespace("D")
+            .addVariable("D_ZERO", D::D_ZERO)
+            .addVariable("D_ONE", D::D_ONE)
+            .addVariable("D_TWO", D::D_TWO)
+            .addVariable("D_THREE", D::D_THREE)
         .endNamespace();
 
-    luabridge::setGlobal(L, E::E_ONE, "E_ONE");
-    luabridge::setGlobal(L, F::F_ONE, "F_ONE");
+    luabridge::setGlobal(L, map_of_c, "map_of_c");
+    luabridge::setGlobal(L, map_of_d, "map_of_d");
 
-    ASSERT_TRUE(runLua("result = test.takeEnum(E_ONE)"));
-    EXPECT_EQ(1, result<int>());
+    ASSERT_TRUE(runLua("result = map_of_c[0]"));
+    EXPECT_EQ("0", result<std::string>());
 
-#if LUABRIDGE_HAS_EXCEPTIONS
-    ASSERT_ANY_THROW(runLua("result = test.takeEnum(F_ONE)"));
-    ASSERT_ANY_THROW(runLua("result = test.takeEnum(1)"));
-#else
-    ASSERT_FALSE(runLua("result = test.takeEnum(F_ONE)"));
-    ASSERT_FALSE(runLua("result = test.takeEnum(1)"));
-#endif
+    ASSERT_TRUE(runLua("result = map_of_c[C.C_ZERO]"));
+    EXPECT_EQ("0", result<std::string>());
 
-    ASSERT_TRUE(runLua("result = test.takeEnumClass(F_ONE)"));
-    EXPECT_EQ(1, result<int>());
+    ASSERT_TRUE(runLua("result = map_of_c[1]"));
+    EXPECT_EQ("1", result<std::string>());
 
-#if LUABRIDGE_HAS_EXCEPTIONS
-    ASSERT_ANY_THROW(runLua("result = test.takeEnumClass(E_ONE)"));
-    ASSERT_ANY_THROW(runLua("result = test.takeEnumClass(1)"));
-#else
-    ASSERT_FALSE(runLua("result = test.takeEnumClass(E_ONE)"));
-    ASSERT_FALSE(runLua("result = test.takeEnumClass(1)"));
-#endif
+    ASSERT_TRUE(runLua("result = map_of_c[C.C_ONE]"));
+    EXPECT_EQ("1", result<std::string>());
+
+    ASSERT_TRUE(runLua("result = map_of_d[0]"));
+    EXPECT_EQ("0", result<std::string>());
+
+    ASSERT_TRUE(runLua("result = map_of_d[D.D_ZERO]"));
+    EXPECT_EQ("0", result<std::string>());
+
+    ASSERT_TRUE(runLua("result = map_of_d[1]"));
+    EXPECT_EQ("1", result<std::string>());
+
+    ASSERT_TRUE(runLua("result = map_of_d[D.D_ONE]"));
+    EXPECT_EQ("1", result<std::string>());
 }

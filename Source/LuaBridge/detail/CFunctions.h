@@ -94,7 +94,6 @@ auto pop_arguments(lua_State* L, std::tuple<Types...>& t)
     return pop_arguments<Start, Index + 1, Types...>(L, t);
 }
 
-
 //=================================================================================================
 /**
  * @brief __index metamethod for a namespace or class static and non-static members.

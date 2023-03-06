@@ -1559,9 +1559,9 @@ public:
 
     //=============================================================================================
     /**
-     * @brief Add or replace a variable, a variable will be added in the namespace by copy of the passed value.
+     * @brief Add or replace a variable that will be added in the namespace by copy of the passed value.
      *
-     * @param name The property name.
+     * @param name The variable name.
      * @param value A value object.
      *
      * @returns This namespace registration object.
@@ -1636,6 +1636,40 @@ public:
             lua_pushstring(L, name); // Stack: ns, ps, name
             lua_pushcclosure_x(L, &detail::read_only_error, 1); // Stack: ns, function
         }
+
+        detail::add_property_setter(L, name, -2); // Stack: ns
+
+        return *this;
+    }
+
+    //=============================================================================================
+    /**
+     * @brief Add or replace a property.
+     *
+     * @param name The property name.
+     * @param value A value pointer.
+     *
+     * @returns This namespace registration object.
+     */
+    template <class T>
+    Namespace& addProperty(const char* name, const T* value)
+    {
+        if (m_stackSize == 1)
+        {
+            throw_or_assert<std::logic_error>("addProperty() called on global namespace");
+
+            return *this;
+        }
+
+        assert(name != nullptr);
+        assert(lua_istable(L, -1)); // Stack: namespace table (ns)
+
+        lua_pushlightuserdata(L, value); // Stack: ns, pointer
+        lua_pushcclosure_x(L, &detail::property_getter<T>::call, 1); // Stack: ns, getter
+        detail::add_property_getter(L, name, -2); // Stack: ns
+
+        lua_pushstring(L, name); // Stack: ns, ps, name
+        lua_pushcclosure_x(L, &detail::read_only_error, 1); // Stack: ns, function
 
         detail::add_property_setter(L, name, -2); // Stack: ns
 
@@ -1729,28 +1763,15 @@ public:
      *
      * @returns This namespace registration object.
      */
-    template <class Getter, class = std::enable_if_t<!std::is_pointer_v<Getter>>>
+    template <class Getter, class = std::enable_if_t<!std::is_pointer_v<Getter> && std::is_invocable_v<Getter>>>
     Namespace& addProperty(const char* name, Getter get)
     {
         assert(name != nullptr);
         assert(lua_istable(L, -1)); // Stack: namespace table (ns)
 
-        if constexpr (std::is_enum_v<Getter>)
-        {
-            using U = std::underlying_type_t<Getter>;
-
-            auto enumGet = [get = std::move(get)] { return static_cast<U>(get); };
-
-            using GetType = decltype(enumGet);
-            lua_newuserdata_aligned<GetType>(L, std::move(enumGet)); // Stack: ns, function userdata (ud)
-            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<GetType>, 1); // Stack: ns, ud, getter
-        }
-        else
-        {
-            using GetType = decltype(get);
-            lua_newuserdata_aligned<GetType>(L, std::move(get)); // Stack: ns, function userdata (ud)
-            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<GetType>, 1); // Stack: ns, ud, getter
-        }
+        using GetType = decltype(get);
+        lua_newuserdata_aligned<GetType>(L, std::move(get)); // Stack: ns, function userdata (ud)
+        lua_pushcclosure_x(L, &detail::invoke_proxy_functor<GetType>, 1); // Stack: ns, ud, getter
 
         detail::add_property_getter(L, name, -2); // Stack: ns, ud, getter
 
@@ -1770,7 +1791,11 @@ public:
      *
      * @returns This namespace registration object.
      */
-    template <class Getter, class Setter, class = std::enable_if_t<!std::is_pointer_v<Getter> && !std::is_pointer_v<Setter>>>
+    template <class Getter, class Setter, class = std::enable_if_t<
+        !std::is_pointer_v<Getter>
+            && std::is_invocable_v<Getter>
+            && !std::is_pointer_v<Setter>
+            && std::is_invocable_v<Setter, std::invoke_result_t<Getter>>>>
     Namespace& addProperty(const char* name, Getter get, Setter set)
     {
         assert(name != nullptr);

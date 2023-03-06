@@ -40,8 +40,8 @@ TEST_F(NamespaceTests, Variables)
         .addProperty("any", &any)
         .addProperty("fnc_get", [stored] { return stored; })
         .addProperty("fnc_getset", [stored] { return stored; }, [&stored](int v) { stored = v; })
-        .addProperty("A_x", A::x)
-        .addProperty("A_y", A::y)
+        .addVariable("A_x", A::x)
+        .addVariable("A_y", A::y)
         .endNamespace();
 
     ASSERT_EQ(-10, variable<int>("ns.int"));

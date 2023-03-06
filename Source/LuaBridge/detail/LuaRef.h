@@ -335,20 +335,7 @@ public:
 
         impl().push();
 
-        if constexpr (std::is_enum_v<T>)
-        {
-            using U = std::underlying_type_t<T>;
-
-            auto result = Stack<U>::get(m_L, -1);
-            if (! result)
-                return result.error();
-
-            return static_cast<T>(*result);
-        }
-        else
-        {
-            return Stack<T>::get(m_L, -1);
-        }
+        return Stack<T>::get(m_L, -1);
     }
 
     /**
@@ -363,16 +350,7 @@ public:
 
         impl().push();
 
-        if constexpr (std::is_enum_v<T>)
-        {
-            using U = std::underlying_type_t<T>;
-
-            return static_cast<T>(*Stack<U>::get(m_L, -1));
-        }
-        else
-        {
-            return *Stack<T>::get(m_L, -1);
-        }
+        return *Stack<T>::get(m_L, -1);
     }
 
     //=============================================================================================
@@ -388,16 +366,7 @@ public:
 
         impl().push();
 
-        if constexpr (std::is_enum_v<T>)
-        {
-            using U = std::underlying_type_t<T>;
-
-            return Stack<U>::isInstance(m_L, -1);
-        }
-        else
-        {
-            return Stack<T>::isInstance(m_L, -1);
-        }
+        return Stack<T>::isInstance(m_L, -1);
     }
 
     //=============================================================================================

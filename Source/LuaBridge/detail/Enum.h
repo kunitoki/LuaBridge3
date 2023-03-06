@@ -24,14 +24,24 @@ namespace luabridge {
  *
  * @code
  *
+ *   enum class MyEnum
+ *   {
+ *      A,
+ *      B,
+ *      C
+ *   };
+ *
  *   template <>
- *   struct luabridge::Stack<EnumType> : luabridge::Enum<EnumType>
+ *   struct luabridge::Stack<EnumType> : luabridge::Enum<EnumType,
+ *                                                       EnumType::A,
+ *                                                       EnumType::B,
+ *                                                       EnumType::C>
  *   {
  *   };
  *
  * @endcode
  */
-template <class T>
+template <class T, T... Values>
 struct Enum
 {
     static_assert(std::is_enum_v<T>);
@@ -49,72 +59,19 @@ struct Enum
         if (! result)
             return result.error();
 
-        return static_cast<T>(*result);
+        constexpr Type values[] = { static_cast<Type>(Values)... };
+        for (std::size_t i = 0; i < sizeof...(Values); ++i)
+        {
+            if (values[i] == *result)
+                return static_cast<T>(*result);
+        }
+
+        return makeErrorCode(ErrorCode::InvalidTypeCast);
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
     {
         return lua_type(L, index) == LUA_TNUMBER;
-    }
-};
-
-//=================================================================================================
-/**
- * @brief LuaBridge enum wrapper for enums as userdata.
- *
- * Use this when you need maximum safety and could sacrifice speed. An enum exposed with this class will retain its own userdata
- * and trying to construct a C++ enum from an integer will fail..
- *
- * Example of usage for exporting an enum from C++ to lua:
- *
- * @code
- *
- *   template <>
- *   struct luabridge::Stack<EnumType> : luabridge::EnumType<EnumType>
- *   {
- *   };
- *
- * @endcode
- */
-
-template <class T>
-struct EnumType
-{
-    static_assert(std::is_enum_v<T>);
-
-    [[nodiscard]] static Result push(lua_State* L, T value)
-    {
-        lua_newuserdata_aligned<T>(L, value);
-
-        luaL_newmetatable(L, typeName());
-        lua_setmetatable(L, -2);
-
-        return {};
-    }
-
-    [[nodiscard]] static TypeResult<T> get(lua_State* L, int index)
-    {
-        auto ptr = luaL_testudata(L, index, typeName());
-        if (ptr == nullptr)
-            return makeErrorCode(ErrorCode::InvalidTypeCast);
-
-        auto reference = reinterpret_cast<T*>(ptr);
-        if (reference == nullptr)
-            return makeErrorCode(ErrorCode::InvalidTypeCast);
-
-        return *reference;
-    }
-
-    [[nodiscard]] static bool isInstance(lua_State* L, int index)
-    {
-        return luaL_testudata(L, index, typeName()) != nullptr;
-    }
-
-private:
-    static const char* typeName()
-    {
-        static const std::string s{ detail::typeName<T>() };
-        return s.c_str();
     }
 };
 

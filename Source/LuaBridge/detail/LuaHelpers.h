@@ -358,7 +358,7 @@ inline lua_State* main_thread(lua_State* threadL)
 /**
  * @brief Get a table value, bypassing metamethods.
  */
-inline void rawgetfield(lua_State* L, int index, char const* key)
+inline void rawgetfield(lua_State* L, int index, const char* key)
 {
     assert(lua_istable(L, index));
     index = lua_absindex(L, index);
@@ -369,7 +369,7 @@ inline void rawgetfield(lua_State* L, int index, char const* key)
 /**
  * @brief Set a table value, bypassing metamethods.
  */
-inline void rawsetfield(lua_State* L, int index, char const* key)
+inline void rawsetfield(lua_State* L, int index, const char* key)
 {
     assert(lua_istable(L, index));
     index = lua_absindex(L, index);
