@@ -265,6 +265,25 @@ inline int lua_compare(lua_State* L, int idx1, int idx2, int op)
     }
 }
 
+#if ! LUABRIDGE_ON_LUAJIT
+inline void* luaL_testudata(lua_State* L, int ud, const char* tname)
+{
+    void* p = lua_touserdata(L, ud);
+    if (p == nullptr)
+        return nullptr;
+
+    if (! lua_getmetatable(L, ud))
+        return nullptr;
+
+    luaL_getmetatable(L, tname);
+    if (! lua_rawequal(L, -1, -2))
+        p = nullptr;
+
+    lua_pop(L, 2);
+    return p;
+}
+#endif
+
 inline int get_length(lua_State* L, int idx)
 {
     return static_cast<int>(lua_objlen(L, idx));
@@ -381,7 +400,7 @@ inline lua_State* main_thread(lua_State* threadL)
 #endif
 }
 
-inline void rawgetfield(lua_State* L, int index, char const* key)
+inline void rawgetfield(lua_State* L, int index, const char* key)
 {
     assert(lua_istable(L, index));
     index = lua_absindex(L, index);
@@ -389,7 +408,7 @@ inline void rawgetfield(lua_State* L, int index, char const* key)
     lua_rawget(L, index);
 }
 
-inline void rawsetfield(lua_State* L, int index, char const* key)
+inline void rawsetfield(lua_State* L, int index, const char* key)
 {
     assert(lua_istable(L, index));
     index = lua_absindex(L, index);
@@ -6325,6 +6344,56 @@ private:
 
 // End File: Source/LuaBridge/detail/CFunctions.h
 
+// Begin File: Source/LuaBridge/detail/Enum.h
+
+namespace luabridge {
+
+template <class T, T... Values>
+struct Enum
+{
+    static_assert(std::is_enum_v<T>);
+
+    using Type = std::underlying_type_t<T>;
+
+    [[nodiscard]] static Result push(lua_State* L, T value)
+    {
+        return Stack<Type>::push(L, static_cast<Type>(value));
+    }
+
+    [[nodiscard]] static TypeResult<T> get(lua_State* L, int index)
+    {
+        const auto result = Stack<Type>::get(L, index);
+        if (! result)
+            return result.error();
+
+        if constexpr (sizeof...(Values) > 0)
+        {
+            constexpr Type values[] = { static_cast<Type>(Values)... };
+            for (std::size_t i = 0; i < sizeof...(Values); ++i)
+            {
+                if (values[i] == *result)
+                    return static_cast<T>(*result);
+            }
+
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+        }
+        else
+        {
+            return static_cast<T>(*result);
+        }
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        return lua_type(L, index) == LUA_TNUMBER;
+    }
+};
+
+} 
+
+
+// End File: Source/LuaBridge/detail/Enum.h
+
 // Begin File: Source/LuaBridge/detail/LuaRef.h
 
 namespace luabridge {
@@ -6505,20 +6574,7 @@ public:
 
         impl().push();
 
-        if constexpr (std::is_enum_v<T>)
-        {
-            using U = std::underlying_type_t<T>;
-
-            auto result = Stack<U>::get(m_L, -1);
-            if (! result)
-                return result.error();
-
-            return static_cast<T>(*result);
-        }
-        else
-        {
-            return Stack<T>::get(m_L, -1);
-        }
+        return Stack<T>::get(m_L, -1);
     }
 
     template <class T>
@@ -6528,16 +6584,7 @@ public:
 
         impl().push();
 
-        if constexpr (std::is_enum_v<T>)
-        {
-            using U = std::underlying_type_t<T>;
-
-            return static_cast<T>(*Stack<U>::get(m_L, -1));
-        }
-        else
-        {
-            return *Stack<T>::get(m_L, -1);
-        }
+        return *Stack<T>::get(m_L, -1);
     }
 
     template <class T>
@@ -6547,16 +6594,7 @@ public:
 
         impl().push();
 
-        if constexpr (std::is_enum_v<T>)
-        {
-            using U = std::underlying_type_t<T>;
-
-            return Stack<U>::isInstance(m_L, -1);
-        }
-        else
-        {
-            return Stack<T>::isInstance(m_L, -1);
-        }
+        return Stack<T>::isInstance(m_L, -1);
     }
 
     template <class T>
@@ -7867,7 +7905,7 @@ class Namespace : public detail::Registrar
             return Namespace(*this);
         }
 
-        template <class U, class = std::enable_if_t<!std::is_invocable_v<U>>>
+        template <class U, class = std::enable_if_t<std::is_base_of_v<U, LuaRef> || !std::is_invocable_v<U>>>
         Class<T>& addStaticProperty(const char* name, const U* value)
         {
             assert(name != nullptr);
@@ -7885,7 +7923,7 @@ class Namespace : public detail::Registrar
             return *this;
         }
 
-        template <class U, class = std::enable_if_t<!std::is_invocable_v<U>>>
+        template <class U, class = std::enable_if_t<std::is_base_of_v<U, LuaRef> || !std::is_invocable_v<U>>>
         Class<T>& addStaticProperty(const char* name, U* value, bool isWritable = true)
         {
             assert(name != nullptr);
@@ -8832,7 +8870,7 @@ public:
         return *this;
     }
 
-    template <class T>
+    template <class T, class = std::enable_if_t<std::is_base_of_v<T, LuaRef> || !std::is_invocable_v<T>>>
     Namespace& addProperty(const char* name, T* value, bool isWritable = true)
     {
         if (m_stackSize == 1)
@@ -8859,6 +8897,31 @@ public:
             lua_pushstring(L, name); 
             lua_pushcclosure_x(L, &detail::read_only_error, 1); 
         }
+
+        detail::add_property_setter(L, name, -2); 
+
+        return *this;
+    }
+
+    template <class T, class = std::enable_if_t<std::is_base_of_v<T, LuaRef> || !std::is_invocable_v<T>>>
+    Namespace& addProperty(const char* name, const T* value)
+    {
+        if (m_stackSize == 1)
+        {
+            throw_or_assert<std::logic_error>("addProperty() called on global namespace");
+
+            return *this;
+        }
+
+        assert(name != nullptr);
+        assert(lua_istable(L, -1)); 
+
+        lua_pushlightuserdata(L, const_cast<T*>(value)); 
+        lua_pushcclosure_x(L, &detail::property_getter<T>::call, 1); 
+        detail::add_property_getter(L, name, -2); 
+
+        lua_pushstring(L, name); 
+        lua_pushcclosure_x(L, &detail::read_only_error, 1); 
 
         detail::add_property_setter(L, name, -2); 
 
@@ -8931,28 +8994,15 @@ public:
         return *this;
     }
 
-    template <class Getter, class = std::enable_if_t<!std::is_pointer_v<Getter>>>
+    template <class Getter, class = std::enable_if_t<!std::is_pointer_v<Getter> && std::is_invocable_v<Getter>>>
     Namespace& addProperty(const char* name, Getter get)
     {
         assert(name != nullptr);
         assert(lua_istable(L, -1)); 
 
-        if constexpr (std::is_enum_v<Getter>)
-        {
-            using U = std::underlying_type_t<Getter>;
-
-            auto enumGet = [get = std::move(get)] { return static_cast<U>(get); };
-
-            using GetType = decltype(enumGet);
-            lua_newuserdata_aligned<GetType>(L, std::move(enumGet)); 
-            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<GetType>, 1); 
-        }
-        else
-        {
-            using GetType = decltype(get);
-            lua_newuserdata_aligned<GetType>(L, std::move(get)); 
-            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<GetType>, 1); 
-        }
+        using GetType = decltype(get);
+        lua_newuserdata_aligned<GetType>(L, std::move(get)); 
+        lua_pushcclosure_x(L, &detail::invoke_proxy_functor<GetType>, 1); 
 
         detail::add_property_getter(L, name, -2); 
 
@@ -8963,7 +9013,11 @@ public:
         return *this;
     }
 
-    template <class Getter, class Setter, class = std::enable_if_t<!std::is_pointer_v<Getter> && !std::is_pointer_v<Setter>>>
+    template <class Getter, class Setter, class = std::enable_if_t<
+        !std::is_pointer_v<Getter>
+            && std::is_invocable_v<Getter>
+            && !std::is_pointer_v<Setter>
+            && std::is_invocable_v<Setter, std::invoke_result_t<Getter>>>>
     Namespace& addProperty(const char* name, Getter get, Setter set)
     {
         assert(name != nullptr);
