@@ -199,6 +199,25 @@ inline int lua_compare(lua_State* L, int idx1, int idx2, int op)
     }
 }
 
+#if ! LUABRIDGE_ON_LUAJIT
+inline void* luaL_testudata(lua_State* L, int ud, const char* tname)
+{
+    void* p = lua_touserdata(L, ud);
+    if (p == nullptr)
+        return nullptr;
+
+    if (! lua_getmetatable(L, ud))
+        return nullptr;
+
+    luaL_getmetatable(L, tname);
+    if (! lua_rawequal(L, -1, -2))
+        p = nullptr;
+
+    lua_pop(L, 2);
+    return p;
+}
+#endif
+
 inline int get_length(lua_State* L, int idx)
 {
     return static_cast<int>(lua_objlen(L, idx));
@@ -339,7 +358,7 @@ inline lua_State* main_thread(lua_State* threadL)
 /**
  * @brief Get a table value, bypassing metamethods.
  */
-inline void rawgetfield(lua_State* L, int index, char const* key)
+inline void rawgetfield(lua_State* L, int index, const char* key)
 {
     assert(lua_istable(L, index));
     index = lua_absindex(L, index);
@@ -350,7 +369,7 @@ inline void rawgetfield(lua_State* L, int index, char const* key)
 /**
  * @brief Set a table value, bypassing metamethods.
  */
-inline void rawsetfield(lua_State* L, int index, char const* key)
+inline void rawsetfield(lua_State* L, int index, const char* key)
 {
     assert(lua_istable(L, index));
     index = lua_absindex(L, index);

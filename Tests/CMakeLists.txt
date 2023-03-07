@@ -14,6 +14,7 @@ set (LUABRIDGE_TEST_SOURCE_FILES
   Source/ArrayTests.cpp
   Source/ClassTests.cpp
   Source/CoroutineTests.cpp
+  Source/EnumTests.cpp
   Source/ExceptionTests.cpp
   Source/IssueTests.cpp
   Source/IteratorTests.cpp
@@ -176,7 +177,7 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
   get_filename_component (SOURCE_LOCATION "${CMAKE_CURRENT_LIST_DIR}/../Source" ABSOLUTE)
 
   if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++17 /W3 /MP")
+    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++17 /W3 /MP /D_CRT_SECURE_NO_WARNINGS")
   else ()
     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
   endif ()

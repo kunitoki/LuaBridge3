@@ -40,8 +40,8 @@ TEST_F(NamespaceTests, Variables)
         .addProperty("any", &any)
         .addProperty("fnc_get", [stored] { return stored; })
         .addProperty("fnc_getset", [stored] { return stored; }, [&stored](int v) { stored = v; })
-        .addProperty("A_x", A::x)
-        .addProperty("A_y", A::y)
+        .addVariable("A_x", A::x)
+        .addVariable("A_y", A::y)
         .endNamespace();
 
     ASSERT_EQ(-10, variable<int>("ns.int"));
@@ -74,6 +74,7 @@ TEST_F(NamespaceTests, Variables)
 TEST_F(NamespaceTests, ReadOnlyVariables)
 {
     int int_ = -10;
+    const int const_int_ = 1337;
     auto any = luabridge::newTable(L);
     any["a"] = 1;
 
@@ -87,6 +88,7 @@ TEST_F(NamespaceTests, ReadOnlyVariables)
     luabridge::getGlobalNamespace(L)
         .beginNamespace("ns")
         .addProperty("int", &int_, false)
+        .addProperty("const_int", &const_int_)
         .addProperty("any", &any, false)
         .endNamespace();
 
@@ -100,6 +102,14 @@ TEST_F(NamespaceTests, ReadOnlyVariables)
 #endif
     
     ASSERT_EQ(-10, variable<int>("ns.int"));
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    ASSERT_THROW(runLua("ns.const_int = 100"), std::runtime_error);
+#else
+    ASSERT_FALSE(runLua("ns.const_int = 100"));
+#endif
+
+    ASSERT_EQ(1337, variable<int>("ns.const_int"));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(runLua("ns.any = {b = 2}"), std::runtime_error);

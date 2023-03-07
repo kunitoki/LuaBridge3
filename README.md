@@ -50,7 +50,7 @@ LuaBridge3 offers a set of improvements compared to vanilla LuaBridge:
 * Supports conversion to and from C style arrays of any supported type.
 * Transparent support of all signed and unsigned integer types up to `int64_t`.
 * Consistent numeric handling and conversions (signed, unsigned and floats) across all lua versions.
-* Automatic handling of enum types by communicating with lua through `std::underlying_type_t`.
+* Simplified registration of enum types via the `luabridge::Enum` stack wrapper.
 * Opt-out handling of safe stack space checks (automatically avoids exhausting lua stack space when pushing values!).
 
 ## Status

@@ -146,13 +146,13 @@ enum class MyEnum
 template <class T>
 struct EnumWrapper
 {
-    static auto push(lua_State* L, T value) -> std::enable_if_t<std::is_enum_v<T>, bool>
+    static auto push(lua_State* L, T value) -> std::enable_if_t<std::is_enum_v<T>, luabridge::Result>
     {
         lua_pushnumber(L, static_cast<std::size_t>(value));
-        return true;
+        return {};
     }
 
-    static auto get(lua_State* L, int index) -> std::enable_if_t<std::is_enum_v<T>, T>
+    static auto get(lua_State* L, int index) -> std::enable_if_t<std::is_enum_v<T>, luabridge::TypeResult<T>>
     {
         return static_cast<T>(lua_tointeger(L, index));
     }

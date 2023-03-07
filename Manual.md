@@ -37,7 +37,8 @@ Contents
     *   [2.6.2 - Constructor Factories](#262---constructor-factories)
     *   [2.7 - Index and New Index Metamethods Fallback](#27---index-and-new-index-metamethods-fallback)
     *   [2.8 - Lua Stack](#28---lua-stack)
-    *   [2.9 - lua_State](#29---lua_state)
+    *   [2.9 - Enums](#29---enums)
+    *   [2.10 - lua_State](#210---lua_state)
 
 *   [3 - Passing Objects](#3---passing-objects)
 
@@ -101,7 +102,7 @@ It also offers a set of improvements compared to vanilla LuaBridge:
 * Supports conversion to and from C style arrays of any supported type.
 * Transparent support of all signed and unsigned integer types up to `int64_t`.
 * Consistent numeric handling and conversions (signed, unsigned and floats) across all lua versions.
-* Automatic handling of enum types by communicating with lua through `std::underlying_type_t`.
+* Simplified registration of enum types via the `luabridge::Enum` stack wrapper.
 * Opt-out handling of safe stack space checks (automatically avoids exhausting lua stack space when pushing values!).
 
 LuaBridge is distributed as a a collection of header files. You simply add one line, `#include <LuaBridge/LuaBridge.h>` where you want to pass functions, classes, and variables back and forth between C++ and Lua. There are no additional source files, no compilation settings, and no Makefiles or IDE-specific project files. LuaBridge is easy to integrate.
@@ -834,7 +835,7 @@ The Stack template class specializations are used automatically for variables, p
 
 * `bool`
 * `char`, converted to a string of length one.
-* `char const*` and `std::string` strings.
+* `const char*` and `std::string` strings.
 * `std::byte`, integers, `float`, `double`, `long double` converted to `Lua_number`.
 
 User-defined types which are convertible to one of the basic types are possible, simply provide a `Stack <>` specialization in the `luabridge` namespace for your user-defined type, modeled after the existing types. For example, here is a specialization for a `juce::String`:
@@ -938,8 +939,72 @@ struct Stack<Array<T>>
 } // namespace luabridge
 ```
 
-2.9 - lua_State
----------------
+
+2.9 - Enums
+-----------
+
+In order to expose C++ enums to lua and be able to work bidirectionally with them, it's necesary to create a Stack specialization for each exposed enum. As the process might become tedious, a library wrapper class is provided to simplify the steps.
+
+```cpp
+enum class MyEnum : int16_t
+{
+  A,
+  B,
+  C
+};
+
+template <>
+struct luabridge::Stack<MyEnum> : luabridge::Enum<MyEnum>
+{
+};
+```
+
+This will map the enum to an integer to as `int16_t` (the `underlying_type_t` of the enum) that will be converted to a `lua_Integer` in lua space. This has the drawback that any `lua_Integer` could be casted to a C++ enum. In order to provide a runtime check over the possible alternatives a `lua_Integer` could casted to, it's possible to specify the list of values the C++ enum has: the values registerted into the `luabridge::Enum` will be checked against the passed integer and LuaBridge will raise an error in case the cast couldn't be made:
+
+```cpp
+enum class MyEnum
+{
+  A = 1,
+  B,
+  C
+};
+
+template <>
+struct luabridge::Stack<MyEnum> : luabridge::Enum<MyEnum,
+                                                  MyEnum::A,
+                                                  MyEnum::B,
+                                                  MyEnum::C>
+{
+};
+
+luabridge::push (L, 0); // Zero is NOT a valid enum value
+
+auto result = luabridge::get<MyEnum> (L, 1);
+assert (! result);
+```
+
+The preferrd and easier way to expose enum values to lua, is by using a namespace and registering variables or properties:
+
+```cpp
+
+luabridge::getGlobalNamespace (L)
+  .beginNamespace ("MyEnum1")
+    .addVariable ("A", MyEnum::A)
+    .addVariable ("B", MyEnum::B)
+    .addVariable ("C", MyEnum::C)
+  .endNamespace();
+
+// This also prevents modification of the value from lua
+luabridge::getGlobalNamespace (L)
+  .beginNamespace ("MyEnum2")
+    .addProperty ("A", +[] { return MyEnum::A; })
+    .addProperty ("B", +[] { return MyEnum::B; })
+    .addProperty ("C", +[] { return MyEnum::C; })
+  .endNamespace();
+´´´
+
+2.10 - lua_State
+----------------
 
 Sometimes it is convenient from within a bound function or member function to gain access to the `lua_State*` normally available to a lua_CFunction. With LuaBridge, all you need to do is add a `lua_State*` as the last parameter of your bound function:
 
