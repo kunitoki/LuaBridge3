@@ -954,15 +954,12 @@ enum class MyEnum : int16_t
 };
 
 template <>
-struct luabridge::Stack<MyEnum> : luabridge::Enum<MyEnum,
-                                                  MyEnum::A,
-                                                  MyEnum::B,
-                                                  MyEnum::C>
+struct luabridge::Stack<MyEnum> : luabridge::Enum<MyEnum>
 {
 };
 ```
 
-This will map the enum to an integer to as `int16_t` (the `underlying_type_t` of the enum) that will be converted to a `lua_Integer` in lua space. To make sure converting back from an integer to a C++ enum, the values registerted into the `luabridge::Enum` will be checked against the passed integer.
+This will map the enum to an integer to as `int16_t` (the `underlying_type_t` of the enum) that will be converted to a `lua_Integer` in lua space. This has the drawback that any `lua_Integer` could be casted to a C++ enum. In order to provide a runtime check over the possible alternatives a `lua_Integer` could casted to, it's possible to specify the list of values the C++ enum has: the values registerted into the `luabridge::Enum` will be checked against the passed integer and LuaBridge will raise an error in case the cast couldn't be made:
 
 ```cpp
 enum class MyEnum

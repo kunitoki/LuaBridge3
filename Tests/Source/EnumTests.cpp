@@ -40,6 +40,22 @@ enum class D
     D_TWO,
     D_THREE
 };
+
+enum E
+{
+    E_ZERO,
+    E_ONE,
+    E_TWO,
+    E_THREE
+};
+
+enum class F
+{
+    F_ZERO,
+    F_ONE,
+    F_TWO,
+    F_THREE
+};
 } // namespace
 
 struct EnumTests : TestBase
@@ -53,6 +69,16 @@ struct luabridge::Stack<C> : luabridge::Enum<C, C::C_ZERO, C::C_ONE, C::C_TWO, C
 
 template <>
 struct luabridge::Stack<D> : luabridge::Enum<D, D::D_ZERO, D::D_ONE, D::D_TWO, D::D_THREE>
+{
+};
+
+template <>
+struct luabridge::Stack<E> : luabridge::Enum<E>
+{
+};
+
+template <>
+struct luabridge::Stack<F> : luabridge::Enum<F>
 {
 };
 
@@ -93,8 +119,12 @@ TEST_F(EnumTests, RegisteredStack)
 TEST_F(EnumTests, RegisteredStackInvalidValue)
 {
     ASSERT_TRUE(luabridge::push(L, 4));
-    ASSERT_FALSE(luabridge::get<C>(L, 1));
-    ASSERT_FALSE(luabridge::get<D>(L, 1));
+
+    EXPECT_FALSE(luabridge::get<C>(L, 1));
+    EXPECT_FALSE(luabridge::get<D>(L, 1));
+
+    EXPECT_TRUE(luabridge::get<E>(L, 1));
+    EXPECT_TRUE(luabridge::get<F>(L, 1));
 }
 
 TEST_F(EnumTests, MethodTakingEnum)
