@@ -5,6 +5,7 @@
 #pragma once
 
 #include "Config.h"
+#include "Errors.h"
 #include "LuaHelpers.h"
 #include "Stack.h"
 
@@ -16,9 +17,11 @@ namespace luabridge {
 /**
  * @brief LuaBridge enum wrapper for enums as integers.
  *
- * Use this when you need maximum speed and could sacrifice safety. An enum exposed with this class will just be decayed to lua
- * as integer. It's responsibility of the developer to make sure that a lua integer could be converted back to C++. Failing to validate a lua
+ * An enum exposed with this class will just be decayed to lua as integer. It's responsibility of
+ * the developer to make sure that a lua integer could be converted back to C++. Failing to validate a lua
  * integer before converting to the corresponding C++ enum value could lead to a C++ enum that has no defined value.
+ *
+ * For improved security, specify which values the enum will have, so runtime validation could be performed.
  */
 template <class T, T... Values>
 struct Enum
