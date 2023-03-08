@@ -37,8 +37,8 @@ Contents
     *   [2.6.2 - Constructor Factories](#262---constructor-factories)
     *   [2.7 - Index and New Index Metamethods Fallback](#27---index-and-new-index-metamethods-fallback)
     *   [2.8 - Lua Stack](#28---lua-stack)
-    *   [2.9 - Enums](#29---enums)
-    *   [2.10 - lua_State](#210---lua_state)
+        *   [2.8.1 - Enums](#281---enums)
+        *   [2.8.2 - lua_State](#282---lua_state)
 
 *   [3 - Passing Objects](#3---passing-objects)
 
@@ -939,9 +939,8 @@ struct Stack<Array<T>>
 } // namespace luabridge
 ```
 
-
-2.9 - Enums
------------
+2.8.1 - Enums
+-------------
 
 In order to expose C++ enums to lua and be able to work bidirectionally with them, it's necesary to create a Stack specialization for each exposed enum. As the process might become tedious, a library wrapper class is provided to simplify the steps.
 
@@ -959,7 +958,7 @@ struct luabridge::Stack<MyEnum> : luabridge::Enum<MyEnum>
 };
 ```
 
-This will map the enum to an integer to as `int16_t` (the `underlying_type_t` of the enum) that will be converted to a `lua_Integer` in lua space. This has the drawback that any `lua_Integer` could be casted to a C++ enum. In order to provide a runtime check over the possible alternatives a `lua_Integer` could casted to, it's possible to specify the list of values the C++ enum has: the values registerted into the `luabridge::Enum` will be checked against the passed integer and LuaBridge will raise an error in case the cast couldn't be made:
+This will map the enum to an integer as `int16_t` (the `underlying_type_t` of the enum) that will be converted to a `lua_Integer` in lua space. This has the drawback that any `lua_Integer` could be casted to a C++ enum. In order to provide a runtime check over the possible alternatives a `lua_Integer` could casted to, it's possible to specify the list of values the C++ enum has: the values registered into the `luabridge::Enum` will be checked against the passed integer and LuaBridge will raise an error in case the cast couldn't be made when using a `Stack<>::get` method:
 
 ```cpp
 enum class MyEnum
@@ -983,10 +982,11 @@ auto result = luabridge::get<MyEnum> (L, 1);
 assert (! result);
 ```
 
-The preferrd and easier way to expose enum values to lua, is by using a namespace and registering variables or properties:
+The preferred and easier way to expose enum values to lua, is by using a namespace and registering variables or properties for each value:
 
 ```cpp
 
+// Variables are just values in lua, so for example doing `MyEnum1.A = 42` from lua will modified the value
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("MyEnum1")
     .addVariable ("A", MyEnum::A)
@@ -994,17 +994,17 @@ luabridge::getGlobalNamespace (L)
     .addVariable ("C", MyEnum::C)
   .endNamespace();
 
-// This also prevents modification of the value from lua
+// This ¡nstead will modification of the value from lua
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("MyEnum2")
     .addProperty ("A", +[] { return MyEnum::A; })
     .addProperty ("B", +[] { return MyEnum::B; })
     .addProperty ("C", +[] { return MyEnum::C; })
   .endNamespace();
-´´´
+```
 
-2.10 - lua_State
-----------------
+2.8.2 - lua_State
+-----------------
 
 Sometimes it is convenient from within a bound function or member function to gain access to the `lua_State*` normally available to a lua_CFunction. With LuaBridge, all you need to do is add a `lua_State*` as the last parameter of your bound function:
 
