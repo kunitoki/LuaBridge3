@@ -2688,7 +2688,7 @@ TEST_F(ClassTests, WrongThrowBadArgObjectDescription)
         EXPECT_NE(std::string::npos, errorMessage.find("got nil"));
     }
 #else
-    auto [result, errorMessage] = runLuaCaptureError("textXYZ()");
+    auto [result, errorMessage] = runLuaCaptureError("textXYZ(1, 1.0)");
     ASSERT_FALSE(result);
     EXPECT_NE(std::string::npos, errorMessage.find("got nil"));
 #endif
