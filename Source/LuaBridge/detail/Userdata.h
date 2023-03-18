@@ -70,10 +70,13 @@ private:
     {
         index = lua_absindex(L, index);
 
+        if (lua_gettop(L) < index)
+            lua_pushnil(L);
+
         lua_getmetatable(L, index); // Stack: object metatable (ot) | nil
         if (!lua_istable(L, -1))
         {
-            lua_rawgetp(L, LUA_REGISTRYINDEX, registryClassKey); // Stack: registry metatable (rt) | nil
+            lua_rawgetp(L, LUA_REGISTRYINDEX, registryClassKey); // Stack: ot | nil, registry metatable (rt) | nil
             return throwBadArg(L, index);
         }
 

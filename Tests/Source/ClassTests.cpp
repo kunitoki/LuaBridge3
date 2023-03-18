@@ -2666,3 +2666,30 @@ TEST_F(ClassTests, MetatableSecurity)
     ASSERT_TRUE(res.isBool());
     EXPECT_FALSE(res.unsafe_cast<bool>());
 }
+
+TEST_F(ClassTests, WrongThrowBadArgObjectDescription)
+{
+    struct XYZ {};
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<XYZ>("XYZ")
+        .endClass()
+        .addFunction("textXYZ", [](int, float, const XYZ&) {});
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    try
+    {
+        runLua("local x = 1; textXYZ(1, 1.0)");
+        FAIL();
+    }
+    catch (const std::exception& ex)
+    {
+        std::string errorMessage = ex.what();
+        EXPECT_NE(std::string::npos, errorMessage.find("got nil"));
+    }
+#else
+    auto [result, errorMessage] = runLuaCaptureError("textXYZ()");
+    ASSERT_FALSE(result);
+    EXPECT_NE(std::string::npos, errorMessage.find("got nil"));
+#endif
+}
