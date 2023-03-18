@@ -455,6 +455,14 @@ template <class T>
     return reinterpret_cast<T*>(aligned_address);
 }
 
+template <std::size_t Alignment, class T, std::enable_if_t<std::is_pointer_v<T>, int> = 0>
+[[nodiscard]] bool is_aligned(T address) noexcept
+{
+    static_assert(Alignment > 0u);
+
+    return (reinterpret_cast<std::uintptr_t>(address) & (Alignment - 1u)) == 0u;
+}
+
 template <class T>
 [[nodiscard]] constexpr size_t maximum_space_needed_to_align() noexcept
 {
@@ -2930,6 +2938,10 @@ protected:
 template <class T>
 class UserdataValue : public Userdata
 {
+    using AlignType = typename std::conditional_t<alignof(T) <= alignof(double), T, void*>;
+
+    static constexpr int MaxPadding = alignof(T) <= alignof(AlignType) ? 0 : alignof(T) - alignof(AlignType) + 1;
+
 public:
     UserdataValue(const UserdataValue&) = delete;
     UserdataValue operator=(const UserdataValue&) = delete;
@@ -3008,7 +3020,10 @@ public:
     T* getObject() noexcept
     {
         
-        return reinterpret_cast<T*>(&m_storage);
+        if constexpr (MaxPadding == 0)
+            return reinterpret_cast<T*>(&m_storage[0]);
+        else
+            return reinterpret_cast<T*>(&m_storage[0] + m_storage[sizeof(m_storage) - 1]);
     }
 
 private:
@@ -3016,9 +3031,18 @@ private:
     UserdataValue() noexcept
         : Userdata()
     {
+        if constexpr (MaxPadding > 0)
+        {
+            uintptr_t offset = reinterpret_cast<uintptr_t>(&m_storage[0]) % alignof(T);
+            if (offset > 0)
+                offset = alignof(T) - offset;
+
+            assert(offset < MaxPadding);
+            m_storage[sizeof(m_storage) - 1] = static_cast<unsigned char>(offset);
+        }
     }
 
-    std::aligned_storage_t<sizeof(T), alignof(T)> m_storage;
+    alignas(AlignType) unsigned char m_storage[sizeof(T) + MaxPadding];
 };
 
 class UserdataPtr : public Userdata
