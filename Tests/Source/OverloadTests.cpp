@@ -702,6 +702,56 @@ TEST_F(OverloadTests, ConstAndNonConstOverloadClass)
     EXPECT_EQ(6, result<int>());
 }
 
+namespace {
+struct Vec
+{
+public:
+	Vec operator+(const Vec& v) const
+	{
+		Vec a;
+		return a;
+	}
+
+	Vec operator+(const Vec& v)
+	{
+		Vec a;
+		return a;
+	}
+
+	template <class T, typename std::enable_if_t<std::is_arithmetic_v<T>, int> = 0>
+	Vec operator+(T v) const
+	{
+		Vec a;
+		return a;
+	}
+
+	template <class T, typename std::enable_if_t<std::is_arithmetic_v<T>, int> = 0>
+	Vec operator+(T v)
+	{
+		Vec a;
+		return a;
+	}
+};
+} // namespace
+
+TEST_F(OverloadTests, ConstAndNonConstOverloadClassTemplate)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("test")
+            .beginClass<Vec>("Vec")
+                .addFunction("__add",
+                    luabridge::constOverload<double>(&Vec::operator+<double>),
+                    luabridge::ConstOverload<const Vec&>::with<Vec, Vec>(&Vec::operator+),
+                    luabridge::nonConstOverload<double>(&Vec::operator+<double>),
+                    luabridge::NonConstOverload<const Vec&>::with<Vec, Vec>(&Vec::operator+),
+                    luabridge::Overload<double>::with<Vec, Vec>(&Vec::operator+<double>),
+                    luabridge::Overload<const Vec&>::with<Vec, Vec>(&Vec::operator+))
+            .endClass()
+        .endNamespace();
+
+    SUCCEED();
+}
+
 TEST_F(OverloadTests, LuaCFunctionArityCheck)
 {
     struct X
