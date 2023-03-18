@@ -70,7 +70,7 @@ protected:
         const int popsCount = m_stackSize - m_skipStackPops;
         if (popsCount > 0)
         {
-            assert(popsCount <= lua_gettop(L));
+            LUABRIDGE_ASSERT(popsCount <= lua_gettop(L));
 
             lua_pop(L, popsCount);
         }
@@ -108,7 +108,7 @@ class Namespace : public detail::Registrar
      */
     static int luaError(lua_State* L, std::string message)
     {
-        assert(lua_isstring(L, lua_upvalueindex(1)));
+        LUABRIDGE_ASSERT(lua_isstring(L, lua_upvalueindex(1)));
         std::string s;
 
         // Get information on the caller's caller to format the message,
@@ -158,7 +158,7 @@ class Namespace : public detail::Registrar
          */
         void createConstTable(const char* name, bool trueConst = true)
         {
-            assert(name != nullptr);
+            LUABRIDGE_ASSERT(name != nullptr);
 
             std::string type_name = std::string(trueConst ? "const " : "") + name;
 
@@ -194,7 +194,7 @@ class Namespace : public detail::Registrar
          */
         void createClassTable(const char* name)
         {
-            assert(name != nullptr);
+            LUABRIDGE_ASSERT(name != nullptr);
 
             // Stack: namespace table (ns), const table (co)
 
@@ -217,7 +217,7 @@ class Namespace : public detail::Registrar
          */
         void createStaticTable(const char* name)
         {
-            assert(name != nullptr);
+            LUABRIDGE_ASSERT(name != nullptr);
 
             // Stack: namespace table (ns), const table (co), class table (cl)
             lua_newtable(L); // Stack: ns, co, cl, visible static table (vst)
@@ -262,9 +262,9 @@ class Namespace : public detail::Registrar
         void assertStackState() const
         {
             // Stack: const table (co), class table (cl), static table (st)
-            assert(lua_istable(L, -3));
-            assert(lua_istable(L, -2));
-            assert(lua_istable(L, -1));
+            LUABRIDGE_ASSERT(lua_istable(L, -3));
+            LUABRIDGE_ASSERT(lua_istable(L, -2));
+            LUABRIDGE_ASSERT(lua_istable(L, -1));
         }
     };
 
@@ -293,8 +293,8 @@ class Namespace : public detail::Registrar
         Class(const char* name, Namespace& parent)
             : ClassBase(parent)
         {
-            assert(name != nullptr);
-            assert(lua_istable(L, -1)); // Stack: namespace table (ns)
+            LUABRIDGE_ASSERT(name != nullptr);
+            LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
 
             rawgetfield(L, -1, name); // Stack: ns, static table (st) | nil
 
@@ -329,7 +329,7 @@ class Namespace : public detail::Registrar
             }
             else
             {
-                assert(lua_istable(L, -1)); // Stack: ns, st
+                LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: ns, st
                 ++m_stackSize;
 
                 // Map T back from its stored tables
@@ -355,8 +355,8 @@ class Namespace : public detail::Registrar
         Class(const char* name, Namespace& parent, void const* const staticKey)
             : ClassBase(parent)
         {
-            assert(name != nullptr);
-            assert(lua_istable(L, -1)); // Stack: namespace table (ns)
+            LUABRIDGE_ASSERT(name != nullptr);
+            LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
 
             createConstTable(name); // Stack: ns, const table (co)
 #if !defined(LUABRIDGE_ON_LUAU)
@@ -384,13 +384,13 @@ class Namespace : public detail::Registrar
                 return;
             }
 
-            assert(lua_istable(L, -1)); // Stack: ns, co, cl, st, pst
+            LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: ns, co, cl, st, pst
 
             lua_rawgetp(L, -1, detail::getClassKey()); // Stack: ns, co, cl, st, pst, parent cl (pcl)
-            assert(lua_istable(L, -1));
+            LUABRIDGE_ASSERT(lua_istable(L, -1));
 
             lua_rawgetp(L, -1, detail::getConstKey()); // Stack: ns, co, cl, st, pst, pcl, parent co (pco)
-            assert(lua_istable(L, -1));
+            LUABRIDGE_ASSERT(lua_istable(L, -1));
 
             lua_rawsetp(L, -6, detail::getParentKey()); // co [parentKey] = pco. Stack: ns, co, cl, st, pst, pcl
             lua_rawsetp(L, -4, detail::getParentKey()); // cl [parentKey] = pcl. Stack: ns, co, cl, st, pst
@@ -412,7 +412,7 @@ class Namespace : public detail::Registrar
          */
         Namespace endClass()
         {
-            assert(m_stackSize > 3);
+            LUABRIDGE_ASSERT(m_stackSize > 3);
 
             m_stackSize -= 3;
             lua_pop(L, 3);
@@ -434,7 +434,7 @@ class Namespace : public detail::Registrar
         template <class U, class = std::enable_if_t<std::is_base_of_v<U, LuaRef> || !std::is_invocable_v<U>>>
         Class<T>& addStaticProperty(const char* name, const U* value)
         {
-            assert(name != nullptr);
+            LUABRIDGE_ASSERT(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             lua_pushlightuserdata(L, const_cast<U*>(value)); // Stack: co, cl, st, pointer
@@ -463,7 +463,7 @@ class Namespace : public detail::Registrar
         template <class U, class = std::enable_if_t<std::is_base_of_v<U, LuaRef> || !std::is_invocable_v<U>>>
         Class<T>& addStaticProperty(const char* name, U* value, bool isWritable = true)
         {
-            assert(name != nullptr);
+            LUABRIDGE_ASSERT(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             lua_pushlightuserdata(L, value); // Stack: co, cl, st, pointer
@@ -501,7 +501,7 @@ class Namespace : public detail::Registrar
         template <class U>
         Class<T>& addStaticProperty(const char* name, U (*get)(), void (*set)(U) = nullptr)
         {
-            assert(name != nullptr);
+            LUABRIDGE_ASSERT(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); // Stack: co, cl, st, function ptr
@@ -527,7 +527,7 @@ class Namespace : public detail::Registrar
         template <class U>
         Class<T>& addStaticProperty(const char* name, U (*get)() noexcept, void (*set)(U) noexcept = nullptr)
         {
-            assert(name != nullptr);
+            LUABRIDGE_ASSERT(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); // Stack: co, cl, st, function ptr
@@ -557,7 +557,7 @@ class Namespace : public detail::Registrar
         template <class Getter, class = std::enable_if_t<!std::is_pointer_v<Getter>>>
         Class<T>& addStaticProperty(const char* name, Getter get)
         {
-            assert(name != nullptr);
+            LUABRIDGE_ASSERT(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             using GetType = decltype(get);
@@ -572,7 +572,7 @@ class Namespace : public detail::Registrar
         template <class Getter, class Setter, class = std::enable_if_t<!std::is_pointer_v<Getter> && !std::is_pointer_v<Setter>>>
         Class<T>& addStaticProperty(const char* name, Getter get, Setter set)
         {
-            assert(name != nullptr);
+            LUABRIDGE_ASSERT(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             using GetType = decltype(get);
@@ -602,7 +602,7 @@ class Namespace : public detail::Registrar
         auto addStaticFunction(const char* name, Functions... functions)
             -> std::enable_if_t<(detail::is_callable_v<Functions> && ...) && (sizeof...(Functions) > 0), Class<T>&>
         {
-            assert(name != nullptr);
+            LUABRIDGE_ASSERT(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             if constexpr (sizeof...(Functions) == 1)
@@ -657,7 +657,7 @@ class Namespace : public detail::Registrar
 
             using MemberPtrType = decltype(mp);
 
-            assert(name != nullptr);
+            LUABRIDGE_ASSERT(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             new (lua_newuserdata_x<MemberPtrType>(L, sizeof(MemberPtrType))) MemberPtrType(mp); // Stack: co, cl, st, field ptr
@@ -686,7 +686,7 @@ class Namespace : public detail::Registrar
             using GetType = TG (T::*)() const;
             using SetType = void (T::*)(TS);
 
-            assert(name != nullptr);
+            LUABRIDGE_ASSERT(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); // Stack: co, cl, st, function ptr
@@ -711,7 +711,7 @@ class Namespace : public detail::Registrar
             using GetType = TG (T::*)() const noexcept;
             using SetType = void (T::*)(TS) noexcept;
 
-            assert(name != nullptr);
+            LUABRIDGE_ASSERT(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); // Stack: co, cl, st, function ptr
@@ -740,7 +740,7 @@ class Namespace : public detail::Registrar
             using GetType = TG (T::*)(lua_State*) const;
             using SetType = void (T::*)(TS, lua_State*);
 
-            assert(name != nullptr);
+            LUABRIDGE_ASSERT(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); // Stack: co, cl, st, function ptr
@@ -765,7 +765,7 @@ class Namespace : public detail::Registrar
             using GetType = TG (T::*)(lua_State*) const noexcept;
             using SetType = void (T::*)(TS, lua_State*) noexcept;
 
-            assert(name != nullptr);
+            LUABRIDGE_ASSERT(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); // Stack: co, cl, st, function ptr
@@ -796,7 +796,7 @@ class Namespace : public detail::Registrar
         template <class TG, class TS = TG>
         Class<T>& addProperty(const char* name, TG (*get)(const T*), void (*set)(T*, TS) = nullptr)
         {
-            assert(name != nullptr);
+            LUABRIDGE_ASSERT(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); // Stack: co, cl, st, function ptr
@@ -818,7 +818,7 @@ class Namespace : public detail::Registrar
         template <class TG, class TS = TG>
         Class<T>& addProperty(const char* name, TG (*get)(const T*) noexcept, void (*set)(T*, TS) noexcept = nullptr)
         {
-            assert(name != nullptr);
+            LUABRIDGE_ASSERT(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); // Stack: co, cl, st, function ptr
@@ -849,7 +849,7 @@ class Namespace : public detail::Registrar
          */
         Class<T>& addProperty(const char* name, lua_CFunction get, lua_CFunction set = nullptr)
         {
-            assert(name != nullptr);
+            LUABRIDGE_ASSERT(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             lua_pushcfunction_x(L, get);
@@ -876,7 +876,7 @@ class Namespace : public detail::Registrar
             using FirstArg = detail::function_argument_t<0, Getter>;
             static_assert(std::is_same_v<std::decay_t<std::remove_pointer_t<FirstArg>>, T>);
 
-            assert(name != nullptr);
+            LUABRIDGE_ASSERT(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             using GetType = decltype(get);
@@ -898,7 +898,7 @@ class Namespace : public detail::Registrar
             using FirstArg = detail::function_argument_t<0, Setter>;
             static_assert(std::is_same_v<std::decay_t<std::remove_pointer_t<FirstArg>>, T>);
 
-            assert(name != nullptr);
+            LUABRIDGE_ASSERT(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             using SetType = decltype(set);
@@ -923,7 +923,7 @@ class Namespace : public detail::Registrar
         auto addFunction(const char* name, Functions... functions)
             -> std::enable_if_t<(detail::is_callable_v<Functions> && ...) && (sizeof...(Functions) > 0), Class<T>&>
         {
-            assert(name != nullptr);
+            LUABRIDGE_ASSERT(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             if (name == std::string_view("__gc"))
@@ -981,7 +981,7 @@ class Namespace : public detail::Registrar
 
                     } (), ...);
 
-                    assert(idx > 1);
+                    LUABRIDGE_ASSERT(idx > 1);
 
                     lua_pushcclosure_x(L, &detail::try_overload_functions<true>, 1);
                     lua_pushvalue(L, -1); // Stack: co, cl, st, function, function
@@ -1017,7 +1017,7 @@ class Namespace : public detail::Registrar
 
                     } (), ...);
 
-                    assert(idx > 1);
+                    LUABRIDGE_ASSERT(idx > 1);
 
                     lua_pushcclosure_x(L, &detail::try_overload_functions<true>, 1);
                     rawsetfield(L, -3, name); // Stack: co, cl, st
@@ -1325,8 +1325,8 @@ class Namespace : public detail::Registrar
         {
             using FnType = decltype(function);
 
-            assert(name != nullptr);
-            assert(lua_istable(L, -1)); // Stack: namespace table (ns)
+            LUABRIDGE_ASSERT(name != nullptr);
+            LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
 
             lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: ns, function userdata (ud)
             lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: ns, function
@@ -1340,8 +1340,8 @@ class Namespace : public detail::Registrar
         {
             using FnType = decltype(function);
 
-            assert(name != nullptr);
-            assert(lua_istable(L, -1)); // Stack: namespace table (ns)
+            LUABRIDGE_ASSERT(name != nullptr);
+            LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
 
             lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: ns, function userdata (ud)
             lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: ns, function
@@ -1352,7 +1352,7 @@ class Namespace : public detail::Registrar
 
         Namespace endTable()
         {
-            assert(m_stackSize > 2);
+            LUABRIDGE_ASSERT(m_stackSize > 2);
 
             m_stackSize -= 2;
             lua_pop(L, 2);
@@ -1386,7 +1386,7 @@ private:
     Namespace(lua_State* L, FromStack)
         : Registrar(L, 1)
     {
-        assert(lua_istable(L, -1));
+        LUABRIDGE_ASSERT(lua_istable(L, -1));
 
         {
             lua_pushvalue(L, -1); // Stack: ns, mt
@@ -1428,8 +1428,8 @@ private:
     Namespace(const char* name, Namespace& parent)
         : Registrar(parent)
     {
-        assert(name != nullptr);
-        assert(lua_istable(L, -1)); // Stack: parent namespace (pns)
+        LUABRIDGE_ASSERT(name != nullptr);
+        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: parent namespace (pns)
 
         rawgetfield(L, -1, name); // Stack: pns, namespace (ns) | nil
 
@@ -1551,7 +1551,7 @@ public:
             return Namespace(*this);
         }
 
-        assert(m_stackSize > 1);
+        LUABRIDGE_ASSERT(m_stackSize > 1);
         --m_stackSize;
         lua_pop(L, 1);
         return Namespace(*this);
@@ -1576,8 +1576,8 @@ public:
             return *this;
         }
 
-        assert(name != nullptr);
-        assert(lua_istable(L, -1)); // Stack: namespace table (ns)
+        LUABRIDGE_ASSERT(name != nullptr);
+        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
 
         if constexpr (std::is_enum_v<T>)
         {
@@ -1619,8 +1619,8 @@ public:
             return *this;
         }
 
-        assert(name != nullptr);
-        assert(lua_istable(L, -1)); // Stack: namespace table (ns)
+        LUABRIDGE_ASSERT(name != nullptr);
+        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
 
         lua_pushlightuserdata(L, value); // Stack: ns, pointer
         lua_pushcclosure_x(L, &detail::property_getter<T>::call, 1); // Stack: ns, getter
@@ -1661,8 +1661,8 @@ public:
             return *this;
         }
 
-        assert(name != nullptr);
-        assert(lua_istable(L, -1)); // Stack: namespace table (ns)
+        LUABRIDGE_ASSERT(name != nullptr);
+        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
 
         lua_pushlightuserdata(L, const_cast<T*>(value)); // Stack: ns, pointer
         lua_pushcclosure_x(L, &detail::property_getter<T>::call, 1); // Stack: ns, getter
@@ -1698,8 +1698,8 @@ public:
             return *this;
         }
 
-        assert(name != nullptr);
-        assert(lua_istable(L, -1)); // Stack: namespace table (ns)
+        LUABRIDGE_ASSERT(name != nullptr);
+        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
 
         lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); // Stack: ns, function ptr
         lua_pushcclosure_x(L, &detail::invoke_proxy_function<TG (*)()>, 1); // Stack: ns, getter
@@ -1731,8 +1731,8 @@ public:
             return *this;
         }
 
-        assert(name != nullptr);
-        assert(lua_istable(L, -1)); // Stack: namespace table (ns)
+        LUABRIDGE_ASSERT(name != nullptr);
+        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
 
         lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); // Stack: ns, function ptr
         lua_pushcclosure_x(L, &detail::invoke_proxy_function<TG (*)() noexcept>, 1); // Stack: ns, getter
@@ -1766,8 +1766,8 @@ public:
     template <class Getter, class = std::enable_if_t<!std::is_pointer_v<Getter> && std::is_invocable_v<Getter>>>
     Namespace& addProperty(const char* name, Getter get)
     {
-        assert(name != nullptr);
-        assert(lua_istable(L, -1)); // Stack: namespace table (ns)
+        LUABRIDGE_ASSERT(name != nullptr);
+        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
 
         using GetType = decltype(get);
         lua_newuserdata_aligned<GetType>(L, std::move(get)); // Stack: ns, function userdata (ud)
@@ -1798,8 +1798,8 @@ public:
             && std::is_invocable_v<Setter, std::invoke_result_t<Getter>>>>
     Namespace& addProperty(const char* name, Getter get, Setter set)
     {
-        assert(name != nullptr);
-        assert(lua_istable(L, -1)); // Stack: namespace table (ns)
+        LUABRIDGE_ASSERT(name != nullptr);
+        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
 
         addProperty<Getter>(name, std::move(get));
 
@@ -1826,8 +1826,8 @@ public:
      */
     Namespace& addProperty(const char* name, lua_CFunction get, lua_CFunction set = nullptr)
     {
-        assert(name != nullptr);
-        assert(lua_istable(L, -1)); // Stack: namespace table (ns)
+        LUABRIDGE_ASSERT(name != nullptr);
+        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
 
         lua_pushcfunction_x(L, get); // Stack: ns, getter
         detail::add_property_getter(L, name, -2); // Stack: ns
@@ -1860,8 +1860,8 @@ public:
     auto addFunction(const char* name, Functions... functions)
         -> std::enable_if_t<(detail::is_callable_v<Functions> && ...) && (sizeof...(Functions) > 0), Namespace&>
     {
-        assert(name != nullptr);
-        assert(lua_istable(L, -1)); // Stack: namespace table (ns)
+        LUABRIDGE_ASSERT(name != nullptr);
+        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
 
         if constexpr (sizeof...(Functions) == 1)
         {

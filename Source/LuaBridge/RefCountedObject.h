@@ -42,7 +42,6 @@
 #include "detail/Config.h"
 #include "detail/TypeTraits.h"
 
-#include <cassert>
 #include <utility>
 
 namespace luabridge {
@@ -91,7 +90,7 @@ public:
     */
     inline void decReferenceCount() const
     {
-        assert(getReferenceCount() > 0);
+        LUABRIDGE_ASSERT(getReferenceCount() > 0);
 
         if (--refCount == 0)
             delete this;
@@ -111,7 +110,7 @@ protected:
     virtual ~RefCountedObjectType()
     {
         // it's dangerous to delete an object that's still referenced by something else!
-        assert(getReferenceCount() == 0);
+        LUABRIDGE_ASSERT(getReferenceCount() == 0);
     }
 
 private:
