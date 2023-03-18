@@ -277,6 +277,10 @@ protected:
 template <class T>
 class UserdataValue : public Userdata
 {
+    using AlignType = typename std::conditional_t<alignof(T) <= alignof(double), T, void*>;
+
+    static constexpr int MaxPadding = alignof(T) <= alignof(AlignType) ? 0 : alignof(T) - alignof(AlignType) + 1;
+
 public:
     UserdataValue(const UserdataValue&) = delete;
     UserdataValue operator=(const UserdataValue&) = delete;
@@ -386,7 +390,11 @@ public:
     {
         // If this fails to compile it means you forgot to provide
         // a Container specialization for your container!
-        return reinterpret_cast<T*>(&m_storage);
+
+        if constexpr (MaxPadding == 0)
+            return reinterpret_cast<T*>(&m_storage[0]);
+        else
+            return reinterpret_cast<T*>(&m_storage[0] + m_storage[sizeof(m_storage) - 1]);
     }
 
 private:
@@ -396,9 +404,18 @@ private:
     UserdataValue() noexcept
         : Userdata()
     {
-    }
+		if constexpr (MaxPadding > 0)
+        {
+            uintptr_t offset = reinterpret_cast<uintptr_t>(&m_storage[0]) % alignof(T);
+            if (offset > 0)
+                offset = alignof(T) - offset;
 
-    std::aligned_storage_t<sizeof(T), alignof(T)> m_storage;
+            assert(offset < MaxPadding);
+            m_storage[sizeof(m_storage) - 1] = static_cast<unsigned char>(offset);
+        }
+	}
+
+    alignas(AlignType) unsigned char m_storage[sizeof(T) + MaxPadding];
 };
 
 //=================================================================================================
