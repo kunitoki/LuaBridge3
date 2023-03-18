@@ -152,7 +152,7 @@ struct Stack<lua_CFunction>
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
     {
-        return lua_iscfunction(L, index);
+        return lua_iscfunction(L, index) != 0;
     }
 };
 
