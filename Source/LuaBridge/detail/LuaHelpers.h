@@ -434,6 +434,17 @@ template <class T>
 }
 
 /**
+ * @brief Return if a pointer of type T is aligned.
+ */
+template <std::size_t Alignment, class T, std::enable_if_t<std::is_pointer_v<T>, int> = 0>
+[[nodiscard]] bool is_aligned(T address) noexcept
+{
+    static_assert(Alignment > 0u);
+
+    return (reinterpret_cast<std::uintptr_t>(address) & (Alignment - 1u)) == 0u;
+}
+
+/**
  * @brief Return the space needed to align the type T on an unaligned address.
  */
 template <class T>
