@@ -18,6 +18,7 @@ struct Result
 
     Result(std::error_code ec) noexcept
         : m_ec(ec)
+        , m_nargs(1)
     {
     }
 
@@ -46,8 +47,19 @@ struct Result
         return m_ec.message();
     }
 
+    inline int num_args() const
+    {
+        return m_nargs;
+	}
+
+	inline void num_args(int nargs)
+	{
+        m_nargs = nargs;
+	}
+
 private:
     std::error_code m_ec;
+    int m_nargs = 1;
 };
 
 //=================================================================================================

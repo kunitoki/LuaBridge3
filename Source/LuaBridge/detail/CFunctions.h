@@ -542,7 +542,7 @@ struct function
         if (! result)
             raise_lua_error(L, "%s", result.message().c_str());
 
-        return 1;
+        return result.num_args();
     }
 
     template <class T, class F>
@@ -569,7 +569,7 @@ struct function
         if (! result)
             raise_lua_error(L, "%s", result.message().c_str());
 
-        return 1;
+        return result.num_args();
     }
 };
 
