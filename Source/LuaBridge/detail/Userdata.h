@@ -14,7 +14,6 @@
 #include "Result.h"
 #include "Stack.h"
 
-#include <cassert>
 #include <stdexcept>
 #include <type_traits>
 
@@ -78,7 +77,7 @@ private:
         }
 
         lua_rawgetp(L, -1, getConstKey()); // Stack: ot | nil, const table (co) | nil
-        assert(lua_istable(L, -1) || lua_isnil(L, -1));
+        LUABRIDGE_ASSERT(lua_istable(L, -1) || lua_isnil(L, -1));
 
         // If const table is NOT present, object is const. Use non-const registry table
         // if object cannot be const, so constness validation is done automatically.
@@ -163,7 +162,7 @@ private:
 
     static Userdata* throwBadArg(lua_State* L, int index)
     {
-        assert(lua_istable(L, -1) || lua_isnil(L, -1)); // Stack: rt | nil
+        LUABRIDGE_ASSERT(lua_istable(L, -1) || lua_isnil(L, -1)); // Stack: rt | nil
 
         const char* expected = 0;
         if (lua_isnil(L, -1)) // Stack: nil
@@ -482,7 +481,7 @@ private:
     explicit UserdataPtr(void* ptr)
     {
         // Can't construct with a null object!
-        assert(ptr != nullptr);
+        LUABRIDGE_ASSERT(ptr != nullptr);
         m_p = ptr;
     }
 };
@@ -552,11 +551,11 @@ private:
     UserdataValueExternal(void* ptr, void (*dealloc)(T*)) noexcept
     {
         // Can't construct with a null object!
-        assert(ptr != nullptr);
+        LUABRIDGE_ASSERT(ptr != nullptr);
         m_p = ptr;
 
         // Can't construct with a null deallocator!
-        assert(dealloc != nullptr);
+        LUABRIDGE_ASSERT(dealloc != nullptr);
         m_dealloc = dealloc;
     }
 

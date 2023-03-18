@@ -90,13 +90,13 @@ public:
      */
     LuaRef operator[](std::size_t index) const
     {
-        assert(m_ec == std::error_code());
+        LUABRIDGE_ASSERT(m_ec == std::error_code());
 
         if (std::holds_alternative<std::vector<LuaRef>>(m_data))
         {
             const auto& values = std::get<std::vector<LuaRef>>(m_data);
 
-            assert(index < values.size());
+            LUABRIDGE_ASSERT(index < values.size());
             return values[index];
         }
 
