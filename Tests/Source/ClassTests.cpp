@@ -2621,25 +2621,25 @@ template <std::size_t Alignment>
 struct alignas(Alignment) Vec
 {
 public:
-	Vec(double InA, double InB, double InC, double InD)
-	{
-		X = InA;
-		Y = InB;
-		Z = InC;
-		W = InD;
-	}
+    Vec(double InA, double InB, double InC, double InD)
+    {
+        X = InA;
+        Y = InB;
+        Z = InC;
+        W = InD;
+    }
 
 public:
 
-	double X;
-	double Y;
-	double Z;
-	double W;
+    double X;
+    double Y;
+    double Z;
+    double W;
 
-	bool isAligned() const
-	{
+    bool isAligned() const
+    {
         return luabridge::is_aligned<Alignment>(reinterpret_cast<const double*>(this));
-	}
+    }
 };
 } // namespace
 
