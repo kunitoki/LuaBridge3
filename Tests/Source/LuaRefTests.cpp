@@ -424,6 +424,60 @@ TEST_F(LuaRefTests, ComparisonLuaRefInvalidTypes)
     EXPECT_LE(seven, eight);
 }
 
+TEST_F(LuaRefTests, ComparisonLuaRefIncompatibleTypes)
+{
+    runLua("result = 7");
+    auto seven = result();
+
+    runLua("result = function(a, b) end");
+    auto eight = result();
+
+    EXPECT_NE(seven, eight);
+    EXPECT_NE(eight, seven);
+
+    EXPECT_GT(eight, seven);
+    EXPECT_LT(seven, eight);
+
+    EXPECT_GE(eight, seven);
+    EXPECT_LE(seven, eight);
+}
+
+TEST_F(LuaRefTests, ComparisonLuaRefMoreIncompatibleTypes)
+{
+    runLua("result = '7'");
+    auto seven = result();
+
+    runLua("result = function(a, b) end");
+    auto eight = result();
+
+    EXPECT_NE(seven, eight);
+    EXPECT_NE(eight, seven);
+
+    EXPECT_GT(eight, seven);
+    EXPECT_LT(seven, eight);
+
+    EXPECT_GE(eight, seven);
+    EXPECT_LE(seven, eight);
+}
+
+TEST_F(LuaRefTests, ComparisonLuaRefFunctionTypes)
+{
+    runLua("result = function(a, b) end");
+    auto seven = result();
+
+    runLua("result = function(c, d) end");
+    auto eight = result();
+
+    EXPECT_NE(seven, eight);
+    EXPECT_NE(eight, seven);
+
+    EXPECT_GT(eight, seven);
+    EXPECT_LT(seven, eight);
+
+    EXPECT_GE(eight, seven);
+    EXPECT_LE(seven, eight);
+}
+
 TEST_F(LuaRefTests, Assignment)
 {
     runLua("value = {a = 5}");

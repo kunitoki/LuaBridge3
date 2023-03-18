@@ -467,6 +467,9 @@ public:
         if (lhsType != rhsType)
             return lhsType < rhsType;
 
+        if (isPointerType(lhsType) && isPointerType(rhsType))
+            return lua_topointer(m_L, -2) < lua_topointer(m_L, -1);
+
         return lua_compare(m_L, -2, -1, LUA_OPLT) == 1;
     }
 
@@ -493,6 +496,9 @@ public:
         const int rhsType = lua_type(m_L, -1);
         if (lhsType != rhsType)
             return lhsType <= rhsType;
+
+        if (isPointerType(lhsType) && isPointerType(rhsType))
+            return lua_topointer(m_L, -2) <= lua_topointer(m_L, -1);
 
         return lua_compare(m_L, -2, -1, LUA_OPLE) == 1;
     }
@@ -521,6 +527,9 @@ public:
         if (lhsType != rhsType)
             return lhsType > rhsType;
 
+        if (isPointerType(lhsType) && isPointerType(rhsType))
+            return lua_topointer(m_L, -2) > lua_topointer(m_L, -1);
+
         return lua_compare(m_L, -1, -2, LUA_OPLT) == 1;
     }
 
@@ -547,6 +556,9 @@ public:
         const int rhsType = lua_type(m_L, -1);
         if (lhsType != rhsType)
             return lhsType >= rhsType;
+
+        if (isPointerType(lhsType) && isPointerType(rhsType))
+            return lua_topointer(m_L, -2) >= lua_topointer(m_L, -1);
 
         return lua_compare(m_L, -1, -2, LUA_OPLE) == 1;
     }
@@ -610,6 +622,21 @@ private:
     const Impl& impl() const { return static_cast<const Impl&>(*this); }
 
     Impl& impl() { return static_cast<Impl&>(*this); }
+
+    static bool isPointerType(int luaType)
+    {
+        switch (luaType)
+        {
+        case LUA_TFUNCTION:
+        case LUA_TTHREAD:
+        case LUA_TUSERDATA:
+        case LUA_TLIGHTUSERDATA:
+            return true;
+
+        default:
+            return false;
+        }
+    }
 };
 
 //=================================================================================================
