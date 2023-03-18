@@ -404,7 +404,7 @@ private:
     UserdataValue() noexcept
         : Userdata()
     {
-		if constexpr (MaxPadding > 0)
+        if constexpr (MaxPadding > 0)
         {
             uintptr_t offset = reinterpret_cast<uintptr_t>(&m_storage[0]) % alignof(T);
             if (offset > 0)
@@ -413,7 +413,7 @@ private:
             assert(offset < MaxPadding);
             m_storage[sizeof(m_storage) - 1] = static_cast<unsigned char>(offset);
         }
-	}
+    }
 
     alignas(AlignType) unsigned char m_storage[sizeof(T) + MaxPadding];
 };
