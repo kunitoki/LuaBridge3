@@ -72,7 +72,7 @@ public:
      */
     bool operator!=(const Iterator& rhs) const
     {
-        assert(m_L == rhs.m_L);
+        LUABRIDGE_ASSERT(m_L == rhs.m_L);
 
         return ! m_table.rawequal(rhs.m_table) || ! m_key.rawequal(rhs.m_key);
     }

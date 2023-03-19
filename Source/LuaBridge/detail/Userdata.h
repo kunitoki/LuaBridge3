@@ -14,7 +14,6 @@
 #include "Result.h"
 #include "Stack.h"
 
-#include <cassert>
 #include <stdexcept>
 #include <type_traits>
 
@@ -78,7 +77,7 @@ private:
         }
 
         lua_rawgetp(L, -1, getConstKey()); // Stack: ot | nil, const table (co) | nil
-        assert(lua_istable(L, -1) || lua_isnil(L, -1));
+        LUABRIDGE_ASSERT(lua_istable(L, -1) || lua_isnil(L, -1));
 
         // If const table is NOT present, object is const. Use non-const registry table
         // if object cannot be const, so constness validation is done automatically.
@@ -163,7 +162,7 @@ private:
 
     static Userdata* throwBadArg(lua_State* L, int index)
     {
-        assert(lua_istable(L, -1) || lua_isnil(L, -1)); // Stack: rt | nil
+        LUABRIDGE_ASSERT(lua_istable(L, -1) || lua_isnil(L, -1)); // Stack: rt | nil
 
         const char* expected = 0;
         if (lua_isnil(L, -1)) // Stack: nil
@@ -281,6 +280,10 @@ protected:
 template <class T>
 class UserdataValue : public Userdata
 {
+    using AlignType = typename std::conditional_t<alignof(T) <= alignof(double), T, void*>;
+
+    static constexpr int MaxPadding = alignof(T) <= alignof(AlignType) ? 0 : alignof(T) - alignof(AlignType) + 1;
+
 public:
     UserdataValue(const UserdataValue&) = delete;
     UserdataValue operator=(const UserdataValue&) = delete;
@@ -390,7 +393,11 @@ public:
     {
         // If this fails to compile it means you forgot to provide
         // a Container specialization for your container!
-        return reinterpret_cast<T*>(&m_storage);
+
+        if constexpr (MaxPadding == 0)
+            return reinterpret_cast<T*>(&m_storage[0]);
+        else
+            return reinterpret_cast<T*>(&m_storage[0] + m_storage[sizeof(m_storage) - 1]);
     }
 
 private:
@@ -400,9 +407,18 @@ private:
     UserdataValue() noexcept
         : Userdata()
     {
+        if constexpr (MaxPadding > 0)
+        {
+            uintptr_t offset = reinterpret_cast<uintptr_t>(&m_storage[0]) % alignof(T);
+            if (offset > 0)
+                offset = alignof(T) - offset;
+
+            assert(offset < MaxPadding);
+            m_storage[sizeof(m_storage) - 1] = static_cast<unsigned char>(offset);
+        }
     }
 
-    std::aligned_storage_t<sizeof(T), alignof(T)> m_storage;
+    alignas(AlignType) unsigned char m_storage[sizeof(T) + MaxPadding];
 };
 
 //=================================================================================================
@@ -486,7 +502,7 @@ private:
     explicit UserdataPtr(void* ptr)
     {
         // Can't construct with a null object!
-        assert(ptr != nullptr);
+        LUABRIDGE_ASSERT(ptr != nullptr);
         m_p = ptr;
     }
 };
@@ -556,11 +572,11 @@ private:
     UserdataValueExternal(void* ptr, void (*dealloc)(T*)) noexcept
     {
         // Can't construct with a null object!
-        assert(ptr != nullptr);
+        LUABRIDGE_ASSERT(ptr != nullptr);
         m_p = ptr;
 
         // Can't construct with a null deallocator!
-        assert(dealloc != nullptr);
+        LUABRIDGE_ASSERT(dealloc != nullptr);
         m_dealloc = dealloc;
     }
 

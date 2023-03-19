@@ -2617,6 +2617,59 @@ TEST_F(ClassTests, NewIndexFallbackMetaMethodFreeFunctor)
 }
 
 namespace {
+template <std::size_t Alignment>
+struct alignas(Alignment) Vec
+{
+public:
+    Vec(double InA, double InB, double InC, double InD)
+    {
+        X = InA;
+        Y = InB;
+        Z = InC;
+        W = InD;
+    }
+
+public:
+
+    double X;
+    double Y;
+    double Z;
+    double W;
+
+    bool isAligned() const
+    {
+        return luabridge::is_aligned<Alignment>(reinterpret_cast<const double*>(this));
+    }
+};
+} // namespace
+
+TEST_F(ClassTests, OveralignedClasses)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Vec<8>>("Vec8")
+            .addConstructor<void(*) (double, double, double, double)>()
+            .addFunction("checkIsAligned", &Vec<8>::isAligned)
+        .endClass()
+        .beginClass<Vec<16>>("Vec16")
+            .addConstructor<void(*) (double, double, double, double)>()
+            .addFunction("checkIsAligned", &Vec<16>::isAligned)
+        .endClass()
+        .beginClass<Vec<32>>("Vec32")
+            .addConstructor<void(*) (double, double, double, double)>()
+            .addFunction("checkIsAligned", &Vec<32>::isAligned)
+        .endClass();
+
+    runLua("result = Vec8(3.0, 2.0, 1.0, 0.5):checkIsAligned()");
+    EXPECT_TRUE(result<bool>());
+
+    runLua("result = Vec16(3.0, 2.0, 1.0, 0.5):checkIsAligned()");
+    EXPECT_TRUE(result<bool>());
+
+    runLua("result = Vec32(3.0, 2.0, 1.0, 0.5):checkIsAligned()");
+    EXPECT_TRUE(result<bool>());
+}
+
+namespace {
 class ExampleStringifiableClass
 {
 public:

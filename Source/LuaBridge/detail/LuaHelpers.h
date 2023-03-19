@@ -8,7 +8,6 @@
 
 #include "Config.h"
 
-#include <cassert>
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
@@ -29,7 +28,7 @@ constexpr void unused(Args&&...)
 #if LUABRIDGE_ON_LUAU
 inline int luaL_ref(lua_State* L, int idx)
 {
-    assert(idx == LUA_REGISTRYINDEX);
+    LUABRIDGE_ASSERT(idx == LUA_REGISTRYINDEX);
 
     const int ref = lua_ref(L, -1);
 
@@ -264,7 +263,7 @@ std::error_code throw_or_error_code(lua_State* L, ErrorType error)
 }
 
 /**
- * @brief Helper to throw or assert.
+ * @brief Helper to throw or LUABRIDGE_ASSERT.
  */
 template <class T, class... Args>
 void throw_or_assert(Args&&... args)
@@ -273,7 +272,7 @@ void throw_or_assert(Args&&... args)
     throw T(std::forward<Args>(args)...);
 #else
     unused(std::forward<Args>(args)...);
-    assert(false);
+    LUABRIDGE_ASSERT(false);
 #endif
 }
 
@@ -344,7 +343,7 @@ inline lua_State* main_thread(lua_State* threadL)
         lua_pop(threadL, 1);
         return L;
     }
-    assert(false); // Have you forgot to call luabridge::registerMainThread ?
+    LUABRIDGE_ASSERT(false); // Have you forgot to call luabridge::registerMainThread ?
     lua_pop(threadL, 1);
     return threadL;
 #else
@@ -360,7 +359,7 @@ inline lua_State* main_thread(lua_State* threadL)
  */
 inline void rawgetfield(lua_State* L, int index, const char* key)
 {
-    assert(lua_istable(L, index));
+    LUABRIDGE_ASSERT(lua_istable(L, index));
     index = lua_absindex(L, index);
     lua_pushstring(L, key);
     lua_rawget(L, index);
@@ -371,7 +370,7 @@ inline void rawgetfield(lua_State* L, int index, const char* key)
  */
 inline void rawsetfield(lua_State* L, int index, const char* key)
 {
-    assert(lua_istable(L, index));
+    LUABRIDGE_ASSERT(lua_istable(L, index));
     index = lua_absindex(L, index);
     lua_pushstring(L, key);
     lua_insert(L, -2);
@@ -404,7 +403,7 @@ inline void rawsetfield(lua_State* L, int index, const char* key)
  */
 [[nodiscard]] inline int table_length(lua_State* L, int index)
 {
-    assert(lua_istable(L, index));
+    LUABRIDGE_ASSERT(lua_istable(L, index));
 
     int items_count = 0;
 
@@ -434,6 +433,17 @@ template <class T>
 }
 
 /**
+ * @brief Return if a pointer of type T is aligned.
+ */
+template <std::size_t Alignment, class T, std::enable_if_t<std::is_pointer_v<T>, int> = 0>
+[[nodiscard]] bool is_aligned(T address) noexcept
+{
+    static_assert(Alignment > 0u);
+
+    return (reinterpret_cast<std::uintptr_t>(address) & (Alignment - 1u)) == 0u;
+}
+
+/**
  * @brief Return the space needed to align the type T on an unaligned address.
  */
 template <class T>
@@ -448,7 +458,7 @@ template <class T>
 template <class T>
 int lua_deleteuserdata_aligned(lua_State* L)
 {
-    assert(isfulluserdata(L, 1));
+    LUABRIDGE_ASSERT(isfulluserdata(L, 1));
 
     T* aligned = align<T>(lua_touserdata(L, 1));
     aligned->~T();

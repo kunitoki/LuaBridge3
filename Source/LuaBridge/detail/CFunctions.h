@@ -106,10 +106,10 @@ inline int index_metamethod(lua_State* L)
     luaL_checkstack(L, 3, detail::error_lua_stack_overflow);
 #endif
 
-    assert(lua_istable(L, 1) || lua_isuserdata(L, 1)); // Stack (further not shown): table | userdata, name
+    LUABRIDGE_ASSERT(lua_istable(L, 1) || lua_isuserdata(L, 1)); // Stack (further not shown): table | userdata, name
 
     lua_getmetatable(L, 1); // Stack: class/const table (mt)
-    assert(lua_istable(L, -1));
+    LUABRIDGE_ASSERT(lua_istable(L, -1));
 
     for (;;)
     {
@@ -122,11 +122,11 @@ inline int index_metamethod(lua_State* L)
             return 1;
         }
 
-        assert(lua_isnil(L, -1)); // Stack: mt, nil
+        LUABRIDGE_ASSERT(lua_isnil(L, -1)); // Stack: mt, nil
         lua_pop(L, 1); // Stack: mt
 
         lua_rawgetp(L, -1, getPropgetKey()); // Stack: mt, propget table (pg)
-        assert(lua_istable(L, -1));
+        LUABRIDGE_ASSERT(lua_istable(L, -1));
 
         lua_pushvalue(L, 2); // Stack: mt, pg, field name
         lua_rawget(L, -2); // Stack: mt, pg, getter | nil
@@ -140,7 +140,7 @@ inline int index_metamethod(lua_State* L)
             return 1;
         }
 
-        assert(lua_isnil(L, -1)); // Stack: mt, nil
+        LUABRIDGE_ASSERT(lua_isnil(L, -1)); // Stack: mt, nil
         lua_pop(L, 1); // Stack: mt
 
         // It may mean that the field may be in const table and it's constness violation.
@@ -171,7 +171,7 @@ inline int index_metamethod(lua_State* L)
         }
 
         // Remove the metatable and repeat the search in the parent one.
-        assert(lua_istable(L, -1)); // Stack: mt, parent mt
+        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt, parent mt
         lua_remove(L, -2); // Stack: parent mt
     }
 
@@ -190,10 +190,10 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
     luaL_checkstack(L, 3, detail::error_lua_stack_overflow);
 #endif
 
-    assert(lua_istable(L, 1) || lua_isuserdata(L, 1)); // Stack (further not shown): table | userdata, name, new value
+    LUABRIDGE_ASSERT(lua_istable(L, 1) || lua_isuserdata(L, 1)); // Stack (further not shown): table | userdata, name, new value
 
     lua_getmetatable(L, 1); // Stack: metatable (mt)
-    assert(lua_istable(L, -1));
+    LUABRIDGE_ASSERT(lua_istable(L, -1));
 
     for (;;)
     {
@@ -205,7 +205,7 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
             luaL_error(L, "No member named '%s'", lua_tostring(L, 2));
         }
 
-        assert(lua_istable(L, -1));
+        LUABRIDGE_ASSERT(lua_istable(L, -1));
 
         lua_pushvalue(L, 2); // Stack: mt, ps, field name
         lua_rawget(L, -2); // Stack: mt, ps, setter | nil
@@ -221,7 +221,7 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
             return 0;
         }
 
-        assert(lua_isnil(L, -1)); // Stack: mt, nil
+        LUABRIDGE_ASSERT(lua_isnil(L, -1)); // Stack: mt, nil
         lua_pop(L, 1); // Stack: mt
 
         lua_rawgetp(L, -1, getParentKey()); // Stack: mt, parent mt | nil
@@ -245,7 +245,7 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
             return 0;
         }
 
-        assert(lua_istable(L, -1)); // Stack: mt, parent mt
+        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt, parent mt
         lua_remove(L, -2); // Stack: parent mt
 
         // Repeat the search in the parent
@@ -299,7 +299,7 @@ template <class C>
 static int gc_metamethod(lua_State* L)
 {
     Userdata* ud = Userdata::getExact<C>(L, 1);
-    assert(ud);
+    LUABRIDGE_ASSERT(ud);
 
     ud->~Userdata();
 
@@ -321,10 +321,10 @@ struct property_getter<T, void>
 {
     static int call(lua_State* L)
     {
-        assert(lua_islightuserdata(L, lua_upvalueindex(1)));
+        LUABRIDGE_ASSERT(lua_islightuserdata(L, lua_upvalueindex(1)));
 
         T* ptr = static_cast<T*>(lua_touserdata(L, lua_upvalueindex(1)));
-        assert(ptr != nullptr);
+        LUABRIDGE_ASSERT(ptr != nullptr);
 
         auto result = Stack<T&>::push(L, *ptr);
         if (! result)
@@ -340,10 +340,10 @@ struct property_getter<std::reference_wrapper<T>, void>
 {
     static int call(lua_State* L)
     {
-        assert(lua_islightuserdata(L, lua_upvalueindex(1)));
+        LUABRIDGE_ASSERT(lua_islightuserdata(L, lua_upvalueindex(1)));
 
         std::reference_wrapper<T>* ptr = static_cast<std::reference_wrapper<T>*>(lua_touserdata(L, lua_upvalueindex(1)));
-        assert(ptr != nullptr);
+        LUABRIDGE_ASSERT(ptr != nullptr);
 
         auto result = Stack<T&>::push(L, ptr->get());
         if (! result)
@@ -400,9 +400,9 @@ inline void add_property_getter(lua_State* L, const char* name, int tableIndex)
     luaL_checkstack(L, 2, detail::error_lua_stack_overflow);
 #endif
 
-    assert(name != nullptr);
-    assert(lua_istable(L, tableIndex));
-    assert(lua_iscfunction(L, -1)); // Stack: getter
+    LUABRIDGE_ASSERT(name != nullptr);
+    LUABRIDGE_ASSERT(lua_istable(L, tableIndex));
+    LUABRIDGE_ASSERT(lua_iscfunction(L, -1)); // Stack: getter
 
     lua_rawgetp(L, tableIndex, getPropgetKey()); // Stack: getter, propget table (pg)
     lua_pushvalue(L, -2); // Stack: getter, pg, getter
@@ -425,10 +425,10 @@ struct property_setter<T, void>
 {
     static int call(lua_State* L)
     {
-        assert(lua_islightuserdata(L, lua_upvalueindex(1)));
+        LUABRIDGE_ASSERT(lua_islightuserdata(L, lua_upvalueindex(1)));
 
         T* ptr = static_cast<T*>(lua_touserdata(L, lua_upvalueindex(1)));
-        assert(ptr != nullptr);
+        LUABRIDGE_ASSERT(ptr != nullptr);
 
         auto result = Stack<T>::get(L, 1);
         if (! result)
@@ -446,10 +446,10 @@ struct property_setter<std::reference_wrapper<T>, void>
 {
     static int call(lua_State* L)
     {
-        assert(lua_islightuserdata(L, lua_upvalueindex(1)));
+        LUABRIDGE_ASSERT(lua_islightuserdata(L, lua_upvalueindex(1)));
 
         std::reference_wrapper<T>* ptr = static_cast<std::reference_wrapper<T>*>(lua_touserdata(L, lua_upvalueindex(1)));
-        assert(ptr != nullptr);
+        LUABRIDGE_ASSERT(ptr != nullptr);
 
         ptr->get() = Stack<T>::get(L, 1);
 
@@ -503,9 +503,9 @@ inline void add_property_setter(lua_State* L, const char* name, int tableIndex)
     luaL_checkstack(L, 2, detail::error_lua_stack_overflow);
 #endif
 
-    assert(name != nullptr);
-    assert(lua_istable(L, tableIndex));
-    assert(lua_iscfunction(L, -1)); // Stack: setter
+    LUABRIDGE_ASSERT(name != nullptr);
+    LUABRIDGE_ASSERT(lua_istable(L, tableIndex));
+    LUABRIDGE_ASSERT(lua_iscfunction(L, -1)); // Stack: setter
 
     lua_rawgetp(L, tableIndex, getPropsetKey()); // Stack: setter, propset table (ps)
     lua_pushvalue(L, -2); // Stack: setter, ps, setter
@@ -630,12 +630,12 @@ int invoke_member_function(lua_State* L)
 {
     using FnTraits = detail::function_traits<F>;
 
-    assert(isfulluserdata(L, lua_upvalueindex(1)));
+    LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
     T* ptr = Userdata::get<T>(L, 1, false);
 
     const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
-    assert(func != nullptr);
+    LUABRIDGE_ASSERT(func != nullptr);
 
     return function<typename FnTraits::result_type, typename FnTraits::argument_types, 2>::call(L, ptr, func);
 }
@@ -645,12 +645,12 @@ int invoke_const_member_function(lua_State* L)
 {
     using FnTraits = detail::function_traits<F>;
 
-    assert(isfulluserdata(L, lua_upvalueindex(1)));
+    LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
     const T* ptr = Userdata::get<T>(L, 1, true);
 
     const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
-    assert(func != nullptr);
+    LUABRIDGE_ASSERT(func != nullptr);
 
     return function<typename FnTraits::result_type, typename FnTraits::argument_types, 2>::call(L, ptr, func);
 }
@@ -666,12 +666,12 @@ int invoke_member_cfunction(lua_State* L)
 {
     using F = int (T::*)(lua_State * L);
 
-    assert(isfulluserdata(L, lua_upvalueindex(1)));
+    LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
     T* t = Userdata::get<T>(L, 1, false);
 
     const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
-    assert(func != nullptr);
+    LUABRIDGE_ASSERT(func != nullptr);
 
     return (t->*func)(L);
 }
@@ -681,12 +681,12 @@ int invoke_const_member_cfunction(lua_State* L)
 {
     using F = int (T::*)(lua_State * L) const;
 
-    assert(isfulluserdata(L, lua_upvalueindex(1)));
+    LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
     const T* t = Userdata::get<T>(L, 1, true);
 
     const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
-    assert(func != nullptr);
+    LUABRIDGE_ASSERT(func != nullptr);
 
     return (t->*func)(L);
 }
@@ -702,10 +702,10 @@ int invoke_proxy_function(lua_State* L)
 {
     using FnTraits = detail::function_traits<F>;
 
-    assert(lua_islightuserdata(L, lua_upvalueindex(1)));
+    LUABRIDGE_ASSERT(lua_islightuserdata(L, lua_upvalueindex(1)));
 
     auto func = reinterpret_cast<F>(lua_touserdata(L, lua_upvalueindex(1)));
-    assert(func != nullptr);
+    LUABRIDGE_ASSERT(func != nullptr);
 
     return function<typename FnTraits::result_type, typename FnTraits::argument_types, 1>::call(L, func);
 }
@@ -721,7 +721,7 @@ int invoke_proxy_functor(lua_State* L)
 {
     using FnTraits = detail::function_traits<F>;
 
-    assert(isfulluserdata(L, lua_upvalueindex(1)));
+    LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
     auto& func = *align<F>(lua_touserdata(L, lua_upvalueindex(1)));
 
@@ -742,7 +742,7 @@ inline int try_overload_functions(lua_State* L)
 
     // get the list of overloads
     lua_pushvalue(L, lua_upvalueindex(1));
-    assert(lua_istable(L, -1));
+    LUABRIDGE_ASSERT(lua_istable(L, -1));
     const int idx_overloads = nargs + 1;
     const int num_overloads = get_length(L, idx_overloads);
 
@@ -755,11 +755,11 @@ inline int try_overload_functions(lua_State* L)
     lua_pushnil(L);  // first key
     while (lua_next(L, idx_overloads) != 0)
     {
-        assert(lua_istable(L, -1));
+        LUABRIDGE_ASSERT(lua_istable(L, -1));
 
         // check matching arity
         lua_rawgeti(L, -1, 1);
-        assert(lua_isnumber(L, -1));
+        LUABRIDGE_ASSERT(lua_isnumber(L, -1));
 
         const int overload_arity = static_cast<int>(lua_tointeger(L, -1));
         if (overload_arity >= 0 && overload_arity != effective_args)
@@ -777,7 +777,7 @@ inline int try_overload_functions(lua_State* L)
         // push function
         lua_pushnumber(L, 2);
         lua_gettable(L, -2);
-        assert(lua_isfunction(L, -1));
+        LUABRIDGE_ASSERT(lua_isfunction(L, -1));
 
         // push arguments
         for (int i = 1; i <= nargs; ++i)

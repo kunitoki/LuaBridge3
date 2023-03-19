@@ -204,7 +204,7 @@ public:
      */
     void push(lua_State* L) const
     {
-        assert(equalstates(L, m_L));
+        LUABRIDGE_ASSERT(equalstates(L, m_L));
         (void) L;
 
         impl().push();
@@ -218,7 +218,7 @@ public:
      */
     void pop(lua_State* L)
     {
-        assert(equalstates(L, m_L));
+        LUABRIDGE_ASSERT(equalstates(L, m_L));
         (void) L;
 
         impl().pop();
