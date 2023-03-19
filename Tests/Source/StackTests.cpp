@@ -1120,7 +1120,7 @@ TEST_F(StackTests, IntTypeNotFittingPush)
 
 TEST_F(StackTests, IntTypeNotFittingIsInstance)
 {
-    if constexpr (sizeof(uint32_t) == sizeof(lua_Integer))
+    if constexpr (sizeof(int32_t) == sizeof(lua_Integer))
     {
         const luabridge::StackRestore sr(L);
 
@@ -1132,7 +1132,7 @@ TEST_F(StackTests, IntTypeNotFittingIsInstance)
         EXPECT_FALSE(luabridge::isInstance<uint16_t>(L, 1));
     }
     
-    if constexpr (sizeof(uint64_t) == sizeof(lua_Integer))
+    if constexpr (sizeof(int64_t) == sizeof(lua_Integer))
     {
         const luabridge::StackRestore sr(L);
 
@@ -1147,7 +1147,7 @@ TEST_F(StackTests, IntTypeNotFittingIsInstance)
     }
 
 #if 0 // defined(__SIZEOF_INT128__)
-    if constexpr (sizeof(uint64_t) == sizeof(lua_Integer))
+    if constexpr (sizeof(int64_t) == sizeof(lua_Integer))
     {
         const luabridge::StackRestore sr(L);
 

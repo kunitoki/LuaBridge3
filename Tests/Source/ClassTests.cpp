@@ -2644,7 +2644,7 @@ TEST_F(ClassTests, MetatableSecurityNotHidden)
             .addFunction("__tostring", &ExampleStringifiableClass::tostring)
         .endClass();
 
-    runLua("local t = ExampleStringifiableClass(); result = getmetatable(t); print(result);");
+    runLua("local t = ExampleStringifiableClass(); result = getmetatable(t)");
 
     const auto res = result();
     ASSERT_TRUE(res.isTable());
@@ -2660,7 +2660,7 @@ TEST_F(ClassTests, MetatableSecurity)
             .addFunction("__tostring", &ExampleStringifiableClass::tostring)
         .endClass();
 
-    runLua("local t = ExampleStringifiableClass(); result = getmetatable(t); print(result);");
+    runLua("local t = ExampleStringifiableClass(); result = getmetatable(t)");
 
     const auto res = result();
     ASSERT_TRUE(res.isBool());
@@ -2670,26 +2670,98 @@ TEST_F(ClassTests, MetatableSecurity)
 TEST_F(ClassTests, WrongThrowBadArgObjectDescription)
 {
     struct XYZ {};
+    struct ABC {};
 
     luabridge::getGlobalNamespace(L)
         .beginClass<XYZ>("XYZ")
         .endClass()
-        .addFunction("textXYZ", [](int, float, const XYZ&) {});
+        .beginClass<ABC>("ABC")
+            .addConstructor<void(*)()>()
+        .endClass()
+        .addFunction("textXYZ", [](int, float, const XYZ&) {})
+        .addFunction("textSingleXYZ", [](const XYZ&) {});
 
 #if LUABRIDGE_HAS_EXCEPTIONS
     try
     {
-        runLua("local x = 1; textXYZ(1, 1.0)");
+        runLua("textSingleXYZ()");
         FAIL();
     }
     catch (const std::exception& ex)
     {
-        std::string errorMessage = ex.what();
-        EXPECT_NE(std::string::npos, errorMessage.find("got nil"));
+        EXPECT_NE(std::string::npos, std::string(ex.what()).find("got no value"));
     }
+
+    try
+    {
+        runLua("textXYZ(1, 1.0)");
+        FAIL();
+    }
+    catch (const std::exception& ex)
+    {
+        EXPECT_NE(std::string::npos, std::string(ex.what()).find("got no value"));
+    }
+
+    try
+    {
+        runLua("textXYZ(1, 1.0, 1)");
+        FAIL();
+    }
+    catch (const std::exception& ex)
+    {
+        EXPECT_NE(std::string::npos, std::string(ex.what()).find("got number"));
+    }
+
+    try
+    {
+        runLua("textXYZ(1, 1.0, '1')");
+        FAIL();
+    }
+    catch (const std::exception& ex)
+    {
+        EXPECT_NE(std::string::npos, std::string(ex.what()).find("got string"));
+    }
+
+    try
+    {
+        runLua("textXYZ(1, 1.0, ABC())");
+        FAIL();
+    }
+    catch (const std::exception& ex)
+    {
+        EXPECT_NE(std::string::npos, std::string(ex.what()).find("got ABC"));
+    }
+
 #else
-    auto [result, errorMessage] = runLuaCaptureError("textXYZ(1, 1.0)");
-    ASSERT_FALSE(result);
-    EXPECT_NE(std::string::npos, errorMessage.find("got nil"));
+    {
+        auto [result, errorMessage] = runLuaCaptureError("textSingleXYZ()");
+        ASSERT_FALSE(result);
+        EXPECT_NE(std::string::npos, errorMessage.find("got no value"));
+    }
+
+    {
+        auto [result, errorMessage] = runLuaCaptureError("textXYZ(1, 1.0)");
+        ASSERT_FALSE(result);
+        EXPECT_NE(std::string::npos, errorMessage.find("got no value"));
+    }
+
+    {
+        auto [result, errorMessage] = runLuaCaptureError("textXYZ(1, 1.0, 1)");
+        ASSERT_FALSE(result);
+        EXPECT_NE(std::string::npos, errorMessage.find("got number"));
+    }
+
+    {
+        auto [result, errorMessage] = runLuaCaptureError("textXYZ(1, 1.0, '1')");
+        ASSERT_FALSE(result);
+        EXPECT_NE(std::string::npos, errorMessage.find("got string"));
+    }
+
+    {
+        auto [result, errorMessage] = runLuaCaptureError("textXYZ(1, 1.0, ABC())");
+        ASSERT_FALSE(result);
+        EXPECT_NE(std::string::npos, errorMessage.find("got ABC"));
+    }
+
 #endif
 }
