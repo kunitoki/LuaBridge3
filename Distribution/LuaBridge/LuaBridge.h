@@ -3659,7 +3659,7 @@ struct Stack<lua_CFunction>
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
     {
-        return lua_iscfunction(L, index);
+        return lua_iscfunction(L, index) != 0;
     }
 };
 
@@ -5019,9 +5019,9 @@ namespace detail {
 
 [[noreturn]] inline void unreachable()
 {
-#if __GNUC__ 
+#if defined(__GNUC__) 
     __builtin_unreachable();
-#elif _MSC_VER 
+#elif defined(_MSC_VER) 
     __assume(false);
 #endif
 }
@@ -5092,7 +5092,7 @@ struct function_traits_impl<R (C::*)(Args...) const noexcept> : function_traits_
 {
 };
 
-#if _MSC_VER && _M_IX86 
+#if defined(_MSC_VER) && defined(_M_IX86) 
 template <class R, class... Args>
 struct function_traits_impl<R __stdcall(Args...)> : function_traits_base<false, false, R, Args...>
 {
