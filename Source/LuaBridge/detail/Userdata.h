@@ -70,9 +70,6 @@ private:
     {
         index = lua_absindex(L, index);
 
-        if (lua_gettop(L) < index)
-            lua_pushnil(L);
-
         lua_getmetatable(L, index); // Stack: object metatable (ot) | nil
         if (!lua_istable(L, -1))
         {
@@ -177,24 +174,28 @@ private:
         {
             lua_rawgetp(L, -1, getTypeKey()); // Stack: rt, registry type
             expected = lua_tostring(L, -1);
+            lua_pop(L, 1); // Stack: rt
         }
 
         const char* got = 0;
         if (lua_isuserdata(L, index))
         {
-            lua_getmetatable(L, index); // Stack: ..., ot | nil
-            if (lua_istable(L, -1)) // Stack: ..., ot
+            lua_getmetatable(L, index); // Stack: rt, ot | nil
+            if (lua_istable(L, -1)) // Stack: rt, ot
             {
-                lua_rawgetp(L, -1, getTypeKey()); // Stack: ..., ot, object type | nil
+                lua_rawgetp(L, -1, getTypeKey()); // Stack: rt, ot, object type | nil
                 if (lua_isstring(L, -1))
-                {
                     got = lua_tostring(L, -1);
-                }
+
+                lua_pop(L, 1); // Stack: rt, ot
             }
+
+            lua_pop(L, 1); // Stack: rt
         }
 
         if (!got)
         {
+            lua_pop(L, 1); // Stack
             got = lua_typename(L, lua_type(L, index));
         }
 
