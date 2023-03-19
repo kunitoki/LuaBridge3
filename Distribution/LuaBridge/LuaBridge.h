@@ -40,6 +40,7 @@
 #error LuaBridge 3 requires a compliant C++17 compiler, or C++17 has not been enabled !
 #endif
 
+#if !defined(LUABRIDGE_HAS_EXCEPTIONS)
 #if defined(_MSC_VER)
 #if _CPPUNWIND || _HAS_EXCEPTIONS
 #define LUABRIDGE_HAS_EXCEPTIONS 1
@@ -57,6 +58,7 @@
 #define LUABRIDGE_HAS_EXCEPTIONS 1
 #else
 #define LUABRIDGE_HAS_EXCEPTIONS 0
+#endif
 #endif
 #endif
 
@@ -78,8 +80,12 @@
 #define LUABRIDGE_SAFE_STACK_CHECKS 1
 #endif
 
-#if !defined(LUABRIDGE_RAISE_UNREGISTERED_CLASS_USAGE) && LUABRIDGE_HAS_EXCEPTIONS
+#if !defined(LUABRIDGE_RAISE_UNREGISTERED_CLASS_USAGE)
+#if LUABRIDGE_HAS_EXCEPTIONS
 #define LUABRIDGE_RAISE_UNREGISTERED_CLASS_USAGE 1
+#else
+#define LUABRIDGE_RAISE_UNREGISTERED_CLASS_USAGE 0
+#endif
 #endif
 
 #if !defined(LUABRIDGE_ASSERT)
