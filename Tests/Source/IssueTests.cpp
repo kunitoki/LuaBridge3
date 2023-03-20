@@ -250,7 +250,7 @@ TEST_F(IssueTests, IssueMainThread)
 
     if (!runLua(threadSource, thread))
     {
-        FAIL();
+        EXPECT_TRUE(false);
         return;
     }
 
@@ -259,7 +259,7 @@ TEST_F(IssueTests, IssueMainThread)
 
     if (!runLua(source, L))
     {
-        FAIL();
+        EXPECT_TRUE(false);
         return;
     }
 

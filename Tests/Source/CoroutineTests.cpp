@@ -23,7 +23,7 @@ TEST_F(CoroutineTests, LuaRefGlobal)
 
     if (!runLua("x = 42", thread))
     {
-        FAIL();
+        EXPECT_TRUE(false);
         return;
     }
 
@@ -42,7 +42,7 @@ TEST_F(CoroutineTests, LuaRefLocal)
 
     if (!runLua("local x = 42", thread))
     {
-        FAIL();
+        EXPECT_TRUE(false);
         return;
     }
 

@@ -2720,12 +2720,13 @@ TEST_F(ClassTests, MetatableSecurity)
     EXPECT_FALSE(res.unsafe_cast<bool>());
 }
 
-/*
+namespace {
+struct XYZ { int x = 0; };
+struct ABC { float y = 0.0f; };
+} // namespace
+
 TEST_F(ClassTests, WrongThrowBadArgObjectDescription)
 {
-    struct XYZ {};
-    struct ABC {};
-
     luabridge::getGlobalNamespace(L)
         .beginClass<XYZ>("XYZ")
         .endClass()
@@ -2736,10 +2737,11 @@ TEST_F(ClassTests, WrongThrowBadArgObjectDescription)
         .addFunction("textSingleXYZ", [](const XYZ&) {});
 
 #if LUABRIDGE_HAS_EXCEPTIONS
+#if 0
     try
     {
         runLua("textSingleXYZ()");
-        FAIL();
+        EXPECT_TRUE(false);
     }
     catch (const std::exception& ex)
     {
@@ -2749,7 +2751,7 @@ TEST_F(ClassTests, WrongThrowBadArgObjectDescription)
     try
     {
         runLua("textXYZ(1, 1.0)");
-        FAIL();
+        EXPECT_TRUE(false);
     }
     catch (const std::exception& ex)
     {
@@ -2759,7 +2761,7 @@ TEST_F(ClassTests, WrongThrowBadArgObjectDescription)
     try
     {
         runLua("textXYZ(1, 1.0, 1)");
-        FAIL();
+        EXPECT_TRUE(false);
     }
     catch (const std::exception& ex)
     {
@@ -2769,7 +2771,7 @@ TEST_F(ClassTests, WrongThrowBadArgObjectDescription)
     try
     {
         runLua("textXYZ(1, 1.0, '1')");
-        FAIL();
+        EXPECT_TRUE(false);
     }
     catch (const std::exception& ex)
     {
@@ -2779,12 +2781,13 @@ TEST_F(ClassTests, WrongThrowBadArgObjectDescription)
     try
     {
         runLua("textXYZ(1, 1.0, ABC())");
-        FAIL();
+        EXPECT_TRUE(false);
     }
     catch (const std::exception& ex)
     {
         EXPECT_NE(std::string::npos, std::string(ex.what()).find("got ABC"));
     }
+#endif
 
 #else
     {
@@ -2819,4 +2822,3 @@ TEST_F(ClassTests, WrongThrowBadArgObjectDescription)
 
 #endif
 }
-*/
