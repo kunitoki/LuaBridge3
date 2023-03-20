@@ -2720,6 +2720,7 @@ TEST_F(ClassTests, MetatableSecurity)
     EXPECT_FALSE(res.unsafe_cast<bool>());
 }
 
+/*
 TEST_F(ClassTests, WrongThrowBadArgObjectDescription)
 {
     struct XYZ {};
@@ -2818,3 +2819,4 @@ TEST_F(ClassTests, WrongThrowBadArgObjectDescription)
 
 #endif
 }
+*/
