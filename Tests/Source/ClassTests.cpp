@@ -2737,7 +2737,6 @@ TEST_F(ClassTests, WrongThrowBadArgObjectDescription)
         .addFunction("textSingleXYZ", [](const XYZ&) {});
 
 #if LUABRIDGE_HAS_EXCEPTIONS
-#if 0
     try
     {
         runLua("textSingleXYZ()");
@@ -2748,6 +2747,7 @@ TEST_F(ClassTests, WrongThrowBadArgObjectDescription)
         EXPECT_NE(std::string::npos, std::string(ex.what()).find("got no value"));
     }
 
+#if 0
     try
     {
         runLua("textXYZ(1, 1.0)");
