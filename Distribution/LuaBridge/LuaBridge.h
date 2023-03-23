@@ -2885,6 +2885,7 @@ private:
         {
             lua_rawgetp(L, -1, getTypeKey()); 
             expected = lua_tostring(L, -1);
+            lua_pop(L, 1); 
         }
 
         const char* got = 0;
@@ -2895,14 +2896,17 @@ private:
             {
                 lua_rawgetp(L, -1, getTypeKey()); 
                 if (lua_isstring(L, -1))
-                {
                     got = lua_tostring(L, -1);
-                }
+
+                lua_pop(L, 1); 
             }
+
+            lua_pop(L, 1); 
         }
 
         if (!got)
         {
+            lua_pop(L, 1); 
             got = lua_typename(L, lua_type(L, index));
         }
 
