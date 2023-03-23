@@ -111,6 +111,14 @@ inline int index_metamethod(lua_State* L)
     lua_getmetatable(L, 1); // Stack: class/const table (mt)
     LUABRIDGE_ASSERT(lua_istable(L, -1));
 
+    // Protect internal meta methods
+    const auto name = std::string_view(lua_tostring(L, 2));
+    if (name.size() > 2 && name[0] == '_' && name[1] == '_')
+    {
+        lua_pushnil(L);
+        return 1;
+    }
+
     for (;;)
     {
         lua_pushvalue(L, 2); // Stack: mt, field name
