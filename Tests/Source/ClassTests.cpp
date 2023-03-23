@@ -2719,3 +2719,107 @@ TEST_F(ClassTests, MetatableSecurity)
     ASSERT_TRUE(res.isBool());
     EXPECT_FALSE(res.unsafe_cast<bool>());
 }
+
+namespace {
+struct XYZ { int x = 0; };
+struct ABC { float y = 0.0f; };
+} // namespace
+
+TEST_F(ClassTests, WrongThrowBadArgObjectDescription)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<XYZ>("XYZ")
+        .endClass()
+        .beginClass<ABC>("ABC")
+            .addConstructor<void(*)()>()
+        .endClass()
+        .addFunction("textXYZ", [](int, float, const XYZ&) {})
+        .addFunction("textSingleXYZ", [](const XYZ&) {});
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+#if 0
+    // These seems to fail coverage collection of .gcda
+    try
+    {
+        runLua("textSingleXYZ()");
+        EXPECT_TRUE(false);
+    }
+    catch (const std::exception& ex)
+    {
+        EXPECT_NE(std::string::npos, std::string(ex.what()).find("got no value"));
+    }
+
+    try
+    {
+        runLua("textXYZ(1, 1.0)");
+        EXPECT_TRUE(false);
+    }
+    catch (const std::exception& ex)
+    {
+        EXPECT_NE(std::string::npos, std::string(ex.what()).find("got no value"));
+    }
+
+    try
+    {
+        runLua("textXYZ(1, 1.0, 1)");
+        EXPECT_TRUE(false);
+    }
+    catch (const std::exception& ex)
+    {
+        EXPECT_NE(std::string::npos, std::string(ex.what()).find("got number"));
+    }
+
+    try
+    {
+        runLua("textXYZ(1, 1.0, '1')");
+        EXPECT_TRUE(false);
+    }
+    catch (const std::exception& ex)
+    {
+        EXPECT_NE(std::string::npos, std::string(ex.what()).find("got string"));
+    }
+
+    try
+    {
+        runLua("textXYZ(1, 1.0, ABC())");
+        EXPECT_TRUE(false);
+    }
+    catch (const std::exception& ex)
+    {
+        EXPECT_NE(std::string::npos, std::string(ex.what()).find("got ABC"));
+    }
+#endif
+
+#else
+    {
+        auto [result, errorMessage] = runLuaCaptureError("textSingleXYZ()");
+        ASSERT_FALSE(result);
+        EXPECT_NE(std::string::npos, errorMessage.find("got no value"));
+    }
+
+    {
+        auto [result, errorMessage] = runLuaCaptureError("textXYZ(1, 1.0)");
+        ASSERT_FALSE(result);
+        EXPECT_NE(std::string::npos, errorMessage.find("got no value"));
+    }
+
+    {
+        auto [result, errorMessage] = runLuaCaptureError("textXYZ(1, 1.0, 1)");
+        ASSERT_FALSE(result);
+        EXPECT_NE(std::string::npos, errorMessage.find("got number"));
+    }
+
+    {
+        auto [result, errorMessage] = runLuaCaptureError("textXYZ(1, 1.0, '1')");
+        ASSERT_FALSE(result);
+        EXPECT_NE(std::string::npos, errorMessage.find("got string"));
+    }
+
+    {
+        auto [result, errorMessage] = runLuaCaptureError("textXYZ(1, 1.0, ABC())");
+        ASSERT_FALSE(result);
+        EXPECT_NE(std::string::npos, errorMessage.find("got ABC"));
+    }
+
+#endif
+}
