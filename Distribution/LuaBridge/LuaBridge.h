@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstddef>
@@ -5497,6 +5498,54 @@ auto pop_arguments(lua_State* L, std::tuple<Types...>& t)
     return pop_arguments<Start, Index + 1, Types...>(L, t);
 }
 
+template <class T = void, class... Args>
+constexpr auto make_array(Args&&... args)
+{
+    if constexpr (std::is_same_v<void, T>)
+        return std::array<std::common_type_t<std::decay_t<Args>...>, sizeof...(Args)>{{ std::forward<Args>(args)... }};
+    else
+        return std::array<T, sizeof...(Args)>{{ std::forward<Args>(args)... }};
+}
+
+inline bool is_metamethod(std::string_view method_name)
+{
+    static constexpr auto metamethods = make_array<std::string_view>(
+        "__add",
+        "__band",
+        "__bnot",
+        "__bor",
+        "__bxor",
+        "__call",
+        "__close",
+        "__concat",
+        "__div",
+        "__eq",
+        "__gc",
+        "__idiv",
+        "__index",
+        "__ipairs",
+        "__le",
+        "__len",
+        "__lt",
+        "__metatable",
+        "__mod",
+        "__mode",
+        "__mul",
+        "__name",
+        "__newindex",
+        "__pairs",
+        "__pow",
+        "__shl",
+        "__shr",
+        "__sub",
+        "__tostring",
+        "__unm"
+    );
+
+    auto result = std::lower_bound(metamethods.begin(), metamethods.end(), method_name);
+    return result != metamethods.end() && *result == method_name;
+}
+
 inline int index_metamethod(lua_State* L)
 {
 #if LUABRIDGE_SAFE_STACK_CHECKS
@@ -5507,6 +5556,13 @@ inline int index_metamethod(lua_State* L)
 
     lua_getmetatable(L, 1); 
     LUABRIDGE_ASSERT(lua_istable(L, -1));
+
+    const auto name = std::string_view(lua_tostring(L, 2));
+    if (name.size() > 2 && name[0] == '_' && name[1] == '_' && is_metamethod(name))
+    {
+        lua_pushnil(L);
+        return 1;
+    }
 
     for (;;)
     {
