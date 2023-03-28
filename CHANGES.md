@@ -51,6 +51,7 @@
 * Run against Luau and LuaJIT in unit tests.
 * Converted the manual from html to markdown.
 * Small improvements to code and doxygen comments readability.
+* Support for `__fastcall` function pointers.
 
 ## Version 2.6
 

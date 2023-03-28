@@ -150,6 +150,46 @@ template <class C, class R, class... Args>
 struct function_traits_impl<R (__stdcall C::*)(Args...) const noexcept> : function_traits_base<true, true, R, Args...>
 {
 };
+
+template <class R, class... Args>
+struct function_traits_impl<R __fastcall(Args...)> : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class R, class... Args>
+struct function_traits_impl<R (__fastcall *)(Args...)> : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (__fastcall C::*)(Args...)> : function_traits_base<true, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (__fastcall C::*)(Args...) const> : function_traits_base<true, true, R, Args...>
+{
+};
+
+template <class R, class... Args>
+struct function_traits_impl<R __fastcall(Args...) noexcept> : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class R, class... Args>
+struct function_traits_impl<R (__fastcall *)(Args...) noexcept> : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (__fastcall C::*)(Args...) noexcept> : function_traits_base<true, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (__fastcall C::*)(Args...) const noexcept> : function_traits_base<true, true, R, Args...>
+{
+};
 #endif
 
 template <class F>
