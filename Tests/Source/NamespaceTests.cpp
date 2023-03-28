@@ -539,4 +539,20 @@ TEST_F(NamespaceTests, StdCallFunctions)
     ASSERT_EQ(12, result<int>());
 }
 
+namespace {
+int __fastcall FastCall(int i)
+{
+    return i + 10;
+}
+} // namespace
+
+TEST_F(NamespaceTests, FastCallFunctions)
+{
+    luabridge::getGlobalNamespace(L).addFunction("FastCall", &FastCall);
+
+    runLua("result = FastCall (2)");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(12, result<int>());
+}
+
 #endif // _M_IX86

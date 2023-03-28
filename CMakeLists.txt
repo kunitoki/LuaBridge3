@@ -3,9 +3,6 @@ cmake_minimum_required (VERSION 3.5)
 project (LuaBridge)
 
 include (CMakeDependentOption)
-include (CTest)
-
-enable_testing()
 
 set (CMAKE_CXX_STANDARD 17)
 set (CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -21,6 +18,8 @@ cmake_dependent_option (LUABRIDGE_COVERAGE "Enable coverage" ON "LUABRIDGE_TESTI
 add_subdirectory (Source)
 
 if (LUABRIDGE_TESTING)
+    include (CTest)
+    enable_testing()
     set (gtest_force_shared_crt ON CACHE BOOL "Use /MD and /MDd" FORCE)
     add_subdirectory (ThirdParty/googletest)
     add_subdirectory (Tests)
