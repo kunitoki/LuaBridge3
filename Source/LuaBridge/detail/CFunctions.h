@@ -14,6 +14,8 @@
 #include "TypeTraits.h"
 #include "Userdata.h"
 
+#include <algorithm>
+#include <array>
 #include <string>
 
 namespace luabridge {
@@ -96,6 +98,58 @@ auto pop_arguments(lua_State* L, std::tuple<Types...>& t)
 
 //=================================================================================================
 /**
+ * @brief Check if a method name is a metamethod.
+ */
+template <class T = void, class... Args>
+constexpr auto make_array(Args&&... args)
+{
+    if constexpr (std::is_same_v<void, T>)
+        return std::array<std::common_type_t<std::decay_t<Args>...>, sizeof...(Args)>{{ std::forward<Args>(args)... }};
+    else
+        return std::array<T, sizeof...(Args)>{{ std::forward<Args>(args)... }};
+}
+
+inline bool is_metamethod(std::string_view method_name)
+{
+    static constexpr auto metamethods = make_array<std::string_view>(
+        "__add",
+        "__band",
+        "__bnot",
+        "__bor",
+        "__bxor",
+        "__call",
+        "__close",
+        "__concat",
+        "__div",
+        "__eq",
+        "__gc",
+        "__idiv",
+        "__index",
+        "__ipairs",
+        "__le",
+        "__len",
+        "__lt",
+        "__metatable",
+        "__mod",
+        "__mode",
+        "__mul",
+        "__name",
+        "__newindex",
+        "__pairs",
+        "__pow",
+        "__shl",
+        "__shr",
+        "__sub",
+        "__tostring",
+        "__unm"
+    );
+
+    auto result = std::lower_bound(metamethods.begin(), metamethods.end(), method_name);
+    return result != metamethods.end() && *result == method_name;
+}
+
+//=================================================================================================
+/**
  * @brief __index metamethod for a namespace or class static and non-static members.
  *
  * Retrieves functions from metatables and properties from propget tables. Looks through the class hierarchy if inheritance is present.
@@ -113,7 +167,7 @@ inline int index_metamethod(lua_State* L)
 
     // Protect internal meta methods
     const auto name = std::string_view(lua_tostring(L, 2));
-    if (name.size() > 2 && name[0] == '_' && name[1] == '_')
+    if (name.size() > 2 && name[0] == '_' && name[1] == '_' && is_metamethod(name))
     {
         lua_pushnil(L);
         return 1;
