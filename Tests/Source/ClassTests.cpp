@@ -2032,8 +2032,7 @@ TEST_F(ClassMetaMethods, __newindex)
 
     luabridge::setGlobal(L, &t, "t");
 
-    runLua("t.a = 1\n"
-           "t ['b'] = 2");
+    runLua("t.a = 1; t['b'] = 2");
 
     ASSERT_EQ((std::map<std::string, int>{{"a", 1}, {"b", 2}}), t.map);
 }
@@ -2050,6 +2049,69 @@ TEST_F(ClassMetaMethods, __gcForbidden)
                  std::exception);
 }
 #endif
+
+TEST_F(ClassMetaMethods, metamethodsShouldNotBePartOfClassInstances)
+{
+    using Int = Class<int, EmptyBase>;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+            .addConstructor<void (*)(int)>()
+            .addFunction("__xyz", [](const Int*) {})
+        .endClass();
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_ANY_THROW(runLua("local x = Int(1); x.__gc()"));
+    EXPECT_ANY_THROW(runLua("local x = Int(1); x:__gc()"));
+    EXPECT_ANY_THROW(runLua("local x = Int(1); x.__index()"));
+    EXPECT_ANY_THROW(runLua("local x = Int(1); x:__index()"));
+    EXPECT_ANY_THROW(runLua("local x = Int(1); x.__newindex()"));
+    EXPECT_ANY_THROW(runLua("local x = Int(1); x:__newindex()"));
+    EXPECT_TRUE(runLua("local x = Int(1); result = x.__gc"));
+    EXPECT_TRUE(result().isNil());
+    EXPECT_TRUE(runLua("local x = Int(1); result = x.__index"));
+    EXPECT_TRUE(result().isNil());
+    EXPECT_TRUE(runLua("local x = Int(1); result = x.__newindex"));
+    EXPECT_TRUE(result().isNil());
+#else
+    EXPECT_FALSE(runLua("local x = Int(1); x.__gc()"));
+    EXPECT_FALSE(runLua("local x = Int(1); x:__gc()"));
+    EXPECT_FALSE(runLua("local x = Int(1); x.__index()"));
+    EXPECT_FALSE(runLua("local x = Int(1); x:__index()"));
+    EXPECT_FALSE(runLua("local x = Int(1); x.__newindex()"));
+    EXPECT_FALSE(runLua("local x = Int(1); x:__newindex()"));
+    EXPECT_TRUE(runLua("local x = Int(1); result = x.__gc"));
+    EXPECT_TRUE(result().isNil());
+    EXPECT_TRUE(runLua("local x = Int(1); result = x.__index"));
+    EXPECT_TRUE(result().isNil());
+    EXPECT_TRUE(runLua("local x = Int(1); result = x.__newindex"));
+    EXPECT_TRUE(result().isNil());
+#endif
+
+    EXPECT_TRUE(runLua("local x = Int(1); x:__xyz()"));
+    EXPECT_TRUE(runLua("local x = Int(1); result = x.__xyz"));
+    EXPECT_TRUE(result().isFunction());
+}
+
+TEST_F(ClassMetaMethods, metamethodsShouldNotBeWritable)
+{
+    using Int = Class<int, EmptyBase>;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+            .addConstructor<void (*)(int)>()
+        .endClass();
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_ANY_THROW(runLua("local x = Int(1); x.__gc = function() end"));
+    EXPECT_ANY_THROW(runLua("local x = Int(1); x.__index = function() end"));
+    EXPECT_ANY_THROW(runLua("local x = Int(1); x.__newindex = function() end"));
+#else
+    EXPECT_FALSE(runLua("local x = Int(1); x.__gc = function() end"));
+    EXPECT_FALSE(runLua("local x = Int(1); x.__index = function() end"));
+    EXPECT_FALSE(runLua("local x = Int(1); x.__newindex = function() end"));
+#endif
+}
 
 TEST_F(ClassMetaMethods, SimulateArray)
 {
