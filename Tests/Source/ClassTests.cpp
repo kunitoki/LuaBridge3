@@ -2057,6 +2057,7 @@ TEST_F(ClassMetaMethods, metamethodsShouldNotBePartOfClassInstances)
     luabridge::getGlobalNamespace(L)
         .beginClass<Int>("Int")
             .addConstructor<void (*)(int)>()
+            .addFunction("__xyz", [](const Int*) {})
         .endClass();
 
 #if LUABRIDGE_HAS_EXCEPTIONS
@@ -2086,6 +2087,10 @@ TEST_F(ClassMetaMethods, metamethodsShouldNotBePartOfClassInstances)
     EXPECT_TRUE(runLua("local x = Int(1); result = x.__newindex"));
     EXPECT_TRUE(result().isNil());
 #endif
+
+    EXPECT_TRUE(runLua("local x = Int(1); x:__xyz()"));
+    EXPECT_TRUE(runLua("local x = Int(1); result = x.__xyz"));
+    EXPECT_TRUE(result().isFunction());
 }
 
 TEST_F(ClassMetaMethods, metamethodsShouldNotBeWritable)
