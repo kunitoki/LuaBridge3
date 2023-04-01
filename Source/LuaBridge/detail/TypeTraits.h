@@ -72,7 +72,7 @@ struct ContainerTraits
 /**
  * @brief Register shared_ptr support as container.
  *
- * @tparam T Class that is hold by the shared_ptr, must inherit from std::enable_shared_from_this.
+ * @tparam T Class that is hold by the shared_ptr, must inherit from std::enable_shared_from_this to support Stack::get to reconstruct it from lua.
  */
 template <class T>
 struct ContainerTraits<std::shared_ptr<T>>
