@@ -5,8 +5,9 @@ on:
     branches:
       - master
     paths:
-      - "**/Source/*"
-      - "**/Source/**/*"
+      - "**/workflows/amalgamate.yml"
+      - "**/Source/**"
+      - "**/amalgamate.py"
 
 jobs:
   run:

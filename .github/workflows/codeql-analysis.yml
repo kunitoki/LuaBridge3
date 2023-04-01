@@ -4,8 +4,12 @@ on:
   push:
     branches: [ master ]
     paths:
-      - "**/Source/*"
-      - "**/Source/**/*"
+      - "**/workflows/codeql-analysis.yml"
+      - "**/Source/**"
+      - "**/Tests/**"
+      - "**/ThirdParty/**"
+      - "**/CMakeLists.txt"
+      - "**/.gitmodules"
 
 env:
   BUILD_TYPE: Release
