@@ -43,14 +43,9 @@ jobs:
         working-directory: ${{runner.workspace}}/build
         run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -G Ninja
 
-      #- name: Build
-      #  working-directory: ${{runner.workspace}}/build
-      #  run: cmake --build . --config $BUILD_TYPE
-
       - name: Run build-wrapper
-        working-directory: ${{runner.workspace}}/build
         run: |
-          build-wrapper-linux-x86-64 --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }} cmake --build . --config $BUILD_TYPE
+          build-wrapper-linux-x86-64 --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }} cmake --build ${{runner.workspace}}/build --config $BUILD_TYPE
 
       - name: Run sonar-scanner
         env:
