@@ -40,8 +40,8 @@ jobs:
       #  run: cmake --build . --config $BUILD_TYPE
 
       - name: Run build-wrapper
+        working-directory: ${{runner.workspace}}/build
         run: |
-          working-directory: ${{runner.workspace}}/build
           build-wrapper-linux-x86-64 --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }} cmake --build . --config $BUILD_TYPE
       
       - name: Run sonar-scanner
