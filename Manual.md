@@ -401,7 +401,7 @@ luabridge::getGlobalNamespace (L)
 
 Method registration works just like function registration. Virtual methods work normally; no special syntax is needed. const methods are detected and const-correctness is enforced, so if a function returns a const object (or a container holding to a const object) to Lua, that reference to the object will be considered const and only const methods can be called on it. It is possible to register Lua metamethods (except `__gc`). Destructors are registered automatically for each class.
 
-As with regular variables and properties, class properties can be marked read-only by passing false in the second parameter, or omitting the set set function. The `deriveClass` takes two template arguments: the class to be registered, and its base class. Inherited methods do not have to be re-declared and will function normally in Lua. If a class has a base class that is **not** registered with Lua, there is no need to declare it as a subclass.
+As with regular variables and properties, class properties can be marked read-only by passing false in the second parameter, or omitting the set function. The `deriveClass` takes two template arguments: the class to be registered, and its base class. Inherited methods do not have to be re-declared and will function normally in Lua. If a class has a base class that is **not** registered with Lua, there is no need to declare it as a subclass.
 
 Remember that in Lua, the colon operator '`:`' is used for method call syntax:
 
@@ -589,7 +589,7 @@ luabridge::getGlobalNamespace (L)
 
 ```
 
-It's possible to mix lambdas, function pointers and member functions in overload creation. Providing a `lua_Cfunction` as last method will ensure it can be reached in case no other overload is successfully  executed, kind of like a "catch all" method.
+It's possible to mix lambdas, function pointers and member functions in overload creation. Providing a `lua_Cfunction` as last method will ensure it can be reached in case no other overload is successfully executed, kind of like a "catch all" method.
 
 Special attention needs to be given to the order (priority) of the overloads, based on the number and type of the arguments. Better to place first the overloads that can be called more frequently, and putting "stronger" types first: for example when having an overload taking an `int` and an overload taking `float`, as lua is not able to distinguish between them properly (until lua 5.4) the first overload will always be called.
 

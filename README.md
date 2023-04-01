@@ -83,6 +83,28 @@ cd vcpkg
 
 The LuaBridge3 port in vcpkg is kept up to date by Microsoft team members and community contributors. If the version is out of date, please [create an issue or pull request](https://github.com/Microsoft/vcpkg) on the vcpkg repository.
 
+### Update vcpkg
+
+To update the vcpkg port, we need to know the hash of the commit and the sha512 of its downloaded artifact.
+Starting from the commit hash that needs to be published, download the archived artifact and get the sha512 of it:
+
+```bash
+COMMIT_HASH="0e17140276d215e98764813078f48731125e4784"
+
+wget https://github.com/kunitoki/LuaBridge3/archive/${COMMIT_HASH}.tar.gz
+
+shasum -a 512 ${COMMIT_HASH}.tar.gz
+# fbdf09e3bd0d4e55c27afa314ff231537b57653b7c3d96b51eac2a41de0c302ed093500298f341cb168695bae5d3094fb67e019e93620c11c7d6f8c86d3802e2 0e17140276d215e98764813078f48731125e4784.tar.gz
+```
+Now update the version in https://github.com/microsoft/vcpkg/blob/master/ports/luabridge3/vcpkg.json and the commit hash and sha512 in https://github.com/microsoft/vcpkg/blob/master/ports/luabridge3/portfile.cmake then commit the changes.
+Enter into vcpkg folder and issue:
+
+```bash
+./vcpkg x-add-version --all
+```
+
+Commit the changed files and create a Pull Request for vcpkg.
+
 ## Unit Tests
 
 Unit test build requires a CMake and C++17 compliant compiler.
