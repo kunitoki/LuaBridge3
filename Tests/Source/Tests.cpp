@@ -720,6 +720,43 @@ TEST_F(LuaBridgeTest, StdSharedPtrAsProperty)
     EXPECT_EQ(42, result<int>());
 }
 
+TEST_F(LuaBridgeTest, SharedPtrNoEnableSharedFromThis)
+{
+    using TestC = TestClass<int>;
+
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("ns")
+            .beginClass<TestC>("TestClass")
+                .addFunction("getValue", &TestC::getValue)
+                .addFunction("getValueConst", &TestC::getValueConst)
+            .endClass()
+        .endNamespace();
+
+    {
+        std::shared_ptr<TestC> a = std::make_shared<TestC>(42);
+        auto result = luabridge::setGlobal(L, a, "a");
+        ASSERT_TRUE(result);
+    }
+
+    runLua("result = a");
+    ASSERT_TRUE(result().isInstance<TestC*>());
+    ASSERT_TRUE(result().isInstance<const TestC*>());
+    ASSERT_TRUE(result().isInstance<TestC&>());
+    ASSERT_TRUE(result().isInstance<const TestC&>());
+
+    auto x1 = result<TestC*>();
+    EXPECT_EQ(42, x1->getValue());
+
+    auto x2 = result<const TestC*>();
+    EXPECT_EQ(42, x2->getValueConst());
+
+    auto& x3 = result<TestC&>();
+    EXPECT_EQ(42, x3.getValue());
+
+    auto x4 = result<const TestC&>();
+    EXPECT_EQ(42, x4.getValueConst());
+}
+
 #if LUABRIDGE_HAS_EXCEPTIONS
 namespace {
 template <class... Args>

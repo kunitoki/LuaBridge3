@@ -23,6 +23,10 @@ using is_base_of_template = decltype(is_base_of_template_impl<C>(std::declval<T*
 
 template <class T, template <class...> class C>
 static inline constexpr bool is_base_of_template_v = is_base_of_template<T, C>::value;
+
+template <class... Args>
+constexpr bool dependent_false = false;
+
 } // namespace detail
 
 //=================================================================================================
@@ -73,13 +77,20 @@ struct ContainerTraits
 template <class T>
 struct ContainerTraits<std::shared_ptr<T>>
 {
-    static_assert(detail::is_base_of_template_v<T, std::enable_shared_from_this>);
-    
     using Type = T;
 
-    static std::shared_ptr<T> construct(T* t)
+    template <class U = T>
+    static std::shared_ptr<U> construct(U* t)
     {
-        return std::static_pointer_cast<T>(t->shared_from_this());
+        if constexpr (detail::is_base_of_template_v<U, std::enable_shared_from_this>)
+        {
+            return std::static_pointer_cast<U>(t->shared_from_this());
+        }
+        else
+        {
+            static_assert(detail::dependent_false<U>,
+                "Failed reconstructing the reference count of the object instance, class must inherit from std::enable_shared_from_this");
+        }
     }
 
     static T* get(const std::shared_ptr<T>& c)
