@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - master
+    paths:
+      - "**/Source/*"
+      - "**/Source/**/*"
 
 jobs:
   run:
