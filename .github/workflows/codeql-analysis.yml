@@ -11,6 +11,10 @@ on:
       - "**/CMakeLists.txt"
       - "**/.gitmodules"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   BUILD_TYPE: Release
 

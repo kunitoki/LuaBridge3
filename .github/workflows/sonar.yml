@@ -11,6 +11,10 @@ on:
       - "**/.gitmodules"
       - "**/sonar-project.properties"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   BUILD_TYPE: Release
   BUILD_WRAPPER_OUT_DIR: build_wrapper_output_directory
