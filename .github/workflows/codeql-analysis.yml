@@ -33,7 +33,9 @@ jobs:
         submodules: true
 
     - name: Install Ninja
-      uses: seanmiddleditch/gha-setup-ninja@master
+      run: |
+        sudo apt-get update
+        sudo apt-get -y install ninja-build
 
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v2
