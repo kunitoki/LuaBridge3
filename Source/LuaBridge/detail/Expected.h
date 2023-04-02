@@ -177,9 +177,7 @@ public:
     {
     }
 
-    ~expected_storage()
-    {
-    }
+    ~expected_storage() = default;
 
     constexpr const T& value() const noexcept
     {
@@ -227,9 +225,7 @@ public:
     {
     }
 
-    ~expected_storage()
-    {
-    }
+    ~expected_storage() = default;
 
     constexpr const T& value() const noexcept
     {
@@ -273,9 +269,7 @@ public:
     {
     }
 
-    ~expected_storage()
-    {
-    }
+    ~expected_storage() = default;
 
     constexpr const E& error() const noexcept
     {
