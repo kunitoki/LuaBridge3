@@ -2,8 +2,6 @@ name: SonarCloud
 
 on:
   push:
-    branches:
-      - master
     paths:
       - "**/workflows/sonar.yml"
       - "**/Source/**"
@@ -12,8 +10,6 @@ on:
       - "**/CMakeLists.txt"
       - "**/.gitmodules"
       - "**/sonar-project.properties"
-  pull_request:
-    types: [opened, synchronize, reopened]
 
 env:
   BUILD_TYPE: Release
