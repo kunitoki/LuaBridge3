@@ -12,3 +12,5 @@ build/
 .vs/
 .vscode
 .DS_store
+.idea/
+cmake-build-*/
