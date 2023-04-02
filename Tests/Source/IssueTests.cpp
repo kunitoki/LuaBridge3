@@ -146,13 +146,13 @@ enum class MyEnum
 template <class T>
 struct EnumWrapper
 {
-    static auto push(lua_State* L, T value) -> std::enable_if_t<std::is_enum_v<T>, bool>
+    static auto push(lua_State* L, T value) -> std::enable_if_t<std::is_enum_v<T>, luabridge::Result>
     {
         lua_pushnumber(L, static_cast<std::size_t>(value));
-        return true;
+        return {};
     }
 
-    static auto get(lua_State* L, int index) -> std::enable_if_t<std::is_enum_v<T>, T>
+    static auto get(lua_State* L, int index) -> std::enable_if_t<std::is_enum_v<T>, luabridge::TypeResult<T>>
     {
         return static_cast<T>(lua_tointeger(L, index));
     }
@@ -223,18 +223,18 @@ TEST_F(IssueTests, IssueMainThread)
         .beginClass<SomeClass>("SomeClass")
         .addConstructor<void (*)(lua_State*)>()
         .addFunction("SomeMember", &SomeClass::SomeMember)
-        .addProperty("SomeMemberOveride", &SomeClass::override_)
+        .addProperty("SomeMemberOverride", &SomeClass::override_)
         .endClass();
 
     const char* source = R"(
         function test()
             c:SomeMember()
-            c.SomeMemberOveride = MyHandler
+            c.SomeMemberOverride = MyHandler
             c:SomeMember()
             --This is pretty cool too!
-            c:SomeMemberOveride()
+            c:SomeMemberOverride()
             --Revert to C++ version
-            c.SomeMemberOveride = nil
+            c.SomeMemberOverride = nil
             c:SomeMember()
             return
         end
@@ -250,7 +250,7 @@ TEST_F(IssueTests, IssueMainThread)
 
     if (!runLua(threadSource, thread))
     {
-        FAIL();
+        EXPECT_TRUE(false);
         return;
     }
 
@@ -259,7 +259,7 @@ TEST_F(IssueTests, IssueMainThread)
 
     if (!runLua(source, L))
     {
-        FAIL();
+        EXPECT_TRUE(false);
         return;
     }
 

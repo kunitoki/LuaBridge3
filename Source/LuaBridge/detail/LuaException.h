@@ -10,7 +10,6 @@
 
 #include "LuaHelpers.h"
 
-#include <cassert>
 #include <string>
 #include <sstream>
 #include <exception>
@@ -52,7 +51,7 @@ public:
      */
     static void raise(lua_State* L, std::error_code code)
     {
-        assert(areExceptionsEnabled());
+        LUABRIDGE_ASSERT(areExceptionsEnabled());
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         throw LuaException(L, code, FromLua{});
@@ -180,7 +179,7 @@ inline void enableExceptions(lua_State* L) noexcept
 #else
     unused(L);
 
-    assert(false); // Never call this function when exceptions are not enabled.
+    LUABRIDGE_ASSERT(false); // Never call this function when exceptions are not enabled.
 #endif
 }
 

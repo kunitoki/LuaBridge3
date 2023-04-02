@@ -152,7 +152,7 @@ struct Stack<lua_CFunction>
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
     {
-        return lua_iscfunction(L, index);
+        return lua_iscfunction(L, index) != 0;
     }
 };
 
@@ -1050,7 +1050,8 @@ struct Stack<std::optional<T>>
 
     [[nodiscard]] static TypeResult<Type> get(lua_State* L, int index)
     {
-        if (lua_type(L, index) == LUA_TNIL)
+        const auto type = lua_type(L, index);
+        if (type == LUA_TNIL || type == LUA_TNONE)
             return std::nullopt;
 
         auto result = Stack<T>::get(L, index);
@@ -1062,7 +1063,8 @@ struct Stack<std::optional<T>>
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
     {
-        return lua_isnil(L, index) || Stack<T>::isInstance(L, index);
+        const auto type = lua_type(L, index);
+        return (type == LUA_TNIL || type == LUA_TNONE) || Stack<T>::isInstance(L, index);
     }
 };
 

@@ -1,4 +1,4 @@
-// https://github.com/vinniefalco/LuaBridge
+// https://github.com/kunitoki/LuaBridge3
 // Copyright 2021, Lucio Asnaghi
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // SPDX-License-Identifier: MIT
@@ -19,7 +19,7 @@ class ScopeGuard
 {
 public:
     template <class V>
-    ScopeGuard(V&& v)
+    explicit ScopeGuard(V&& v)
         : m_func(std::forward<V>(v))
         , m_shouldRun(true)
     {
@@ -31,7 +31,7 @@ public:
             m_func();
     }
 
-    void reset()
+    void reset() noexcept
     {
         m_shouldRun = false;
     }

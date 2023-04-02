@@ -1,4 +1,4 @@
-// https://github.com/vinniefalco/LuaBridge
+// https://github.com/kunitoki/LuaBridge3
 // Copyright 2021, Lucio Asnaghi
 // SPDX-License-Identifier: MIT
 
@@ -67,7 +67,7 @@ struct ErrorCategory : std::error_category
             return "The native floating point can't fit inside a lua number";
 
         case ErrorCode::InvalidTypeCast:
-            return "The lua object can't be casted to desired type";
+            return "The lua object can't be cast to desired type";
 
         case ErrorCode::InvalidTableSizeInCast:
             return "The lua table has different size than expected";

@@ -2032,8 +2032,7 @@ TEST_F(ClassMetaMethods, __newindex)
 
     luabridge::setGlobal(L, &t, "t");
 
-    runLua("t.a = 1\n"
-           "t ['b'] = 2");
+    runLua("t.a = 1; t['b'] = 2");
 
     ASSERT_EQ((std::map<std::string, int>{{"a", 1}, {"b", 2}}), t.map);
 }
@@ -2050,6 +2049,69 @@ TEST_F(ClassMetaMethods, __gcForbidden)
                  std::exception);
 }
 #endif
+
+TEST_F(ClassMetaMethods, metamethodsShouldNotBePartOfClassInstances)
+{
+    using Int = Class<int, EmptyBase>;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+            .addConstructor<void (*)(int)>()
+            .addFunction("__xyz", [](const Int*) {})
+        .endClass();
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_ANY_THROW(runLua("local x = Int(1); x.__gc()"));
+    EXPECT_ANY_THROW(runLua("local x = Int(1); x:__gc()"));
+    EXPECT_ANY_THROW(runLua("local x = Int(1); x.__index()"));
+    EXPECT_ANY_THROW(runLua("local x = Int(1); x:__index()"));
+    EXPECT_ANY_THROW(runLua("local x = Int(1); x.__newindex()"));
+    EXPECT_ANY_THROW(runLua("local x = Int(1); x:__newindex()"));
+    EXPECT_TRUE(runLua("local x = Int(1); result = x.__gc"));
+    EXPECT_TRUE(result().isNil());
+    EXPECT_TRUE(runLua("local x = Int(1); result = x.__index"));
+    EXPECT_TRUE(result().isNil());
+    EXPECT_TRUE(runLua("local x = Int(1); result = x.__newindex"));
+    EXPECT_TRUE(result().isNil());
+#else
+    EXPECT_FALSE(runLua("local x = Int(1); x.__gc()"));
+    EXPECT_FALSE(runLua("local x = Int(1); x:__gc()"));
+    EXPECT_FALSE(runLua("local x = Int(1); x.__index()"));
+    EXPECT_FALSE(runLua("local x = Int(1); x:__index()"));
+    EXPECT_FALSE(runLua("local x = Int(1); x.__newindex()"));
+    EXPECT_FALSE(runLua("local x = Int(1); x:__newindex()"));
+    EXPECT_TRUE(runLua("local x = Int(1); result = x.__gc"));
+    EXPECT_TRUE(result().isNil());
+    EXPECT_TRUE(runLua("local x = Int(1); result = x.__index"));
+    EXPECT_TRUE(result().isNil());
+    EXPECT_TRUE(runLua("local x = Int(1); result = x.__newindex"));
+    EXPECT_TRUE(result().isNil());
+#endif
+
+    EXPECT_TRUE(runLua("local x = Int(1); x:__xyz()"));
+    EXPECT_TRUE(runLua("local x = Int(1); result = x.__xyz"));
+    EXPECT_TRUE(result().isFunction());
+}
+
+TEST_F(ClassMetaMethods, metamethodsShouldNotBeWritable)
+{
+    using Int = Class<int, EmptyBase>;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+            .addConstructor<void (*)(int)>()
+        .endClass();
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_ANY_THROW(runLua("local x = Int(1); x.__gc = function() end"));
+    EXPECT_ANY_THROW(runLua("local x = Int(1); x.__index = function() end"));
+    EXPECT_ANY_THROW(runLua("local x = Int(1); x.__newindex = function() end"));
+#else
+    EXPECT_FALSE(runLua("local x = Int(1); x.__gc = function() end"));
+    EXPECT_FALSE(runLua("local x = Int(1); x.__index = function() end"));
+    EXPECT_FALSE(runLua("local x = Int(1); x.__newindex = function() end"));
+#endif
+}
 
 TEST_F(ClassMetaMethods, SimulateArray)
 {
@@ -2750,6 +2812,59 @@ TEST_F(ClassTests, ReferenceWrapperAccessFromLua)
 }
 
 namespace {
+template <std::size_t Alignment>
+struct alignas(Alignment) Vec
+{
+public:
+    Vec(double InA, double InB, double InC, double InD)
+    {
+        X = InA;
+        Y = InB;
+        Z = InC;
+        W = InD;
+    }
+
+public:
+
+    double X;
+    double Y;
+    double Z;
+    double W;
+
+    bool isAligned() const
+    {
+        return luabridge::is_aligned<Alignment>(reinterpret_cast<const double*>(this));
+    }
+};
+} // namespace
+
+TEST_F(ClassTests, OveralignedClasses)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Vec<8>>("Vec8")
+            .addConstructor<void(*) (double, double, double, double)>()
+            .addFunction("checkIsAligned", &Vec<8>::isAligned)
+        .endClass()
+        .beginClass<Vec<16>>("Vec16")
+            .addConstructor<void(*) (double, double, double, double)>()
+            .addFunction("checkIsAligned", &Vec<16>::isAligned)
+        .endClass()
+        .beginClass<Vec<32>>("Vec32")
+            .addConstructor<void(*) (double, double, double, double)>()
+            .addFunction("checkIsAligned", &Vec<32>::isAligned)
+        .endClass();
+
+    runLua("result = Vec8(3.0, 2.0, 1.0, 0.5):checkIsAligned()");
+    EXPECT_TRUE(result<bool>());
+
+    runLua("result = Vec16(3.0, 2.0, 1.0, 0.5):checkIsAligned()");
+    EXPECT_TRUE(result<bool>());
+
+    runLua("result = Vec32(3.0, 2.0, 1.0, 0.5):checkIsAligned()");
+    EXPECT_TRUE(result<bool>());
+}
+
+namespace {
 class ExampleStringifiableClass
 {
 public:
@@ -2777,7 +2892,7 @@ TEST_F(ClassTests, MetatableSecurityNotHidden)
             .addFunction("__tostring", &ExampleStringifiableClass::tostring)
         .endClass();
 
-    runLua("local t = ExampleStringifiableClass(); result = getmetatable(t); print(result);");
+    runLua("local t = ExampleStringifiableClass(); result = getmetatable(t)");
 
     const auto res = result();
     ASSERT_TRUE(res.isTable());
@@ -2793,10 +2908,113 @@ TEST_F(ClassTests, MetatableSecurity)
             .addFunction("__tostring", &ExampleStringifiableClass::tostring)
         .endClass();
 
-    runLua("local t = ExampleStringifiableClass(); result = getmetatable(t); print(result);");
+    runLua("local t = ExampleStringifiableClass(); result = getmetatable(t)");
 
     const auto res = result();
     ASSERT_TRUE(res.isBool());
     EXPECT_FALSE(res.unsafe_cast<bool>());
 }
 
+namespace {
+struct XYZ { int x = 0; };
+struct ABC { float y = 0.0f; };
+} // namespace
+
+TEST_F(ClassTests, WrongThrowBadArgObjectDescription)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<XYZ>("XYZ")
+        .endClass()
+        .beginClass<ABC>("ABC")
+            .addConstructor<void(*)()>()
+        .endClass()
+        .addFunction("textXYZ", [](int, float, const XYZ&) {})
+        .addFunction("textSingleXYZ", [](const XYZ&) {});
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+#if 0
+    // These seems to fail coverage collection of .gcda
+    try
+    {
+        runLua("textSingleXYZ()");
+        EXPECT_TRUE(false);
+    }
+    catch (const std::exception& ex)
+    {
+        EXPECT_NE(std::string::npos, std::string(ex.what()).find("got no value"));
+    }
+
+    try
+    {
+        runLua("textXYZ(1, 1.0)");
+        EXPECT_TRUE(false);
+    }
+    catch (const std::exception& ex)
+    {
+        EXPECT_NE(std::string::npos, std::string(ex.what()).find("got no value"));
+    }
+
+    try
+    {
+        runLua("textXYZ(1, 1.0, 1)");
+        EXPECT_TRUE(false);
+    }
+    catch (const std::exception& ex)
+    {
+        EXPECT_NE(std::string::npos, std::string(ex.what()).find("got number"));
+    }
+
+    try
+    {
+        runLua("textXYZ(1, 1.0, '1')");
+        EXPECT_TRUE(false);
+    }
+    catch (const std::exception& ex)
+    {
+        EXPECT_NE(std::string::npos, std::string(ex.what()).find("got string"));
+    }
+
+    try
+    {
+        runLua("textXYZ(1, 1.0, ABC())");
+        EXPECT_TRUE(false);
+    }
+    catch (const std::exception& ex)
+    {
+        EXPECT_NE(std::string::npos, std::string(ex.what()).find("got ABC"));
+    }
+#endif
+
+#else
+    {
+        auto [result, errorMessage] = runLuaCaptureError("textSingleXYZ()");
+        ASSERT_FALSE(result);
+        EXPECT_NE(std::string::npos, errorMessage.find("got no value"));
+    }
+
+    {
+        auto [result, errorMessage] = runLuaCaptureError("textXYZ(1, 1.0)");
+        ASSERT_FALSE(result);
+        EXPECT_NE(std::string::npos, errorMessage.find("got no value"));
+    }
+
+    {
+        auto [result, errorMessage] = runLuaCaptureError("textXYZ(1, 1.0, 1)");
+        ASSERT_FALSE(result);
+        EXPECT_NE(std::string::npos, errorMessage.find("got number"));
+    }
+
+    {
+        auto [result, errorMessage] = runLuaCaptureError("textXYZ(1, 1.0, '1')");
+        ASSERT_FALSE(result);
+        EXPECT_NE(std::string::npos, errorMessage.find("got string"));
+    }
+
+    {
+        auto [result, errorMessage] = runLuaCaptureError("textXYZ(1, 1.0, ABC())");
+        ASSERT_FALSE(result);
+        EXPECT_NE(std::string::npos, errorMessage.find("got ABC"));
+    }
+
+#endif
+}

@@ -4,8 +4,12 @@ on:
   push:
     branches: [ master ]
     paths:
-      - "**/Source/*"
-      - "**/Source/**/*"
+      - "**/workflows/codeql-analysis.yml"
+      - "**/Source/**"
+      - "**/Tests/**"
+      - "**/ThirdParty/**"
+      - "**/CMakeLists.txt"
+      - "**/.gitmodules"
 
 env:
   BUILD_TYPE: Release
@@ -22,12 +26,14 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         submodules: true
 
     - name: Install Ninja
-      uses: seanmiddleditch/gha-setup-ninja@master
+      run: |
+        sudo apt-get update
+        sudo apt-get -y install ninja-build
 
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v2

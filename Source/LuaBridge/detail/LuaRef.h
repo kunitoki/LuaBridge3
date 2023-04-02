@@ -204,7 +204,7 @@ public:
      */
     void push(lua_State* L) const
     {
-        assert(equalstates(L, m_L));
+        LUABRIDGE_ASSERT(equalstates(L, m_L));
         (void) L;
 
         impl().push();
@@ -218,7 +218,7 @@ public:
      */
     void pop(lua_State* L)
     {
-        assert(equalstates(L, m_L));
+        LUABRIDGE_ASSERT(equalstates(L, m_L));
         (void) L;
 
         impl().pop();
@@ -335,20 +335,7 @@ public:
 
         impl().push();
 
-        if constexpr (std::is_enum_v<T>)
-        {
-            using U = std::underlying_type_t<T>;
-
-            auto result = Stack<U>::get(m_L, -1);
-            if (! result)
-                return result.error();
-
-            return static_cast<T>(*result);
-        }
-        else
-        {
-            return Stack<T>::get(m_L, -1);
-        }
+        return Stack<T>::get(m_L, -1);
     }
 
     /**
@@ -363,16 +350,7 @@ public:
 
         impl().push();
 
-        if constexpr (std::is_enum_v<T>)
-        {
-            using U = std::underlying_type_t<T>;
-
-            return static_cast<T>(*Stack<U>::get(m_L, -1));
-        }
-        else
-        {
-            return *Stack<T>::get(m_L, -1);
-        }
+        return *Stack<T>::get(m_L, -1);
     }
 
     //=============================================================================================
@@ -388,16 +366,7 @@ public:
 
         impl().push();
 
-        if constexpr (std::is_enum_v<T>)
-        {
-            using U = std::underlying_type_t<T>;
-
-            return Stack<U>::isInstance(m_L, -1);
-        }
-        else
-        {
-            return Stack<T>::isInstance(m_L, -1);
-        }
+        return Stack<T>::isInstance(m_L, -1);
     }
 
     //=============================================================================================
@@ -1158,6 +1127,23 @@ public:
             luaL_unref(m_L, LUA_REGISTRYINDEX, m_ref);
 
         m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX);
+    }
+
+    //=============================================================================================
+    /**
+     * @brief Move the reference to a separate coroutine (lua_State).
+     */
+    void moveTo(lua_State* newL)
+    {
+        push();
+
+        lua_xmove(m_L, newL, 1);
+
+        if (m_ref != LUA_NOREF)
+            luaL_unref(m_L, LUA_REGISTRYINDEX, m_ref);
+
+        m_L = newL;
+        m_ref = luaL_ref(newL, LUA_REGISTRYINDEX);
     }
 
     //=============================================================================================

@@ -323,6 +323,18 @@ TEST_F(OptionalTests, FromCppApi)
     EXPECT_EQ("abcdef", *result<std::optional<std::string>>());
 }
 
+TEST_F(OptionalTests, MissingOptionalArgument)
+{
+    luabridge::getGlobalNamespace(L)
+        .addFunction("testOptionalAsArg", [](const std::optional<int>& v) { return v.has_value(); });
+
+    resetResult();
+    runLua("result = testOptionalAsArg()");
+
+    EXPECT_TRUE(result().isBool());
+    EXPECT_FALSE(result<bool>());
+}
+
 #if !LUABRIDGE_HAS_EXCEPTIONS
 TEST_F(OptionalTests, PushUnregisteredWithNoExceptionsShouldFailButRestoreStack)
 {

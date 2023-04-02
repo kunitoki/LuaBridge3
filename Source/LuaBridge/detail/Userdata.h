@@ -14,7 +14,6 @@
 #include "Result.h"
 #include "Stack.h"
 
-#include <cassert>
 #include <stdexcept>
 #include <type_traits>
 
@@ -73,12 +72,12 @@ private:
         lua_getmetatable(L, index); // Stack: object metatable (ot) | nil
         if (!lua_istable(L, -1))
         {
-            lua_rawgetp(L, LUA_REGISTRYINDEX, registryClassKey); // Stack: registry metatable (rt) | nil
+            lua_rawgetp(L, LUA_REGISTRYINDEX, registryClassKey); // Stack: ot | nil, registry metatable (rt) | nil
             return throwBadArg(L, index);
         }
 
         lua_rawgetp(L, -1, getConstKey()); // Stack: ot | nil, const table (co) | nil
-        assert(lua_istable(L, -1) || lua_isnil(L, -1));
+        LUABRIDGE_ASSERT(lua_istable(L, -1) || lua_isnil(L, -1));
 
         // If const table is NOT present, object is const. Use non-const registry table
         // if object cannot be const, so constness validation is done automatically.
@@ -165,7 +164,7 @@ private:
 
     static Userdata* throwBadArg(lua_State* L, int index)
     {
-        assert(lua_istable(L, -1) || lua_isnil(L, -1)); // Stack: rt | nil
+        LUABRIDGE_ASSERT(lua_istable(L, -1) || lua_isnil(L, -1)); // Stack: rt | nil
 
         const char* expected = 0;
         if (lua_isnil(L, -1)) // Stack: nil
@@ -176,24 +175,28 @@ private:
         {
             lua_rawgetp(L, -1, getTypeKey()); // Stack: rt, registry type
             expected = lua_tostring(L, -1);
+            lua_pop(L, 1); // Stack: rt
         }
 
         const char* got = 0;
         if (lua_isuserdata(L, index))
         {
-            lua_getmetatable(L, index); // Stack: ..., ot | nil
-            if (lua_istable(L, -1)) // Stack: ..., ot
+            lua_getmetatable(L, index); // Stack: rt, ot | nil
+            if (lua_istable(L, -1)) // Stack: rt, ot
             {
-                lua_rawgetp(L, -1, getTypeKey()); // Stack: ..., ot, object type | nil
+                lua_rawgetp(L, -1, getTypeKey()); // Stack: rt, ot, object type | nil
                 if (lua_isstring(L, -1))
-                {
                     got = lua_tostring(L, -1);
-                }
+
+                lua_pop(L, 1); // Stack: rt, ot
             }
+
+            lua_pop(L, 1); // Stack: rt
         }
 
         if (!got)
         {
+            lua_pop(L, 1); // Stack
             got = lua_typename(L, lua_type(L, index));
         }
 
@@ -279,6 +282,10 @@ protected:
 template <class T>
 class UserdataValue : public Userdata
 {
+    using AlignType = typename std::conditional_t<alignof(T) <= alignof(double), T, void*>;
+
+    static constexpr int MaxPadding = alignof(T) <= alignof(AlignType) ? 0 : alignof(T) - alignof(AlignType) + 1;
+
 public:
     UserdataValue(const UserdataValue&) = delete;
     UserdataValue operator=(const UserdataValue&) = delete;
@@ -388,7 +395,11 @@ public:
     {
         // If this fails to compile it means you forgot to provide
         // a Container specialization for your container!
-        return reinterpret_cast<T*>(&m_storage);
+
+        if constexpr (MaxPadding == 0)
+            return reinterpret_cast<T*>(&m_storage[0]);
+        else
+            return reinterpret_cast<T*>(&m_storage[0] + m_storage[sizeof(m_storage) - 1]);
     }
 
 private:
@@ -398,9 +409,18 @@ private:
     UserdataValue() noexcept
         : Userdata()
     {
+        if constexpr (MaxPadding > 0)
+        {
+            uintptr_t offset = reinterpret_cast<uintptr_t>(&m_storage[0]) % alignof(T);
+            if (offset > 0)
+                offset = alignof(T) - offset;
+
+            assert(offset < MaxPadding);
+            m_storage[sizeof(m_storage) - 1] = static_cast<unsigned char>(offset);
+        }
     }
 
-    std::aligned_storage_t<sizeof(T), alignof(T)> m_storage;
+    alignas(AlignType) unsigned char m_storage[sizeof(T) + MaxPadding];
 };
 
 //=================================================================================================
@@ -484,7 +504,7 @@ private:
     explicit UserdataPtr(void* ptr)
     {
         // Can't construct with a null object!
-        assert(ptr != nullptr);
+        LUABRIDGE_ASSERT(ptr != nullptr);
         m_p = ptr;
     }
 };
@@ -554,11 +574,11 @@ private:
     UserdataValueExternal(void* ptr, void (*dealloc)(T*)) noexcept
     {
         // Can't construct with a null object!
-        assert(ptr != nullptr);
+        LUABRIDGE_ASSERT(ptr != nullptr);
         m_p = ptr;
 
         // Can't construct with a null deallocator!
-        assert(dealloc != nullptr);
+        LUABRIDGE_ASSERT(dealloc != nullptr);
         m_dealloc = dealloc;
     }
 
@@ -844,6 +864,11 @@ struct RefStackHelper<T, false>
 {
     using ReturnType = TypeResult<std::reference_wrapper<T>>;
 
+    static Result push(lua_State* L, T& t)
+    {
+        return UserdataPtr::push(L, std::addressof(t));
+    }
+
     static Result push(lua_State* L, const T& t)
     {
         return UserdataPtr::push(L, std::addressof(t));
@@ -986,7 +1011,7 @@ struct StackOpSelector<T&, true>
     using Helper = RefStackHelper<T, IsContainer<T>::value>;
     using ReturnType = typename Helper::ReturnType;
 
-    static Result push(lua_State* L, T& value) { return UserdataPtr::push(L, &value); }
+    static Result push(lua_State* L, T& value) { return Helper::push(L, value); }
 
     static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
 

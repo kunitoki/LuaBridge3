@@ -1,4 +1,4 @@
-// https://github.com/vinniefalco/LuaBridge
+// https://github.com/kunitoki/LuaBridge3
 // Copyright 2021, Lucio Asnaghi
 // Copyright 2019, Dmitry Tarakanov
 // SPDX-License-Identifier: MIT
@@ -136,6 +136,8 @@ TEST_F(ArrayTests, FailOnWrongSize)
 #else
     auto castResult = result().cast<std::array<lua_Integer, 3>>();
     ASSERT_FALSE(castResult);
+    EXPECT_EQ(luabridge::ErrorCode::InvalidTableSizeInCast, castResult.error());
+    EXPECT_NE("", castResult.message());
 #endif
 
     auto result = luabridge::push(L, std::array<lua_Integer, 4>{ 5, 6, 7, 8 });

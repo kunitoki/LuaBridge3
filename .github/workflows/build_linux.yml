@@ -1,6 +1,14 @@
 name: Build Linux
 
-on: [push]
+on:
+  push:
+    paths:
+      - "**/workflows/build_linux.yml"
+      - "**/Source/**"
+      - "**/Tests/**"
+      - "**/ThirdParty/**"
+      - "**/CMakeLists.txt"
+      - "**/.gitmodules"
 
 env:
   BUILD_TYPE: Release
@@ -10,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
 
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         submodules: true
 

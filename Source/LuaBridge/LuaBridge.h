@@ -18,6 +18,7 @@
 
 #include "detail/CFunctions.h"
 #include "detail/ClassInfo.h"
+#include "detail/Enum.h"
 #include "detail/Errors.h"
 #include "detail/Expected.h"
 #include "detail/FuncTraits.h"

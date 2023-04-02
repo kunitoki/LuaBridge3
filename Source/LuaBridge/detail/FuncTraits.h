@@ -24,9 +24,9 @@ namespace detail {
  */
 [[noreturn]] inline void unreachable()
 {
-#if __GNUC__
+#if defined(__GNUC__) // GCC, Clang, ICC
     __builtin_unreachable();
-#elif _MSC_VER
+#elif defined(_MSC_VER) // MSVC
     __assume(false);
 #endif
 }
@@ -110,7 +110,7 @@ struct function_traits_impl<R (C::*)(Args...) const noexcept> : function_traits_
 {
 };
 
-#if _MSC_VER && _M_IX86 // Windows: WINAPI (a.k.a. __stdcall) function pointers (32bit only).
+#if defined(_MSC_VER) && defined(_M_IX86) // Windows: WINAPI (a.k.a. __stdcall) function pointers (32bit only).
 template <class R, class... Args>
 struct function_traits_impl<R __stdcall(Args...)> : function_traits_base<false, false, R, Args...>
 {
@@ -148,6 +148,46 @@ struct function_traits_impl<R (__stdcall C::*)(Args...) noexcept> : function_tra
 
 template <class C, class R, class... Args>
 struct function_traits_impl<R (__stdcall C::*)(Args...) const noexcept> : function_traits_base<true, true, R, Args...>
+{
+};
+
+template <class R, class... Args>
+struct function_traits_impl<R __fastcall(Args...)> : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class R, class... Args>
+struct function_traits_impl<R (__fastcall *)(Args...)> : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (__fastcall C::*)(Args...)> : function_traits_base<true, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (__fastcall C::*)(Args...) const> : function_traits_base<true, true, R, Args...>
+{
+};
+
+template <class R, class... Args>
+struct function_traits_impl<R __fastcall(Args...) noexcept> : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class R, class... Args>
+struct function_traits_impl<R (__fastcall *)(Args...) noexcept> : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (__fastcall C::*)(Args...) noexcept> : function_traits_base<true, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (__fastcall C::*)(Args...) const noexcept> : function_traits_base<true, true, R, Args...>
 {
 };
 #endif
