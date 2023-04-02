@@ -1,6 +1,14 @@
 name: Code Coverage
 
-on: [push]
+on:
+  push:
+    paths:
+      - "**/workflows/coverage.yml"
+      - "**/Source/**"
+      - "**/Tests/**"
+      - "**/ThirdParty/**"
+      - "**/CMakeLists.txt"
+      - "**/.gitmodules"
 
 jobs:
   build:

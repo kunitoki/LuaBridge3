@@ -9947,7 +9947,6 @@ inline void dumpValue(lua_State* L, int index, std::ostream& stream, unsigned le
 
     default:
         stream << lua_typename(L, type);
-        ;
         break;
     }
 }

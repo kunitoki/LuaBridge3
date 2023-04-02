@@ -1,6 +1,14 @@
 name: Build Windows
 
-on: [push]
+on:
+  push:
+    paths:
+      - "**/workflows/build_windows.yml"
+      - "**/Source/**"
+      - "**/Tests/**"
+      - "**/ThirdParty/**"
+      - "**/CMakeLists.txt"
+      - "**/.gitmodules"
 
 env:
   BUILD_TYPE: Release
