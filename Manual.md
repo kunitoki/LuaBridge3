@@ -1167,29 +1167,7 @@ When a pointer or pointer to const is passed to Lua and the pointer is null (zer
 
 LuaBridge supports a _shared lifetime_ model: dynamically allocated and reference counted objects whose ownership is shared by both Lua and C++. The object remains in existence until there are no remaining C++ or Lua references, and Lua performs its usual garbage collection cycle. A container is recognized by a specialization of the `ContainerTraits` template class. LuaBridge will automatically recognize when a data type is a container when the corresponding specialization is present. Two styles of containers come with LuaBridge, including the necessary specializations.
 
-### 3.4.1 - Class RefCountedObjectPtr
-
-This is an intrusive style container. Your existing class declaration must be changed to be also derived from `RefCountedObject`. Given `class T`, derived from `RefCountedObject`, the container `RefCountedObjectPtr <T>` may be used. In order for reference counts to be maintained properly, all C++ code must store a container instead of the pointer. This is similar in style to `std::shared_ptr` although there are slight differences. For example:
-
-```cpp
-// A is reference counted.
-struct A : public luabridge::RefCountedObject
-{
-  void foo () { }
-};
-
-struct B
-{
-  RefCountedObjectPtr<A> a; // holds a reference to A
-};
-
-void bar (luabridge::RefCountedObjectPtr<A> a)
-{
-  a->foo ();
-}
-```
-
-### 3.4.2 - User-defined Containers
+### 3.4.1 - User-defined Containers
 
 If you have your own container, you must provide a specialization of `ContainerTraits` in the `luabridge` namespace for your type before it will be recognized by LuaBridge (or else the code will not compile):
 
@@ -1217,14 +1195,14 @@ struct ContainerTraits<CustomContainer<T>>
 
 Containers must be safely constructible from raw pointers to objects that are already referenced by other instances of the container (such as is the case for the provided containers or for example `boost::intrusive_ptr` but not `std::shared_ptr` or `boost::shared_ptr`).
 
-### 3.4.3 - shared_ptr As Container
+### 3.4.2 - shared_ptr As Container
 
 Standard containers like `std::shared_ptr` or `boost::shared_ptr` will work in LuaBridge3, but they require special care. This is because of type erasure; when the object goes from C++ to Lua and back to C++, constructing a new shared_ptr from the raw pointer will create another reference count and result in undefined behavior, unless it could intrusively reconstruct the container from a raw pointer.
 
 To overcome this issue classes that should be managed by `shared_ptr` have to provide a way to correctly reconstruct a `shared_ptr` which can be done only if type hold it is deriving publicly from `std::enable_shared_from_this` or `boost::enable_shared_from_this`. No additional specialization of traits is needed in this case.
 
 ```cpp
-struct A : public std::enable_shared_from_this
+struct A : public std::enable_shared_from_this<A>
 {
   A () { }
   A (int) { }
@@ -1255,12 +1233,12 @@ anotherA2 = A (1)
 anotherA2.foo ()
 ```
 
-### 3.4.4 - Container Constructors
+### 3.4.3 - Container Constructors
 
 When a constructor is registered for a class, there is an additional optional second template parameter describing the type of container to use. If this parameter is specified, calls to the constructor will create the object dynamically, via operator new, and place it a container of that type. The container must have been previously specialized in `ContainerTraits`, or else a compile error will result. This code will register two objects, each using a constructor that creates an object with Lua lifetime using the specified container:
 
 ```cpp
-class C : public luabridge::RefCountedObject
+class C : public std::enable_shared_from_this<C>
 {
   C () { }
   C (int) { }
@@ -1269,7 +1247,7 @@ class C : public luabridge::RefCountedObject
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
     .beginClass <C> ("C")
-      .addConstructorFrom<luabridge::RefCountedObjectPtr<C>, void(), void(int)> ()
+      .addConstructorFrom<std::shared_ptr<C>, void(), void(int)> ()
     .endClass ()
   .endNamespace ()
 ```

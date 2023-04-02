@@ -39,12 +39,9 @@
 
 #pragma once
 
-#include "detail/Config.h"
-#include "detail/TypeTraits.h"
+#include "TestBase.h"
 
 #include <utility>
-
-namespace luabridge {
 
 //==============================================================================
 /**

@@ -4,7 +4,7 @@
 
 #include "TestBase.h"
 
-#include "LuaBridge/RefCountedObject.h"
+#include "RefCountedObject.h"
 
 struct RefCountedPtrTests : TestBase
 {
@@ -18,7 +18,7 @@ struct RefCountedPtrTests : TestBase
 
 namespace {
 
-struct RefCounted : luabridge::RefCountedObject
+struct RefCounted : RefCountedObject
 {
     explicit RefCounted(bool& deleted) : deleted(deleted) { deleted = false; }
 
@@ -29,7 +29,7 @@ struct RefCounted : luabridge::RefCountedObject
     bool& deleted;
 };
 
-struct RefCountedStatic : luabridge::RefCountedObject
+struct RefCountedStatic : RefCountedObject
 {
     explicit RefCountedStatic() { constructed = true; }
 
@@ -48,11 +48,11 @@ TEST_F(RefCountedPtrTests, Operators)
 {
     bool deleted1 = false;
     auto* raw_ptr1 = new RefCounted(deleted1);
-    luabridge::RefCountedObjectPtr<RefCounted> ptr1(raw_ptr1);
+    RefCountedObjectPtr<RefCounted> ptr1(raw_ptr1);
 
     bool deleted2 = false;
     auto* raw_ptr2 = new RefCounted(deleted2);
-    luabridge::RefCountedObjectPtr<RefCounted> ptr2(raw_ptr2);
+    RefCountedObjectPtr<RefCounted> ptr2(raw_ptr2);
 
     ASSERT_TRUE(raw_ptr1 == ptr1.getObject());
     ASSERT_TRUE(ptr1.getObject() == raw_ptr1);
@@ -67,7 +67,7 @@ TEST_F(RefCountedPtrTests, LastReferenceInLua)
 
     bool deleted = false;
 
-    luabridge::RefCountedObjectPtr<RefCounted> object(new RefCounted(deleted));
+    RefCountedObjectPtr<RefCounted> object(new RefCounted(deleted));
 
     luabridge::setGlobal(L, object, "object");
     runLua("result = object.deleted");
@@ -95,7 +95,7 @@ TEST_F(RefCountedPtrTests, LastReferenceInCpp)
 
     bool deleted = false;
 
-    luabridge::RefCountedObjectPtr<RefCounted> object(new RefCounted(deleted));
+    RefCountedObjectPtr<RefCounted> object(new RefCounted(deleted));
 
     luabridge::setGlobal(L, object, "object");
     runLua("result = object.deleted");
