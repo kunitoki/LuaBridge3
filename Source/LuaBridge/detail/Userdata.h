@@ -176,7 +176,7 @@ private:
             lua_pop(L, 1); // Stack: rt
         }
 
-        const char* got = 0;
+        const char* got = nullptr;
         if (lua_isuserdata(L, index))
         {
             lua_getmetatable(L, index); // Stack: rt, ot | nil
