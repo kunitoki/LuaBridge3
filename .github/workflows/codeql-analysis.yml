@@ -10,6 +10,8 @@ on:
       - "**/ThirdParty/**"
       - "**/CMakeLists.txt"
       - "**/.gitmodules"
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 env:
   BUILD_TYPE: Release
