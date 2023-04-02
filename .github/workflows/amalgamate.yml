@@ -8,8 +8,6 @@ on:
       - "**/workflows/amalgamate.yml"
       - "**/Source/**"
       - "**/amalgamate.py"
-  pull_request:
-    types: [opened, synchronize, reopened]
 
 jobs:
   run:
