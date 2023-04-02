@@ -80,37 +80,37 @@ struct TypeResult
         return m_value.hasValue();
     }
 
-    const T& value() const noexcept
+    const T& value() const
     {
         return m_value.value();
     }
 
-    T& operator*() & noexcept
+    T& operator*() &
     {
         return m_value.value();
     }
 
-    T operator*() && noexcept
+    T operator*() &&
     {
         return std::move(m_value.value());
     }
 
-    const T& operator*() const& noexcept
+    const T& operator*() const&
     {
         return m_value.value();
     }
 
-    T operator*() const&& noexcept
+    T operator*() const&&
     {
         return std::move(m_value.value());
     }
 
-    std::error_code error() const noexcept
+    std::error_code error() const
     {
         return m_value.error();
     }
 
-    operator std::error_code() const noexcept
+    operator std::error_code() const
     {
         return m_value.error();
     }
