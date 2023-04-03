@@ -31,6 +31,34 @@ struct LuaBridgeTest : TestBase
 {
 };
 
+class FCStaffSystem {};
+class FCSystemStaff {};
+
+TEST_F(LuaBridgeTest, TypeName)
+{
+    auto x1 = luabridge::detail::typeName<FCStaffSystem>();
+    auto x2 = luabridge::detail::typeName<FCSystemStaff>();
+    EXPECT_NE(x1, x2);
+
+    {
+        auto y1 = luabridge::detail::typeHash<FCStaffSystem>();
+        auto y2 = luabridge::detail::typeHash<FCSystemStaff>();
+        EXPECT_NE(y1, y2);
+    }
+
+    {
+        auto y1 = luabridge::detail::typeHash<FCStaffSystem>() ^ 1;
+        auto y2 = luabridge::detail::typeHash<FCSystemStaff>() ^ 1;
+        EXPECT_NE(y1, y2);
+    }
+
+    {
+        auto y1 = luabridge::detail::typeHash<FCStaffSystem>() ^ 2;
+        auto y2 = luabridge::detail::typeHash<FCSystemStaff>() ^ 2;
+        EXPECT_NE(y1, y2);
+    }
+}
+
 TEST_F(LuaBridgeTest, LambdaGlobalNamespace)
 {
     int x = 100;
