@@ -1261,7 +1261,7 @@ public:
         return base_type::valid();
     }
 
-    constexpr const T& value() const&
+    constexpr const T& value() const& LUABRIDGE_IF_NO_EXCEPTIONS(noexcept)
     {
 #if LUABRIDGE_HAS_EXCEPTIONS
         if (!hasValue())
@@ -1271,7 +1271,7 @@ public:
         return base_type::value();
     }
 
-    constexpr T& value() &
+    constexpr T& value() & LUABRIDGE_IF_NO_EXCEPTIONS(noexcept)
     {
 #if LUABRIDGE_HAS_EXCEPTIONS
         if (!hasValue())
@@ -1281,7 +1281,7 @@ public:
         return base_type::value();
     }
 
-    constexpr const T&& value() const&& noexcept
+    constexpr const T&& value() const&& LUABRIDGE_IF_NO_EXCEPTIONS(noexcept)
     {
 #if LUABRIDGE_HAS_EXCEPTIONS
         if (!hasValue())
@@ -1291,7 +1291,7 @@ public:
         return std::move(base_type::value());
     }
 
-    constexpr T&& value() &&
+    constexpr T&& value() && LUABRIDGE_IF_NO_EXCEPTIONS(noexcept)
     {
 #if LUABRIDGE_HAS_EXCEPTIONS
         if (!hasValue())
