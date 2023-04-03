@@ -63,6 +63,14 @@
 #endif
 #endif
 
+#if LUABRIDGE_HAS_EXCEPTIONS
+#define LUABRIDGE_IF_EXCEPTIONS(...) __VA_ARGS__
+#define LUABRIDGE_IF_NO_EXCEPTIONS(...)
+#else
+#define LUABRIDGE_IF_EXCEPTIONS(...)
+#define LUABRIDGE_IF_NO_EXCEPTIONS(...) __VA_ARGS__
+#endif
+
 #if defined(LUAU_FASTMATH_BEGIN)
 #define LUABRIDGE_ON_LUAU 1
 #elif defined(LUAJIT_VERSION)
@@ -1969,7 +1977,7 @@ public:
         return base_type::valid();
     }
 
-    constexpr const T& value() const&
+    constexpr const T& value() const& LUABRIDGE_IF_NO_EXCEPTIONS(noexcept)
     {
 #if LUABRIDGE_HAS_EXCEPTIONS
         if (!hasValue())
@@ -1979,7 +1987,7 @@ public:
         return base_type::value();
     }
 
-    constexpr T& value() &
+    constexpr T& value() & LUABRIDGE_IF_NO_EXCEPTIONS(noexcept)
     {
 #if LUABRIDGE_HAS_EXCEPTIONS
         if (!hasValue())
@@ -1989,7 +1997,7 @@ public:
         return base_type::value();
     }
 
-    constexpr const T&& value() const&& noexcept
+    constexpr const T&& value() const&& LUABRIDGE_IF_NO_EXCEPTIONS(noexcept)
     {
 #if LUABRIDGE_HAS_EXCEPTIONS
         if (!hasValue())
@@ -1999,7 +2007,7 @@ public:
         return std::move(base_type::value());
     }
 
-    constexpr T&& value() &&
+    constexpr T&& value() && LUABRIDGE_IF_NO_EXCEPTIONS(noexcept)
     {
 #if LUABRIDGE_HAS_EXCEPTIONS
         if (!hasValue())
