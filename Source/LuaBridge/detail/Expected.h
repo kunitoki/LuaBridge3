@@ -1286,7 +1286,7 @@ public:
     {
 #if LUABRIDGE_HAS_EXCEPTIONS
         if (!hasValue())
-            throw BadExpectedAccess<E>(error());
+            throw BadExpectedAccess<E>(error(), error().message());
 #endif
 
         return std::move(base_type::value());
