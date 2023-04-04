@@ -976,10 +976,11 @@ template <class E>
 class BadExpectedAccess;
 
 template <>
-class BadExpectedAccess<void> : public std::exception
+class BadExpectedAccess<void> : public std::runtime_error
 {
 public:
-    explicit BadExpectedAccess() noexcept
+    explicit BadExpectedAccess(const std::string& message) noexcept
+        : std::runtime_error(message)
     {
     }
 };
@@ -987,8 +988,8 @@ template <class E>
 class BadExpectedAccess : public BadExpectedAccess<void>
 {
 public:
-    explicit BadExpectedAccess(E error) noexcept(std::is_nothrow_constructible_v<E, E&&>)
-        : error_(std::move(error))
+    explicit BadExpectedAccess(E error,const std::string& message) noexcept(std::is_nothrow_constructible_v<E, E&&>)
+        : BadExpectedAccess<void>(message), error_(std::move(error))
     {
     }
 
@@ -1265,7 +1266,7 @@ public:
     {
 #if LUABRIDGE_HAS_EXCEPTIONS
         if (!hasValue())
-            throw BadExpectedAccess<E>(error());
+            throw BadExpectedAccess<E>(error(), error().message());
 #endif
 
         return base_type::value();
@@ -1275,7 +1276,7 @@ public:
     {
 #if LUABRIDGE_HAS_EXCEPTIONS
         if (!hasValue())
-            throw BadExpectedAccess<E>(error());
+            throw BadExpectedAccess<E>(error(), error().message());
 #endif
 
         return base_type::value();
@@ -1295,7 +1296,7 @@ public:
     {
 #if LUABRIDGE_HAS_EXCEPTIONS
         if (!hasValue())
-            throw BadExpectedAccess<E>(error());
+            throw BadExpectedAccess<E>(error(), error().message());
 #endif
         return std::move(base_type::value());
     }
