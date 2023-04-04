@@ -988,7 +988,7 @@ template <class E>
 class BadExpectedAccess : public BadExpectedAccess<void>
 {
 public:
-    explicit BadExpectedAccess(E error,const std::string& message) noexcept(std::is_nothrow_constructible_v<E, E&&>)
+    explicit BadExpectedAccess(E error, const std::string& message) noexcept(std::is_nothrow_constructible_v<E, E&&>)
         : BadExpectedAccess<void>(message), error_(std::move(error))
     {
     }
