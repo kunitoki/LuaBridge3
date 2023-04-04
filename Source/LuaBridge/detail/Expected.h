@@ -988,15 +988,10 @@ class BadExpectedAccess : public BadExpectedAccess<void>
 {
 public:
     explicit BadExpectedAccess(E error) noexcept(std::is_nothrow_constructible_v<E, E&&>)
-        : msg_(error.message()), error_(std::move(error))
+        : error_(std::move(error))
     {
     }
-   
-    const char* what() const throw() override
-    {
-        return msg_.c_str();
-    }
-   
+
     const E& error() const& noexcept
     {
         return error_;
@@ -1013,7 +1008,6 @@ public:
     }
 
 private:
-    std::string msg_;
     E error_;
 };
 #endif
