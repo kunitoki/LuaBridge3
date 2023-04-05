@@ -874,6 +874,28 @@ TEST_F(LuaBridgeTest, BooleanNoValue)
 }
 
 #if LUABRIDGE_HAS_EXCEPTIONS
+TEST_F(LuaBridgeTest, StackExceptionWithMessage)
+{
+    try {
+        auto result = luabridge::Stack<std::string>::get(L, 1);
+        result.value();
+        EXPECT_FALSE(true);
+    } catch (const std::exception& e) {
+        EXPECT_STREQ("The lua object can't be cast to desired type", e.what());
+    }
+}
+
+TEST_F(LuaBridgeTest, ExpectedExceptionWithoutMessage)
+{
+    try {
+        luabridge::Expected<std::string, int> result = luabridge::makeUnexpected(5);
+        result.value();
+        EXPECT_FALSE(true);
+    } catch (const std::exception& e) {
+        EXPECT_STREQ("bad_expected_access", e.what());
+    }
+}
+
 namespace {
 template <class... Args>
 std::string call_callback_get_exception(const luabridge::LuaRef& fn, Args&&... args)
