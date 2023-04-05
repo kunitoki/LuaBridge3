@@ -185,17 +185,17 @@ LuaResult call(const LuaRef& object, Args&&... args)
         }
     }
 
-    int code = lua_pcall(L, sizeof...(Args), LUA_MULTRET, 0);
+    const int code = lua_pcall(L, sizeof...(Args), LUA_MULTRET, 0);
     if (code != LUABRIDGE_LUA_OK)
     {
         auto ec = makeErrorCode(ErrorCode::LuaFunctionCallFailed);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
-        if (LuaException::areExceptionsEnabled())
+        if (LuaException::areExceptionsEnabled(L))
             LuaException::raise(L, ec);
-#else
-        return LuaResult::errorFromStack(L, ec);
 #endif
+
+        return LuaResult::errorFromStack(L, ec);
     }
 
     return LuaResult::valuesFromStack(L, stackTop);
@@ -210,7 +210,7 @@ inline int pcall(lua_State* L, int nargs = 0, int nresults = 0, int msgh = 0)
     const int code = lua_pcall(L, nargs, nresults, msgh);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
-    if (code != LUABRIDGE_LUA_OK && LuaException::areExceptionsEnabled())
+    if (code != LUABRIDGE_LUA_OK && LuaException::areExceptionsEnabled(L))
         LuaException::raise(L, makeErrorCode(ErrorCode::LuaFunctionCallFailed));
 #endif
 

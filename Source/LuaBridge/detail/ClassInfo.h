@@ -58,6 +58,15 @@ template <class T, auto = typeName<T>().find_first_of('.')>
 
 //=================================================================================================
 /**
+ * @brief A unique key for the exceptions in the registry.
+ */
+[[nodiscard]] inline void* getExceptionsKey() noexcept
+{
+    return reinterpret_cast<void*>(0xc7);
+}
+
+//=================================================================================================
+/**
  * @brief A unique key for a type name in a metatable.
  */
 [[nodiscard]] inline const void* getTypeKey() noexcept
