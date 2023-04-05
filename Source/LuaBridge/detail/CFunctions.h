@@ -690,7 +690,7 @@ struct function<void, ArgsPack, Start>
 template <class F, class T>
 int invoke_member_function(lua_State* L)
 {
-    using FnTraits = detail::function_traits<F>;
+    using FnTraits = function_traits<F>;
 
     LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
@@ -705,7 +705,7 @@ int invoke_member_function(lua_State* L)
 template <class F, class T>
 int invoke_const_member_function(lua_State* L)
 {
-    using FnTraits = detail::function_traits<F>;
+    using FnTraits = function_traits<F>;
 
     LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
@@ -762,7 +762,7 @@ int invoke_const_member_cfunction(lua_State* L)
 template <class F>
 int invoke_proxy_function(lua_State* L)
 {
-    using FnTraits = detail::function_traits<F>;
+    using FnTraits = function_traits<F>;
 
     LUABRIDGE_ASSERT(lua_islightuserdata(L, lua_upvalueindex(1)));
 
@@ -781,7 +781,7 @@ int invoke_proxy_function(lua_State* L)
 template <class F>
 int invoke_proxy_functor(lua_State* L)
 {
-    using FnTraits = detail::function_traits<F>;
+    using FnTraits = function_traits<F>;
 
     LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
@@ -1141,9 +1141,9 @@ int constructor_container_proxy(lua_State* L)
 {
     using T = typename ContainerTraits<C>::Type;
 
-    T* object = detail::constructor<T, Args>::call(detail::make_arguments_list<Args, 2>(L));
+    T* object = constructor<T, Args>::call(detail::make_arguments_list<Args, 2>(L));
 
-    auto result = detail::UserdataSharedHelper<C, false>::push(L, object);
+    auto result = UserdataSharedHelper<C, false>::push(L, object);
     if (! result)
         luaL_error(L, "%s", result.message().c_str());
 
@@ -1156,12 +1156,14 @@ int constructor_container_proxy(lua_State* L)
 template <class T, class Args>
 int constructor_placement_proxy(lua_State* L)
 {
+    auto args = make_arguments_list<Args, 2>(L);
+
     std::error_code ec;
-    auto* value = detail::UserdataValue<T>::place(L, ec);
+    auto* value = UserdataValue<T>::place(L, ec);
     if (! value)
         luaL_error(L, "%s", ec.message().c_str());
 
-    detail::constructor<T, Args>::call(value->getObject(), detail::make_arguments_list<Args, 2>(L));
+    constructor<T, Args>::call(value->getObject(), std::move(args));
 
     value->commit();
 
@@ -1182,16 +1184,18 @@ struct constructor_forwarder
 
     T* operator()(lua_State* L)
     {
+        using FnTraits = function_traits<F>;
+        using FnArgs = remove_first_type_t<typename FnTraits::argument_types>;
+
+        auto args = make_arguments_list<FnArgs, 2>(L);
+
         std::error_code ec;
         auto* value = UserdataValue<T>::place(L, ec);
         if (! value)
             luaL_error(L, "%s", ec.message().c_str());
 
-        using FnTraits = function_traits<F>;
-        using FnArgs = remove_first_type_t<typename FnTraits::argument_types>;
-
         T* obj = placement_constructor<T>::construct(
-            value->getObject(), m_func, make_arguments_list<FnArgs, 2>(L));
+            value->getObject(), m_func, std::move(args));
 
         value->commit();
 

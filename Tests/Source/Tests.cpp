@@ -845,6 +845,34 @@ TEST_F(LuaBridgeTest, PointersBoom)
     EXPECT_EQ("aaabbb", result<std::string>());
 }
 
+namespace {
+class ConstructibleFromBool
+{
+public:
+    ConstructibleFromBool(bool param) : val_(param) {}
+
+    bool val() const { return val_; }
+
+private:
+    bool val_;
+};
+} // namespace
+
+TEST_F(LuaBridgeTest, BooleanNoValue)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("test")
+            .beginClass<ConstructibleFromBool>("ConstructibleFromBool")
+                .addConstructor<void(*)(bool)>()
+                .addFunction("val", &ConstructibleFromBool::val)
+            .endClass()
+        .endNamespace();
+
+    runLua("local foo = test.ConstructibleFromBool(); result = foo:val()");
+    ASSERT_TRUE(result().isBool());
+    EXPECT_FALSE(result<bool>());
+}
+
 #if LUABRIDGE_HAS_EXCEPTIONS
 namespace {
 template <class... Args>
