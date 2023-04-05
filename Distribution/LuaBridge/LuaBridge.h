@@ -4812,7 +4812,10 @@ struct StackOpSelector<T*, false>
 {
     using ReturnType = TypeResult<T>;
 
-    static Result push(lua_State* L, T* value) { return Stack<T>::push(L, *value); }
+    static Result push(lua_State* L, T* value)
+    {
+        return value ? Stack<T>::push(L, *value) : Stack<std::nullptr_t>::push(L, nullptr);
+    }
 
     static ReturnType get(lua_State* L, int index) { return Stack<T>::get(L, index); }
 
@@ -4824,7 +4827,10 @@ struct StackOpSelector<const T*, false>
 {
     using ReturnType = TypeResult<T>;
 
-    static Result push(lua_State* L, const T* value) { return Stack<T>::push(L, *value); }
+    static Result push(lua_State* L, const T* value)
+    {
+        return value ? Stack<T>::push(L, *value) : Stack<std::nullptr_t>::push(L, nullptr);
+    }
 
     static ReturnType get(lua_State* L, int index) { return Stack<T>::get(L, index); }
 
