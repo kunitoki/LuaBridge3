@@ -785,6 +785,49 @@ TEST_F(LuaBridgeTest, SharedPtrNoEnableSharedFromThis)
     EXPECT_EQ(42, x4.getValueConst());
 }
 
+namespace {
+class BoomyClass
+{
+public:
+    BoomyClass() = default;
+
+    const char* nullconst() { return nullptr; }
+    char* null() { return nullptr; }
+
+    std::string twochars(const char* one, const char* two = nullptr)
+    {
+        std::string one_two = one;
+
+        if (two)
+        {
+            one_two += " another parameter was provided: ";
+            one_two += two;
+        }
+
+        return one_two;
+   }
+};
+} // namespace
+
+TEST_F(LuaBridgeTest, PointersBoom)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("test")
+            .beginClass<BoomyClass>("BoomyClass")
+                .addConstructor<void(*)(void)>()
+                .addFunction("nullconst", &BoomyClass::nullconst)
+                .addFunction("null", &BoomyClass::null)
+                .addFunction("twochars", &BoomyClass::twochars)
+            .endClass()
+        .endNamespace();
+
+    runLua(R"(
+        local foo = test.BoomyClass()
+        result = foo:nullconst() -- nullconst comes back nil on LB2 but "" on LB3: this is a breaking change
+    )");
+    EXPECT_TRUE(result().isNil());
+}
+
 #if LUABRIDGE_HAS_EXCEPTIONS
 namespace {
 template <class... Args>

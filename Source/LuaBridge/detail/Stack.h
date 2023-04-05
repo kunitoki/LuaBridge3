@@ -900,7 +900,7 @@ struct Stack<const char*>
         if (str != nullptr)
             lua_pushstring(L, str);
         else
-            lua_pushlstring(L, "", 0);
+            lua_pushnil(L);
 
         return {};
     }
