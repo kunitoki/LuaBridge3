@@ -826,6 +826,12 @@ TEST_F(LuaBridgeTest, PointersBoom)
         result = foo:nullconst() -- nullconst comes back nil on LB2 but "" on LB3: this is a breaking change
     )");
     EXPECT_TRUE(result().isNil());
+
+    runLua(R"(
+        local foo = test.BoomyClass()
+        return foo:null()        -- null doesn't come back. system goes >>BOOM<< on both LB2 and LB3
+    )");
+    EXPECT_TRUE(result().isNil());
 }
 
 #if LUABRIDGE_HAS_EXCEPTIONS
