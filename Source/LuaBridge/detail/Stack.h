@@ -907,8 +907,13 @@ struct Stack<const char*>
 
     [[nodiscard]] static TypeResult<const char*> get(lua_State* L, int index)
     {
-        if (lua_type(L, index) != LUA_TSTRING)
+        const bool isNil = lua_isnil(L, index);
+
+        if (!isNil && lua_type(L, index) != LUA_TSTRING)
             return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        if (isNil)
+            return nullptr;
 
         std::size_t length = 0;
         const char* str = lua_tolstring(L, index, &length);
@@ -920,7 +925,7 @@ struct Stack<const char*>
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
     {
-        return lua_type(L, index) == LUA_TSTRING;
+        return lua_isnil(L, index) || lua_type(L, index) == LUA_TSTRING;
     }
 };
 

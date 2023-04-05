@@ -799,10 +799,7 @@ public:
         std::string one_two = one;
 
         if (two)
-        {
-            one_two += " another parameter was provided: ";
             one_two += two;
-        }
 
         return one_two;
    }
@@ -823,15 +820,29 @@ TEST_F(LuaBridgeTest, PointersBoom)
 
     runLua(R"(
         local foo = test.BoomyClass()
-        result = foo:nullconst() -- nullconst comes back nil on LB2 but "" on LB3: this is a breaking change
+        result = foo:nullconst()
     )");
     EXPECT_TRUE(result().isNil());
 
     runLua(R"(
         local foo = test.BoomyClass()
-        return foo:null()        -- null doesn't come back. system goes >>BOOM<< on both LB2 and LB3
+        result = foo:null()
     )");
     EXPECT_TRUE(result().isNil());
+
+    runLua(R"(
+        local foo = test.BoomyClass()
+        result = foo:twochars("aaa", nil)
+    )");
+    ASSERT_TRUE(result().isString());
+    EXPECT_EQ("aaa", result<std::string>());
+
+    runLua(R"(
+        local foo = test.BoomyClass()
+        result = foo:twochars("aaa", "bbb")
+    )");
+    ASSERT_TRUE(result().isString());
+    EXPECT_EQ("aaabbb", result<std::string>());
 }
 
 #if LUABRIDGE_HAS_EXCEPTIONS
