@@ -2448,147 +2448,6 @@ inline bool operator!=(const U& lhs, const TypeResult<U>& rhs) noexcept
 
 // End File: Source/LuaBridge/detail/Result.h
 
-// Begin File: Source/LuaBridge/detail/LuaException.h
-
-namespace luabridge {
-
-class LuaException : public std::exception
-{
-public:
-    
-    LuaException(lua_State* L, std::error_code code)
-        : m_L(L)
-        , m_code(code)
-    {
-    }
-
-    ~LuaException() noexcept override
-    {
-    }
-
-    const char* what() const noexcept override
-    {
-        return m_what.c_str();
-    }
-
-    static void raise(lua_State* L, std::error_code code)
-    {
-        LUABRIDGE_ASSERT(areExceptionsEnabled());
-
-#if LUABRIDGE_HAS_EXCEPTIONS
-        throw LuaException(L, code, FromLua{});
-#else
-        unused(L, code);
-
-        std::abort();
-#endif
-    }
-
-    static bool areExceptionsEnabled() noexcept
-    {
-        return exceptionsEnabled();
-    }
-
-    static void enableExceptions(lua_State* L) noexcept
-    {
-        exceptionsEnabled() = true;
-
-#if LUABRIDGE_HAS_EXCEPTIONS && LUABRIDGE_ON_LUAJIT
-        lua_pushlightuserdata(L, (void*)luajitWrapperCallback);
-        luaJIT_setmode(L, -1, LUAJIT_MODE_WRAPCFUNC | LUAJIT_MODE_ON);
-        lua_pop(L, 1);
-#endif
-
-#if LUABRIDGE_ON_LUAU
-        auto callbacks = lua_callbacks(L);
-        callbacks->panic = +[](lua_State* L, int) { panicHandlerCallback(L); };
-#else
-        lua_atpanic(L, panicHandlerCallback);
-#endif
-    }
-
-    lua_State* state() const { return m_L; }
-
-private:
-    struct FromLua {};
-
-    LuaException(lua_State* L, std::error_code code, FromLua)
-        : m_L(L)
-        , m_code(code)
-    {
-        whatFromStack();
-    }
-
-    void whatFromStack()
-    {
-        std::stringstream ss;
-
-        const char* errorText = nullptr;
-
-        if (lua_gettop(m_L) > 0)
-        {
-            errorText = lua_tostring(m_L, -1);
-            lua_pop(m_L, 1);
-        }
-
-        ss << (errorText ? errorText : "Unknown error") << " (code=" << m_code.message() << ")";
-
-        m_what = std::move(ss).str();
-    }
-
-    static int panicHandlerCallback(lua_State* L)
-    {
-#if LUABRIDGE_HAS_EXCEPTIONS
-        throw LuaException(L, makeErrorCode(ErrorCode::LuaFunctionCallFailed), FromLua{});
-#else
-        unused(L);
-
-        std::abort();
-#endif
-    }
-
-#if LUABRIDGE_HAS_EXCEPTIONS && LUABRIDGE_ON_LUAJIT
-    static int luajitWrapperCallback(lua_State* L, lua_CFunction f)
-    {
-        try
-        {
-            return f(L);
-        }
-        catch (const std::exception& e)
-        {
-            lua_pushstring(L, e.what());
-            return lua_error_x(L);
-        }
-    }
-#endif
-
-    static bool& exceptionsEnabled()
-    {
-        static bool areExceptionsEnabled = false;
-        return areExceptionsEnabled;
-    }
-
-    lua_State* m_L = nullptr;
-    std::error_code m_code;
-    std::string m_what;
-};
-
-inline void enableExceptions(lua_State* L) noexcept
-{
-#if LUABRIDGE_HAS_EXCEPTIONS
-    LuaException::enableExceptions(L);
-#else
-    unused(L);
-
-    LUABRIDGE_ASSERT(false); 
-#endif
-}
-
-} 
-
-
-// End File: Source/LuaBridge/detail/LuaException.h
-
 // Begin File: Source/LuaBridge/detail/ClassInfo.h
 
 #if defined __clang__ || defined __GNUC__
@@ -2633,6 +2492,11 @@ template <class T, auto = typeName<T>().find_first_of('.')>
     constexpr auto stripped = typeName<T>();
 
     return fnv1a(stripped.data(), stripped.size());
+}
+
+[[nodiscard]] inline void* getExceptionsKey() noexcept
+{
+    return reinterpret_cast<void*>(0xc7);
 }
 
 [[nodiscard]] inline const void* getTypeKey() noexcept
@@ -2708,6 +2572,149 @@ template <class T>
 
 
 // End File: Source/LuaBridge/detail/ClassInfo.h
+
+// Begin File: Source/LuaBridge/detail/LuaException.h
+
+namespace luabridge {
+
+class LuaException : public std::exception
+{
+public:
+    
+    LuaException(lua_State* L, std::error_code code)
+        : m_L(L)
+        , m_code(code)
+    {
+    }
+
+    ~LuaException() noexcept override
+    {
+    }
+
+    const char* what() const noexcept override
+    {
+        return m_what.c_str();
+    }
+
+    static void raise(lua_State* L, std::error_code code)
+    {
+        LUABRIDGE_ASSERT(areExceptionsEnabled(L));
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        throw LuaException(L, code, FromLua{});
+#else
+        unused(L, code);
+
+        std::abort();
+#endif
+    }
+
+    static bool areExceptionsEnabled(lua_State* L) noexcept
+    {
+        lua_pushlightuserdata(L, detail::getExceptionsKey());
+        lua_gettable(L, LUA_REGISTRYINDEX);
+
+        const bool enabled = lua_isboolean(L, -1) ? lua_toboolean(L, -1) : false;
+        lua_pop(L, 1);
+
+        return enabled;
+    }
+
+    static void enableExceptions(lua_State* L) noexcept
+    {
+        lua_pushlightuserdata(L, detail::getExceptionsKey());
+        lua_pushboolean(L, true);
+        lua_settable(L, LUA_REGISTRYINDEX);
+
+#if LUABRIDGE_HAS_EXCEPTIONS && LUABRIDGE_ON_LUAJIT
+        lua_pushlightuserdata(L, (void*)luajitWrapperCallback);
+        luaJIT_setmode(L, -1, LUAJIT_MODE_WRAPCFUNC | LUAJIT_MODE_ON);
+        lua_pop(L, 1);
+#endif
+
+#if LUABRIDGE_ON_LUAU
+        auto callbacks = lua_callbacks(L);
+        callbacks->panic = +[](lua_State* L, int) { panicHandlerCallback(L); };
+#else
+        lua_atpanic(L, panicHandlerCallback);
+#endif
+    }
+
+    lua_State* state() const { return m_L; }
+
+private:
+    struct FromLua {};
+
+    LuaException(lua_State* L, std::error_code code, FromLua)
+        : m_L(L)
+        , m_code(code)
+    {
+        whatFromStack();
+    }
+
+    void whatFromStack()
+    {
+        std::stringstream ss;
+
+        const char* errorText = nullptr;
+
+        if (lua_gettop(m_L) > 0)
+        {
+            errorText = lua_tostring(m_L, -1);
+            lua_pop(m_L, 1);
+        }
+
+        ss << (errorText ? errorText : "Unknown error") << " (code=" << m_code.message() << ")";
+
+        m_what = std::move(ss).str();
+    }
+
+    static int panicHandlerCallback(lua_State* L)
+    {
+#if LUABRIDGE_HAS_EXCEPTIONS
+        throw LuaException(L, makeErrorCode(ErrorCode::LuaFunctionCallFailed), FromLua{});
+#else
+        unused(L);
+
+        std::abort();
+#endif
+    }
+
+#if LUABRIDGE_HAS_EXCEPTIONS && LUABRIDGE_ON_LUAJIT
+    static int luajitWrapperCallback(lua_State* L, lua_CFunction f)
+    {
+        try
+        {
+            return f(L);
+        }
+        catch (const std::exception& e)
+        {
+            lua_pushstring(L, e.what());
+            return lua_error_x(L);
+        }
+    }
+#endif
+
+    lua_State* m_L = nullptr;
+    std::error_code m_code;
+    std::string m_what;
+};
+
+inline void enableExceptions(lua_State* L) noexcept
+{
+#if LUABRIDGE_HAS_EXCEPTIONS
+    LuaException::enableExceptions(L);
+#else
+    unused(L);
+
+    LUABRIDGE_ASSERT(false); 
+#endif
+}
+
+} 
+
+
+// End File: Source/LuaBridge/detail/LuaException.h
 
 // Begin File: Source/LuaBridge/detail/TypeTraits.h
 
@@ -7499,17 +7506,17 @@ LuaResult call(const LuaRef& object, Args&&... args)
         }
     }
 
-    int code = lua_pcall(L, sizeof...(Args), LUA_MULTRET, 0);
+    const int code = lua_pcall(L, sizeof...(Args), LUA_MULTRET, 0);
     if (code != LUABRIDGE_LUA_OK)
     {
         auto ec = makeErrorCode(ErrorCode::LuaFunctionCallFailed);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
-        if (LuaException::areExceptionsEnabled())
+        if (LuaException::areExceptionsEnabled(L))
             LuaException::raise(L, ec);
-#else
-        return LuaResult::errorFromStack(L, ec);
 #endif
+
+        return LuaResult::errorFromStack(L, ec);
     }
 
     return LuaResult::valuesFromStack(L, stackTop);
@@ -7520,7 +7527,7 @@ inline int pcall(lua_State* L, int nargs = 0, int nresults = 0, int msgh = 0)
     const int code = lua_pcall(L, nargs, nresults, msgh);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
-    if (code != LUABRIDGE_LUA_OK && LuaException::areExceptionsEnabled())
+    if (code != LUABRIDGE_LUA_OK && LuaException::areExceptionsEnabled(L))
         LuaException::raise(L, makeErrorCode(ErrorCode::LuaFunctionCallFailed));
 #endif
 
