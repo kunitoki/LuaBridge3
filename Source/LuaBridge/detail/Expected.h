@@ -996,7 +996,7 @@ class BadExpectedAccess<void> : public std::runtime_error
     friend class BadExpectedAccess;
 
     BadExpectedAccess(std::in_place_t) noexcept
-        : std::runtime_error("bad_expected_access")
+        : std::runtime_error("Bad access to expected value")
     {
     }
 
