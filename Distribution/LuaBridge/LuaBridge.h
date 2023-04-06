@@ -3841,6 +3841,7 @@ struct Stack<char>
     }
 };
 
+#if !defined(__BORLANDC__)
 template <>
 struct Stack<int8_t>
 {
@@ -3876,6 +3877,7 @@ struct Stack<int8_t>
         return false;
     }
 };
+#endif
 
 template <>
 struct Stack<unsigned char>
