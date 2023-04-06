@@ -892,7 +892,7 @@ TEST_F(LuaBridgeTest, ExpectedExceptionWithoutMessage)
         result.value();
         EXPECT_FALSE(true);
     } catch (const std::exception& e) {
-        EXPECT_STREQ("bad_expected_access", e.what());
+        EXPECT_STREQ("Bad access to expected value", e.what());
     }
 }
 
