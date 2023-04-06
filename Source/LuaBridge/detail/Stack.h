@@ -274,6 +274,7 @@ struct Stack<char>
 /**
  * @brief Stack specialization for `int8_t`.
  */
+#if !defined(__BORLANDC__)
 template <>
 struct Stack<int8_t>
 {
@@ -309,6 +310,7 @@ struct Stack<int8_t>
         return false;
     }
 };
+#endif
 
 //=================================================================================================
 /**
