@@ -779,6 +779,19 @@ struct is_nothrow_swappable
     : std::is_nothrow_swappable_with<std::add_lvalue_reference_t<T>, std::add_lvalue_reference_t<T>>
 {
 };
+
+template <class T, class = void>
+struct has_member_message : std::false_type
+{
+};
+
+template <class T>
+struct has_member_message<T, std::void_t<decltype(std::declval<T>().message())>> : std::true_type
+{
+};
+
+template <class T>
+inline static constexpr bool has_member_message_v = has_member_message<T>::value;
 } 
 
 template <class T, class E>
@@ -1692,19 +1705,41 @@ template <class E>
 class BadExpectedAccess;
 
 template <>
-class BadExpectedAccess<void> : public std::exception
+class BadExpectedAccess<void> : public std::runtime_error
 {
+    template <class T>
+    friend class BadExpectedAccess;
+
+    BadExpectedAccess(std::in_place_t) noexcept
+        : std::runtime_error("Bad access to expected value")
+    {
+    }
+
 public:
-    explicit BadExpectedAccess() noexcept
+    BadExpectedAccess() noexcept
+        : BadExpectedAccess(std::in_place)
+    {
+    }
+
+    explicit BadExpectedAccess(const std::string& message) noexcept
+        : std::runtime_error(message)
     {
     }
 };
+
 template <class E>
 class BadExpectedAccess : public BadExpectedAccess<void>
 {
 public:
     explicit BadExpectedAccess(E error) noexcept(std::is_nothrow_constructible_v<E, E&&>)
-        : error_(std::move(error))
+        : BadExpectedAccess<void>([](const E& error)
+        {
+            if constexpr (detail::has_member_message_v<E>)
+                return error.message();
+            else
+                return std::in_place;
+        }(error))
+        , error_(std::move(error))
     {
     }
 
