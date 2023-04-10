@@ -521,6 +521,22 @@ TEST_F(NamespaceTests, CapturingLambdas)
     ASSERT_EQ(42, result<int>());
 }
 
+namespace {
+class SystemDestroyer {};
+} // namespacw
+
+TEST_F(NamespaceTests, IndexAccessByNonStringShouldNotCrash)
+{
+    luabridge::getGlobalNamespace(L)
+       .beginNamespace("test")
+          .beginClass<SystemDestroyer>("SystemDestroyer")
+          .endClass()
+       .endNamespace();
+
+    runLua("result = test[SystemDestroyer]");
+    EXPECT_TRUE(result().isNil());
+}
+
 #ifdef _M_IX86 // Windows 32bit only
 
 namespace {

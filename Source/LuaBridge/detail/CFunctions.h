@@ -166,11 +166,14 @@ inline int index_metamethod(lua_State* L)
     LUABRIDGE_ASSERT(lua_istable(L, -1));
 
     // Protect internal meta methods
-    const auto name = std::string_view(lua_tostring(L, 2));
-    if (name.size() > 2 && name[0] == '_' && name[1] == '_' && is_metamethod(name))
+    if (const char* field_name = lua_tostring(L, 2))
     {
-        lua_pushnil(L);
-        return 1;
+        const auto name = std::string_view(field_name);
+        if (name.size() > 2 && name[0] == '_' && name[1] == '_' && is_metamethod(name))
+        {
+            lua_pushnil(L);
+            return 1;
+        }
     }
 
     for (;;)
