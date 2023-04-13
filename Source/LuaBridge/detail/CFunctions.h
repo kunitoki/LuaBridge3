@@ -269,7 +269,7 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
         if (lua_isnil(L, -1)) // Stack: mt, nil
         {
             lua_pop(L, 2); // Stack: -
-            luaL_error(L, "No member named '%s'", lua_tostring(L, 2));
+            luaL_error(L, "no member named '%s'", lua_tostring(L, 2));
         }
 
         LUABRIDGE_ASSERT(lua_istable(L, -1));
@@ -294,6 +294,23 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
         lua_rawgetp(L, -1, getNewIndexFallbackKey()); // Stack: mt, nifb (may be nil)
         if (lua_iscfunction(L, -1))
         {
+            lua_rawgetp(L, -2, getClassKey()); // Stack: mt, nifb, class table (ct) | nil
+            if (lua_istable(L, -1)) // Stack: mt, nifb, ct
+            {
+                lua_pushvalue(L, 2); // Stack: mt, nifb, ct, field name
+                lua_rawget(L, -2); // Stack: mt, nifb, ct, field | nil
+
+                if (! lua_isnil(L, -1))
+                {
+                    luaL_error(L, "immutable member '%s'", lua_tostring(L, 2));
+                    return 0;
+                }
+
+                lua_pop(L, 1);
+            }
+
+            lua_pop(L, 1);
+
             lua_pushvalue(L, 1); // stack: nifb, arg1
             lua_pushvalue(L, 2); // stack: nifb, arg1, arg2
             lua_pushvalue(L, 3); // stack: nifb, arg1, arg2, arg3
@@ -310,7 +327,7 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
         if (lua_isnil(L, -1)) // Stack: mt, nil
         {
             lua_pop(L, 2); // Stack: -
-            luaL_error(L, "No writable member '%s'", lua_tostring(L, 2));
+            luaL_error(L, "no writable member '%s'", lua_tostring(L, 2));
             return 0;
         }
 
@@ -369,7 +386,7 @@ inline int index_extended_class(lua_State* L)
     LUABRIDGE_ASSERT(lua_istable(L, lua_upvalueindex(1)));
 
     if (! lua_isstring(L, -1))
-        luaL_error(L, "%s", "invalid extensible class");
+        luaL_error(L, "%s", "invalid non string index access in extensible class");
 
     const char* key = lua_tostring(L, -1);
     LUABRIDGE_ASSERT(key != nullptr);
@@ -382,8 +399,10 @@ inline int index_extended_class(lua_State* L)
 
 inline int newindex_extended_class(lua_State* L)
 {
-    if (! lua_istable(L, -3) || ! lua_isstring(L, -2))
-        luaL_error(L, "%s", "invalid extensible class");
+    LUABRIDGE_ASSERT(lua_istable(L, -3));
+
+    if (! lua_isstring(L, -2))
+        luaL_error(L, "%s", "invalid non string new index access in extensible class");
 
     const char* key = lua_tostring(L, -2);
     LUABRIDGE_ASSERT(key != nullptr);

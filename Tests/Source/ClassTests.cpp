@@ -2789,6 +2789,7 @@ TEST_F(ClassTests, ExtensibleDerivedClassAndBaseSameMethod)
 
     runLua(R"(
         function ExtensibleBase:test() return 1337 end
+        function ExtensibleBase:test() return 1338 end -- This is on purpose
         function ExtensibleDerived:test() return 42 end
 
         local derived = ExtensibleDerived(); result = derived:test()
@@ -2806,13 +2807,19 @@ TEST_F(ClassTests, ExtensibleClassExtendExistingMethod)
         .endClass()
     ;
 
-    runLua(R"(
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_ANY_THROW(runLua(R"(
         function ExtensibleBase:baseClass() return 42 end
 
         local base = ExtensibleBase(); result = base:baseClass()
-    )");
+    )"));
+#else
+    EXPECT_FALSE(runLua(R"(
+        function ExtensibleBase:baseClass() return 42 end
 
-    EXPECT_EQ(42, result<int>());
+        local base = ExtensibleBase(); result = base:baseClass()
+    )"));
+#endif
 }
 
 namespace {
