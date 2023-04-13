@@ -363,7 +363,7 @@ inline int rawgetfield(lua_State* L, int index, const char* key)
     LUABRIDGE_ASSERT(lua_istable(L, index));
     index = lua_absindex(L, index);
     lua_pushstring(L, key);
-#if LUA_VERSION_NUM < 502
+#if LUA_VERSION_NUM <= 502
     lua_rawget(L, index);
     return lua_type(L, -1);
 #else
