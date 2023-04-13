@@ -19,6 +19,7 @@ set (LUABRIDGE_DETAIL_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Enum.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Errors.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Expected.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/FlagSet.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/FuncTraits.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Invoke.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Iterator.h

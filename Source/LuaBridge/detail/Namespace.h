@@ -9,6 +9,7 @@
 
 #include "Config.h"
 #include "ClassInfo.h"
+#include "FlagSet.h"
 #include "LuaHelpers.h"
 #include "LuaException.h"
 #include "Security.h"
@@ -21,7 +22,15 @@
 #include <utility>
 
 namespace luabridge {
+
+//=================================================================================================
 namespace detail {
+struct ClassOptionExtensible;
+} // namespace Detail
+
+using ClassOption = FlagSet<uint32_t, detail::ClassOptionExtensible>;
+static inline constexpr ClassOption defaultClass = ClassOption();
+static inline constexpr ClassOption extensibleClass = ClassOption::Value<detail::ClassOptionExtensible>();
 
 //=================================================================================================
 /**
@@ -34,6 +43,8 @@ namespace detail {
  *
  * So there can be maximum one "active" registrar object.
  */
+namespace detail {
+
 class Registrar
 {
 protected:
@@ -289,8 +300,9 @@ class Namespace : public detail::Registrar
          *
          * @param name   The new class name.
          * @param parent A parent namespace object.
+         * @param classOptions Class options.
          */
-        Class(const char* name, Namespace& parent)
+        Class(const char* name, Namespace& parent, ClassOption classOptions)
             : ClassBase(parent)
         {
             LUABRIDGE_ASSERT(name != nullptr);
@@ -326,6 +338,17 @@ class Namespace : public detail::Registrar
                 lua_rawsetp(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>()); // Stack: ns, co, cl, st
                 lua_pushvalue(L, -3); // Stack: ns, co, cl, st, co
                 lua_rawsetp(L, LUA_REGISTRYINDEX, detail::getConstRegistryKey<T>()); // Stack: ns, co, cl, st
+
+                // Setup class extensibility
+                if (classOptions.test(extensibleClass))
+                {
+                    lua_pushcfunction_x(L, &detail::newindex_extended_class); // Stack: ns, co, cl, fn
+                    lua_rawsetp(L, -2, detail::getNewIndexFallbackKey()); // Stack: ns, co, cl
+
+                    lua_pushvalue(L, -1); // Stack: ns, co, cl, st, st
+                    lua_pushcclosure_x(L, &detail::index_extended_class, 1); // Stack: ns, co, cl, fn
+                    lua_rawsetp(L, -3, detail::getIndexFallbackKey()); // Stack: ns, co, cl
+                }
             }
             else
             {
@@ -1920,10 +1943,10 @@ public:
      * @returns A class registration object.
      */
     template <class T>
-    Class<T> beginClass(const char* name)
+    Class<T> beginClass(const char* name, ClassOption classOptions = defaultClass)
     {
         assertIsActive();
-        return Class<T>(name, *this);
+        return Class<T>(name, *this, classOptions);
     }
 
     //=============================================================================================

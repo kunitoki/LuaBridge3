@@ -1,4 +1,5 @@
 // https://github.com/kunitoki/LuaBridge3
+// Copyright 2023, Lucio Asnaghi
 // Copyright 2020, Dmitry Tarakanov
 // SPDX-License-Identifier: MIT
 
@@ -2519,6 +2520,8 @@ TEST_F(ClassTests, NilCanBeConvertedToNullptrButNotToReference)
 namespace {
 struct OverridableX
 {
+    OverridableX() = default;
+
     luabridge::LuaRef indexMetaMethod(const luabridge::LuaRef& key, lua_State* L);
     luabridge::LuaRef newIndexMetaMethod(const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State* L);
 
@@ -2676,6 +2679,25 @@ TEST_F(ClassTests, NewIndexFallbackMetaMethodFreeFunctor)
 
     runLua("x.qwertyuiop = 123; result = x.qwertyuiop");
     ASSERT_EQ(246, result<int>());
+}
+
+TEST_F(ClassTests, NewIndexFallbackMetaMethodExtensibleClasses)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<OverridableX>("X", luabridge::extensibleClass)
+            .addConstructor<void(*)()>()
+        .endClass();
+
+    runLua(R"(
+        function X:test()
+            return 1
+        end
+
+        local x = X()
+        result = x:test()
+    )");
+
+    EXPECT_EQ(1, result<int>());
 }
 
 namespace {

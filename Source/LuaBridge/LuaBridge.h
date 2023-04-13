@@ -21,6 +21,7 @@
 #include "detail/Enum.h"
 #include "detail/Errors.h"
 #include "detail/Expected.h"
+#include "detail/FlagSet.h"
 #include "detail/FuncTraits.h"
 #include "detail/Invoke.h"
 #include "detail/Iterator.h"

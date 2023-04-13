@@ -358,6 +358,41 @@ inline int read_only_error(lua_State* L)
 
 //=================================================================================================
 /**
+ * @brief
+ */
+inline int index_extended_class(lua_State* L)
+{
+    LUABRIDGE_ASSERT(lua_istable(L, lua_upvalueindex(1)));
+
+    if (! lua_isstring(L, -1))
+        luaL_error(L, "%s", "invalid extensible class");
+
+    const char* key = lua_tostring(L, -1);
+    LUABRIDGE_ASSERT(key != nullptr);
+
+    lua_pushvalue(L, lua_upvalueindex(1));
+    rawgetfield(L, -1, key);
+
+    return 1;
+}
+
+inline int newindex_extended_class(lua_State* L)
+{
+    if (! lua_istable(L, -3) || ! lua_isstring(L, -2))
+        luaL_error(L, "%s", "invalid extensible class");
+
+    const char* key = lua_tostring(L, -2);
+    LUABRIDGE_ASSERT(key != nullptr);
+
+    lua_getmetatable(L, -3);
+    lua_pushvalue(L, -2);
+    rawsetfield(L, -2, key);
+
+    return 0;
+}
+
+//=================================================================================================
+/**
  * @brief __gc metamethod for a class.
  */
 template <class C>
