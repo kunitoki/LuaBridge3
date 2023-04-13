@@ -25,12 +25,14 @@ namespace luabridge {
 
 //=================================================================================================
 namespace detail {
-struct ClassOptionExtensible;
+struct OptionExtensible;
+struct OptionVisibleMetatables;
 } // namespace Detail
 
-using ClassOption = FlagSet<uint32_t, detail::ClassOptionExtensible>;
+using ClassOption = FlagSet<uint32_t, detail::OptionExtensible, detail::OptionVisibleMetatables>;
 static inline constexpr ClassOption defaultClass = ClassOption();
-static inline constexpr ClassOption extensibleClass = ClassOption::Value<detail::ClassOptionExtensible>();
+static inline constexpr ClassOption extensibleClass = ClassOption::Value<detail::OptionExtensible>();
+static inline constexpr ClassOption visibleMetatables = ClassOption::Value<detail::OptionVisibleMetatables>();
 
 //=================================================================================================
 /**
@@ -167,7 +169,7 @@ class Namespace : public detail::Registrar
         /**
          * @brief Create the const table.
          */
-        void createConstTable(const char* name, bool trueConst = true)
+        void createConstTable(const char* name, bool trueConst, ClassOption options)
         {
             LUABRIDGE_ASSERT(name != nullptr);
 
@@ -190,7 +192,7 @@ class Namespace : public detail::Registrar
             lua_newtable(L);
             lua_rawsetp(L, -2, detail::getPropgetKey());
 
-            if (Security::hideMetatables())
+            if (Security::hideMetatables()) // if (! options.test(visibleMetatables))
             {
                 lua_pushboolean(L, 0);
                 rawsetfield(L, -2, "__metatable");
@@ -203,14 +205,14 @@ class Namespace : public detail::Registrar
          *
          * The Lua stack should have the const table on top.
          */
-        void createClassTable(const char* name)
+        void createClassTable(const char* name, ClassOption options)
         {
             LUABRIDGE_ASSERT(name != nullptr);
 
             // Stack: namespace table (ns), const table (co)
 
             // Class table is the same as const table except the propset table
-            createConstTable(name, false); // Stack: ns, co, cl
+            createConstTable(name, false, options); // Stack: ns, co, cl
 
             lua_newtable(L); // Stack: ns, co, cl, propset table (ps)
             lua_rawsetp(L, -2, detail::getPropsetKey()); // cl [propsetKey] = ps. Stack: ns, co, cl
@@ -226,7 +228,7 @@ class Namespace : public detail::Registrar
         /**
          * @brief Create the static table.
          */
-        void createStaticTable(const char* name)
+        void createStaticTable(const char* name, ClassOption options)
         {
             LUABRIDGE_ASSERT(name != nullptr);
 
@@ -259,7 +261,7 @@ class Namespace : public detail::Registrar
             lua_pushvalue(L, -2); // Stack: ns, co, cl, st, cl
             lua_rawsetp(L, -2, detail::getClassKey()); // st [classKey] = cl. Stack: ns, co, cl, st
 
-            if (Security::hideMetatables())
+            if (Security::hideMetatables()) // if (! options.test(visibleMetatables))
             {
                 lua_pushboolean(L, 0);
                 rawsetfield(L, -2, "__metatable");
@@ -300,9 +302,9 @@ class Namespace : public detail::Registrar
          *
          * @param name   The new class name.
          * @param parent A parent namespace object.
-         * @param classOptions Class options.
+         * @param options Class options.
          */
-        Class(const char* name, Namespace& parent, ClassOption classOptions)
+        Class(const char* name, Namespace& parent, ClassOption options)
             : ClassBase(parent)
         {
             LUABRIDGE_ASSERT(name != nullptr);
@@ -314,21 +316,21 @@ class Namespace : public detail::Registrar
             {
                 lua_pop(L, 1); // Stack: ns
 
-                createConstTable(name); // Stack: ns, const table (co)
+                createConstTable(name, true, options); // Stack: ns, const table (co)
 #if !defined(LUABRIDGE_ON_LUAU)
                 lua_pushcfunction_x(L, &detail::gc_metamethod<T>); // Stack: ns, co, function
                 rawsetfield(L, -2, "__gc"); // co ["__gc"] = function. Stack: ns, co
 #endif
                 ++m_stackSize;
 
-                createClassTable(name); // Stack: ns, co, class table (cl)
+                createClassTable(name, options); // Stack: ns, co, class table (cl)
 #if !defined(LUABRIDGE_ON_LUAU)
                 lua_pushcfunction_x(L, &detail::gc_metamethod<T>); // Stack: ns, co, cl, function
                 rawsetfield(L, -2, "__gc"); // cl ["__gc"] = function. Stack: ns, co, cl
 #endif
                 ++m_stackSize;
 
-                createStaticTable(name); // Stack: ns, co, cl, st
+                createStaticTable(name, options); // Stack: ns, co, cl, st
                 ++m_stackSize;
 
                 // Map T back to its tables.
@@ -340,7 +342,7 @@ class Namespace : public detail::Registrar
                 lua_rawsetp(L, LUA_REGISTRYINDEX, detail::getConstRegistryKey<T>()); // Stack: ns, co, cl, st
 
                 // Setup class extensibility
-                if (classOptions.test(extensibleClass))
+                if (options.test(extensibleClass))
                 {
                     lua_pushcfunction_x(L, &detail::newindex_extended_class); // Stack: ns, co, cl, fn
                     lua_rawsetp(L, -2, detail::getNewIndexFallbackKey()); // Stack: ns, co, cl
@@ -375,27 +377,27 @@ class Namespace : public detail::Registrar
          * @param parent A parent namespace object.
          * @param staticKey Key where the class is stored.
         */
-        Class(const char* name, Namespace& parent, void const* const staticKey)
+        Class(const char* name, Namespace& parent, const void* const staticKey, ClassOption options)
             : ClassBase(parent)
         {
             LUABRIDGE_ASSERT(name != nullptr);
             LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
 
-            createConstTable(name); // Stack: ns, const table (co)
+            createConstTable(name, true, options); // Stack: ns, const table (co)
 #if !defined(LUABRIDGE_ON_LUAU)
             lua_pushcfunction_x(L, &detail::gc_metamethod<T>); // Stack: ns, co, function
             rawsetfield(L, -2, "__gc"); // co ["__gc"] = function. Stack: ns, co
 #endif
             ++m_stackSize;
 
-            createClassTable(name); // Stack: ns, co, class table (cl)
+            createClassTable(name, options); // Stack: ns, co, class table (cl)
 #if !defined(LUABRIDGE_ON_LUAU)
             lua_pushcfunction_x(L, &detail::gc_metamethod<T>); // Stack: ns, co, cl, function
             rawsetfield(L, -2, "__gc"); // cl ["__gc"] = function. Stack: ns, co, cl
 #endif
             ++m_stackSize;
 
-            createStaticTable(name); // Stack: ns, co, cl, st
+            createStaticTable(name, options); // Stack: ns, co, cl, st
             ++m_stackSize;
 
             lua_rawgetp(L, LUA_REGISTRYINDEX, staticKey); // Stack: ns, co, cl, st, parent st (pst) | nil
@@ -425,6 +427,17 @@ class Namespace : public detail::Registrar
             lua_rawsetp(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>()); // Stack: ns, co, cl, st
             lua_pushvalue(L, -3); // Stack: ns, co, cl, st, co
             lua_rawsetp(L, LUA_REGISTRYINDEX, detail::getConstRegistryKey<T>()); // Stack: ns, co, cl, st
+
+            // Setup class extensibility
+            if (options.test(extensibleClass))
+            {
+                lua_pushcfunction_x(L, &detail::newindex_extended_class); // Stack: ns, co, cl, fn
+                lua_rawsetp(L, -2, detail::getNewIndexFallbackKey()); // Stack: ns, co, cl
+
+                lua_pushvalue(L, -1); // Stack: ns, co, cl, st, st
+                lua_pushcclosure_x(L, &detail::index_extended_class, 1); // Stack: ns, co, cl, fn
+                lua_rawsetp(L, -3, detail::getIndexFallbackKey()); // Stack: ns, co, cl
+            }
         }
 
         //=========================================================================================
@@ -1412,10 +1425,10 @@ private:
         LUABRIDGE_ASSERT(lua_istable(L, -1));
 
         {
-            lua_pushvalue(L, -1); // Stack: ns, mt
+            lua_pushvalue(L, -1); // Stack: ns, ns
 
             // ns.__metatable = ns
-            lua_setmetatable(L, -2); // Stack: ns, mt
+            lua_setmetatable(L, -2); // Stack: ns
 
             // ns.__index = index_metamethod
             lua_pushcfunction_x(L, &detail::index_metamethod);
@@ -1939,14 +1952,15 @@ public:
      * @brief Open a new or existing class for registrations.
      *
      * @param name The class name.
+     * @param options The class options.
      *
      * @returns A class registration object.
      */
     template <class T>
-    Class<T> beginClass(const char* name, ClassOption classOptions = defaultClass)
+    Class<T> beginClass(const char* name, ClassOption options = defaultClass)
     {
         assertIsActive();
-        return Class<T>(name, *this, classOptions);
+        return Class<T>(name, *this, options);
     }
 
     //=============================================================================================
@@ -1956,14 +1970,15 @@ public:
      * Call deriveClass() only once. To continue registrations for the class later, use beginClass().
      *
      * @param name The class name.
+     * @param options The class options.
      *
      * @returns A class registration object.
      */
     template <class Derived, class Base>
-    Class<Derived> deriveClass(const char* name)
+    Class<Derived> deriveClass(const char* name, ClassOption options = defaultClass)
     {
         assertIsActive();
-        return Class<Derived>(name, *this, detail::getStaticRegistryKey<Base>());
+        return Class<Derived>(name, *this, detail::getStaticRegistryKey<Base>(), options);
     }
 };
 

@@ -2681,23 +2681,114 @@ TEST_F(ClassTests, NewIndexFallbackMetaMethodFreeFunctor)
     ASSERT_EQ(246, result<int>());
 }
 
-TEST_F(ClassTests, NewIndexFallbackMetaMethodExtensibleClasses)
+namespace {
+struct ExtensibleBase
+{
+    ExtensibleBase() = default;
+
+    int baseClass() { return 1; }
+};
+
+struct ExtensibleDerived : ExtensibleBase
+{
+    ExtensibleDerived() = default;
+
+    int derivedClass() { return 11; }
+};
+
+} // namespace
+
+TEST_F(ClassTests, ExtensibleClass)
 {
     luabridge::getGlobalNamespace(L)
-        .beginClass<OverridableX>("X", luabridge::extensibleClass)
+        .beginClass<ExtensibleBase>("ExtensibleBase", luabridge::extensibleClass)
             .addConstructor<void(*)()>()
-        .endClass();
+        .endClass()
+    ;
 
     runLua(R"(
-        function X:test()
+        function ExtensibleBase:test()
+            return 42
+        end
+
+        local base = ExtensibleBase()
+        result = base:test()
+    )");
+
+    EXPECT_EQ(42, result<int>());
+}
+
+TEST_F(ClassTests, ExtensibleBaseClassNotDerived)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<ExtensibleBase>("ExtensibleBase", luabridge::extensibleClass)
+            .addConstructor<void(*)()>()
+        .endClass()
+        .deriveClass<ExtensibleDerived, ExtensibleBase>("ExtensibleDerived")
+            .addConstructor<void(*)()>()
+        .endClass()
+    ;
+
+    runLua(R"(
+        function ExtensibleBase:test()
+            return 42
+        end
+
+        local derived = ExtensibleDerived()
+        result = derived:test()
+    )");
+
+    EXPECT_EQ(42, result<int>());
+}
+
+TEST_F(ClassTests, ExtensibleDerivedClassNotBase)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<ExtensibleBase>("ExtensibleBase")
+            .addConstructor<void(*)()>()
+        .endClass()
+        .deriveClass<ExtensibleDerived, ExtensibleBase>("ExtensibleDerived", luabridge::extensibleClass)
+            .addConstructor<void(*)()>()
+        .endClass()
+    ;
+
+    runLua(R"(
+        function ExtensibleDerived:test()
+            return 42
+        end
+
+        local derived = ExtensibleDerived()
+        result = derived:test()
+    )");
+
+    EXPECT_EQ(42, result<int>());
+}
+
+TEST_F(ClassTests, ExtensibleDerivedClassAndBase)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<ExtensibleBase>("ExtensibleBase", luabridge::extensibleClass)
+            .addConstructor<void(*)()>()
+        .endClass()
+        .deriveClass<ExtensibleDerived, ExtensibleBase>("ExtensibleDerived", luabridge::extensibleClass)
+            .addConstructor<void(*)()>()
+        .endClass()
+    ;
+
+    runLua(R"(
+        function ExtensibleBase:test1()
+            return 10
+        end
+
+        function ExtensibleDerived:test2()
             return 1
         end
 
-        local x = X()
-        result = x:test()
+        local derived = ExtensibleDerived()
+        result = derived:test1() - derived:test2()
     )");
 
-    EXPECT_EQ(1, result<int>());
+    EXPECT_EQ(9, result<int>());
 }
 
 namespace {
