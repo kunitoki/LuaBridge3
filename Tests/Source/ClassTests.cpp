@@ -2687,6 +2687,7 @@ struct ExtensibleBase
     ExtensibleBase() = default;
 
     int baseClass() { return 1; }
+    int baseClassConst() const { return 2; }
 };
 
 struct ExtensibleDerived : ExtensibleBase
@@ -2694,6 +2695,7 @@ struct ExtensibleDerived : ExtensibleBase
     ExtensibleDerived() = default;
 
     int derivedClass() { return 11; }
+    int derivedClassConst() const { return 22; }
 };
 
 } // namespace
@@ -2832,6 +2834,7 @@ TEST_F(ClassTests, ExtensibleClassExtendExistingMethod)
         .beginClass<ExtensibleBase>("ExtensibleBase", luabridge::extensibleClass)
             .addConstructor<void(*)()>()
             .addFunction("baseClass", &ExtensibleBase::baseClass)
+            .addFunction("baseClassConst", &ExtensibleBase::baseClassConst)
         .endClass()
     ;
 
@@ -2848,6 +2851,21 @@ TEST_F(ClassTests, ExtensibleClassExtendExistingMethod)
         local base = ExtensibleBase(); result = base:baseClass()
     )"));
 #endif
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_ANY_THROW(runLua(R"(
+        function ExtensibleBase:baseClassConst() return 42 end
+
+        local base = ExtensibleBase(); result = base:baseClassConst()
+    )"));
+#else
+    EXPECT_FALSE(runLua(R"(
+        function ExtensibleBase:baseClassConst() return 42 end
+
+        local base = ExtensibleBase(); result = base:baseClassConst()
+    )"));
+#endif
+}
 }
 
 namespace {
