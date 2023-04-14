@@ -262,14 +262,16 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
     lua_getmetatable(L, 1); // Stack: metatable (mt)
     LUABRIDGE_ASSERT(lua_istable(L, -1));
 
+    const char* key = lua_tostring(L, 2);
+
     for (;;)
     {
+        // Try in the property set table
         lua_rawgetp(L, -1, getPropsetKey()); // Stack: mt, propset table (ps) | nil
-
         if (lua_isnil(L, -1)) // Stack: mt, nil
         {
             lua_pop(L, 2); // Stack: -
-            luaL_error(L, "no member named '%s'", lua_tostring(L, 2));
+            luaL_error(L, "no member named '%s'", key);
         }
 
         LUABRIDGE_ASSERT(lua_istable(L, -1));
@@ -288,6 +290,7 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
             return 0;
         }
 
+        // Try in the new index fallback
         LUABRIDGE_ASSERT(lua_isnil(L, -1)); // Stack: mt, nil
         lua_pop(L, 1); // Stack: mt
 
@@ -302,7 +305,7 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
 
                 if (! lua_isnil(L, -1))
                 {
-                    luaL_error(L, "immutable member '%s'", lua_tostring(L, 2));
+                    luaL_error(L, "immutable member '%s'", key);
                     return 0;
                 }
 
@@ -322,12 +325,12 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
             lua_pop(L, 1); // Stack: mt
         }
 
+        // Try in the parent
         lua_rawgetp(L, -1, getParentKey()); // Stack: mt, parent mt | nil
-
         if (lua_isnil(L, -1)) // Stack: mt, nil
         {
             lua_pop(L, 2); // Stack: -
-            luaL_error(L, "no writable member '%s'", lua_tostring(L, 2));
+            luaL_error(L, "no writable member '%s'", key);
             return 0;
         }
 
