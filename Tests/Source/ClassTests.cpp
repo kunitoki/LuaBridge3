@@ -2941,35 +2941,58 @@ public:
 
 TEST_F(ClassTests, MetatableSecurityNotHidden)
 {
-    luabridge::setHideMetatables(false);
+    {
+        luabridge::getGlobalNamespace(L)
+            .beginNamespace("test", luabridge::visibleMetatables)
+            .endNamespace();
 
-    luabridge::getGlobalNamespace(L)
-        .beginClass<ExampleStringifiableClass>("ExampleStringifiableClass")
-            .addConstructor<void(*) ()>()
-            .addFunction("__tostring", &ExampleStringifiableClass::tostring)
-        .endClass();
+        runLua("local t = test; result = getmetatable(t)");
 
-    runLua("local t = ExampleStringifiableClass(); result = getmetatable(t)");
+        const auto res = result();
+        ASSERT_TRUE(res.isTable());
+    }
 
-    const auto res = result();
-    ASSERT_TRUE(res.isTable());
+    {
+        luabridge::getGlobalNamespace(L)
+            .beginClass<ExampleStringifiableClass>("ExampleStringifiableClass", luabridge::visibleMetatables)
+                .addConstructor<void(*) ()>()
+                .addFunction("__tostring", &ExampleStringifiableClass::tostring)
+            .endClass();
+
+        runLua("local t = ExampleStringifiableClass(); result = getmetatable(t)");
+
+        const auto res = result();
+        ASSERT_TRUE(res.isTable());
+    }
 }
 
 TEST_F(ClassTests, MetatableSecurity)
 {
-    luabridge::setHideMetatables(true);
+    {
+        luabridge::getGlobalNamespace(L)
+            .beginNamespace("test")
+            .endNamespace();
 
-    luabridge::getGlobalNamespace(L)
-        .beginClass<ExampleStringifiableClass>("ExampleStringifiableClass")
-            .addConstructor<void(*) ()>()
-            .addFunction("__tostring", &ExampleStringifiableClass::tostring)
-        .endClass();
+        runLua("local t = test; result = getmetatable(t)");
 
-    runLua("local t = ExampleStringifiableClass(); result = getmetatable(t)");
+        const auto res = result();
+        ASSERT_TRUE(res.isBool());
+        EXPECT_FALSE(res.unsafe_cast<bool>());
+    }
 
-    const auto res = result();
-    ASSERT_TRUE(res.isBool());
-    EXPECT_FALSE(res.unsafe_cast<bool>());
+    {
+        luabridge::getGlobalNamespace(L)
+            .beginClass<ExampleStringifiableClass>("ExampleStringifiableClass")
+                .addConstructor<void(*) ()>()
+                .addFunction("__tostring", &ExampleStringifiableClass::tostring)
+            .endClass();
+
+        runLua("local t = ExampleStringifiableClass(); result = getmetatable(t)");
+
+        const auto res = result();
+        ASSERT_TRUE(res.isBool());
+        EXPECT_FALSE(res.unsafe_cast<bool>());
+    }
 }
 
 namespace {

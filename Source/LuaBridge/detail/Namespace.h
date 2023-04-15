@@ -12,7 +12,7 @@
 #include "FlagSet.h"
 #include "LuaHelpers.h"
 #include "LuaException.h"
-#include "Security.h"
+#include "Options.h"
 #include "TypeTraits.h"
 
 #include <stdexcept>
@@ -22,17 +22,6 @@
 #include <utility>
 
 namespace luabridge {
-
-//=================================================================================================
-namespace detail {
-struct OptionExtensible;
-struct OptionVisibleMetatables;
-} // namespace Detail
-
-using ClassOption = FlagSet<uint32_t, detail::OptionExtensible, detail::OptionVisibleMetatables>;
-static inline constexpr ClassOption defaultClass = ClassOption();
-static inline constexpr ClassOption extensibleClass = ClassOption::Value<detail::OptionExtensible>();
-static inline constexpr ClassOption visibleMetatables = ClassOption::Value<detail::OptionVisibleMetatables>();
 
 //=================================================================================================
 /**
@@ -127,7 +116,7 @@ class Namespace : public detail::Registrar
         // Get information on the caller's caller to format the message,
         // so the error appears to originate from the Lua source.
         lua_Debug ar;
-    
+
         int result = lua_getstack(L, 2, &ar);
         if (result != 0)
         {
@@ -169,7 +158,7 @@ class Namespace : public detail::Registrar
         /**
          * @brief Create the const table.
          */
-        void createConstTable(const char* name, bool trueConst, ClassOption options)
+        void createConstTable(const char* name, bool trueConst, Options options)
         {
             LUABRIDGE_ASSERT(name != nullptr);
 
@@ -192,7 +181,7 @@ class Namespace : public detail::Registrar
             lua_newtable(L);
             lua_rawsetp(L, -2, detail::getPropgetKey());
 
-            if (Security::hideMetatables()) // if (! options.test(visibleMetatables))
+            if (! options.test(visibleMetatables))
             {
                 lua_pushboolean(L, 0);
                 rawsetfield(L, -2, "__metatable");
@@ -205,7 +194,7 @@ class Namespace : public detail::Registrar
          *
          * The Lua stack should have the const table on top.
          */
-        void createClassTable(const char* name, ClassOption options)
+        void createClassTable(const char* name, Options options)
         {
             LUABRIDGE_ASSERT(name != nullptr);
 
@@ -228,7 +217,7 @@ class Namespace : public detail::Registrar
         /**
          * @brief Create the static table.
          */
-        void createStaticTable(const char* name, ClassOption options)
+        void createStaticTable(const char* name, Options options)
         {
             LUABRIDGE_ASSERT(name != nullptr);
 
@@ -261,7 +250,7 @@ class Namespace : public detail::Registrar
             lua_pushvalue(L, -2); // Stack: ns, co, cl, st, cl
             lua_rawsetp(L, -2, detail::getClassKey()); // st [classKey] = cl. Stack: ns, co, cl, st
 
-            if (Security::hideMetatables()) // if (! options.test(visibleMetatables))
+            if (! options.test(visibleMetatables))
             {
                 lua_pushboolean(L, 0);
                 rawsetfield(L, -2, "__metatable");
@@ -304,7 +293,7 @@ class Namespace : public detail::Registrar
          * @param parent A parent namespace object.
          * @param options Class options.
          */
-        Class(const char* name, Namespace& parent, ClassOption options)
+        Class(const char* name, Namespace& parent, Options options)
             : ClassBase(parent)
         {
             LUABRIDGE_ASSERT(name != nullptr);
@@ -377,7 +366,7 @@ class Namespace : public detail::Registrar
          * @param parent A parent namespace object.
          * @param staticKey Key where the class is stored.
         */
-        Class(const char* name, Namespace& parent, const void* const staticKey, ClassOption options)
+        Class(const char* name, Namespace& parent, const void* const staticKey, Options options)
             : ClassBase(parent)
         {
             LUABRIDGE_ASSERT(name != nullptr);
@@ -1395,7 +1384,7 @@ class Namespace : public detail::Registrar
             return Namespace(*this);
         }
     };
-    
+
 private:
     struct FromStack {};
 
@@ -1419,7 +1408,7 @@ private:
      *
      * @param L A Lua state.
      */
-    Namespace(lua_State* L, FromStack)
+    Namespace(lua_State* L, Options options, FromStack)
         : Registrar(L, 1)
     {
         LUABRIDGE_ASSERT(lua_istable(L, -1));
@@ -1440,7 +1429,7 @@ private:
             lua_newtable(L); // Stack: ns, mt, propset table (ps)
             lua_rawsetp(L, -2, detail::getPropsetKey()); // ns [propsetKey] = ps. Stack: ns
 
-            if (Security::hideMetatables())
+            if (! options.test(visibleMetatables))
             {
                 lua_pushboolean(L, 0);
                 rawsetfield(L, -2, "__metatable");
@@ -1461,7 +1450,7 @@ private:
      *
      * @pre The parent namespace is at the top of the Lua stack.
      */
-    Namespace(const char* name, Namespace& parent)
+    Namespace(const char* name, Namespace& parent, Options options)
         : Registrar(parent)
     {
         LUABRIDGE_ASSERT(name != nullptr);
@@ -1493,7 +1482,7 @@ private:
             lua_newtable(L); // Stack: pns, ns, propset table (ps)
             lua_rawsetp(L, -2, detail::getPropsetKey()); // ns [propsetKey] = ps. Stack: pns, ns
 
-            if (Security::hideMetatables())
+            if (! options.test(visibleMetatables))
             {
                 lua_pushboolean(L, 0);
                 rawsetfield(L, -2, "__metatable");
@@ -1551,9 +1540,9 @@ public:
      *
      * @returns A namespace registration object.
      */
-    static Namespace getNamespaceFromStack(lua_State* L)
+    static Namespace getNamespaceFromStack(lua_State* L, Options options = defaultOptions)
     {
-        return Namespace(L, FromStack{});
+        return Namespace(L, options, FromStack{});
     }
 
     //=============================================================================================
@@ -1564,10 +1553,10 @@ public:
      *
      * @returns A namespace registration object.
      */
-    Namespace beginNamespace(const char* name)
+    Namespace beginNamespace(const char* name, Options options = defaultOptions)
     {
         assertIsActive();
-        return Namespace(name, *this);
+        return Namespace(name, *this, options);
     }
 
     //=============================================================================================
@@ -1957,7 +1946,7 @@ public:
      * @returns A class registration object.
      */
     template <class T>
-    Class<T> beginClass(const char* name, ClassOption options = defaultClass)
+    Class<T> beginClass(const char* name, Options options = defaultOptions)
     {
         assertIsActive();
         return Class<T>(name, *this, options);
@@ -1975,7 +1964,7 @@ public:
      * @returns A class registration object.
      */
     template <class Derived, class Base>
-    Class<Derived> deriveClass(const char* name, ClassOption options = defaultClass)
+    Class<Derived> deriveClass(const char* name, Options options = defaultOptions)
     {
         assertIsActive();
         return Class<Derived>(name, *this, detail::getStaticRegistryKey<Base>(), options);
