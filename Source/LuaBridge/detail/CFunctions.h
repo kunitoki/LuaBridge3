@@ -1201,25 +1201,6 @@ void push_member_function(lua_State* L, int (U::*mfp)(lua_State*) const)
  * One performs a regular new, the other performs a placement new.
  */
 template <class T, class Args>
-struct constructor;
-
-template <class T>
-struct constructor<T, void>
-{
-    using empty = std::tuple<>;
-
-    static T* call(const empty&)
-    {
-        return new T;
-    }
-
-    static T* call(void* ptr, const empty&)
-    {
-        return new (ptr) T;
-    }
-};
-
-template <class T, class Args>
 struct constructor
 {
     static T* call(const Args& args)
@@ -1251,12 +1232,6 @@ struct placement_constructor
 
         return std::apply(alloc, args);
     }
-
-    template <class F>
-    static T* construct(void* ptr, const F& func)
-    {
-        return func(ptr);
-    }
 };
 
 //=================================================================================================
@@ -1272,12 +1247,6 @@ struct external_constructor
         auto alloc = [&func](auto&&... args) { return func(std::forward<decltype(args)>(args)...); };
 
         return std::apply(alloc, args);
-    }
-
-    template <class F>
-    static T* construct(const F& func)
-    {
-        return func();
     }
 };
 

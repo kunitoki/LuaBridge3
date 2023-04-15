@@ -882,6 +882,8 @@ TEST_F(ClassProperties, MemberFunctions)
         .addConstructor<void (*)(int)>()
         .addProperty("data", &Int::getData, &Int::setData)
         .addProperty("dataNoexcept", &Int::getDataNoexcept, &Int::setDataNoexcept)
+        .addFunction("getDataNoexcept", &Int::getDataNoexcept)
+        .addFunction("setDataNoexcept", &Int::setDataNoexcept)
         .endClass();
 
     runLua("result = Int (501)");
