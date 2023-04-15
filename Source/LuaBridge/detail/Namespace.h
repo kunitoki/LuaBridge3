@@ -169,6 +169,9 @@ class Namespace : public detail::Registrar
             lua_pushvalue(L, -1); // Stack: ns, co, co
             lua_setmetatable(L, -2); // co.__metatable = co. Stack: ns, co
 
+            pushunsigned(L, options.toUnderlying());
+            lua_rawsetp(L, -2, detail::getClassOptionsKey()); // co [classOptionsKey] = options. Stack: ns, co
+
             lua_pushstring(L, type_name.c_str());
             lua_rawsetp(L, -2, detail::getTypeKey()); // co [typeKey] = name. Stack: ns, co
 

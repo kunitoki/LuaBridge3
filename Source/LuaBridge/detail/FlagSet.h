@@ -64,6 +64,11 @@ public:
         return FlagSet(~flags);
     }
 
+    constexpr T toUnderlying() const noexcept
+    {
+        return flags;
+    }
+
     std::string toString() const
     {
         std::string result;
@@ -79,6 +84,13 @@ public:
     static constexpr FlagSet Value() noexcept
     {
         return FlagSet{ mask<Us...>() };
+    }
+
+    template <class U>
+    static constexpr auto fromUnderlying(U newFlags) noexcept
+        -> std::enable_if_t<std::is_integral_v<U> && std::is_convertible_v<U, T>, FlagSet>
+    {
+        return { static_cast<T>(newFlags) };
     }
 
 private:

@@ -2866,6 +2866,32 @@ TEST_F(ClassTests, ExtensibleClassExtendExistingMethod)
     )"));
 #endif
 }
+
+TEST_F(ClassTests, ExtensibleClassExtendExistingMethodAllowingOverride)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<ExtensibleBase>("ExtensibleBase", luabridge::extensibleClass | luabridge::allowOverridingMethods)
+            .addConstructor<void(*)()>()
+            .addFunction("baseClass", &ExtensibleBase::baseClass)
+            .addFunction("baseClassConst", &ExtensibleBase::baseClassConst)
+        .endClass()
+    ;
+
+    runLua(R"(
+        function ExtensibleBase:baseClass() return 42 + self:super_baseClass() end
+
+        local base = ExtensibleBase(); result = base:baseClass()
+    )");
+
+    EXPECT_EQ(43, result<int>());
+
+    runLua(R"(
+        function ExtensibleBase:baseClassConst() return 42 + self:super_baseClassConst() end
+
+        local base = ExtensibleBase(); result = base:baseClassConst()
+    )");
+
+    EXPECT_EQ(44, result<int>());
 }
 
 namespace {
