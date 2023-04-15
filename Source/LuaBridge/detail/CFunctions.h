@@ -304,8 +304,14 @@ inline std::optional<int> try_call_newindex_fallback(lua_State* L, const char* k
         lua_rawgetp(L, -1, getClassKey()); // Stack: mt, nifb, mt, class table (ct) | nil
         if (! lua_istable(L, -1)) // Stack: mt, nifb, mt, nil
         {
-            lua_pop(L, 3); // Stack: mt
-            return std::nullopt;
+            lua_pop(L, 1); // Stack: mt, nifb, mt
+
+            lua_rawgetp(L, -1, getConstKey()); // Stack: mt, nifb, mt, const table (ct) | nil
+            if (! lua_istable(L, -1)) // Stack: mt, nifb, mt, nil
+            {
+                lua_pop(L, 3); // Stack: mt
+                return std::nullopt;
+            }
         }
 
         lua_pushvalue(L, 2); // Stack: mt, nifb, mt, ct, field name
@@ -378,6 +384,7 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
         {
             lua_pop(L, 2); // Stack: -
             luaL_error(L, "no member named '%s'", key);
+            return 0;
         }
 
         LUABRIDGE_ASSERT(lua_istable(L, -1));
