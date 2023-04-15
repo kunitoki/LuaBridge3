@@ -2894,6 +2894,32 @@ TEST_F(ClassTests, ExtensibleClassExtendExistingMethodAllowingOverride)
     EXPECT_EQ(44, result<int>());
 }
 
+TEST_F(ClassTests, ExtensibleDerivedOverrideOneFunctionCallBaseForTheOther)
+{
+    constexpr auto options = luabridge::extensibleClass | luabridge::allowOverridingMethods;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<ExtensibleBase>("ExtensibleBase", options)
+            .addConstructor<void(*)()>()
+            .addFunction("baseClass", &ExtensibleBase::baseClass)
+            .addFunction("baseClassConst", &ExtensibleBase::baseClassConst)
+        .endClass()
+        .deriveClass<ExtensibleDerived, ExtensibleBase>("ExtensibleDerived", options)
+            .addConstructor<void(*)()>()
+            .addFunction("derivedClass", &ExtensibleDerived::derivedClass)
+            .addFunction("derivedClassConst", &ExtensibleDerived::derivedClassConst)
+        .endClass()
+    ;
+
+    runLua(R"(
+        function ExtensibleDerived:baseClass() return 100 + self:super_baseClass() end
+
+        local derived = ExtensibleDerived()
+        result = derived:baseClass() + derived:baseClassConst()
+    )");
+
+    EXPECT_EQ(103, result<int>());
+}
 namespace {
 template <std::size_t Alignment>
 struct alignas(Alignment) Vec

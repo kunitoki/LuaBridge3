@@ -297,37 +297,54 @@ inline std::optional<int> try_call_newindex_fallback(lua_State* L, const char* k
         return std::nullopt;
     }
 
-    lua_rawgetp(L, -2, getClassKey()); // Stack: mt, nifb, class table (ct) | nil
-    if (lua_istable(L, -1)) // Stack: mt, nifb, ct
-    {
-        lua_pushvalue(L, 2); // Stack: mt, nifb, ct, field name
-        lua_rawget(L, -2); // Stack: mt, nifb, ct, field | nil
+    lua_pushvalue(L, -2); // Stack: mt, nifb, mt
 
-        if (! lua_isnil(L, -1))
+    for (;;)
+    {
+        lua_rawgetp(L, -1, getClassKey()); // Stack: mt, nifb, mt, class table (ct) | nil
+        if (! lua_istable(L, -1)) // Stack: mt, nifb, mt, nil
+        {
+            lua_pop(L, 3); // Stack: mt
+            return std::nullopt;
+        }
+
+        lua_pushvalue(L, 2); // Stack: mt, nifb, mt, ct, field name
+        lua_rawget(L, -2); // Stack: mt, nifb, mt, ct, field | nil
+
+        if (! lua_isnil(L, -1)) // Stack: mt, nifb, mt, ct, nil
         {
             Options options = defaultOptions;
-
-            lua_rawgetp(L, -2, getClassOptionsKey()); // Stack: mt, nifb, ct, field, opt | nil
+            lua_rawgetp(L, -2, getClassOptionsKey()); // Stack: mt, nifb, mt, ct, field, opt | nil
             if (lua_isnumber(L, -1))
                 options = Options::fromUnderlying(lua_tointeger(L, -1));
-
-            lua_pop(L, 1); // Stack: mt, nifb, ct, field
+            lua_pop(L, 1); // Stack: mt, nifb, mt, ct, field
 
             if (! options.test(allowOverridingMethods))
             {
-                lua_pop(L, 4); // Stack: -
+                lua_pop(L, 5); // Stack: -
                 luaL_error(L, "immutable member '%s'", key);
                 return 0;
             }
 
-            lua_getmetatable(L, 1); // Stack: mt, nifb, ct, field, mt2
-            lua_pushvalue(L, -2);  // Stack: mt, nifb, ct, field, mt2, field
-            rawsetfield(L, -2, (std::string("super_") + key).c_str()); // Stack: mt, nifb, ct, field, mt2
+            lua_getmetatable(L, 1); // Stack: mt, nifb, mt, ct, field, mt2
+            lua_pushvalue(L, -2);  // Stack: mt, nifb, mt, ct, field, mt2, field
+            rawsetfield(L, -2, (std::string("super_") + key).c_str()); // Stack: mt, nifb, mt, ct, field, mt2
 
-            lua_pop(L, 1); // Stack: mt, nifb, ct, field
+            lua_pop(L, 3); // Stack: mt, nifb, mt
+            break;
         }
 
-        lua_pop(L, 1); // Stack: mt, nifb, ct
+        lua_pop(L, 2); // Stack: mt, nifb, mt
+
+        lua_rawgetp(L, -1, getParentKey()); // Stack: mt, nifb, mt, parent mt | nil
+        if (lua_isnil(L, -1)) // Stack: mt, nifb, mt
+        {
+            lua_pop(L, 1); // Stack: mt, nifb, mt
+            break;
+        }
+
+        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt, nifb, mt, parent mt
+        lua_remove(L, -2); // Stack: mt, nifb, parent mt
     }
 
     lua_pop(L, 1); // Stack: mt, nifb
