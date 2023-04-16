@@ -795,6 +795,26 @@ int invoke_proxy_functor(lua_State* L)
 
 //=================================================================================================
 /**
+ * @brief lua_CFunction to call on a object constructor via functor (lambda wrapped in a std::function).
+ *
+ * The proxy std::function (lightuserdata) is in the first upvalue. The class userdata object will be pushed at the top of the Lua stack.
+ */
+template <class F>
+int invoke_proxy_constructor(lua_State* L)
+{
+    using FnTraits = function_traits<F>;
+
+    LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
+
+    auto& func = *align<F>(lua_touserdata(L, lua_upvalueindex(1)));
+
+    function<void, typename FnTraits::argument_types, 1>::call(L, func);
+
+    return 1;
+}
+
+//=================================================================================================
+/**
  * @brief lua_CFunction to resolve an invocation between several overloads.
  *
  * The list of overloads is in the first upvalue. The arguments of the function call are at the top of the Lua stack.
@@ -1055,25 +1075,6 @@ void push_member_function(lua_State* L, int (U::*mfp)(lua_State*) const)
  * One performs a regular new, the other performs a placement new.
  */
 template <class T, class Args>
-struct constructor;
-
-template <class T>
-struct constructor<T, void>
-{
-    using empty = std::tuple<>;
-
-    static T* call(const empty&)
-    {
-        return new T;
-    }
-
-    static T* call(void* ptr, const empty&)
-    {
-        return new (ptr) T;
-    }
-};
-
-template <class T, class Args>
 struct constructor
 {
     static T* call(const Args& args)
@@ -1105,12 +1106,6 @@ struct placement_constructor
 
         return std::apply(alloc, args);
     }
-
-    template <class F>
-    static T* construct(void* ptr, const F& func)
-    {
-        return func(ptr);
-    }
 };
 
 //=================================================================================================
@@ -1126,12 +1121,6 @@ struct external_constructor
         auto alloc = [&func](auto&&... args) { return func(std::forward<decltype(args)>(args)...); };
 
         return std::apply(alloc, args);
-    }
-
-    template <class F>
-    static T* construct(const F& func)
-    {
-        return func();
     }
 };
 
