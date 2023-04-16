@@ -6170,6 +6170,20 @@ int invoke_proxy_functor(lua_State* L)
     return function<typename FnTraits::result_type, typename FnTraits::argument_types, 1>::call(L, func);
 }
 
+template <class F>
+int invoke_proxy_constructor(lua_State* L)
+{
+    using FnTraits = function_traits<F>;
+
+    LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
+
+    auto& func = *align<F>(lua_touserdata(L, lua_upvalueindex(1)));
+
+    function<void, typename FnTraits::argument_types, 1>::call(L, func);
+
+    return 1;
+}
+
 template <bool Member>
 inline int try_overload_functions(lua_State* L)
 {
@@ -6399,25 +6413,6 @@ void push_member_function(lua_State* L, int (U::*mfp)(lua_State*) const)
 }
 
 template <class T, class Args>
-struct constructor;
-
-template <class T>
-struct constructor<T, void>
-{
-    using empty = std::tuple<>;
-
-    static T* call(const empty&)
-    {
-        return new T;
-    }
-
-    static T* call(void* ptr, const empty&)
-    {
-        return new (ptr) T;
-    }
-};
-
-template <class T, class Args>
 struct constructor
 {
     static T* call(const Args& args)
@@ -6445,12 +6440,6 @@ struct placement_constructor
 
         return std::apply(alloc, args);
     }
-
-    template <class F>
-    static T* construct(void* ptr, const F& func)
-    {
-        return func(ptr);
-    }
 };
 
 template <class T>
@@ -6462,12 +6451,6 @@ struct external_constructor
         auto alloc = [&func](auto&&... args) { return func(std::forward<decltype(args)>(args)...); };
 
         return std::apply(alloc, args);
-    }
-
-    template <class F>
-    static T* construct(const F& func)
-    {
-        return func();
     }
 };
 
@@ -8744,7 +8727,10 @@ class Namespace : public detail::Registrar
             {
                 ([&]
                 {
-                    detail::push_function(L, detail::constructor_forwarder<T, Functions>(std::move(functions))); 
+                    using F = detail::constructor_forwarder<T, Functions>;
+
+                    lua_newuserdata_aligned<F>(L, F(std::move(functions))); 
+                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, 1); 
 
                 } (), ...);
             }
@@ -8757,6 +8743,8 @@ class Namespace : public detail::Registrar
 
                 ([&]
                 {
+                    using F = detail::constructor_forwarder<T, Functions>;
+
                     lua_createtable(L, 2, 0); 
                     lua_pushinteger(L, 1);
                     if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
@@ -8765,7 +8753,8 @@ class Namespace : public detail::Registrar
                         lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>) - 1); 
                     lua_settable(L, -3);
                     lua_pushinteger(L, 2);
-                    detail::push_function(L, detail::constructor_forwarder<T, Functions>(std::move(functions)));
+                    lua_newuserdata_aligned<F>(L, F(std::move(functions)));
+                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, 1);
                     lua_settable(L, -3);
                     lua_rawseti(L, -2, idx);
                     ++idx;
@@ -8785,7 +8774,10 @@ class Namespace : public detail::Registrar
         {
             assertStackState(); 
 
-            detail::push_function(L, detail::factory_forwarder<T, Allocator, Deallocator>(std::move(allocator), std::move(deallocator)));
+            using F = detail::factory_forwarder<T, Allocator, Deallocator>;
+
+            lua_newuserdata_aligned<F>(L, F(std::move(allocator), std::move(deallocator))); 
+            lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, 1); 
             rawsetfield(L, -2, "__call"); 
 
             return *this;
