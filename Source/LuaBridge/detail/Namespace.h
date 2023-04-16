@@ -1176,7 +1176,10 @@ class Namespace : public detail::Registrar
             {
                 ([&]
                 {
-                    detail::push_function(L, detail::constructor_forwarder<T, Functions>(std::move(functions))); // Stack: co, cl, st, function
+                    using F = detail::constructor_forwarder<T, Functions>;
+
+                    lua_newuserdata_aligned<F>(L, F(std::move(functions))); // Stack: co, cl, st, upvalue
+                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, 1); // Stack: co, cl, st, function
 
                 } (), ...);
             }
@@ -1189,6 +1192,8 @@ class Namespace : public detail::Registrar
 
                 ([&]
                 {
+                    using F = detail::constructor_forwarder<T, Functions>;
+
                     lua_createtable(L, 2, 0); // reserve space for: function, arity
                     lua_pushinteger(L, 1);
                     if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
@@ -1197,7 +1202,8 @@ class Namespace : public detail::Registrar
                         lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>) - 1); // 1: for void* ptr
                     lua_settable(L, -3);
                     lua_pushinteger(L, 2);
-                    detail::push_function(L, detail::constructor_forwarder<T, Functions>(std::move(functions)));
+                    lua_newuserdata_aligned<F>(L, F(std::move(functions)));
+                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, 1);
                     lua_settable(L, -3);
                     lua_rawseti(L, -2, idx);
                     ++idx;
@@ -1226,7 +1232,10 @@ class Namespace : public detail::Registrar
         {
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            detail::push_function(L, detail::factory_forwarder<T, Allocator, Deallocator>(std::move(allocator), std::move(deallocator)));
+            using F = detail::factory_forwarder<T, Allocator, Deallocator>;
+
+            lua_newuserdata_aligned<F>(L, F(std::move(allocator), std::move(deallocator))); // Stack: co, cl, st, upvalue
+            lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, 1); // Stack: co, cl, st, function
             rawsetfield(L, -2, "__call"); // Stack: co, cl, st
 
             return *this;
