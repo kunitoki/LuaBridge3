@@ -2318,3 +2318,31 @@ TEST_F(StackTests, TypeResultCheck)
     EXPECT_EQ(luabridge::ErrorCode::InvalidTypeCast, luabridge::get<int>(L, -1).error());
     EXPECT_EQ(luabridge::ErrorCode::InvalidTypeCast, static_cast<std::error_code>(luabridge::get<int>(L, -1)));
 }
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+TEST_F(StackTests, ResultThrowOnError)
+{
+    exhaustStackSpace();
+
+    EXPECT_THROW(luabridge::push(L, 1337).throw_on_error(), std::system_error);
+}
+
+TEST_F(StackTests, ResultNoThrowOnError)
+{
+    EXPECT_NO_THROW(luabridge::push(L, 1337).throw_on_error());
+}
+
+TEST_F(StackTests, TypeResultThrowOnError)
+{
+    (void)luabridge::push(L, std::string_view("abc"));
+
+    EXPECT_THROW(luabridge::get<int>(L, -1).throw_on_error(), std::system_error);
+}
+
+TEST_F(StackTests, TypeResultNoThrowOnError)
+{
+    (void)luabridge::push(L, std::string_view("abc"));
+
+    EXPECT_NO_THROW(luabridge::get<std::string>(L, -1).throw_on_error());
+}
+#endif
