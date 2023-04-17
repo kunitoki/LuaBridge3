@@ -528,13 +528,19 @@ void* lua_newuserdata_aligned(lua_State* L, Args&&... args)
     return pointer;
 }
 
-inline int raise_lua_error(lua_State *L, const char *fmt, ...)
+inline int raise_lua_error(lua_State* L, const char* fmt, ...)
 {
     va_list argp;
     va_start(argp, fmt);
+    lua_pushvfstring(L, fmt, argp);
+    va_end(argp);
+
+    const char* message = lua_tostring(L, -1);
+    if (message != nullptr && std::string_view(message)[0] == '[')
+        return lua_error_x(L);
 
     bool pushed_error = false;
-    for (int level = 2; level > 0; --level)
+    for (int level = 1; level <= 2; ++level)
     {
         lua_Debug ar;
 
@@ -558,8 +564,8 @@ inline int raise_lua_error(lua_State *L, const char *fmt, ...)
     if (! pushed_error)
         lua_pushliteral(L, "");
 
-    lua_pushvfstring(L, fmt, argp);
-    va_end(argp);
+    lua_pushvalue(L, -2);
+    lua_remove(L, -3);
     lua_concat(L, 2);
 
     return lua_error_x(L);
@@ -5533,11 +5539,11 @@ namespace luabridge {
 namespace detail {
 
 template <class T>
-auto unwrap_argument_or_error(lua_State* L, std::size_t index)
+auto unwrap_argument_or_error(lua_State* L, std::size_t index, std::size_t start)
 {
-    auto result = Stack<T>::get(L, static_cast<int>(index));
+    auto result = Stack<T>::get(L, static_cast<int>(index + start));
     if (! result)
-        luaL_error(L, "Error decoding argument #%d: %s", static_cast<int>(index), result.message().c_str());
+        raise_lua_error(L, "Error decoding argument #%d: %s", static_cast<int>(index + 1), result.message().c_str());
 
     return std::move(*result);
 }
@@ -5545,7 +5551,7 @@ auto unwrap_argument_or_error(lua_State* L, std::size_t index)
 template <class ArgsPack, std::size_t Start, std::size_t... Indices>
 auto make_arguments_list_impl(lua_State* L, std::index_sequence<Indices...>)
 {
-    return tupleize(unwrap_argument_or_error<std::tuple_element_t<Indices, ArgsPack>>(L, Start + Indices)...);
+    return tupleize(unwrap_argument_or_error<std::tuple_element_t<Indices, ArgsPack>>(L, Indices, Start)...);
 }
 
 template <class ArgsPack, std::size_t Start>
@@ -5806,7 +5812,7 @@ inline int read_only_error(lua_State* L)
 
     s = s + "'" + lua_tostring(L, lua_upvalueindex(1)) + "' is read-only";
 
-    luaL_error(L, "%s", s.c_str());
+    raise_lua_error(L, "%s", s.c_str());
 
     return 0;
 }
@@ -5842,26 +5848,6 @@ struct property_getter<T, void>
         return 1;
     }
 };
-
-#if 0
-template <class T>
-struct property_getter<std::reference_wrapper<T>, void>
-{
-    static int call(lua_State* L)
-    {
-        LUABRIDGE_ASSERT(lua_islightuserdata(L, lua_upvalueindex(1)));
-
-        std::reference_wrapper<T>* ptr = static_cast<std::reference_wrapper<T>*>(lua_touserdata(L, lua_upvalueindex(1)));
-        LUABRIDGE_ASSERT(ptr != nullptr);
-
-        auto result = Stack<T&>::push(L, ptr->get());
-        if (! result)
-            luaL_error(L, "%s", result.message().c_str());
-
-        return 1;
-    }
-};
-#endif
 
 template <class T, class C>
 struct property_getter
@@ -5933,24 +5919,6 @@ struct property_setter<T, void>
         return 0;
     }
 };
-
-#if 0
-template <class T>
-struct property_setter<std::reference_wrapper<T>, void>
-{
-    static int call(lua_State* L)
-    {
-        LUABRIDGE_ASSERT(lua_islightuserdata(L, lua_upvalueindex(1)));
-
-        std::reference_wrapper<T>* ptr = static_cast<std::reference_wrapper<T>*>(lua_touserdata(L, lua_upvalueindex(1)));
-        LUABRIDGE_ASSERT(ptr != nullptr);
-
-        ptr->get() = Stack<T>::get(L, 1);
-
-        return 0;
-    }
-};
-#endif
 
 template <class T, class C>
 struct property_setter
@@ -6479,7 +6447,7 @@ int constructor_container_proxy(lua_State* L)
 
     auto result = UserdataSharedHelper<C, false>::push(L, object);
     if (! result)
-        luaL_error(L, "%s", result.message().c_str());
+        raise_lua_error(L, "%s", result.message().c_str());
 
     return 1;
 }
@@ -6492,7 +6460,7 @@ int constructor_placement_proxy(lua_State* L)
     std::error_code ec;
     auto* value = UserdataValue<T>::place(L, ec);
     if (! value)
-        luaL_error(L, "%s", ec.message().c_str());
+        raise_lua_error(L, "%s", ec.message().c_str());
 
     constructor<T, Args>::call(value->getObject(), std::move(args));
 
@@ -6519,7 +6487,7 @@ struct constructor_forwarder
         std::error_code ec;
         auto* value = UserdataValue<T>::place(L, ec);
         if (! value)
-            luaL_error(L, "%s", ec.message().c_str());
+            raise_lua_error(L, "%s", ec.message().c_str());
 
         T* obj = placement_constructor<T>::construct(
             value->getObject(), m_func, std::move(args));
@@ -6552,7 +6520,7 @@ struct factory_forwarder
         std::error_code ec;
         auto* value = UserdataValueExternal<T>::place(L, obj, m_dealloc, ec);
         if (! value)
-            luaL_error(L, "%s", ec.message().c_str());
+            raise_lua_error(L, "%s", ec.message().c_str());
 
         return obj;
     }
