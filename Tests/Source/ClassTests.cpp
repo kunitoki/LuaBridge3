@@ -2673,7 +2673,7 @@ TEST_F(ClassTests, IndexFallbackMetaMethodMemberFptr)
 {
     luabridge::getGlobalNamespace(L)
         .beginClass<OverridableX>("X")
-            .addFunction("__index", &OverridableX::indexMetaMethod)
+            .addIndexMetaMethod(&OverridableX::indexMetaMethod)
         .endClass();
 
     OverridableX x;
@@ -2687,7 +2687,7 @@ TEST_F(ClassTests, IndexFallbackMetaMethodFunctionPtr)
 {
     luabridge::getGlobalNamespace(L)
         .beginClass<OverridableX>("X")
-            .addFunction("__index", &indexMetaMethodFunction)
+            .addIndexMetaMethod(&indexMetaMethodFunction)
         .endClass();
 
     OverridableX x;
@@ -2719,7 +2719,7 @@ TEST_F(ClassTests, IndexFallbackMetaMethodFreeFunctor)
 
     luabridge::getGlobalNamespace(L)
         .beginClass<OverridableX>("X")
-            .addFunction("__index", indexMetaMethod)
+            .addIndexMetaMethod(indexMetaMethod)
         .endClass();
 
     OverridableX x;
@@ -2733,8 +2733,8 @@ TEST_F(ClassTests, NewIndexFallbackMetaMethodMemberFptr)
 {
     luabridge::getGlobalNamespace(L)
         .beginClass<OverridableX>("X")
-            .addFunction("__index", &OverridableX::indexMetaMethod)
-            .addFunction("__newindex", &OverridableX::newIndexMetaMethod)
+            .addIndexMetaMethod(&OverridableX::indexMetaMethod)
+            .addNewIndexMetaMethod(&OverridableX::newIndexMetaMethod)
         .endClass();
 
     OverridableX x;
@@ -2748,8 +2748,8 @@ TEST_F(ClassTests, NewIndexFallbackMetaMethodFunctionPtr)
 {
     luabridge::getGlobalNamespace(L)
         .beginClass<OverridableX>("X")
-            .addFunction("__index", &indexMetaMethodFunction)
-            .addFunction("__newindex", &newIndexMetaMethodFunction)
+            .addIndexMetaMethod(&indexMetaMethodFunction)
+            .addNewIndexMetaMethod(&newIndexMetaMethodFunction)
         .endClass();
 
     OverridableX x;
@@ -2775,8 +2775,8 @@ TEST_F(ClassTests, NewIndexFallbackMetaMethodFreeFunctor)
 
     luabridge::getGlobalNamespace(L)
         .beginClass<OverridableX>("X")
-            .addFunction("__index", &indexMetaMethodFunction)
-            .addFunction("__newindex", newIndexMetaMethod)
+            .addIndexMetaMethod(&indexMetaMethodFunction)
+            .addNewIndexMetaMethod(newIndexMetaMethod)
         .endClass();
 
     OverridableX x;

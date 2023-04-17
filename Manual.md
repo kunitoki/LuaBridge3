@@ -726,7 +726,7 @@ collectgarbage ("collect")   -- The object is garbage collected using objectFact
 
 In general LuaBridge for each class will add a `__index` and `__newindex` metamethods in order to be able to handle member function, properties and inheritance resolution. This will make it impossible for a user to override them because in doing so, we'll make the exposed classes non functioning.
 
-If a LuaBridge exposed class still need to handle the case of handling `__index` and `__newindex` metamethods calls, it's possible to register functions that will be executed as fallback in case an already existing function/property is not exposed in the class itself or any of its parent.
+If a LuaBridge exposed class still need to handle the case of handling `__index` and `__newindex` metamethods calls, it's possible to use the `addIndexMetaMethod` and `addNewIndexMetaMethod` registration functions that will be executed as fallback in case an already existing function/property is not exposed in the class itself or any of its parent.
 
 ```cpp
 struct FlexibleClass
@@ -738,7 +738,7 @@ luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
     .beginClass<FlexibleClass> ("FlexibleClass")
       .addProperty ("propertyOne", &FlexibleClass::propertyOne)
-      .addFunction ("__index", [] (FlexibleClass& self, const luabridge::LuaRef& key, lua_State* L)
+      .addIndexMetaMethod ([] (FlexibleClass& self, const luabridge::LuaRef& key, lua_State* L)
       {
         if (key.tostring () == "existingProperty")
           return luabridge::LuaRef (L, 1337);
@@ -776,7 +776,7 @@ struct FlexibleClass
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
     .beginClass<FlexibleClass> ("FlexibleClass")
-      .addFunction ("__index", [] (FlexibleClass& self, const luabridge::LuaRef& key, lua_State* L)
+      .addIndexMetaMethod ([] (FlexibleClass& self, const luabridge::LuaRef& key, lua_State* L)
       {
         auto it = self.properties.find(key);
         if (it != self.properties.end())
@@ -784,7 +784,7 @@ luabridge::getGlobalNamespace (L)
 
         return luabridge::LuaRef (L, luabridge::LuaNil ()); // or luaL_error("Failed lookup of key !")
       })
-      .addFunction ("__newindex", ([] (FlexibleClass& self, const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State* L)
+      .addNewIndexMetaMethod ([] (FlexibleClass& self, const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State* L)
       {
         self.properties.emplace (std::make_pair (key, value))
         return luabridge::LuaRef (L, luabridge::LuaNil ());
