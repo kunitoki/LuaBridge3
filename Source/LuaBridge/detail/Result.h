@@ -45,6 +45,12 @@ struct Result
     {
         return m_ec.message();
     }
+    
+    void throw_on_error() const
+    {
+        if (!*this)
+            throw std::system_error(m_ec);
+    }
 
 private:
     std::error_code m_ec;
