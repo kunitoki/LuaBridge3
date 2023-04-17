@@ -551,23 +551,23 @@ constexpr bool is_integral_representable_by(T value)
             return true;
 
         if constexpr (std::is_unsigned_v<T>)
-            return value <= static_cast<T>(std::numeric_limits<U>::max());
+            return value <= static_cast<T>((std::numeric_limits<U>::max)());
         
-        return value >= static_cast<T>(std::numeric_limits<U>::min())
-            && static_cast<U>(value) <= std::numeric_limits<U>::max();
+        return value >= static_cast<T>((std::numeric_limits<U>::min)())
+            && static_cast<U>(value) <= (std::numeric_limits<U>::max)();
     }
 
     if constexpr (sizeof(T) < sizeof(U))
     {
-        return static_cast<U>(value) >= std::numeric_limits<U>::min()
-            && static_cast<U>(value) <= std::numeric_limits<U>::max();
+        return static_cast<U>(value) >= (std::numeric_limits<U>::min)()
+            && static_cast<U>(value) <= (std::numeric_limits<U>::max)();
     }
 
     if constexpr (std::is_unsigned_v<T>)
-        return value <= static_cast<T>(std::numeric_limits<U>::max());
+        return value <= static_cast<T>((std::numeric_limits<U>::max)());
 
-    return value >= static_cast<T>(std::numeric_limits<U>::min())
-        && value <= static_cast<T>(std::numeric_limits<U>::max());
+    return value >= static_cast<T>((std::numeric_limits<U>::min)())
+        && value <= static_cast<T>((std::numeric_limits<U>::max)());
 }
 
 template <class U = lua_Integer>
@@ -590,11 +590,11 @@ constexpr bool is_floating_point_representable_by(T value)
         return true;
 
     if constexpr (sizeof(T) < sizeof(U))
-        return static_cast<U>(value) >= -std::numeric_limits<U>::max()
-            && static_cast<U>(value) <= std::numeric_limits<U>::max();
+        return static_cast<U>(value) >= -(std::numeric_limits<U>::max)()
+            && static_cast<U>(value) <= (std::numeric_limits<U>::max)();
 
-    return value >= static_cast<T>(-std::numeric_limits<U>::max())
-        && value <= static_cast<T>(std::numeric_limits<U>::max());
+    return value >= static_cast<T>(-(std::numeric_limits<U>::max)())
+        && value <= static_cast<T>((std::numeric_limits<U>::max)());
 }
 
 template <class U = lua_Number>

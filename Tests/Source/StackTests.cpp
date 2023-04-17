@@ -44,7 +44,7 @@ TEST_F(StackTests, NullptrType)
         EXPECT_FALSE(luabridge::isInstance<float>(L, -1));
         EXPECT_FALSE(luabridge::isInstance<double>(L, -1));
         EXPECT_FALSE(luabridge::isInstance<long double>(L, -1));
-        EXPECT_FALSE(luabridge::isInstance<const char*>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<const char*>(L, -1));
         EXPECT_FALSE(luabridge::isInstance<std::string_view>(L, -1));
         EXPECT_FALSE(luabridge::isInstance<std::string>(L, -1));
         EXPECT_FALSE(luabridge::isInstance<std::tuple<std::nullptr_t>>(L, -1));
@@ -1624,7 +1624,6 @@ TEST_F(StackTests, ConstCharPointerType)
         EXPECT_TRUE(luabridge::push(L, nullptr_value));
     }
 
-    EXPECT_FALSE(luabridge::isInstance<std::nullptr_t>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<lua_CFunction>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<int8_t>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<int16_t>(L, -1));
@@ -1649,12 +1648,13 @@ TEST_F(StackTests, ConstCharPointerType)
     EXPECT_FALSE(luabridge::isInstance<float>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<double>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<long double>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<std::nullptr_t>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<const char*>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::string_view>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<std::string>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::string_view>(L, -1));
+    EXPECT_FALSE(luabridge::isInstance<std::string>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::tuple<const char*>>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::vector<const char*>>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::optional<char>>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<std::optional<char>>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<std::optional<const char*>>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<std::optional<std::string_view>>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<std::optional<std::string>>(L, -1));
@@ -1665,36 +1665,37 @@ TEST_F(StackTests, ConstCharPointerType)
     }
 
     {
-        auto result = *luabridge::get<const char*>(L, -1);
-        EXPECT_STREQ("", result);
-    }
-
-    {
-        auto result = *luabridge::get<std::string_view>(L, -1);
-        EXPECT_EQ("", result);
-    }
-
-    {
-        auto result = *luabridge::get<std::string>(L, -1);
-        EXPECT_EQ("", result);
-    }
-
-    {
-        auto result = *luabridge::get<std::optional<const char*>>(L, -1);
+        auto result = luabridge::get<const char*>(L, -1);
         ASSERT_TRUE(result);
-        EXPECT_STREQ("", *result);
+        EXPECT_EQ(nullptr, *result);
     }
 
     {
-        auto result = *luabridge::get<std::optional<std::string_view>>(L, -1);
-        ASSERT_TRUE(result);
-        EXPECT_STREQ("", result->data());
+        auto result = luabridge::get<std::string_view>(L, -1);
+        EXPECT_FALSE(result);
     }
 
     {
-        auto result = *luabridge::get<std::optional<std::string>>(L, -1);
+        auto result = luabridge::get<std::string>(L, -1);
+        EXPECT_FALSE(result);
+    }
+
+    {
+        auto result = luabridge::get<std::optional<const char*>>(L, -1);
         ASSERT_TRUE(result);
-        EXPECT_STREQ("", result->data());
+        EXPECT_FALSE(*result);
+    }
+
+    {
+        auto result = luabridge::get<std::optional<std::string_view>>(L, -1);
+        ASSERT_TRUE(result);
+        EXPECT_FALSE(*result);
+    }
+
+    {
+        auto result = luabridge::get<std::optional<std::string>>(L, -1);
+        ASSERT_TRUE(result);
+        EXPECT_FALSE(*result);
     }
 }
 
@@ -1707,13 +1708,14 @@ TEST_F(StackTests, ConstCharPointerStackOverflow)
     ASSERT_FALSE(luabridge::push(L, value));
 }
 
-TEST_F(StackTests, ConstCharPointerInvalidType)
+TEST_F(StackTests, ConstCharPointerAsNullptr)
 {
     ASSERT_TRUE(luabridge::push(L, luabridge::LuaNil()));
 
     {
         auto result = luabridge::get<const char*>(L, -1);
-        EXPECT_FALSE(result);
+        ASSERT_TRUE(result);
+        EXPECT_EQ(nullptr, *result);
     }
 }
 

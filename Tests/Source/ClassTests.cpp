@@ -2885,3 +2885,162 @@ TEST_F(ClassTests, WrongThrowBadArgObjectDescription)
 
 #endif
 }
+
+namespace {
+struct Node
+{
+    int data = 0;
+    Node* next = nullptr;
+    Node* prev = nullptr;
+
+    explicit Node(int value)
+        : data(value)
+    {
+    }
+
+    int val() const { return data; }
+    Node* next_node() const { return next; }
+};
+
+class DoublyLinkedList
+{
+public:
+    DoublyLinkedList(int numToAdd = 0)
+    {
+        for (int value = 1; value <= numToAdd; value++)
+            addBack(value);
+    }
+
+    ~DoublyLinkedList()
+    {
+        while (head)
+            removeBack();
+    }
+
+    void addBack(int value)
+    {
+        Node* newNode = new Node(value);
+        if (tail == nullptr)
+        {
+            head = newNode;
+            tail = newNode;
+        }
+        else
+        {
+            newNode->prev = tail;
+            tail->next = newNode;
+            tail = newNode;
+        }
+    }
+
+    void removeBack()
+    {
+        if (tail == nullptr)
+            return;
+
+        Node* temp = tail;
+        tail = tail->prev;
+
+        if (tail != nullptr)
+            tail->next = nullptr;
+        else
+            head = nullptr;
+
+        delete temp;
+    }
+
+    Node* first() const { return head; }
+
+private:
+    Node* head = nullptr;
+    Node* tail = nullptr;
+};
+
+class foo
+{
+public:
+    foo(int size = 5000) : list(size) {}
+
+    Node* first() const { return list.first(); }
+    Node* next(Node* curr) const { return curr->next_node(); }
+
+private:
+    DoublyLinkedList list;
+};
+
+class bar
+{
+public:
+   bar(foo* f) : foo_(f) {}
+
+   Node* first() const { return foo_->first(); }
+   Node* next(Node* curr) const { return foo_->next(curr); }
+
+private:
+   foo* foo_;
+};
+} // namespace
+
+TEST_F(ClassTests, BugWithPlacementConstructor)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("foobar")
+            .beginClass<Node>("Node")
+                .addFunction("val", &Node::val)
+            .endClass()
+            .beginClass<foo>("foo")
+                .addConstructor([](void* p, int size) { return new(p) foo(size); })
+                .addFunction("first", &foo::first)
+                .addFunction("next", &foo::next)
+            .endClass()
+            .beginClass<bar>("bar")
+                .addConstructor<void(*)(foo *)>()
+                .addFunction("first", &bar::first)
+                .addFunction("next", &bar::next)
+            .endClass()
+        .endNamespace();
+
+    runLua(R"(
+        local foo = foobar.foo(5000)
+        local bar = foobar.bar(foo)
+        local next = bar:first()
+        while next do
+            next = bar:next(next)
+        end
+    )");
+
+    SUCCEED();
+}
+
+TEST_F(ClassTests, BugWithFactoryConstructor)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("foobar")
+            .beginClass<Node>("Node")
+                .addFunction("val", &Node::val)
+            .endClass()
+            .beginClass<foo>("foo")
+                .addFactory(
+                    +[]() -> foo* { return new foo(5000); },
+                    +[](foo* x) { delete x; })
+                .addFunction("first", &foo::first)
+                .addFunction("next", &foo::next)
+            .endClass()
+            .beginClass<bar>("bar")
+                .addConstructor<void(*)(foo *)>()
+                .addFunction("first", &bar::first)
+                .addFunction("next", &bar::next)
+            .endClass()
+        .endNamespace();
+
+    runLua(R"(
+        local foo = foobar.foo()
+        local bar = foobar.bar(foo)
+        local next = bar:first()
+        while next do
+            next = bar:next(next)
+        end
+    )");
+
+    SUCCEED();
+}

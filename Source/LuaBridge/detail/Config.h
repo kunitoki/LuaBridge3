@@ -34,6 +34,14 @@
 #endif
 #endif
 
+#if LUABRIDGE_HAS_EXCEPTIONS
+#define LUABRIDGE_IF_EXCEPTIONS(...) __VA_ARGS__
+#define LUABRIDGE_IF_NO_EXCEPTIONS(...)
+#else
+#define LUABRIDGE_IF_EXCEPTIONS(...)
+#define LUABRIDGE_IF_NO_EXCEPTIONS(...) __VA_ARGS__
+#endif
+
 #if defined(LUAU_FASTMATH_BEGIN)
 #define LUABRIDGE_ON_LUAU 1
 #elif defined(LUAJIT_VERSION)

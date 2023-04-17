@@ -8,6 +8,7 @@
 
 #include "Config.h"
 
+#include "ClassInfo.h"
 #include "LuaHelpers.h"
 
 #include <string>
@@ -51,7 +52,7 @@ public:
      */
     static void raise(lua_State* L, std::error_code code)
     {
-        LUABRIDGE_ASSERT(areExceptionsEnabled());
+        LUABRIDGE_ASSERT(areExceptionsEnabled(L));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         throw LuaException(L, code, FromLua{});
@@ -66,9 +67,15 @@ public:
     /**
      * @brief Check if exceptions are enabled.
      */
-    static bool areExceptionsEnabled() noexcept
+    static bool areExceptionsEnabled(lua_State* L) noexcept
     {
-        return exceptionsEnabled();
+        lua_pushlightuserdata(L, detail::getExceptionsKey());
+        lua_gettable(L, LUA_REGISTRYINDEX);
+
+        const bool enabled = lua_isboolean(L, -1) ? lua_toboolean(L, -1) : false;
+        lua_pop(L, 1);
+
+        return enabled;
     }
 
     /**
@@ -78,7 +85,9 @@ public:
      */
     static void enableExceptions(lua_State* L) noexcept
     {
-        exceptionsEnabled() = true;
+        lua_pushlightuserdata(L, detail::getExceptionsKey());
+        lua_pushboolean(L, true);
+        lua_settable(L, LUA_REGISTRYINDEX);
 
 #if LUABRIDGE_HAS_EXCEPTIONS && LUABRIDGE_ON_LUAJIT
         lua_pushlightuserdata(L, (void*)luajitWrapperCallback);
@@ -154,12 +163,6 @@ private:
         }
     }
 #endif
-
-    static bool& exceptionsEnabled()
-    {
-        static bool areExceptionsEnabled = false;
-        return areExceptionsEnabled;
-    }
 
     lua_State* m_L = nullptr;
     std::error_code m_code;
