@@ -2385,6 +2385,14 @@ struct Result
         return m_ec.message();
     }
 
+#if LUABRIDGE_HAS_EXCEPTIONS
+    void throw_on_error() const
+    {
+        if (m_ec)
+            throw std::system_error(m_ec);
+    }
+#endif
+
 private:
     std::error_code m_ec;
 };
@@ -2449,6 +2457,14 @@ struct TypeResult
     {
         return m_value.error().message();
     }
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    void throw_on_error() const
+    {
+        if (! m_value.hasValue())
+            throw std::system_error(m_value.error());
+    }
+#endif
 
 private:
     Expected<T, std::error_code> m_value;
