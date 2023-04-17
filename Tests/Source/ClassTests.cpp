@@ -2793,6 +2793,8 @@ struct ExtensibleBase
 
     int baseClass() { return 1; }
     int baseClassConst() const { return 2; }
+
+    std::unordered_map<luabridge::LuaRef, luabridge::LuaRef> properties;
 };
 
 struct ExtensibleDerived : ExtensibleBase
@@ -3038,7 +3040,17 @@ TEST_F(ClassTests, ExtensibleClassWithCustomIndexMethod)
                 if (auto value = metatable[key])
                     return value.cast<luabridge::LuaRef>().value();
 
-                return luabridge::LuaRef(L, 1000);
+                auto it = self.properties.find(key);
+                if (it != self.properties.end())
+                    return it->second;
+
+                luaL_error(L, "%s", "Failed lookup of key !");
+                return luabridge::LuaRef(L, luabridge::LuaNil());
+            })
+            .addNewIndexMetaMethod([](ExtensibleBase& self, const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State* L)
+            {
+                self.properties.emplace(std::make_pair (key, value));
+                return luabridge::LuaRef(L, luabridge::LuaNil());
             })
         .endClass()
     ;
@@ -3046,7 +3058,7 @@ TEST_F(ClassTests, ExtensibleClassWithCustomIndexMethod)
     runLua(R"(
         function ExtensibleBase:test() return 41 + self.xyz + self:baseClass() end
 
-        local base = ExtensibleBase(); result = base:test()
+        local base = ExtensibleBase(); base.xyz = 1000; result = base:test()
     )");
 
     EXPECT_EQ(1042, result<int>());
