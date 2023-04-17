@@ -2145,7 +2145,9 @@ TEST_F(ClassMetaMethods, ErrorLineWithProperties)
     catch (const std::exception& ex)
     {
         EXPECT_EQ(0, std::string_view(ex.what()).find("[string \"...\"]:3"));
-        EXPECT_EQ(std::string_view::npos, std::string_view(ex.what()).find("[string \"...\"]:3", 1));
+
+        // This is not comparing with std::string_view::npos because we have debug.traceback in the error handler
+        EXPECT_NE(18, std::string_view(ex.what()).find("[string \"...\"]:3: ", 18));
     }
 
     try
@@ -2159,8 +2161,10 @@ TEST_F(ClassMetaMethods, ErrorLineWithProperties)
     }
     catch (const std::exception& ex)
     {
-        EXPECT_EQ(0, std::string_view(ex.what()).find("[string \"...\"]:3"));
-        EXPECT_EQ(std::string_view::npos, std::string_view(ex.what()).find("[string \"...\"]:3", 1));
+        EXPECT_EQ(0, std::string_view(ex.what()).find("[string \"...\"]:3: "));
+
+        // This is not comparing with std::string_view::npos because we have debug.traceback in the error handler
+        EXPECT_NE(18, std::string_view(ex.what()).find("[string \"...\"]:3: ", 18));
     }
 #endif
 
@@ -2170,8 +2174,8 @@ TEST_F(ClassMetaMethods, ErrorLineWithProperties)
             myStringGetter.str = 12
         )");
 
-        EXPECT_EQ(0, std::string_view(errorString).find("[string \"...\"]:3"));
-        EXPECT_EQ(std::string_view::npos, std::string_view(errorString).find("[string \"...\"]:3", 1));
+        EXPECT_EQ(0, std::string_view(errorString).find("[string \"...\"]:3: "));
+        EXPECT_EQ(std::string_view::npos, std::string_view(errorString).find("[string \"...\"]:3: ", 18));
     }
 
     {
@@ -2180,8 +2184,8 @@ TEST_F(ClassMetaMethods, ErrorLineWithProperties)
             myStringGetter:setString(12)
         )");
 
-        EXPECT_EQ(0, std::string_view(errorString).find("[string \"...\"]:3"));
-        EXPECT_EQ(std::string_view::npos, std::string_view(errorString).find("[string \"...\"]:3", 1));
+        EXPECT_EQ(0, std::string_view(errorString).find("[string \"...\"]:3: "));
+        EXPECT_EQ(std::string_view::npos, std::string_view(errorString).find("[string \"...\"]:3: ", 18));
     }
 }
 
