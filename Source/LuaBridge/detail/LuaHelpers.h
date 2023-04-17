@@ -499,13 +499,19 @@ void* lua_newuserdata_aligned(lua_State* L, Args&&... args)
 /**
  * @brief Safe error able to walk backwards for error reporting correctly.
  */
-inline int raise_lua_error(lua_State *L, const char *fmt, ...)
+inline int raise_lua_error(lua_State* L, const char* fmt, ...)
 {
     va_list argp;
     va_start(argp, fmt);
+    lua_pushvfstring(L, fmt, argp);
+    va_end(argp);
+
+    const char* message = lua_tostring(L, -1);
+    if (message != nullptr && std::string_view(message)[0] == '[')
+        return lua_error_x(L);
 
     bool pushed_error = false;
-    for (int level = 2; level > 0; --level)
+    for (int level = 1; level <= 2; ++level)
     {
         lua_Debug ar;
 
@@ -529,8 +535,8 @@ inline int raise_lua_error(lua_State *L, const char *fmt, ...)
     if (! pushed_error)
         lua_pushliteral(L, "");
 
-    lua_pushvfstring(L, fmt, argp);
-    va_end(argp);
+    lua_pushvalue(L, -2);
+    lua_remove(L, -3);
     lua_concat(L, 2);
 
     return lua_error_x(L);
