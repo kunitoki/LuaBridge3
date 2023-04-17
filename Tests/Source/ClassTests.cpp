@@ -3025,6 +3025,33 @@ TEST_F(ClassTests, ExtensibleDerivedOverrideOneFunctionCallBaseForTheOther)
 
     EXPECT_EQ(103, result<int>());
 }
+
+TEST_F(ClassTests, ExtensibleClassWithCustomIndexMethod)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<ExtensibleBase>("ExtensibleBase", luabridge::extensibleClass)
+            .addConstructor<void(*)()>()
+            .addFunction("baseClass", &ExtensibleBase::baseClass)
+            .addIndexMetaMethod([](ExtensibleBase& self, const luabridge::LuaRef& key, lua_State* L)
+            {
+                auto metatable = luabridge::getGlobal(L, "ExtensibleBase").getMetatable();
+                if (auto value = metatable[key])
+                    return value.cast<luabridge::LuaRef>().value();
+
+                return luabridge::LuaRef(L, 1000);
+            })
+        .endClass()
+    ;
+
+    runLua(R"(
+        function ExtensibleBase:test() return 41 + self.xyz + self:baseClass() end
+
+        local base = ExtensibleBase(); result = base:test()
+    )");
+
+    EXPECT_EQ(1042, result<int>());
+}
+
 namespace {
 template <std::size_t Alignment>
 struct alignas(Alignment) Vec
