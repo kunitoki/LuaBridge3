@@ -31,6 +31,34 @@ struct LuaBridgeTest : TestBase
 {
 };
 
+class FCStaffSystem {};
+class FCSystemStaff {};
+
+TEST_F(LuaBridgeTest, TypeName)
+{
+    auto x1 = luabridge::detail::typeName<FCStaffSystem>();
+    auto x2 = luabridge::detail::typeName<FCSystemStaff>();
+    EXPECT_NE(x1, x2);
+
+    {
+        auto y1 = luabridge::detail::typeHash<FCStaffSystem>();
+        auto y2 = luabridge::detail::typeHash<FCSystemStaff>();
+        EXPECT_NE(y1, y2);
+    }
+
+    {
+        auto y1 = luabridge::detail::typeHash<FCStaffSystem>() ^ 1;
+        auto y2 = luabridge::detail::typeHash<FCSystemStaff>() ^ 1;
+        EXPECT_NE(y1, y2);
+    }
+
+    {
+        auto y1 = luabridge::detail::typeHash<FCStaffSystem>() ^ 2;
+        auto y2 = luabridge::detail::typeHash<FCSystemStaff>() ^ 2;
+        EXPECT_NE(y1, y2);
+    }
+}
+
 TEST_F(LuaBridgeTest, LambdaGlobalNamespace)
 {
     int x = 100;
@@ -720,7 +748,154 @@ TEST_F(LuaBridgeTest, StdSharedPtrAsProperty)
     EXPECT_EQ(42, result<int>());
 }
 
+TEST_F(LuaBridgeTest, SharedPtrNoEnableSharedFromThis)
+{
+    using TestC = TestClass<int>;
+
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("ns")
+            .beginClass<TestC>("TestClass")
+                .addFunction("getValue", &TestC::getValue)
+                .addFunction("getValueConst", &TestC::getValueConst)
+            .endClass()
+        .endNamespace();
+
+    {
+        std::shared_ptr<TestC> a = std::make_shared<TestC>(42);
+        auto result = luabridge::setGlobal(L, a, "a");
+        ASSERT_TRUE(result);
+    }
+
+    runLua("result = a");
+    ASSERT_TRUE(result().isInstance<TestC*>());
+    ASSERT_TRUE(result().isInstance<const TestC*>());
+    ASSERT_TRUE(result().isInstance<TestC&>());
+    ASSERT_TRUE(result().isInstance<const TestC&>());
+
+    auto x1 = result<TestC*>();
+    EXPECT_EQ(42, x1->getValue());
+
+    auto x2 = result<const TestC*>();
+    EXPECT_EQ(42, x2->getValueConst());
+
+    auto& x3 = result<TestC&>();
+    EXPECT_EQ(42, x3.getValue());
+
+    auto x4 = result<const TestC&>();
+    EXPECT_EQ(42, x4.getValueConst());
+}
+
+namespace {
+class BoomyClass
+{
+public:
+    BoomyClass() = default;
+
+    const char* nullconst() { return nullptr; }
+    char* null() { return nullptr; }
+
+    std::string twochars(const char* one, const char* two = nullptr)
+    {
+        std::string one_two = one;
+
+        if (two)
+            one_two += two;
+
+        return one_two;
+   }
+};
+} // namespace
+
+TEST_F(LuaBridgeTest, PointersBoom)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("test")
+            .beginClass<BoomyClass>("BoomyClass")
+                .addConstructor<void(*)(void)>()
+                .addFunction("nullconst", &BoomyClass::nullconst)
+                .addFunction("null", &BoomyClass::null)
+                .addFunction("twochars", &BoomyClass::twochars)
+            .endClass()
+        .endNamespace();
+
+    runLua(R"(
+        local foo = test.BoomyClass()
+        result = foo:nullconst()
+    )");
+    EXPECT_TRUE(result().isNil());
+
+    runLua(R"(
+        local foo = test.BoomyClass()
+        result = foo:null()
+    )");
+    EXPECT_TRUE(result().isNil());
+
+    runLua(R"(
+        local foo = test.BoomyClass()
+        result = foo:twochars("aaa", nil)
+    )");
+    ASSERT_TRUE(result().isString());
+    EXPECT_EQ("aaa", result<std::string>());
+
+    runLua(R"(
+        local foo = test.BoomyClass()
+        result = foo:twochars("aaa", "bbb")
+    )");
+    ASSERT_TRUE(result().isString());
+    EXPECT_EQ("aaabbb", result<std::string>());
+}
+
+namespace {
+class ConstructibleFromBool
+{
+public:
+    ConstructibleFromBool(bool param) : val_(param) {}
+
+    bool val() const { return val_; }
+
+private:
+    bool val_;
+};
+} // namespace
+
+TEST_F(LuaBridgeTest, BooleanNoValue)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("test")
+            .beginClass<ConstructibleFromBool>("ConstructibleFromBool")
+                .addConstructor<void(*)(bool)>()
+                .addFunction("val", &ConstructibleFromBool::val)
+            .endClass()
+        .endNamespace();
+
+    runLua("local foo = test.ConstructibleFromBool(); result = foo:val()");
+    ASSERT_TRUE(result().isBool());
+    EXPECT_FALSE(result<bool>());
+}
+
 #if LUABRIDGE_HAS_EXCEPTIONS
+TEST_F(LuaBridgeTest, StackExceptionWithMessage)
+{
+    try {
+        auto result = luabridge::Stack<std::string>::get(L, 1);
+        result.value();
+        EXPECT_FALSE(true);
+    } catch (const std::exception& e) {
+        EXPECT_STREQ("The lua object can't be cast to desired type", e.what());
+    }
+}
+
+TEST_F(LuaBridgeTest, ExpectedExceptionWithoutMessage)
+{
+    try {
+        luabridge::Expected<std::string, int> result = luabridge::makeUnexpected(5);
+        result.value();
+        EXPECT_FALSE(true);
+    } catch (const std::exception& e) {
+        EXPECT_STREQ("Bad access to expected value", e.what());
+    }
+}
+
 namespace {
 template <class... Args>
 std::string call_callback_get_exception(const luabridge::LuaRef& fn, Args&&... args)

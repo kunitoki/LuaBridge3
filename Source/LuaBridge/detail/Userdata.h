@@ -988,7 +988,8 @@ struct StackOpSelector<T*, true>
 
     static ReturnType get(lua_State* L, int index) { return Userdata::get<T>(L, index, false); }
 
-    static bool isInstance(lua_State* L, int index) { return Userdata::isInstance<T>(L, index); }
+    template <class U = T>
+    static bool isInstance(lua_State* L, int index) { return Userdata::isInstance<U>(L, index); }
 };
 
 // pointer to const
@@ -1001,7 +1002,8 @@ struct StackOpSelector<const T*, true>
 
     static ReturnType get(lua_State* L, int index) { return Userdata::get<T>(L, index, true); }
 
-    static bool isInstance(lua_State* L, int index) { return Userdata::isInstance<T>(L, index); }
+    template <class U = T>
+    static bool isInstance(lua_State* L, int index) { return Userdata::isInstance<U>(L, index); }
 };
 
 // l-value reference
@@ -1015,7 +1017,8 @@ struct StackOpSelector<T&, true>
 
     static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
 
-    static bool isInstance(lua_State* L, int index) { return Userdata::isInstance<T>(L, index); }
+    template <class U = T>
+    static bool isInstance(lua_State* L, int index) { return Userdata::isInstance<U>(L, index); }
 };
 
 // l-value reference to const
@@ -1029,7 +1032,8 @@ struct StackOpSelector<const T&, true>
 
     static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
 
-    static bool isInstance(lua_State* L, int index) { return Userdata::isInstance<T>(L, index); }
+    template <class U = T>
+    static bool isInstance(lua_State* L, int index) { return Userdata::isInstance<U>(L, index); }
 };
 
 } // namespace detail

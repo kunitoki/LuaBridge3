@@ -10,6 +10,10 @@ on:
       - "**/CMakeLists.txt"
       - "**/.gitmodules"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   BUILD_TYPE: Release
 
@@ -22,7 +26,10 @@ jobs:
       with:
         submodules: true
 
-    - uses: seanmiddleditch/gha-setup-ninja@master
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get -y install ninja-build
 
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build

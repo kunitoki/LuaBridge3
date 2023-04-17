@@ -274,6 +274,7 @@ struct Stack<char>
 /**
  * @brief Stack specialization for `int8_t`.
  */
+#if !defined(__BORLANDC__)
 template <>
 struct Stack<int8_t>
 {
@@ -309,6 +310,7 @@ struct Stack<int8_t>
         return false;
     }
 };
+#endif
 
 //=================================================================================================
 /**
@@ -900,15 +902,20 @@ struct Stack<const char*>
         if (str != nullptr)
             lua_pushstring(L, str);
         else
-            lua_pushlstring(L, "", 0);
+            lua_pushnil(L);
 
         return {};
     }
 
     [[nodiscard]] static TypeResult<const char*> get(lua_State* L, int index)
     {
-        if (lua_type(L, index) != LUA_TSTRING)
+        const bool isNil = lua_isnil(L, index);
+
+        if (!isNil && lua_type(L, index) != LUA_TSTRING)
             return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        if (isNil)
+            return nullptr;
 
         std::size_t length = 0;
         const char* str = lua_tolstring(L, index, &length);
@@ -920,7 +927,7 @@ struct Stack<const char*>
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
     {
-        return lua_type(L, index) == LUA_TSTRING;
+        return lua_isnil(L, index) || lua_type(L, index) == LUA_TSTRING;
     }
 };
 
@@ -1426,7 +1433,10 @@ struct StackOpSelector<T*, false>
 {
     using ReturnType = TypeResult<T>;
 
-    static Result push(lua_State* L, T* value) { return Stack<T>::push(L, *value); }
+    static Result push(lua_State* L, T* value)
+    {
+        return value ? Stack<T>::push(L, *value) : Stack<std::nullptr_t>::push(L, nullptr);
+    }
 
     static ReturnType get(lua_State* L, int index) { return Stack<T>::get(L, index); }
 
@@ -1438,7 +1448,10 @@ struct StackOpSelector<const T*, false>
 {
     using ReturnType = TypeResult<T>;
 
-    static Result push(lua_State* L, const T* value) { return Stack<T>::push(L, *value); }
+    static Result push(lua_State* L, const T* value)
+    {
+        return value ? Stack<T>::push(L, *value) : Stack<std::nullptr_t>::push(L, nullptr);
+    }
 
     static ReturnType get(lua_State* L, int index) { return Stack<T>::get(L, index); }
 

@@ -177,11 +177,14 @@ inline int index_metamethod(lua_State* L)
     LUABRIDGE_ASSERT(lua_istable(L, -1));
 
     // Protect internal meta methods
-    const auto name = std::string_view(lua_tostring(L, 2));
-    if (name.size() > 2 && name[0] == '_' && name[1] == '_' && is_metamethod(name))
+    if (const char* field_name = lua_tostring(L, 2))
     {
-        lua_pushnil(L);
-        return 1;
+        const auto name = std::string_view(field_name);
+        if (name.size() > 2 && name[0] == '_' && name[1] == '_' && is_metamethod(name))
+        {
+            lua_pushnil(L);
+            return 1;
+        }
     }
 
     for (;;)
@@ -690,7 +693,7 @@ struct function<void, ArgsPack, Start>
 template <class F, class T>
 int invoke_member_function(lua_State* L)
 {
-    using FnTraits = detail::function_traits<F>;
+    using FnTraits = function_traits<F>;
 
     LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
@@ -705,7 +708,7 @@ int invoke_member_function(lua_State* L)
 template <class F, class T>
 int invoke_const_member_function(lua_State* L)
 {
-    using FnTraits = detail::function_traits<F>;
+    using FnTraits = function_traits<F>;
 
     LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
@@ -762,7 +765,7 @@ int invoke_const_member_cfunction(lua_State* L)
 template <class F>
 int invoke_proxy_function(lua_State* L)
 {
-    using FnTraits = detail::function_traits<F>;
+    using FnTraits = function_traits<F>;
 
     LUABRIDGE_ASSERT(lua_islightuserdata(L, lua_upvalueindex(1)));
 
@@ -781,13 +784,33 @@ int invoke_proxy_function(lua_State* L)
 template <class F>
 int invoke_proxy_functor(lua_State* L)
 {
-    using FnTraits = detail::function_traits<F>;
+    using FnTraits = function_traits<F>;
 
     LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
     auto& func = *align<F>(lua_touserdata(L, lua_upvalueindex(1)));
 
     return function<typename FnTraits::result_type, typename FnTraits::argument_types, 1>::call(L, func);
+}
+
+//=================================================================================================
+/**
+ * @brief lua_CFunction to call on a object constructor via functor (lambda wrapped in a std::function).
+ *
+ * The proxy std::function (lightuserdata) is in the first upvalue. The class userdata object will be pushed at the top of the Lua stack.
+ */
+template <class F>
+int invoke_proxy_constructor(lua_State* L)
+{
+    using FnTraits = function_traits<F>;
+
+    LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
+
+    auto& func = *align<F>(lua_touserdata(L, lua_upvalueindex(1)));
+
+    function<void, typename FnTraits::argument_types, 1>::call(L, func);
+
+    return 1;
 }
 
 //=================================================================================================
@@ -1052,25 +1075,6 @@ void push_member_function(lua_State* L, int (U::*mfp)(lua_State*) const)
  * One performs a regular new, the other performs a placement new.
  */
 template <class T, class Args>
-struct constructor;
-
-template <class T>
-struct constructor<T, void>
-{
-    using empty = std::tuple<>;
-
-    static T* call(const empty&)
-    {
-        return new T;
-    }
-
-    static T* call(void* ptr, const empty&)
-    {
-        return new (ptr) T;
-    }
-};
-
-template <class T, class Args>
 struct constructor
 {
     static T* call(const Args& args)
@@ -1102,12 +1106,6 @@ struct placement_constructor
 
         return std::apply(alloc, args);
     }
-
-    template <class F>
-    static T* construct(void* ptr, const F& func)
-    {
-        return func(ptr);
-    }
 };
 
 //=================================================================================================
@@ -1124,12 +1122,6 @@ struct external_constructor
 
         return std::apply(alloc, args);
     }
-
-    template <class F>
-    static T* construct(const F& func)
-    {
-        return func();
-    }
 };
 
 //=================================================================================================
@@ -1141,9 +1133,9 @@ int constructor_container_proxy(lua_State* L)
 {
     using T = typename ContainerTraits<C>::Type;
 
-    T* object = detail::constructor<T, Args>::call(detail::make_arguments_list<Args, 2>(L));
+    T* object = constructor<T, Args>::call(detail::make_arguments_list<Args, 2>(L));
 
-    auto result = detail::UserdataSharedHelper<C, false>::push(L, object);
+    auto result = UserdataSharedHelper<C, false>::push(L, object);
     if (! result)
         luaL_error(L, "%s", result.message().c_str());
 
@@ -1156,12 +1148,14 @@ int constructor_container_proxy(lua_State* L)
 template <class T, class Args>
 int constructor_placement_proxy(lua_State* L)
 {
+    auto args = make_arguments_list<Args, 2>(L);
+
     std::error_code ec;
-    auto* value = detail::UserdataValue<T>::place(L, ec);
+    auto* value = UserdataValue<T>::place(L, ec);
     if (! value)
         luaL_error(L, "%s", ec.message().c_str());
 
-    detail::constructor<T, Args>::call(value->getObject(), detail::make_arguments_list<Args, 2>(L));
+    constructor<T, Args>::call(value->getObject(), std::move(args));
 
     value->commit();
 
@@ -1182,16 +1176,18 @@ struct constructor_forwarder
 
     T* operator()(lua_State* L)
     {
+        using FnTraits = function_traits<F>;
+        using FnArgs = remove_first_type_t<typename FnTraits::argument_types>;
+
+        auto args = make_arguments_list<FnArgs, 2>(L);
+
         std::error_code ec;
         auto* value = UserdataValue<T>::place(L, ec);
         if (! value)
             luaL_error(L, "%s", ec.message().c_str());
 
-        using FnTraits = function_traits<F>;
-        using FnArgs = remove_first_type_t<typename FnTraits::argument_types>;
-
         T* obj = placement_constructor<T>::construct(
-            value->getObject(), m_func, make_arguments_list<FnArgs, 2>(L));
+            value->getObject(), m_func, std::move(args));
 
         value->commit();
 
