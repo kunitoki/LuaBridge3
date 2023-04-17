@@ -232,12 +232,6 @@ class Namespace : public detail::Registrar
             lua_insert(L, -2); // Stack: ns, co, cl, st, vst
             rawsetfield(L, -5, name); // ns [name] = vst. Stack: ns, co, cl, st
 
-#if 0
-            lua_pushlightuserdata(L, this);
-            lua_pushcclosure_x(L, &tostringMetaMethod, 1);
-            rawsetfield(L, -2, "__tostring");
-#endif
-
             lua_pushcfunction_x(L, &detail::index_metamethod);
             rawsetfield(L, -2, "__index");
 
@@ -320,6 +314,8 @@ class Namespace : public detail::Registrar
                 lua_pushcfunction_x(L, &detail::gc_metamethod<T>); // Stack: ns, co, cl, function
                 rawsetfield(L, -2, "__gc"); // cl ["__gc"] = function. Stack: ns, co, cl
 #endif
+                lua_pushcfunction_x(L, &detail::tostring_metamethod<T>);
+                rawsetfield(L, -2, "__tostring");
                 ++m_stackSize;
 
                 createStaticTable(name, options); // Stack: ns, co, cl, st

@@ -2040,6 +2040,33 @@ TEST_F(ClassMetaMethods, __newindex)
     ASSERT_EQ((std::map<std::string, int>{{"a", 1}, {"b", 2}}), t.map);
 }
 
+TEST_F(ClassTests, __tostring)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Table>("Table")
+        .endClass();
+
+    Table t;
+    luabridge::setGlobal(L, &t, "t");
+
+    runLua("result = tostring(t)");
+    ASSERT_EQ(0, result<std::string>().find("Table"));
+}
+
+TEST_F(ClassTests, __tostringOverride)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Table>("Table")
+            .addFunction("__tostring", [] (const Table* t) { return "StrangeTable"; })
+        .endClass();
+
+    Table t;
+    luabridge::setGlobal(L, &t, "t");
+
+    runLua("result = tostring(t)");
+    ASSERT_EQ(0, result<std::string>().find("StrangeTable"));
+}
+
 #if LUABRIDGE_HAS_EXCEPTIONS
 TEST_F(ClassMetaMethods, __gcForbidden)
 {
@@ -2053,7 +2080,7 @@ TEST_F(ClassMetaMethods, __gcForbidden)
 }
 #endif
 
-TEST_F(ClassMetaMethods, metamethodsShouldNotBePartOfClassInstances)
+TEST_F(ClassMetaMethods, MetamethodsShouldNotBePartOfClassInstances)
 {
     using Int = Class<int, EmptyBase>;
 
@@ -2096,7 +2123,7 @@ TEST_F(ClassMetaMethods, metamethodsShouldNotBePartOfClassInstances)
     EXPECT_TRUE(result().isFunction());
 }
 
-TEST_F(ClassMetaMethods, metamethodsShouldNotBeWritable)
+TEST_F(ClassMetaMethods, MetamethodsShouldNotBeWritable)
 {
     using Int = Class<int, EmptyBase>;
 
