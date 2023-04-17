@@ -48,7 +48,7 @@ struct Result
     
     void throw_on_error() const
     {
-        if (!*this)
+        if (m_ec)
             throw std::system_error(m_ec);
     }
 
