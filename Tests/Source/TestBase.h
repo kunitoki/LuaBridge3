@@ -72,7 +72,7 @@ inline int luaL_loadstring(lua_State *L, const char *s)
         [](char* x) { std::free(x); }
     );
 
-    return luau_load(L, "code", bytecode.get(), bytecodeSize, 0);
+    return luau_load(L, "...", bytecode.get(), bytecodeSize, 0);
 }
 #endif
 

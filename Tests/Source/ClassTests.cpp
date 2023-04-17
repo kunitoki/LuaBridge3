@@ -2113,6 +2113,82 @@ TEST_F(ClassMetaMethods, metamethodsShouldNotBeWritable)
 #endif
 }
 
+namespace {
+struct StringGetter
+{
+   std::string str;
+
+   const char* getString() const { return str.c_str(); }
+   void setString(const char* val) { str = val; }
+};
+} // namespace
+
+TEST_F(ClassMetaMethods, ErrorLineWithProperties)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<StringGetter>("StringGetter")
+            .addConstructor<void(*)()>()
+            .addFunction("setString", &StringGetter::setString)
+            .addProperty("str", &StringGetter::getString, &StringGetter::setString)
+        .endClass();
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    try
+    {
+        runLua(R"(
+            local myStringGetter = StringGetter()
+            myStringGetter.str = 12
+        )");
+
+        EXPECT_TRUE(false);
+    }
+    catch (const std::exception& ex)
+    {
+        EXPECT_EQ(0, std::string_view(ex.what()).find("[string \"...\"]:3"));
+
+        // This is not comparing with std::string_view::npos because we have debug.traceback in the error handler
+        EXPECT_NE(18, std::string_view(ex.what()).find("[string \"...\"]:3: ", 18));
+    }
+
+    try
+    {
+        runLua(R"(
+            local myStringGetter = StringGetter()
+            myStringGetter:setString(12)
+        )");
+
+        EXPECT_TRUE(false);
+    }
+    catch (const std::exception& ex)
+    {
+        EXPECT_EQ(0, std::string_view(ex.what()).find("[string \"...\"]:3: "));
+
+        // This is not comparing with std::string_view::npos because we have debug.traceback in the error handler
+        EXPECT_NE(18, std::string_view(ex.what()).find("[string \"...\"]:3: ", 18));
+    }
+#endif
+
+    {
+        auto [result, errorString] = runLuaCaptureError(R"(
+            local myStringGetter = StringGetter()
+            myStringGetter.str = 12
+        )");
+
+        EXPECT_EQ(0, std::string_view(errorString).find("[string \"...\"]:3: "));
+        EXPECT_EQ(std::string_view::npos, std::string_view(errorString).find("[string \"...\"]:3: ", 18));
+    }
+
+    {
+        auto [result, errorString] = runLuaCaptureError(R"(
+            local myStringGetter = StringGetter()
+            myStringGetter:setString(12)
+        )");
+
+        EXPECT_EQ(0, std::string_view(errorString).find("[string \"...\"]:3: "));
+        EXPECT_EQ(std::string_view::npos, std::string_view(errorString).find("[string \"...\"]:3: ", 18));
+    }
+}
+
 TEST_F(ClassMetaMethods, SimulateArray)
 {
     using ContainerType = std::vector<std::string>;
