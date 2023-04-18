@@ -72,8 +72,12 @@ public:
     std::string toString() const
     {
         std::string result;
+        result.reserve(sizeof(T) * std::numeric_limits<uint8_t>::digits);
 
-        ((result.append(mask<Ts>() & flags) ? '1' : '0'), ...);
+        (result.append((mask<Ts>() & flags) ? "1" : "0"), ...);
+
+        for (std::size_t i = sizeof...(Ts); i < sizeof(T) * std::numeric_limits<uint8_t>::digits; ++i)
+            result.append("0");
 
         std::reverse(result.begin(), result.end());
 
