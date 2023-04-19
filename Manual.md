@@ -1543,7 +1543,7 @@ The metatables and userdata that LuaBridge creates in the `lua_State*` are prote
 *   Classes are mapped to metatables through the registry, which Lua scripts cannot access. The global environment does not expose metatables
 *   Metatables created by LuaBridge are tagged with a lightuserdata key which is unique in the process. Other libraries cannot forge a LuaBridge metatable.
 
-This security system can be easily bypassed using if scripts are given access to the debug library (or functionality similar to it, i.e. a raw `getmetatable`). The security system can also be defeated by C code in the host, either by revealing the unique lightuserdata key to another module or by putting a LuaBridge metatable in a place that can be accessed by scripts.
+This security system can be easily bypassed if scripts are given access to the debug library (or functionality similar to it, i.e. a raw `getmetatable`). The security system can also be defeated by C code in the host, either by revealing the unique lightuserdata key to another module or by putting a LuaBridge metatable in a place that can be accessed by scripts.
 
 When a class member function is called, or class property member accessed, the `this` pointer is type-checked. This is because member functions exposed to Lua are just plain functions that usually get called with the Lua colon notation, which passes the object in question as the first parameter. Lua's dynamic typing makes this type-checking mandatory to prevent undefined behavior resulting from improper use.
 
