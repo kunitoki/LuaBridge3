@@ -745,7 +745,7 @@ luabridge::getGlobalNamespace (L)
     .endClass ()
   .endNamespace ();
 
-FlexibleExtensibleClassClass clazz;
+ExtensibleClass clazz;
 luabridge::pushGlobal (L, &clazz, "clazz");
 ```
 
@@ -762,6 +762,36 @@ end
 
 print (clazz:newMethod(), ExtensibleClass.newStaticMethod())
 ```
+
+This way extending an already existing method will raise a lua error when trying to do so. To be able to override existing methods, pass `luabridge::allowOverridingMethods` together with `luabridge::extensibleClass`.
+
+```cpp
+struct ExtensibleClass
+{
+  int existingMethod() { return 42; }
+};
+
+luabridge::getGlobalNamespace (L)
+  .beginNamespace ("test")
+    .beginClass<ExtensibleClass> ("ExtensibleClass", luabridge::extensibleClass | luabridge::allowOverridingMethods)
+      .addFunction ("existingMethod", &ExtensibleClass::existingMethod)
+    .endClass ()
+  .endNamespace ();
+
+ExtensibleClass clazz;
+luabridge::pushGlobal (L, &clazz, "clazz");
+```
+
+```lua
+function ExtensibleClass:existingMethod()
+  return "this has been replaced"
+end
+
+print (clazz:existingMethod())
+```
+
+
+
 
 In case storing instance properties is needed, storage needs to be provided per instance. See the next chapter for an explanation on how to add custom properties per instance.
 
