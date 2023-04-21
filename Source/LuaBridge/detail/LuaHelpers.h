@@ -159,12 +159,13 @@ inline int lua_absindex(lua_State* L, int idx)
 }
 #endif
 
-inline void lua_rawgetp(lua_State* L, int idx, const void* p)
+inline int lua_rawgetp(lua_State* L, int idx, const void* p)
 {
     idx = lua_absindex(L, idx);
     luaL_checkstack(L, 1, "not enough stack slots");
     lua_pushlightuserdata(L, const_cast<void*>(p));
     lua_rawget(L, idx);
+    return lua_type(L, -1);
 }
 
 inline void lua_rawsetp(lua_State* L, int idx, const void* p)
@@ -357,12 +358,17 @@ inline lua_State* main_thread(lua_State* threadL)
 /**
  * @brief Get a table value, bypassing metamethods.
  */
-inline void rawgetfield(lua_State* L, int index, const char* key)
+inline int rawgetfield(lua_State* L, int index, const char* key)
 {
     LUABRIDGE_ASSERT(lua_istable(L, index));
     index = lua_absindex(L, index);
     lua_pushstring(L, key);
+#if LUA_VERSION_NUM <= 502
     lua_rawget(L, index);
+    return lua_type(L, -1);
+#else
+    return lua_rawget(L, index);
+#endif
 }
 
 /**

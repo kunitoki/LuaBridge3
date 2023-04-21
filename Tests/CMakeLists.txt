@@ -16,6 +16,7 @@ set (LUABRIDGE_TEST_SOURCE_FILES
   Source/CoroutineTests.cpp
   Source/EnumTests.cpp
   Source/ExceptionTests.cpp
+  Source/FlagSetTests.cpp
   Source/IssueTests.cpp
   Source/IteratorTests.cpp
   Source/LegacyTests.cpp

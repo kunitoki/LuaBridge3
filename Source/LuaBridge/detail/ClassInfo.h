@@ -94,6 +94,15 @@ template <class T, auto = typeName<T>().find_first_of('.')>
 
 //=================================================================================================
 /**
+ * @brief The key of a class options table in another metatable.
+ */
+[[nodiscard]] inline const void* getClassOptionsKey() noexcept
+{
+    return reinterpret_cast<void*>(0xc2b);
+}
+
+//=================================================================================================
+/**
  * @brief The key of a propget table in another metatable.
  */
 [[nodiscard]] inline const void* getPropgetKey() noexcept

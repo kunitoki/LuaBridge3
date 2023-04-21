@@ -10,12 +10,14 @@
 #include "Errors.h"
 #include "FuncTraits.h"
 #include "LuaHelpers.h"
+#include "Options.h"
 #include "Stack.h"
 #include "TypeTraits.h"
 #include "Userdata.h"
 
 #include <algorithm>
 #include <array>
+#include <optional>
 #include <string>
 
 namespace luabridge {
@@ -154,6 +156,32 @@ inline bool is_metamethod(std::string_view method_name)
  *
  * Retrieves functions from metatables and properties from propget tables. Looks through the class hierarchy if inheritance is present.
  */
+
+inline std::optional<int> try_call_index_fallback(lua_State* L)
+{
+    LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt
+
+    lua_rawgetp(L, -1, getIndexFallbackKey()); // Stack: mt, ifb (may be nil)
+    if (! lua_iscfunction(L, -1))
+    {
+        lua_pop(L, 1); // Stack: mt
+        return std::nullopt;
+    }
+
+    lua_pushvalue(L, 1); // Stack: mt, ifb, arg1
+    lua_pushvalue(L, 2); // Stack: mt, ifb, arg1, arg2
+    lua_call(L, 2, 1); // Stack: mt, ifbresult
+
+    if (! lua_isnoneornil(L, -1))
+    {
+        lua_remove(L, -2); // Stack: ifbresult
+        return 1;
+    }
+
+    lua_pop(L, 1); // Stack: mt
+    return std::nullopt;
+}
+
 inline int index_metamethod(lua_State* L)
 {
 #if LUABRIDGE_SAFE_STACK_CHECKS
@@ -166,9 +194,10 @@ inline int index_metamethod(lua_State* L)
     LUABRIDGE_ASSERT(lua_istable(L, -1));
 
     // Protect internal meta methods
-    if (const char* field_name = lua_tostring(L, 2))
+    const char* key = lua_tostring(L, 2);
+    if (key != nullptr)
     {
-        const auto name = std::string_view(field_name);
+        const auto name = std::string_view(key);
         if (name.size() > 2 && name[0] == '_' && name[1] == '_' && is_metamethod(name))
         {
             lua_pushnil(L);
@@ -178,6 +207,23 @@ inline int index_metamethod(lua_State* L)
 
     for (;;)
     {
+        // Obtain class options
+        Options options = defaultOptions;
+
+        lua_rawgetp(L, -1, getClassOptionsKey()); // Stack: mt, ifb (may be nil)
+        if (lua_isnumber(L, -1))
+            options = Options::fromUnderlying(lua_tointeger(L, -1));
+
+        lua_pop(L, 1);
+
+        // If we allow method overriding, we need to prioritise it
+        if (options.test(allowOverridingMethods))
+        {
+            if (auto result = try_call_index_fallback(L))
+                return *result;
+        }
+
+        // Search into the metatable
         lua_pushvalue(L, 2); // Stack: mt, field name
         lua_rawget(L, -2); // Stack: mt, field | nil
 
@@ -190,6 +236,7 @@ inline int index_metamethod(lua_State* L)
         LUABRIDGE_ASSERT(lua_isnil(L, -1)); // Stack: mt, nil
         lua_pop(L, 1); // Stack: mt
 
+        // Try in the propget key
         lua_rawgetp(L, -1, getPropgetKey()); // Stack: mt, propget table (pg)
         LUABRIDGE_ASSERT(lua_istable(L, -1));
 
@@ -211,27 +258,16 @@ inline int index_metamethod(lua_State* L)
         // It may mean that the field may be in const table and it's constness violation.
         // Don't check that, just return nil
 
+        // Repeat the lookup in the index fallback
+        if (auto result = try_call_index_fallback(L))
+            return *result;
+
         // Repeat the lookup in the parent metafield,
         // or return nil if the field doesn't exist.
         lua_rawgetp(L, -1, getParentKey()); // Stack: mt, parent mt | nil
-
         if (lua_isnil(L, -1)) // Stack: mt, nil
         {
-            lua_pop(L, 1); // Stack: mt
-            lua_rawgetp(L, -1, getIndexFallbackKey()); // Stack: mt, ifb (may be nil)
-            lua_remove(L, -2); // Stack: ifb
-            if (lua_iscfunction(L, -1))
-            {
-                lua_pushvalue(L, 1); // Stack: ifb, arg1
-                lua_pushvalue(L, 2); // Stack: ifb, arg2
-                lua_call(L, 2, 1); // Stack: ifbresult
-            }
-            else
-            {
-                lua_pop(L, 1);
-                lua_pushnil(L);
-            }
-
+            lua_remove(L, -2); // Stack: nil
             return 1;
         }
 
@@ -249,6 +285,84 @@ inline int index_metamethod(lua_State* L)
  *
  * Retrieves properties from propset tables.
  */
+
+inline std::optional<int> try_call_newindex_fallback(lua_State* L, const char* key)
+{
+    LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt
+
+    lua_rawgetp(L, -1, getNewIndexFallbackKey()); // Stack: mt, nifb (may be nil)
+    if (! lua_iscfunction(L, -1))
+    {
+        lua_pop(L, 1); // Stack: mt
+        return std::nullopt;
+    }
+
+    lua_pushvalue(L, -2); // Stack: mt, nifb, mt
+
+    for (;;)
+    {
+        lua_rawgetp(L, -1, getClassKey()); // Stack: mt, nifb, mt, class table (ct) | nil
+        if (! lua_istable(L, -1)) // Stack: mt, nifb, mt, nil
+        {
+            lua_pop(L, 1); // Stack: mt, nifb, mt
+
+            lua_rawgetp(L, -1, getConstKey()); // Stack: mt, nifb, mt, const table (ct) | nil
+            if (! lua_istable(L, -1)) // Stack: mt, nifb, mt, nil
+            {
+                lua_pop(L, 3); // Stack: mt
+                return std::nullopt;
+            }
+        }
+
+        lua_pushvalue(L, 2); // Stack: mt, nifb, mt, ct, field name
+        lua_rawget(L, -2); // Stack: mt, nifb, mt, ct, field | nil
+
+        if (! lua_isnil(L, -1)) // Stack: mt, nifb, mt, ct, nil
+        {
+            Options options = defaultOptions;
+            lua_rawgetp(L, -2, getClassOptionsKey()); // Stack: mt, nifb, mt, ct, field, opt | nil
+            if (lua_isnumber(L, -1))
+                options = Options::fromUnderlying(lua_tointeger(L, -1));
+            lua_pop(L, 1); // Stack: mt, nifb, mt, ct, field
+
+            if (! options.test(allowOverridingMethods))
+            {
+                lua_pop(L, 5); // Stack: -
+                luaL_error(L, "immutable member '%s'", key);
+                return 0;
+            }
+
+            lua_getmetatable(L, 1); // Stack: mt, nifb, mt, ct, field, mt2
+            lua_pushvalue(L, -2);  // Stack: mt, nifb, mt, ct, field, mt2, field
+            rawsetfield(L, -2, (std::string("super_") + key).c_str()); // Stack: mt, nifb, mt, ct, field, mt2
+
+            lua_pop(L, 3); // Stack: mt, nifb, mt
+            break;
+        }
+
+        lua_pop(L, 2); // Stack: mt, nifb, mt
+
+        lua_rawgetp(L, -1, getParentKey()); // Stack: mt, nifb, mt, parent mt | nil
+        if (lua_isnil(L, -1)) // Stack: mt, nifb, mt
+        {
+            lua_pop(L, 1); // Stack: mt, nifb, mt
+            break;
+        }
+
+        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt, nifb, mt, parent mt
+        lua_remove(L, -2); // Stack: mt, nifb, parent mt
+    }
+
+    lua_pop(L, 1); // Stack: mt, nifb
+
+    lua_remove(L, -2); // Stack: nifb
+    lua_pushvalue(L, 1); // Stack: nifb, arg1
+    lua_pushvalue(L, 2); // Stack: nifb, arg1, arg2
+    lua_pushvalue(L, 3); // Stack: nifb, arg1, arg2, arg3
+    lua_call(L, 3, 0); // Stack: -
+    return 0;
+}
+
 inline int newindex_metamethod(lua_State* L, bool pushSelf)
 {
 #if LUABRIDGE_SAFE_STACK_CHECKS
@@ -260,14 +374,17 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
     lua_getmetatable(L, 1); // Stack: metatable (mt)
     LUABRIDGE_ASSERT(lua_istable(L, -1));
 
+    const char* key = lua_tostring(L, 2);
+
     for (;;)
     {
+        // Try in the property set table
         lua_rawgetp(L, -1, getPropsetKey()); // Stack: mt, propset table (ps) | nil
-
         if (lua_isnil(L, -1)) // Stack: mt, nil
         {
             lua_pop(L, 2); // Stack: -
-            luaL_error(L, "No member named '%s'", lua_tostring(L, 2));
+            luaL_error(L, "no member named '%s'", key);
+            return 0;
         }
 
         LUABRIDGE_ASSERT(lua_istable(L, -1));
@@ -289,24 +406,16 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
         LUABRIDGE_ASSERT(lua_isnil(L, -1)); // Stack: mt, nil
         lua_pop(L, 1); // Stack: mt
 
-        lua_rawgetp(L, -1, getParentKey()); // Stack: mt, parent mt | nil
+        // Try in the new index fallback
+        if (auto result = try_call_newindex_fallback(L, key))
+            return *result;
 
+        // Try in the parent
+        lua_rawgetp(L, -1, getParentKey()); // Stack: mt, parent mt | nil
         if (lua_isnil(L, -1)) // Stack: mt, nil
         {
-            lua_pop(L, 1); // Stack: mt
-            lua_rawgetp(L, -1, getNewIndexFallbackKey()); // Stack: mt, nifb (may be nil)
-            if (lua_iscfunction(L, -1))
-            {
-                lua_pushvalue(L, 1); // stack: nifb, arg1
-                lua_pushvalue(L, 2); // stack: nifb, arg2
-                lua_pushvalue(L, 3); // stack: nifb, arg3
-                lua_call(L, 3, 1); // stack: nifbresult
-                return 0;
-            }
-
-            lua_pop(L, 1); // Stack: mt
-            lua_pop(L, 1); // Stack: -
-            luaL_error(L, "No writable member '%s'", lua_tostring(L, 2));
+            lua_pop(L, 2); // Stack: -
+            luaL_error(L, "no writable member '%s'", key);
             return 0;
         }
 
@@ -354,6 +463,66 @@ inline int read_only_error(lua_State* L)
     raise_lua_error(L, "%s", s.c_str());
 
     return 0;
+}
+
+//=================================================================================================
+/**
+ * @brief
+ */
+inline int index_extended_class(lua_State* L)
+{
+    LUABRIDGE_ASSERT(lua_istable(L, lua_upvalueindex(1)));
+
+    if (! lua_isstring(L, -1))
+        luaL_error(L, "%s", "invalid non string index access in extensible class");
+
+    const char* key = lua_tostring(L, -1);
+    LUABRIDGE_ASSERT(key != nullptr);
+
+    lua_pushvalue(L, lua_upvalueindex(1));
+    rawgetfield(L, -1, key);
+
+    return 1;
+}
+
+inline int newindex_extended_class(lua_State* L)
+{
+    LUABRIDGE_ASSERT(lua_istable(L, -3));
+
+    if (! lua_isstring(L, -2))
+        luaL_error(L, "%s", "invalid non string new index access in extensible class");
+
+    const char* key = lua_tostring(L, -2);
+    LUABRIDGE_ASSERT(key != nullptr);
+
+    lua_getmetatable(L, -3);
+    lua_pushvalue(L, -2);
+    rawsetfield(L, -2, key);
+
+    return 0;
+}
+
+//=================================================================================================
+/**
+ * @brief __tostring metamethod for a class.
+ */
+template <class C>
+static int tostring_metamethod(lua_State* L)
+{
+    Userdata* ud = Userdata::getExact<C>(L, 1);
+    LUABRIDGE_ASSERT(ud);
+
+    lua_getmetatable(L, -1); // Stack: metatable (mt)
+    lua_rawgetp(L, -1, getTypeKey()); // Stack: mt, classname (cn)
+    lua_remove(L, -2); // Stack: cn
+
+    std::stringstream ss;
+    ss << ": 0x" << std::hex << reinterpret_cast<std::uintptr_t>(static_cast<void*>(ud));
+    lua_pushstring(L, ss.str().c_str()); // Stack: cn, address string (as)
+
+    lua_concat(L, 2); // Stack: str
+
+    return 1;
 }
 
 //=================================================================================================

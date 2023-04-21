@@ -1,6 +1,5 @@
 // https://github.com/kunitoki/LuaBridge3
-// Copyright 2021, Lucio Asnaghi
-// Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
+// Copyright 2023, Lucio Asnaghi
 // SPDX-License-Identifier: MIT
 
 #pragma once
@@ -9,41 +8,6 @@
 #include "Stack.h"
 
 namespace luabridge {
-
-//=================================================================================================
-/**
- * @brief Security options.
- */
-class Security
-{
-public:
-    static bool hideMetatables() noexcept
-    {
-        return getSettings().hideMetatables;
-    }
-
-    static void setHideMetatables(bool shouldHide) noexcept
-    {
-        getSettings().hideMetatables = shouldHide;
-    }
-
-private:
-    struct Settings
-    {
-        Settings() noexcept
-            : hideMetatables(true)
-        {
-        }
-
-        bool hideMetatables;
-    };
-
-    static Settings& getSettings() noexcept
-    {
-        static Settings settings;
-        return settings;
-    }
-};
 
 //=================================================================================================
 /**
@@ -79,15 +43,6 @@ bool setGlobal(lua_State* L, T&& t, const char* name)
     }
 
     return false;
-}
-
-//=================================================================================================
-/**
- * @brief Change whether or not metatables are hidden (on by default).
- */
-inline void setHideMetatables(bool shouldHide) noexcept
-{
-    Security::setHideMetatables(shouldHide);
 }
 
 } // namespace luabridge
