@@ -240,9 +240,7 @@ public:
 
         impl().push();
 
-        const int refType = lua_type(m_L, -1);
-
-        return refType;
+        return lua_type(m_L, -1);
     }
 
     /**
@@ -1139,11 +1137,7 @@ public:
 
         lua_xmove(m_L, newL, 1);
 
-        if (m_ref != LUA_NOREF)
-            luaL_unref(m_L, LUA_REGISTRYINDEX, m_ref);
-
         m_L = newL;
-        m_ref = luaL_ref(newL, LUA_REGISTRYINDEX);
     }
 
     //=============================================================================================
