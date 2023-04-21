@@ -35,7 +35,9 @@ Contents
     *   [2.6 - Constructors](#26---constructors)
     *   [2.6.1 - Constructor Proxies](#261---constructor-proxies)
     *   [2.6.2 - Constructor Factories](#262---constructor-factories)
-    *   [2.7 - Index and New Index Metamethods Fallback](#27---index-and-new-index-metamethods-fallback)
+    *   [2.7 - Extending Classes](#27---extending-classes)
+        *   [2.7.1 - Extensible Classes](#271---extensible-classes)
+        *   [2.7.2 - Index and New Index Metamethods Fallback](#272---index-and-new-index-metamethods-fallback)
     *   [2.8 - Lua Stack](#28---lua-stack)
         *   [2.8.1 - Enums](#281---enums)
         *   [2.8.2 - lua_State](#282---lua_state)
@@ -721,10 +723,51 @@ a = nil                      -- Remove any reference count
 collectgarbage ("collect")   -- The object is garbage collected using objectFactoryDeallocator
 ```
 
-2.7 - Index and New Index Metamethods Fallback
-----------------------------------------------
+2.7 - Extending Classes
+-----------------------
 
-In general LuaBridge for each class will add a `__index` and `__newindex` metamethods in order to be able to handle member function, properties and inheritance resolution. This will make it impossible for a user to override them because in doing so, we'll make the exposed classes non functioning.
+The LuaBridge library provides a set of features dedicated to extending classes from lua.
+
+### 2.7.1 - Extensible Classes
+
+The `luabridge::extensibleClass` option tells LuaBridge to create a metatable for the class that can be modified at runtime by Lua code. By doing so, it's then possible to extend the class from lua by adding custom instance methods and static methods to the type. Because those methods are stored in the metatable of the type, no additional storage is needed.
+
+```cpp
+struct ExtensibleClass
+{
+  int propertyOne = 42;
+};
+
+luabridge::getGlobalNamespace (L)
+  .beginNamespace ("test")
+    .beginClass<ExtensibleClass> ("ExtensibleClass", luabridge::extensibleClass)
+      .addProperty ("propertyOne", &ExtensibleClass::propertyOne)
+    .endClass ()
+  .endNamespace ();
+
+FlexibleExtensibleClassClass clazz;
+luabridge::pushGlobal (L, &clazz, "clazz");
+```
+
+From lua is then possible to extend the class by registering methods on the type:
+
+```lua
+function ExtensibleClass:newInstanceMethod()
+  return self.propertyOne * 2
+end
+
+function ExtensibleClass.newStaticMethod()
+  return 1337
+end
+
+print (clazz:newMethod(), ExtensibleClass.newStaticMethod())
+```
+
+In case storing instance properties is needed, storage needs to be provided per instance. See the next chapter for an explanation on how to add custom properties per instance.
+
+### 2.7.2 - Index and New Index Metamethods Fallback
+
+In general LuaBridge for each class will add a `__index` and `__newindex` metamethods in order to be able to handle member function, properties and inheritance resolution. This will make it impossible for a user to override them because in doing so, we'll make the exposed classes non functioning. Although possible to override those metamethods directly, they will preclude any possibility to locate exposed members and properties in such classes.
 
 If a LuaBridge exposed class still need to handle the case of handling `__index` and `__newindex` metamethods calls, it's possible to use the `addIndexMetaMethod` and `addNewIndexMetaMethod` registration functions that will be executed as fallback in case an already existing function/property is not exposed in the class itself or any of its parent.
 
@@ -939,8 +982,7 @@ struct Stack<Array<T>>
 } // namespace luabridge
 ```
 
-2.8.1 - Enums
--------------
+### 2.8.1 - Enums
 
 In order to expose C++ enums to lua and be able to work bidirectionally with them, it's necesary to create a Stack specialization for each exposed enum. As the process might become tedious, a library wrapper class is provided to simplify the steps.
 
@@ -1003,8 +1045,7 @@ luabridge::getGlobalNamespace (L)
   .endNamespace();
 ```
 
-2.8.2 - lua_State
------------------
+### 2.8.2 - lua_State
 
 Sometimes it is convenient from within a bound function or member function to gain access to the `lua_State*` normally available to a lua_CFunction. With LuaBridge, all you need to do is add a `lua_State*` as the last parameter of your bound function:
 
@@ -1583,7 +1624,7 @@ Global Options
 class Options : FlagSet<uint32_t>;
 
 /// Default options for classes / namespaces registration.
-Option defaultOptions
+Option defaultOptions;
 
 /// Specify that class methods should allow to the extended by lua scripts.
 Option extensibleClass;
@@ -1600,7 +1641,7 @@ Free Functions
 
 ```cpp
 /// Enable exceptions globally. Will translate lua_errors into C++ LuaExceptions. Usable only if compiled with C++ exceptions enabled.
-void enableExceptions(lua_State* L);
+void enableExceptions (lua_State* L);
 
 /// Gets a global Lua variable reference as LuaRef.
 LuaRef getGlobal (lua_State* L, const char* name);
@@ -1621,13 +1662,13 @@ Namespace getNamespaceFromStack (lua_State* L);
 
 /// Invokes a LuaRef if it references a lua callable.
 template <class... Args>
-LuaResult call(const LuaRef& object, Args&&... args)
+LuaResult call (const LuaRef& object, Args&&... args)
 
 /// Wrapper for lua_pcall, converting lua errors into C++ exceptions if they are enabled.
-int pcall(lua_State* L, int nargs = 0, int nresults = 0, int msgh = 0)
+int pcall (lua_State* L, int nargs = 0, int nresults = 0, int msgh = 0)
 
 /// Return a range iterable view over a lua table.
-Range pairs(const LuaRef& table);
+Range pairs (const LuaRef& table);
 ```
 
 Namespace Registration - Namespace

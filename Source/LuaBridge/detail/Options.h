@@ -18,7 +18,7 @@ struct OptionVisibleMetatables;
 } // namespace Detail
 
 /**
- * @brief
+ * @brief Options for the library.
  */
 using Options = FlagSet<uint32_t,
     detail::OptionExtensibleClass,
@@ -26,22 +26,24 @@ using Options = FlagSet<uint32_t,
     detail::OptionVisibleMetatables>;
 
 /**
- * @brief
+ * @brief Set of default options.
+ *
+ * This setting means all options are not enabled.
  */
 static inline constexpr Options defaultOptions = Options();
 
 /**
- * @brief
+ * @brief Enable extensible C++ classes when registering them.
  */
 static inline constexpr Options extensibleClass = Options::Value<detail::OptionExtensibleClass>();
 
 /**
- * @brief
+ * @brief Allow to be able to override methods from lua in extensible C++ classes.
  */
 static inline constexpr Options allowOverridingMethods = Options::Value<detail::OptionAllowOverridingMethods>();
 
 /**
- * @brief
+ * @brief Specify if metatables are visible for namespaces and classes.
  */
 static inline constexpr Options visibleMetatables = Options::Value<detail::OptionVisibleMetatables>();
 
