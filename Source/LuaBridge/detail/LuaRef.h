@@ -1105,14 +1105,16 @@ public:
      */
     using LuaRefBase::push;
 
-    void push() const
+    void push(lua_State* L = nullptr) const
     {
+        L = (L != nullptr) ? L : m_L;
+
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        if (! lua_checkstack(m_L, 1))
+        if (! lua_checkstack(L, 1))
             return;
 #endif
 
-        lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_ref);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, m_ref);
     }
 
     //=============================================================================================
