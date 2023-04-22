@@ -471,6 +471,50 @@ TEST_F(LuaBridgeTest, InvokePassingUnregisteredClassShouldThrowAndRestoreStack)
 }
 
 namespace {
+struct Foo {};
+} // namespace
+
+TEST_F(LuaBridgeTest, NonConstMethodOnConstPointer)
+{
+   luabridge::getGlobalNamespace(L)
+      .beginNamespace("test")
+         .addFunction("constCall", [](const Foo*) { return "const"; })
+         .addFunction("mutableCall", [](Foo*) { return "mutable"; })
+         .beginClass<Foo>("Foo")
+            .addFunction("constCall", [](const Foo*) { return "const"; })
+            .addFunction("mutableCall", [](Foo*) { return "mutable"; })
+         .endClass()
+      .endNamespace();
+
+    Foo a, b;
+    luabridge::setGlobal(L, std::addressof(a), "a");
+    luabridge::setGlobal(L, std::addressof(std::as_const(b)), "b");
+
+    runLua("result = a:constCall()");
+    EXPECT_EQ("const", result<std::string>());
+    runLua("result = test.constCall(a)");
+    EXPECT_EQ("const", result<std::string>());
+
+    runLua("result = a:mutableCall()");
+    EXPECT_EQ("mutable", result<std::string>());
+    runLua("result = test.mutableCall(a)");
+    EXPECT_EQ("mutable", result<std::string>());
+
+    runLua("result = b:constCall()");
+    EXPECT_EQ("const", result<std::string>());
+    runLua("result = test.constCall(b)");
+    EXPECT_EQ("const", result<std::string>());
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_ANY_THROW(runLua("result = b:mutableCall()"));
+    EXPECT_ANY_THROW(runLua("result = test.mutableCall(b)"));
+#else
+    EXPECT_FALSE(runLua("result = b:mutableCall()"));
+    EXPECT_FALSE(runLua("result = test.mutableCall(b)"));
+#endif
+}
+
+namespace {
 class A : public std::enable_shared_from_this<A>
 {
 public:
