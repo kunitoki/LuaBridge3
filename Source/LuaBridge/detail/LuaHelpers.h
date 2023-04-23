@@ -159,12 +159,13 @@ inline int lua_absindex(lua_State* L, int idx)
 }
 #endif
 
-inline void lua_rawgetp(lua_State* L, int idx, const void* p)
+inline int lua_rawgetp(lua_State* L, int idx, const void* p)
 {
     idx = lua_absindex(L, idx);
     luaL_checkstack(L, 1, "not enough stack slots");
     lua_pushlightuserdata(L, const_cast<void*>(p));
     lua_rawget(L, idx);
+    return lua_type(L, -1);
 }
 
 inline void lua_rawsetp(lua_State* L, int idx, const void* p)
@@ -357,12 +358,17 @@ inline lua_State* main_thread(lua_State* threadL)
 /**
  * @brief Get a table value, bypassing metamethods.
  */
-inline void rawgetfield(lua_State* L, int index, const char* key)
+inline int rawgetfield(lua_State* L, int index, const char* key)
 {
     LUABRIDGE_ASSERT(lua_istable(L, index));
     index = lua_absindex(L, index);
     lua_pushstring(L, key);
+#if LUA_VERSION_NUM <= 502
     lua_rawget(L, index);
+    return lua_type(L, -1);
+#else
+    return lua_rawget(L, index);
+#endif
 }
 
 /**
@@ -540,13 +546,19 @@ void* lua_newuserdata_pointer(lua_State* L, T* ptr)
 /**
  * @brief Safe error able to walk backwards for error reporting correctly.
  */
-inline int raise_lua_error(lua_State *L, const char *fmt, ...)
+inline int raise_lua_error(lua_State* L, const char* fmt, ...)
 {
     va_list argp;
     va_start(argp, fmt);
+    lua_pushvfstring(L, fmt, argp);
+    va_end(argp);
+
+    const char* message = lua_tostring(L, -1);
+    if (message != nullptr && std::string_view(message)[0] == '[')
+        return lua_error_x(L);
 
     bool pushed_error = false;
-    for (int level = 2; level > 0; --level)
+    for (int level = 1; level <= 2; ++level)
     {
         lua_Debug ar;
 
@@ -570,8 +582,8 @@ inline int raise_lua_error(lua_State *L, const char *fmt, ...)
     if (! pushed_error)
         lua_pushliteral(L, "");
 
-    lua_pushvfstring(L, fmt, argp);
-    va_end(argp);
+    lua_pushvalue(L, -2);
+    lua_remove(L, -3);
     lua_concat(L, 2);
 
     return lua_error_x(L);
