@@ -1103,12 +1103,18 @@ public:
     /**
      * @brief Place the object onto the Lua stack.
      */
-    using LuaRefBase::push;
-
-    void push(lua_State* L = nullptr) const
+    void push() const
     {
-        L = (L != nullptr) ? L : m_L;
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(m_L, 1))
+            return;
+#endif
 
+        lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_ref);
+    }
+
+    void push(lua_State* L) const
+    {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 1))
             return;
@@ -1127,6 +1133,14 @@ public:
             luaL_unref(m_L, LUA_REGISTRYINDEX, m_ref);
 
         m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX);
+    }
+
+    void pop(lua_State* L)
+    {
+        if (m_ref != LUA_NOREF)
+            luaL_unref(L, LUA_REGISTRYINDEX, m_ref);
+
+        m_ref = luaL_ref(L, LUA_REGISTRYINDEX);
     }
 
     //=============================================================================================
