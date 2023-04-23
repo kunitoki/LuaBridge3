@@ -1115,6 +1115,8 @@ public:
 
     void push(lua_State* L) const
     {
+        LUABRIDGE_ASSERT(equalstates(L, m_L));
+
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 1))
             return;
@@ -1137,6 +1139,8 @@ public:
 
     void pop(lua_State* L)
     {
+        LUABRIDGE_ASSERT(equalstates(L, m_L));
+
         if (m_ref != LUA_NOREF)
             luaL_unref(L, LUA_REGISTRYINDEX, m_ref);
 
