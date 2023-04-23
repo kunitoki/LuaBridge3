@@ -1352,10 +1352,11 @@ struct Stack<std::reference_wrapper<T>>
 {
     static Result push(lua_State* L, const std::reference_wrapper<T>& reference)
     {
-        lua_newuserdata_pointer(L, new std::reference_wrapper<T>(reference.get()));
+        lua_newuserdata_aligned<std::reference_wrapper<T>>(L, reference.get());
 
         luaL_newmetatable(L, typeName());
-        lua_pushcclosure_x(L, &get_reference_value<T>, 0);
+        lua_pushvalue(L, -2);
+        lua_pushcclosure_x(L, &get_set_reference_value<T>, 1);
         rawsetfield(L, -2, "__call");
         lua_setmetatable(L, -2);
 
@@ -1368,11 +1369,11 @@ struct Stack<std::reference_wrapper<T>>
         if (ptr == nullptr)
             return makeErrorCode(ErrorCode::InvalidTypeCast);
 
-        auto reference = reinterpret_cast<std::reference_wrapper<T>**>(ptr);
-        if (reference == nullptr || *reference == nullptr)
+        auto reference = reinterpret_cast<std::reference_wrapper<T>*>(ptr);
+        if (reference == nullptr)
             return makeErrorCode(ErrorCode::InvalidTypeCast);
 
-        return **reference;
+        return *reference;
     }
     
     static bool isInstance(lua_State* L, int index)
@@ -1388,18 +1389,31 @@ private:
     }
 
     template <class U>
-    static int get_reference_value(lua_State* L)
+    static int get_set_reference_value(lua_State* L)
     {
-        assert(lua_isuserdata(L, -1));
+        LUABRIDGE_ASSERT(lua_isuserdata(L, lua_upvalueindex(1)));
 
-        std::reference_wrapper<U>** ptr = static_cast<std::reference_wrapper<U>**>(lua_touserdata(L, -1));
-        assert(ptr != nullptr);
+        std::reference_wrapper<U>* ptr = static_cast<std::reference_wrapper<U>*>(lua_touserdata(L, lua_upvalueindex(1)));
+        LUABRIDGE_ASSERT(ptr != nullptr);
 
-        auto result = Stack<U>::push(L, (*ptr)->get());
-        if (! result)
-            luaL_error(L, "%s", result.message().c_str());
+        if (lua_gettop(L) > 1)
+        {
+            auto result = Stack<U>::get(L, 2);
+            if (! result)
+                luaL_error(L, "%s", result.message().c_str());
 
-        return 1;
+            ptr->get() = *result;
+
+            return 0;
+        }
+        else
+        {
+            auto result = Stack<U>::push(L, ptr->get());
+            if (! result)
+                luaL_error(L, "%s", result.message().c_str());
+
+            return 1;
+        }
     }
 };
 

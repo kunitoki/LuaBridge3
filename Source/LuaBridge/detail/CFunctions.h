@@ -37,6 +37,7 @@ auto unwrap_argument_or_error(lua_State* L, std::size_t index, std::size_t start
     if (result)
         return std::move(*result);
 
+    // TODO - this might be costly, how to deal with it ?
     if constexpr (! std::is_lvalue_reference_v<T>)
     {
         using U = std::reference_wrapper<std::remove_reference_t<T>>;

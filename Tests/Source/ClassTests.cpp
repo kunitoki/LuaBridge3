@@ -2818,7 +2818,7 @@ TEST_F(ClassTests, ReferenceWrapperWrite)
         .endNamespace();
 
     runLua(R"(
-        test.ref_wrap_x = 100
+        test.ref_wrap_x(100)
         result = test.ref_wrap_x
     )");
 
