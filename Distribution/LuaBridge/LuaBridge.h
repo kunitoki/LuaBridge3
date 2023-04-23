@@ -6974,7 +6974,7 @@ protected:
 
     int createRef() const
     {
-        impl().push();
+        impl().push(m_L);
 
         return luaL_ref(m_L, LUA_REGISTRYINDEX);
     }
@@ -6992,7 +6992,7 @@ public:
 
         lua_getglobal(m_L, "tostring");
 
-        impl().push();
+        impl().push(m_L);
 
         lua_call(m_L, 1, 1);
 
@@ -7046,27 +7046,11 @@ public:
         return m_L;
     }
 
-    void push(lua_State* L) const
-    {
-        LUABRIDGE_ASSERT(equalstates(L, m_L));
-        (void) L;
-
-        impl().push();
-    }
-
-    void pop(lua_State* L)
-    {
-        LUABRIDGE_ASSERT(equalstates(L, m_L));
-        (void) L;
-
-        impl().pop();
-    }
-
     int type() const
     {
         const StackRestore stackRestore(m_L);
 
-        impl().push();
+        impl().push(m_L);
 
         return lua_type(m_L, -1);
     }
@@ -7103,7 +7087,7 @@ public:
     {
         const StackRestore stackRestore(m_L);
 
-        impl().push();
+        impl().push(m_L);
 
         return Stack<T>::get(m_L, -1);
     }
@@ -7113,7 +7097,7 @@ public:
     {
         const StackRestore stackRestore(m_L);
 
-        impl().push();
+        impl().push(m_L);
 
         return *Stack<T>::get(m_L, -1);
     }
@@ -7123,7 +7107,7 @@ public:
     {
         const StackRestore stackRestore(m_L);
 
-        impl().push();
+        impl().push(m_L);
 
         return Stack<T>::isInstance(m_L, -1);
     }
@@ -7141,7 +7125,7 @@ public:
 
         const StackRestore stackRestore(m_L);
 
-        impl().push();
+        impl().push(m_L);
 
         if (! lua_getmetatable(m_L, -1))
             return LuaRef(m_L);
@@ -7154,7 +7138,7 @@ public:
     {
         const StackRestore stackRestore(m_L);
 
-        impl().push();
+        impl().push(m_L);
 
         if (! Stack<T>::push(m_L, rhs))
             return false;
@@ -7173,7 +7157,7 @@ public:
     {
         const StackRestore stackRestore(m_L);
 
-        impl().push();
+        impl().push(m_L);
 
         if (! Stack<T>::push(m_L, rhs))
             return false;
@@ -7191,7 +7175,7 @@ public:
     {
         const StackRestore stackRestore(m_L);
 
-        impl().push();
+        impl().push(m_L);
 
         if (! Stack<T>::push(m_L, rhs))
             return false;
@@ -7209,7 +7193,7 @@ public:
     {
         const StackRestore stackRestore(m_L);
 
-        impl().push();
+        impl().push(m_L);
 
         if (! Stack<T>::push(m_L, rhs))
             return false;
@@ -7227,7 +7211,7 @@ public:
     {
         const StackRestore stackRestore(m_L);
 
-        impl().push();
+        impl().push(m_L);
 
         if (! Stack<T>::push(m_L, rhs))
             return false;
@@ -7245,7 +7229,7 @@ public:
     {
         const StackRestore stackRestore(m_L);
 
-        impl().push();
+        impl().push(m_L);
 
         if (! Stack<T>::push(m_L, v))
             return false;
@@ -7257,7 +7241,7 @@ public:
     {
         const StackRestore stackRestore(m_L);
 
-        impl().push();
+        impl().push(m_L);
 
         return get_length(m_L, -1);
     }
@@ -7359,19 +7343,24 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             return *this;
         }
 
-        using LuaRefBase::push;
-
         void push() const
         {
+            push(m_L);
+        }
+
+        void push(lua_State* L) const
+        {
+            LUABRIDGE_ASSERT(equalstates(L, m_L));
+
 #if LUABRIDGE_SAFE_STACK_CHECKS
-            if (! lua_checkstack(m_L, 3))
+            if (! lua_checkstack(L, 3))
                 return;
 #endif
 
-            lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_tableRef);
-            lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_keyRef);
-            lua_gettable(m_L, -2);
-            lua_remove(m_L, -2); 
+            lua_rawgeti(L, LUA_REGISTRYINDEX, m_tableRef);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, m_keyRef);
+            lua_gettable(L, -2);
+            lua_remove(L, -2); 
         }
 
         template <class T>
@@ -7530,24 +7519,36 @@ public:
         return *this;
     }
 
-    using LuaRefBase::push;
-
     void push() const
     {
+        push(m_L);
+    }
+
+    void push(lua_State* L) const
+    {
+        LUABRIDGE_ASSERT(equalstates(L, m_L));
+
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        if (! lua_checkstack(m_L, 1))
+        if (! lua_checkstack(L, 1))
             return;
 #endif
 
-        lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_ref);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, m_ref);
     }
 
     void pop()
     {
-        if (m_ref != LUA_NOREF)
-            luaL_unref(m_L, LUA_REGISTRYINDEX, m_ref);
+        pop(m_L);
+    }
 
-        m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX);
+    void pop(lua_State* L)
+    {
+        LUABRIDGE_ASSERT(equalstates(L, m_L));
+
+        if (m_ref != LUA_NOREF)
+            luaL_unref(L, LUA_REGISTRYINDEX, m_ref);
+
+        m_ref = luaL_ref(L, LUA_REGISTRYINDEX);
     }
 
     void moveTo(lua_State* newL)
