@@ -46,6 +46,8 @@
 #define LUABRIDGE_ON_LUAU 1
 #elif defined(LUAJIT_VERSION)
 #define LUABRIDGE_ON_LUAJIT 1
+#elif defined(RAVI_OPTION_STRING2)
+#define LUABRIDGE_ON_RAVI 1
 #elif defined(LUA_VERSION_NUM)
 #define LUABRIDGE_ON_LUA 1
 #else

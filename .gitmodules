@@ -4,3 +4,6 @@
 [submodule "ThirdParty/googletest"]
 	path = ThirdParty/googletest
 	url = https://github.com/kunitoki/googletest.git
+[submodule "ThirdParty/ravi"]
+	path = ThirdParty/ravi
+	url = https://github.com/dibyendumajumdar/ravi.git
