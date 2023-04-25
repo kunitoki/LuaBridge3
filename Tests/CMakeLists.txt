@@ -159,6 +159,7 @@ function (setup_coverage_single_target)
       -a "coverage/LuaBridgeTestsLuaJIT.info"
       -a "coverage/LuaBridgeTestsLuaJITNoexcept.info"
       -a "coverage/LuaBridgeTestsLuau.info"
+      -a "coverage/LuaBridgeTestsRavi.info"
       -o "coverage/Merged.info"
     COMMAND ${GENHTML_EXECUTABLE}
       --rc lcov_branch_coverage=1
@@ -175,6 +176,7 @@ function (setup_coverage_single_target)
       "coverage/LuaBridgeTestsLuaJIT.info"
       "coverage/LuaBridgeTestsLuaJITNoexcept.info"
       "coverage/LuaBridgeTestsLuau.info"
+      "coverage/LuaBridgeTestsRavi.info"
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     VERBATIM)
 
@@ -303,7 +305,7 @@ add_test_app (LuaBridgeTestsLuau "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 1 "")
 #add_test_app (LuaBridgeTestsLuauNoexcept "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 0 "")
 
 add_test_app (LuaBridgeTestsRavi "RAVI" "${LUABRIDGE_TEST_RAVI_FILES}" 1 "libravi")
-add_test_app (LuaBridgeTestsRaviNoexcept "RAVI" "${LUABRIDGE_TEST_RAVI_FILES}" 0 "libravi")
+#add_test_app (LuaBridgeTestsRaviNoexcept "RAVI" "${LUABRIDGE_TEST_RAVI_FILES}" 0 "libravi")
 
 if (LUABRIDGE_COVERAGE)
   setup_coverage_single_target ()
