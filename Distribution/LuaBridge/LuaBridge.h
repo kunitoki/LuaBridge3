@@ -75,6 +75,8 @@
 #define LUABRIDGE_ON_LUAU 1
 #elif defined(LUAJIT_VERSION)
 #define LUABRIDGE_ON_LUAJIT 1
+#elif defined(RAVI_OPTION_STRING2)
+#define LUABRIDGE_ON_RAVI 1
 #elif defined(LUA_VERSION_NUM)
 #define LUABRIDGE_ON_LUA 1
 #else
@@ -223,14 +225,14 @@ inline lua_Integer to_integerx(lua_State* L, int idx, int* isnum)
         {
             if (isnum)
                 *isnum = 1;
-            
+
             return int_n;
         }
     }
 
     if (isnum)
         *isnum = 0;
-    
+
     return 0;
 }
 
@@ -542,8 +544,11 @@ inline int raise_lua_error(lua_State* L, const char* fmt, ...)
     va_end(argp);
 
     const char* message = lua_tostring(L, -1);
-    if (message != nullptr && std::string_view(message)[0] == '[')
-        return lua_error_x(L);
+    if (message != nullptr)
+    {
+        if (auto str = std::string_view(message); !str.empty() && str[0] == '[')
+            return lua_error_x(L);
+    }
 
     bool pushed_error = false;
     for (int level = 1; level <= 2; ++level)
@@ -590,7 +595,7 @@ constexpr bool is_integral_representable_by(T value)
 
         if constexpr (std::is_unsigned_v<T>)
             return value <= static_cast<T>((std::numeric_limits<U>::max)());
-        
+
         return value >= static_cast<T>((std::numeric_limits<U>::min)())
             && static_cast<U>(value) <= (std::numeric_limits<U>::max)();
     }
