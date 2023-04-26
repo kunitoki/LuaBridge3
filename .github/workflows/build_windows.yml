@@ -81,4 +81,6 @@ jobs:
     - name: Test Ravi
       working-directory: ${{runner.workspace}}/build/Tests/Release
       shell: bash
-      run: ./LuaBridgeTestsRavi.exe
+      run: |
+        cp ../ravi/Release/libravi.dll .
+        ./LuaBridgeTestsRavi.exe
