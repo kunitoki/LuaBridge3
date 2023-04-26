@@ -82,3 +82,8 @@ jobs:
       working-directory: ${{runner.workspace}}/build/Tests/Release
       shell: bash
       run: ./LuaBridgeTestsLuau.exe
+
+    - name: Test Ravi
+      working-directory: ${{runner.workspace}}/build/Tests/Release
+      shell: bash
+      run: ./LuaBridgeTestsRavi.exe
