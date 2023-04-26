@@ -121,7 +121,7 @@ private:
     static constexpr yes& test(...);
 
 public:
-    static constexpr bool value = sizeof(test<ContainerTraits<T>>(0)) == sizeof(yes);
+    static constexpr bool value = sizeof(test<ContainerTraits<T>>(nullptr)) == sizeof(yes);
 };
 
 } // namespace detail
