@@ -83,7 +83,7 @@ protected:
     {
     };
 
-    LuaRefBase(lua_State* L)
+    LuaRefBase(lua_State* L) noexcept
         : m_L(L)
     {
     }
@@ -802,7 +802,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
      *
      * @note The object is popped.
      */
-    LuaRef(lua_State* L, FromStack)
+    LuaRef(lua_State* L, FromStack) noexcept
         : LuaRefBase(L)
         , m_ref(luaL_ref(m_L, LUA_REGISTRYINDEX))
     {
@@ -842,7 +842,7 @@ public:
      *
      * @param L A Lua state.
      */
-    LuaRef(lua_State* L)
+    LuaRef(lua_State* L) noexcept
         : LuaRefBase(L)
         , m_ref(LUA_NOREF)
     {
@@ -896,7 +896,7 @@ public:
      *
      * @param other An existing reference.
      */
-    LuaRef(LuaRef&& other)
+    LuaRef(LuaRef&& other) noexcept
         : LuaRefBase(other.m_L)
         , m_ref(std::exchange(other.m_ref, LUA_NOREF))
     {
@@ -1021,7 +1021,7 @@ public:
      *
      * @returns This reference.
      */
-    LuaRef& operator=(LuaRef&& rhs)
+    LuaRef& operator=(LuaRef&& rhs) noexcept
     {
         if (m_ref != LUA_NOREF)
             luaL_unref(m_L, LUA_REGISTRYINDEX, m_ref);
@@ -1213,7 +1213,7 @@ public:
     }
 
 private:
-    void swap(LuaRef& other)
+    void swap(LuaRef& other) noexcept
     {
         using std::swap;
 

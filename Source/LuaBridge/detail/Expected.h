@@ -271,7 +271,6 @@ private:
     E error_;
 };
 
-
 template <class E>
 union expected_storage<void, E, true, false>
 {
@@ -287,9 +286,7 @@ public:
     {
     }
 
-    ~expected_storage()
-    {
-    }
+    ~expected_storage() = default;
 
     constexpr const E& error() const noexcept
     {
@@ -307,33 +304,33 @@ private:
 };
 
 template <class T, class E, bool IsCopyConstructible, bool IsMoveConstructible>
-class ExpectedBaseTrivial
+class expected_base_trivial
 {
-    using this_type = ExpectedBaseTrivial<T, E, IsCopyConstructible, IsMoveConstructible>;
+    using this_type = expected_base_trivial<T, E, IsCopyConstructible, IsMoveConstructible>;
 
 protected:
     using storage_type = expected_storage<T, E>;
 
-    constexpr ExpectedBaseTrivial() noexcept
+    constexpr expected_base_trivial() noexcept
         : valid_(true)
     {
     }
 
     template <class... Args>
-    constexpr ExpectedBaseTrivial(std::in_place_t, Args&&... args) noexcept
+    constexpr expected_base_trivial(std::in_place_t, Args&&... args) noexcept
         : storage_(std::in_place, std::forward<Args>(args)...)
         , valid_(true)
     {
     }
 
     template <class... Args>
-    constexpr ExpectedBaseTrivial(UnexpectType, Args&&... args) noexcept
+    constexpr expected_base_trivial(UnexpectType, Args&&... args) noexcept
         : storage_(unexpect, std::forward<Args>(args)...)
         , valid_(false)
     {
     }
 
-    ExpectedBaseTrivial(const ExpectedBaseTrivial& other) noexcept
+    expected_base_trivial(const expected_base_trivial& other) noexcept
     {
         if (other.valid_)
         {
@@ -345,7 +342,7 @@ protected:
         }
     }
 
-    ExpectedBaseTrivial(ExpectedBaseTrivial&& other) noexcept
+    expected_base_trivial(expected_base_trivial&& other) noexcept
     {
         if (other.valid_)
         {
@@ -357,7 +354,7 @@ protected:
         }
     }
 
-    ~ExpectedBaseTrivial() noexcept = default;
+    ~expected_base_trivial() noexcept = default;
 
     constexpr const T& value() const noexcept
     {
@@ -428,33 +425,33 @@ private:
 };
 
 template <class T, class E, bool IsCopyConstructible, bool IsMoveConstructible>
-class ExpectedBaseNonTrivial
+class expected_base_non_trivial
 {
-    using this_type = ExpectedBaseNonTrivial<T, E, IsCopyConstructible, IsMoveConstructible>;
+    using this_type = expected_base_non_trivial<T, E, IsCopyConstructible, IsMoveConstructible>;
 
 protected:
     using storage_type = expected_storage<T, E>;
 
-    constexpr ExpectedBaseNonTrivial() noexcept(std::is_nothrow_default_constructible_v<storage_type>)
+    constexpr expected_base_non_trivial() noexcept(std::is_nothrow_default_constructible_v<storage_type>)
         : valid_(true)
     {
     }
 
     template <class... Args>
-    constexpr ExpectedBaseNonTrivial(std::in_place_t, Args&&... args) noexcept(std::is_nothrow_constructible_v<storage_type, std::in_place_t, Args...>)
+    constexpr expected_base_non_trivial(std::in_place_t, Args&&... args) noexcept(std::is_nothrow_constructible_v<storage_type, std::in_place_t, Args...>)
         : storage_(std::in_place, std::forward<Args>(args)...)
         , valid_(true)
     {
     }
 
     template <class... Args>
-    constexpr ExpectedBaseNonTrivial(UnexpectType, Args&&... args) noexcept(std::is_nothrow_constructible_v<storage_type, UnexpectType, Args...>)
+    constexpr expected_base_non_trivial(UnexpectType, Args&&... args) noexcept(std::is_nothrow_constructible_v<storage_type, UnexpectType, Args...>)
         : storage_(unexpect, std::forward<Args>(args)...)
         , valid_(false)
     {
     }
 
-    ExpectedBaseNonTrivial(const ExpectedBaseNonTrivial& other)
+    expected_base_non_trivial(const expected_base_non_trivial& other)
     {
         if (other.valid_)
         {
@@ -466,7 +463,7 @@ protected:
         }
     }
 
-    ExpectedBaseNonTrivial(ExpectedBaseNonTrivial&& other)
+    expected_base_non_trivial(expected_base_non_trivial&& other) noexcept
     {
         if (other.valid_)
         {
@@ -478,7 +475,7 @@ protected:
         }
     }
 
-    ~ExpectedBaseNonTrivial() noexcept(noexcept(std::declval<this_type>().destroy()))
+    ~expected_base_non_trivial()
     {
         destroy();
     }
@@ -560,35 +557,35 @@ private:
 };
 
 template <class T, class E, bool IsMoveConstructible>
-class ExpectedBaseNonTrivial<T, E, false, IsMoveConstructible>
+class expected_base_non_trivial<T, E, false, IsMoveConstructible>
 {
-    using this_type = ExpectedBaseNonTrivial<T, E, false, IsMoveConstructible>;
+    using this_type = expected_base_non_trivial<T, E, false, IsMoveConstructible>;
 
 protected:
     using storage_type = expected_storage<T, E>;
 
-    constexpr ExpectedBaseNonTrivial() noexcept(std::is_nothrow_default_constructible_v<storage_type>)
+    constexpr expected_base_non_trivial() noexcept(std::is_nothrow_default_constructible_v<storage_type>)
         : valid_(true)
     {
     }
 
     template <class... Args>
-    constexpr ExpectedBaseNonTrivial(std::in_place_t, Args&&... args) noexcept(std::is_nothrow_constructible_v<storage_type, std::in_place_t, Args...>)
+    constexpr expected_base_non_trivial(std::in_place_t, Args&&... args) noexcept(std::is_nothrow_constructible_v<storage_type, std::in_place_t, Args...>)
         : storage_(std::in_place, std::forward<Args>(args)...)
         , valid_(true)
     {
     }
 
     template <class... Args>
-    constexpr ExpectedBaseNonTrivial(UnexpectType, Args&&... args) noexcept(std::is_nothrow_constructible_v<storage_type, UnexpectType, Args...>)
+    constexpr expected_base_non_trivial(UnexpectType, Args&&... args) noexcept(std::is_nothrow_constructible_v<storage_type, UnexpectType, Args...>)
         : storage_(unexpect, std::forward<Args>(args)...)
         , valid_(false)
     {
     }
 
-    ExpectedBaseNonTrivial(const ExpectedBaseNonTrivial& other) = delete;
+    expected_base_non_trivial(const expected_base_non_trivial& other) = delete;
 
-    ExpectedBaseNonTrivial(ExpectedBaseNonTrivial&& other)
+    expected_base_non_trivial(expected_base_non_trivial&& other) noexcept
     {
         if (other.valid_)
         {
@@ -600,7 +597,7 @@ protected:
         }
     }
 
-    ~ExpectedBaseNonTrivial() noexcept(noexcept(std::declval<this_type>().destroy()))
+    ~expected_base_non_trivial()
     {
         destroy();
     }
@@ -682,34 +679,34 @@ private:
 };
 
 template <class T, class E, bool IsCopyConstructible>
-class ExpectedBaseNonTrivial<T, E, IsCopyConstructible, false>
+class expected_base_non_trivial<T, E, IsCopyConstructible, false>
 {
-    using this_type = ExpectedBaseNonTrivial<T, E, IsCopyConstructible, false>;
+    using this_type = expected_base_non_trivial<T, E, IsCopyConstructible, false>;
 
 protected:
     using storage_type = expected_storage<T, E>;
 
     template <class U = storage_type, class = std::enable_if_t<std::is_default_constructible_v<U>>>
-    constexpr ExpectedBaseNonTrivial() noexcept(std::is_nothrow_default_constructible_v<storage_type>)
+    constexpr expected_base_non_trivial() noexcept(std::is_nothrow_default_constructible_v<storage_type>)
         : valid_(true)
     {
     }
 
     template <class... Args>
-    constexpr ExpectedBaseNonTrivial(std::in_place_t, Args&&... args) noexcept(std::is_nothrow_constructible_v<storage_type, std::in_place_t, Args...>)
+    constexpr expected_base_non_trivial(std::in_place_t, Args&&... args) noexcept(std::is_nothrow_constructible_v<storage_type, std::in_place_t, Args...>)
         : storage_(std::in_place, std::forward<Args>(args)...)
         , valid_(true)
     {
     }
 
     template <class... Args>
-    constexpr ExpectedBaseNonTrivial(UnexpectType, Args&&... args) noexcept(std::is_nothrow_constructible_v<storage_type, UnexpectType, Args...>)
+    constexpr expected_base_non_trivial(UnexpectType, Args&&... args) noexcept(std::is_nothrow_constructible_v<storage_type, UnexpectType, Args...>)
         : storage_(unexpect, std::forward<Args>(args)...)
         , valid_(false)
     {
     }
 
-    ExpectedBaseNonTrivial(const ExpectedBaseNonTrivial& other)
+    expected_base_non_trivial(const expected_base_non_trivial& other)
     {
         if (other.valid_)
         {
@@ -721,9 +718,9 @@ protected:
         }
     }
 
-    ExpectedBaseNonTrivial(ExpectedBaseNonTrivial&& other) = delete;
+    expected_base_non_trivial(expected_base_non_trivial&& other) = delete;
 
-    ~ExpectedBaseNonTrivial() noexcept(noexcept(std::declval<this_type>().destroy()))
+    ~expected_base_non_trivial()
     {
         destroy();
     }
@@ -805,38 +802,38 @@ private:
 };
 
 template <class T, class E>
-class ExpectedBaseNonTrivial<T, E, false, false>
+class expected_base_non_trivial<T, E, false, false>
 {
-    using this_type = ExpectedBaseNonTrivial<T, E, false, false>;
+    using this_type = expected_base_non_trivial<T, E, false, false>;
 
 protected:
     using storage_type = expected_storage<T, E>;
 
     template <class U = storage_type, class = std::enable_if_t<std::is_default_constructible_v<U>>>
-    constexpr ExpectedBaseNonTrivial() noexcept(std::is_nothrow_default_constructible_v<storage_type>)
+    constexpr expected_base_non_trivial() noexcept(std::is_nothrow_default_constructible_v<storage_type>)
         : valid_(true)
     {
     }
 
     template <class... Args>
-    constexpr ExpectedBaseNonTrivial(std::in_place_t, Args&&... args) noexcept(std::is_nothrow_constructible_v<storage_type, std::in_place_t, Args...>)
+    constexpr expected_base_non_trivial(std::in_place_t, Args&&... args) noexcept(std::is_nothrow_constructible_v<storage_type, std::in_place_t, Args...>)
         : storage_(std::in_place, std::forward<Args>(args)...)
         , valid_(true)
     {
     }
 
     template <class... Args>
-    constexpr ExpectedBaseNonTrivial(UnexpectType, Args&&... args) noexcept(std::is_nothrow_constructible_v<storage_type, UnexpectType, Args...>)
+    constexpr expected_base_non_trivial(UnexpectType, Args&&... args) noexcept(std::is_nothrow_constructible_v<storage_type, UnexpectType, Args...>)
         : storage_(unexpect, std::forward<Args>(args)...)
         , valid_(false)
     {
     }
 
-    ExpectedBaseNonTrivial(const ExpectedBaseNonTrivial& other) = delete;
+    expected_base_non_trivial(const expected_base_non_trivial& other) = delete;
 
-    ExpectedBaseNonTrivial(ExpectedBaseNonTrivial&& other) = delete;
+    expected_base_non_trivial(expected_base_non_trivial&& other) = delete;
 
-    ~ExpectedBaseNonTrivial() noexcept(noexcept(std::declval<this_type>().destroy()))
+    ~expected_base_non_trivial()
     {
         destroy();
     }
@@ -918,10 +915,10 @@ private:
 };
 
 template <class T, class E, bool IsCopyConstructible, bool IsMoveConstructible>
-using ExpectedBase = std::conditional_t<
+using expected_base = std::conditional_t<
     (std::is_void_v<T> || std::is_trivially_destructible_v<T>) && std::is_trivially_destructible_v<E>,
-    ExpectedBaseTrivial<T, E, IsCopyConstructible, IsMoveConstructible>,
-    ExpectedBaseNonTrivial<T, E, IsCopyConstructible, IsMoveConstructible>>;
+    expected_base_trivial<T, E, IsCopyConstructible, IsMoveConstructible>,
+    expected_base_non_trivial<T, E, IsCopyConstructible, IsMoveConstructible>>;
 
 }  // namespace detail
 
@@ -1068,11 +1065,11 @@ struct is_unexpected<Unexpected<E>> : std::true_type
 };
 
 template <class T, class E>
-class Expected : public detail::ExpectedBase<T, E, std::is_copy_constructible_v<T>, std::is_move_constructible_v<T>>
+class Expected : public detail::expected_base<T, E, std::is_copy_constructible_v<T>, std::is_move_constructible_v<T>>
 {
     static_assert(!std::is_reference_v<E> && !std::is_void_v<E>, "Unexpected type can't be a reference or void");
 
-    using base_type = detail::ExpectedBase<T, E, std::is_copy_constructible_v<T>, std::is_move_constructible_v<T>>;
+    using base_type = detail::expected_base<T, E, std::is_copy_constructible_v<T>, std::is_move_constructible_v<T>>;
     using this_type = Expected<T, E>;
 
 public:
@@ -1180,7 +1177,7 @@ public:
         return *this;
     }
 
-    Expected& operator=(Expected&& other)
+    Expected& operator=(Expected&& other) noexcept
     {
         if (other.hasValue())
         {
@@ -1380,11 +1377,11 @@ private:
 };
 
 template <class E>
-class Expected<void, E> : public detail::ExpectedBase<void, E, std::is_copy_constructible_v<E>, std::is_move_constructible_v<E>>
+class Expected<void, E> : public detail::expected_base<void, E, std::is_copy_constructible_v<E>, std::is_move_constructible_v<E>>
 {
     static_assert(!std::is_reference_v<E> && !std::is_void_v<E>, "Unexpected type can't be a reference or void");
 
-    using base_type = detail::ExpectedBase<void, E, std::is_copy_constructible_v<E>, std::is_move_constructible_v<E>>;
+    using base_type = detail::expected_base<void, E, std::is_copy_constructible_v<E>, std::is_move_constructible_v<E>>;
     using this_type = Expected<void, E>;
 
 public:
