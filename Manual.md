@@ -72,13 +72,13 @@ Contents
 1 - Introduction
 ================
 
-[LuaBridge](https://github.com/kunitoki/LuaBridge3) is a lightweight and dependency-free library for mapping data, functions, and classes back and forth between C++ and [Lua](http://wwww.lua.org), a powerful, fast, lightweight, embeddable scripting language. LuaBridge has been tested and works with Lua 5.1.5, 5.2.4, 5.3.6 and 5.4.4. It also works transparently with [LuaJIT](http://luajit.org/) 2.x onwards and for the first time also with [Luau](https://luau-lang.org/) 0.556 onwards.
+[LuaBridge](https://github.com/kunitoki/LuaBridge3) is a lightweight and dependency-free library for mapping data, functions, and classes back and forth between C++ and [Lua](http://wwww.lua.org), a powerful, fast, lightweight, embeddable scripting language. LuaBridge has been tested and works with Lua 5.1.5, 5.2.4, 5.3.6 and 5.4.4. It also works transparently with [LuaJIT](http://luajit.org/) 2.x onwards and for the first time also with [Luau](https://luau-lang.org/) 0.556 onwards and [Ravi](https://github.com/dibyendumajumdar/ravi) 1.0-beta11.
 
 LuaBridge is usable from a compliant C++17 and offers the following features:
 
 * [MIT Licensed](http://www.opensource.org/licenses/mit-license.html), no usage restrictions!
 * Headers-only: No Makefile, no .cpp files, just one `#include` and one header file (optional) !
-* Works with ANY lua version out there (PUC-Lua, LuaJIT, Luau, you name it).
+* Works with ANY lua version out there (PUC-Lua, LuaJIT, Luau, Ravi, you name it).
 * Simple, light, and nothing else needed.
 * No macros, settings, or configuration scripts needed.
 * Supports different object lifetime management models.
@@ -91,7 +91,7 @@ LuaBridge is usable from a compliant C++17 and offers the following features:
 
 It also offers a set of improvements compared to vanilla LuaBridge:
 
-* The only binder library that works with PUC-Lua as well as LuaJIT and Luau, wonderful for game development !
+* The only binder library that works with PUC-Lua as well as LuaJIT, Luau and Ravi, wonderful for game development !
 * Can work with both c++ exceptions and without (Works with `-fno-exceptions` and `/EHsc-`).
 * Can safely register and use classes exposed across shared library boundaries.
 * Full support for capturing lambdas in all namespace and class methods.
