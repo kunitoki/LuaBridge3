@@ -48,13 +48,9 @@ inline void dumpValue(lua_State* L, int index, std::ostream& stream, unsigned le
 
     case LUA_TFUNCTION:
         if (lua_iscfunction(L, index))
-        {
             stream << "cfunction@" << lua_topointer(L, index);
-        }
         else
-        {
             stream << "function@" << lua_topointer(L, index);
-        }
         break;
 
     case LUA_TTHREAD:
