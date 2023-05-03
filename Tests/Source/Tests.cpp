@@ -615,6 +615,43 @@ TEST_F(LuaBridgeTest, StdSharedPtrSingle)
     EXPECT_EQ(2, a4->x);
 }
 
+TEST_F(LuaBridgeTest, StdSharedPtrSingleCustomConstructor)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("test")
+            .beginClass<A>("A1")
+                .addConstructorFrom<std::shared_ptr<A>>(
+                    [] { return std::make_shared<A>(); })
+            .endClass()
+        .endNamespace();
+
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("test")
+            .beginClass<A>("A2")
+                .addConstructorFrom<std::shared_ptr<A>>(
+                    [] { return std::make_shared<A>(); },
+                    [](int x) { return std::make_shared<A>(x); },
+                    [](int x, int y) { return std::make_shared<A>(x + y); })
+            .endClass()
+        .endNamespace();
+
+    EXPECT_TRUE(runLua("result = test.A1()"));
+    auto a0 = result<std::shared_ptr<A>>();
+    EXPECT_EQ(42, a0->x);
+
+    EXPECT_TRUE(runLua("result = test.A2()"));
+    auto a1 = result<std::shared_ptr<A>>();
+    EXPECT_EQ(42, a1->x);
+
+    EXPECT_TRUE(runLua("result = test.A2(1337)"));
+    auto a2 = result<std::shared_ptr<A>>();
+    EXPECT_EQ(1337, a2->x);
+
+    EXPECT_TRUE(runLua("result = test.A2(11, 22)"));
+    auto a3 = result<std::shared_ptr<A>>();
+    EXPECT_EQ(33, a3->x);
+}
+
 TEST_F(LuaBridgeTest, StdSharedPtrMultiple)
 {
     luabridge::getGlobalNamespace(L)

@@ -1105,6 +1105,70 @@ class Namespace : public detail::Registrar
 
         //=========================================================================================
         /**
+         * @brief Add or replace a placement constructor.
+         *
+         * The primary placement constructor is invoked when calling the class type table like a function.
+         *
+         * The provider of the Function argument is responsible of doing placement new of the type T over the void* pointer provided to
+         * the method as first argument.
+         */
+        template <class... Functions>
+        auto addConstructor(Functions... functions)
+            -> std::enable_if_t<(detail::is_callable_v<Functions> && ...) && (sizeof...(Functions) > 0), Class<T>&>
+        {
+            static_assert(((detail::function_arity_excluding_v<Functions, lua_State*> >= 1) && ...));
+            static_assert(((std::is_same_v<detail::function_argument_t<0, Functions>, void*>) && ...));
+
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            if constexpr (sizeof...(Functions) == 1)
+            {
+                ([&]
+                {
+                    using F = detail::constructor_forwarder<T, Functions>;
+
+                    lua_newuserdata_aligned<F>(L, F(std::move(functions))); // Stack: co, cl, st, upvalue
+                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, 1); // Stack: co, cl, st, function
+
+                } (), ...);
+            }
+            else
+            {
+                // create new closure of try_overloads with new table
+                lua_createtable(L, static_cast<int>(sizeof...(Functions)), 0); // reserve space for N overloads
+
+                int idx = 1;
+
+                ([&]
+                {
+                    using F = detail::constructor_forwarder<T, Functions>;
+
+                    lua_createtable(L, 2, 0); // reserve space for: function, arity
+                    lua_pushinteger(L, 1);
+                    if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
+                        lua_pushinteger(L, -1);
+                    else
+                        lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>) - 1); // 1: for void* ptr
+                    lua_settable(L, -3);
+                    lua_pushinteger(L, 2);
+                    lua_newuserdata_aligned<F>(L, F(std::move(functions)));
+                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, 1);
+                    lua_settable(L, -3);
+                    lua_rawseti(L, -2, idx);
+                    ++idx;
+
+                } (), ...);
+
+                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, 1);
+            }
+
+            rawsetfield(L, -2, "__call"); // Stack: co, cl, st
+
+            return *this;
+        }
+
+        //=========================================================================================
+        /**
          * @brief Add or replace a primary Constructor when the type is used from an intrusive container C.
          */
         template <class C, class... Functions>
@@ -1152,19 +1216,15 @@ class Namespace : public detail::Registrar
 
         //=========================================================================================
         /**
-         * @brief Add or replace a placement constructor.
+         * @brief Add or replace a primary Constructor when the type is used from an intrusive container C.
          *
-         * The primary placement constructor is invoked when calling the class type table like a function.
-         *
-         * The provider of the Function argument is responsible of doing placement new of the type T over the void* pointer provided to
-         * the method as first argument.
+         * The provider of the Function argument is responsible of constructing the container C forwarding arguments in the callable Functions passed in.
          */
-        template <class... Functions>
-        auto addConstructor(Functions... functions)
+        template <class C, class... Functions>
+        auto addConstructorFrom(Functions... functions)
             -> std::enable_if_t<(detail::is_callable_v<Functions> && ...) && (sizeof...(Functions) > 0), Class<T>&>
         {
-            static_assert(((detail::function_arity_excluding_v<Functions, lua_State*> >= 1) && ...));
-            static_assert(((std::is_same_v<detail::function_argument_t<0, Functions>, void*>) && ...));
+            static_assert(((std::is_same_v<detail::function_result_t<Functions>, C>) && ...));
 
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
@@ -1172,7 +1232,7 @@ class Namespace : public detail::Registrar
             {
                 ([&]
                 {
-                    using F = detail::constructor_forwarder<T, Functions>;
+                    using F = detail::container_forwarder<C, Functions>;
 
                     lua_newuserdata_aligned<F>(L, F(std::move(functions))); // Stack: co, cl, st, upvalue
                     lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, 1); // Stack: co, cl, st, function
@@ -1188,14 +1248,14 @@ class Namespace : public detail::Registrar
 
                 ([&]
                 {
-                    using F = detail::constructor_forwarder<T, Functions>;
+                    using F = detail::container_forwarder<C, Functions>;
 
                     lua_createtable(L, 2, 0); // reserve space for: function, arity
                     lua_pushinteger(L, 1);
                     if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
                         lua_pushinteger(L, -1);
                     else
-                        lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>) - 1); // 1: for void* ptr
+                        lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
                     lua_settable(L, -3);
                     lua_pushinteger(L, 2);
                     lua_newuserdata_aligned<F>(L, F(std::move(functions)));
