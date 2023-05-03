@@ -6742,6 +6742,18 @@ struct placement_constructor
     }
 };
 
+template <class C>
+struct container_constructor
+{
+    template <class F, class Args>
+    static C construct(const F& func, const Args& args)
+    {
+        auto alloc = [&func](auto&&... args) { return func(std::forward<decltype(args)>(args)...); };
+
+        return std::apply(alloc, args);
+    }
+};
+
 template <class T>
 struct external_constructor
 {
@@ -6844,6 +6856,32 @@ struct factory_forwarder
 private:
     Alloc m_alloc;
     Dealloc m_dealloc;
+};
+
+template <class C, class F>
+struct container_forwarder
+{
+    explicit container_forwarder(F f)
+        : m_func(std::move(f))
+    {
+    }
+
+    C operator()(lua_State* L)
+    {
+        using FnTraits = function_traits<F>;
+        using FnArgs = typename FnTraits::argument_types;
+
+        auto obj = container_constructor<C>::construct(m_func, make_arguments_list<FnArgs, 2>(L));
+
+        auto result = UserdataSharedHelper<C, false>::push(L, obj);
+        if (! result)
+            raise_lua_error(L, "%s", result.message().c_str());
+
+        return obj;
+    }
+
+private:
+    F m_func;
 };
 
 } 
@@ -8950,6 +8988,61 @@ class Namespace : public detail::Registrar
             return *this;
         }
 
+        template <class... Functions>
+        auto addConstructor(Functions... functions)
+            -> std::enable_if_t<(detail::is_callable_v<Functions> && ...) && (sizeof...(Functions) > 0), Class<T>&>
+        {
+            static_assert(((detail::function_arity_excluding_v<Functions, lua_State*> >= 1) && ...));
+            static_assert(((std::is_same_v<detail::function_argument_t<0, Functions>, void*>) && ...));
+
+            assertStackState(); 
+
+            if constexpr (sizeof...(Functions) == 1)
+            {
+                ([&]
+                {
+                    using F = detail::constructor_forwarder<T, Functions>;
+
+                    lua_newuserdata_aligned<F>(L, F(std::move(functions))); 
+                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, 1); 
+
+                } (), ...);
+            }
+            else
+            {
+                
+                lua_createtable(L, static_cast<int>(sizeof...(Functions)), 0); 
+
+                int idx = 1;
+
+                ([&]
+                {
+                    using F = detail::constructor_forwarder<T, Functions>;
+
+                    lua_createtable(L, 2, 0); 
+                    lua_pushinteger(L, 1);
+                    if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
+                        lua_pushinteger(L, -1);
+                    else
+                        lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>) - 1); 
+                    lua_settable(L, -3);
+                    lua_pushinteger(L, 2);
+                    lua_newuserdata_aligned<F>(L, F(std::move(functions)));
+                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, 1);
+                    lua_settable(L, -3);
+                    lua_rawseti(L, -2, idx);
+                    ++idx;
+
+                } (), ...);
+
+                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, 1);
+            }
+
+            rawsetfield(L, -2, "__call"); 
+
+            return *this;
+        }
+
         template <class C, class... Functions>
         auto addConstructorFrom()
             -> std::enable_if_t<(sizeof...(Functions) > 0), Class<T>&>
@@ -8993,12 +9086,11 @@ class Namespace : public detail::Registrar
             return *this;
         }
 
-        template <class... Functions>
-        auto addConstructor(Functions... functions)
+        template <class C, class... Functions>
+        auto addConstructorFrom(Functions... functions)
             -> std::enable_if_t<(detail::is_callable_v<Functions> && ...) && (sizeof...(Functions) > 0), Class<T>&>
         {
-            static_assert(((detail::function_arity_excluding_v<Functions, lua_State*> >= 1) && ...));
-            static_assert(((std::is_same_v<detail::function_argument_t<0, Functions>, void*>) && ...));
+            static_assert(((std::is_same_v<detail::function_result_t<Functions>, C>) && ...));
 
             assertStackState(); 
 
@@ -9006,7 +9098,7 @@ class Namespace : public detail::Registrar
             {
                 ([&]
                 {
-                    using F = detail::constructor_forwarder<T, Functions>;
+                    using F = detail::container_forwarder<C, Functions>;
 
                     lua_newuserdata_aligned<F>(L, F(std::move(functions))); 
                     lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, 1); 
@@ -9022,14 +9114,14 @@ class Namespace : public detail::Registrar
 
                 ([&]
                 {
-                    using F = detail::constructor_forwarder<T, Functions>;
+                    using F = detail::container_forwarder<C, Functions>;
 
                     lua_createtable(L, 2, 0); 
                     lua_pushinteger(L, 1);
                     if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
                         lua_pushinteger(L, -1);
                     else
-                        lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>) - 1); 
+                        lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
                     lua_settable(L, -3);
                     lua_pushinteger(L, 2);
                     lua_newuserdata_aligned<F>(L, F(std::move(functions)));
