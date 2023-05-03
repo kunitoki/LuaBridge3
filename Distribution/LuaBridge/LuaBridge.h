@@ -2690,7 +2690,7 @@ public:
         lua_pushlightuserdata(L, detail::getExceptionsKey());
         lua_gettable(L, LUA_REGISTRYINDEX);
 
-        const bool enabled = lua_isboolean(L, -1) ? lua_toboolean(L, -1) : false;
+        const bool enabled = lua_isboolean(L, -1) ? static_cast<bool>(lua_toboolean(L, -1)) : false;
         lua_pop(L, 1);
 
         return enabled;
@@ -10276,13 +10276,9 @@ inline void dumpValue(lua_State* L, int index, std::ostream& stream, unsigned le
 
     case LUA_TFUNCTION:
         if (lua_iscfunction(L, index))
-        {
             stream << "cfunction@" << lua_topointer(L, index);
-        }
         else
-        {
             stream << "function@" << lua_topointer(L, index);
-        }
         break;
 
     case LUA_TTHREAD:
