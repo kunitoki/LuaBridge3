@@ -48,10 +48,9 @@ Contents
     *   [3.2 - Lua Lifetime](#32---lua-lifetime)
     *   [3.3 - Pointers, References, and Pass by Value](#33---pointers-references-and-pass-by-value)
     *   [3.4 - Shared Lifetime](#34---shared-lifetime)
-        *   [3.4.1 - Class RefCountedObjectPtr](#341---class-refcountedobjectptr)
-        *   [3.4.2 - User-defined Containers](#342---user-defined-containers)
-        *   [3.4.3 - shared_ptr As Container](#343---shared_ptr-as-container)
-        *   [3.4.4 - Container Constructors](#344---container-constructors)
+        *   [3.4.1 - User-defined Containers](#341---user-defined-containers)
+        *   [3.4.2 - shared_ptr As Container](#342---shared_ptr-as-container)
+        *   [3.4.3 - Container Constructors](#343---container-constructors)
     *   [3.5 - Mixing Lifetimes](#35---mixing-lifetimes)
     *   [3.6 - Convenience Functions](#36---convenience-functions)
 
