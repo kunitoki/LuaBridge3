@@ -4,8 +4,10 @@ cmake_minimum_required (VERSION 3.5)
 
 set (LUABRIDGE_LUAJIT_LOCATION "${CMAKE_CURRENT_LIST_DIR}/Lua/LuaJIT.2.1")
 set (LUABRIDGE_LUAU_LOCATION "${CMAKE_CURRENT_LIST_DIR}/../ThirdParty/luau")
+set (LUABRIDGE_RAVI_LOCATION "${CMAKE_CURRENT_LIST_DIR}/../ThirdParty/ravi")
 
 add_subdirectory(${LUABRIDGE_LUAJIT_LOCATION})
+add_subdirectory(${LUABRIDGE_RAVI_LOCATION} ravi)
 
 # ====================================================== Unit Tests Files
 
@@ -16,6 +18,7 @@ set (LUABRIDGE_TEST_SOURCE_FILES
   Source/CoroutineTests.cpp
   Source/EnumTests.cpp
   Source/ExceptionTests.cpp
+  Source/FlagSetTests.cpp
   Source/IssueTests.cpp
   Source/IteratorTests.cpp
   Source/LegacyTests.cpp
@@ -88,10 +91,16 @@ file (GLOB_RECURSE LUABRIDGE_TEST_LUAJIT_FILES
   Lua/LuaLibrary.h
 )
 
+# ====================================================== Ravi
+
+file (GLOB_RECURSE LUABRIDGE_TEST_RAVI_FILES
+  Lua/LuaLibrary.h
+)
+
 # ====================================================== Shared Library
 
 file (GLOB_RECURSE LUABRIDGE_TEST_SHARED_LIBRARY_FILES
-  Source/SharedCode.ch
+  Source/SharedCode.h
   Source/SharedCode.cpp
 )
 
@@ -150,6 +159,7 @@ function (setup_coverage_single_target)
       -a "coverage/LuaBridgeTestsLuaJIT.info"
       -a "coverage/LuaBridgeTestsLuaJITNoexcept.info"
       -a "coverage/LuaBridgeTestsLuau.info"
+      -a "coverage/LuaBridgeTestsRavi.info"
       -o "coverage/Merged.info"
     COMMAND ${GENHTML_EXECUTABLE}
       --rc lcov_branch_coverage=1
@@ -166,6 +176,7 @@ function (setup_coverage_single_target)
       "coverage/LuaBridgeTestsLuaJIT.info"
       "coverage/LuaBridgeTestsLuaJITNoexcept.info"
       "coverage/LuaBridgeTestsLuau.info"
+      "coverage/LuaBridgeTestsRavi.info"
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     VERBATIM)
 
@@ -228,6 +239,9 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
   elseif (${LUA_VERSION} STREQUAL "LUAJIT")
     target_compile_definitions (${LUABRIDGE_TEST_NAME} PRIVATE LUABRIDGEDEMO_LUAJIT=1)
     target_compile_definitions (${LUABRIDGE_TESTLIB_NAME} PRIVATE LUABRIDGEDEMO_LUAJIT=1)
+  elseif (${LUA_VERSION} STREQUAL "RAVI")
+    target_compile_definitions (${LUABRIDGE_TEST_NAME} PRIVATE LUABRIDGEDEMO_RAVI=1)
+    target_compile_definitions (${LUABRIDGE_TESTLIB_NAME} PRIVATE LUABRIDGEDEMO_RAVI=1)
   else () # if(${LUA_VERSION} MATCHES "^[0-9]*")
     target_compile_definitions (${LUABRIDGE_TEST_NAME} PRIVATE LUABRIDGEDEMO_LUA_VERSION=${LUA_VERSION})
     target_compile_definitions (${LUABRIDGE_TESTLIB_NAME} PRIVATE LUABRIDGEDEMO_LUA_VERSION=${LUA_VERSION})
@@ -289,6 +303,9 @@ add_test_app (LuaBridgeTestsLuaJITNoexcept "LUAJIT" "${LUABRIDGE_TEST_LUAJIT_FIL
 
 add_test_app (LuaBridgeTestsLuau "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 1 "")
 #add_test_app (LuaBridgeTestsLuauNoexcept "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 0 "")
+
+add_test_app (LuaBridgeTestsRavi "RAVI" "${LUABRIDGE_TEST_RAVI_FILES}" 1 "libravi")
+#add_test_app (LuaBridgeTestsRaviNoexcept "RAVI" "${LUABRIDGE_TEST_RAVI_FILES}" 0 "libravi")
 
 if (LUABRIDGE_COVERAGE)
   setup_coverage_single_target ()

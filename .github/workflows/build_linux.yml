@@ -75,3 +75,7 @@ jobs:
     - name: Test Luau
       working-directory: ${{runner.workspace}}/build/Tests
       run: ./LuaBridgeTestsLuau
+
+    - name: Test Ravi
+      working-directory: ${{runner.workspace}}/build/Tests
+      run: ./LuaBridgeTestsRavi

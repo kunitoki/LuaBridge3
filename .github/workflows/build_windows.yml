@@ -67,18 +67,20 @@ jobs:
         ./LuaBridgeTests54.exe
         ./LuaBridgeTests54Noexcept.exe
 
-    #- name: Test LuaJIT
-    #  working-directory: ${{runner.workspace}}/build/Tests/Release
-    #  shell: bash
-    #  run: ./LuaBridgeTestsLuaJIT.exe
-
-    - name: Test LuaJIT - No Exceptions
+    - name: Test LuaJIT
       working-directory: ${{runner.workspace}}/build/Tests/Release
       shell: bash
-      run: |
-        ./LuaBridgeTestsLuaJITNoexcept.exe
+      # run: ./LuaBridgeTestsLuaJIT.exe
+      run: ./LuaBridgeTestsLuaJITNoexcept.exe
 
     - name: Test Luau
       working-directory: ${{runner.workspace}}/build/Tests/Release
       shell: bash
       run: ./LuaBridgeTestsLuau.exe
+
+    - name: Test Ravi
+      working-directory: ${{runner.workspace}}/build/Tests/Release
+      shell: bash
+      run: |
+        cp ../ravi/Release/libravi.dll .
+        ./LuaBridgeTestsRavi.exe

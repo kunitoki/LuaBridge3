@@ -4,6 +4,20 @@
 
 #include "TestBase.h"
 
+namespace {
+int lua_resume_x(lua_State* L, int nargs)
+{
+#if LUABRIDGEDEMO_LUAJIT || LUA_VERSION_NUM == 501
+    return lua_resume(L, nargs);
+#elif LUABRIDGEDEMO_LUAU || LUABRIDGEDEMO_RAVI || LUA_VERSION_NUM < 504
+    return lua_resume(L, nullptr, nargs);
+#else
+    [[maybe_unused]] int nresults = 0;
+    return lua_resume(L, nullptr, nargs, &nresults);
+#endif
+}
+} // namespace
+
 struct CoroutineTests : TestBase
 {
 };
@@ -79,6 +93,45 @@ TEST_F(CoroutineTests, LuaRefMove)
     EXPECT_EQ(42, y.unsafe_cast<int>());
 }
 
+TEST_F(CoroutineTests, LuaRefPushInDifferentThread)
+{
+    lua_State* thread1 = lua_newthread(L);
+    lua_State* thread2 = lua_newthread(L);
+
+    luabridge::LuaRef y = luabridge::LuaRef(L, 1337);
+
+    luabridge::setGlobal(thread1, y, "y1");
+    luabridge::setGlobal(thread2, y, "y2");
+
+    {
+        auto result = luaL_loadstring(thread1, "coroutine.yield(y1)");
+        ASSERT_EQ(LUABRIDGE_LUA_OK, result);
+    }
+
+    {
+        auto result = lua_resume_x(thread1, 0);
+        ASSERT_EQ(LUA_YIELD, result);
+        EXPECT_EQ(1, lua_gettop(thread1));
+
+        auto x1 = luabridge::LuaRef::fromStack(thread1);
+        EXPECT_EQ(y, x1);
+    }
+
+    {
+        auto result = luaL_loadstring(thread2, "coroutine.yield(y2)");
+        ASSERT_EQ(LUABRIDGE_LUA_OK, result);
+    }
+
+    {
+        auto result = lua_resume_x(thread2, 0);
+        ASSERT_EQ(LUA_YIELD, result);
+        EXPECT_EQ(1, lua_gettop(thread2));
+
+        auto x1 = luabridge::LuaRef::fromStack(thread2);
+        EXPECT_EQ(y, x1);
+    }
+}
+
 TEST_F(CoroutineTests, ThreadedRegistration)
 {
     using namespace luabridge;
@@ -122,15 +175,7 @@ TEST_F(CoroutineTests, ThreadedRegistration)
     lua_rawgeti(thread1, LUA_REGISTRYINDEX, scriptRef);
 
     {
-#if LUABRIDGEDEMO_LUAJIT || LUABRIDGEDEMO_LUA_VERSION == 501
-        auto result = lua_resume(thread1, 0);
-#elif LUABRIDGEDEMO_LUAU || LUABRIDGEDEMO_LUA_VERSION < 504
-        auto result = lua_resume(thread1, nullptr, 0);
-#else
-        int nresults = 0;
-        auto result = lua_resume(thread1, nullptr, 0, &nresults);
-#endif
-
+        auto result = lua_resume_x(thread1, 0);
         ASSERT_EQ(LUABRIDGE_LUA_OK, result);
     }
 

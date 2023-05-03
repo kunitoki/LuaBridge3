@@ -14,17 +14,17 @@ namespace luabridge {
  */
 struct Result
 {
-    Result() = default;
+    Result() noexcept = default;
 
     Result(std::error_code ec) noexcept
         : m_ec(ec)
     {
     }
 
-    Result(const Result&) = default;
-    Result(Result&&) = default;
-    Result& operator=(const Result&) = default;
-    Result& operator=(Result&&) = default;
+    Result(const Result&) noexcept = default;
+    Result(Result&&) noexcept = default;
+    Result& operator=(const Result&) noexcept = default;
+    Result& operator=(Result&&) noexcept = default;
 
     explicit operator bool() const noexcept
     {
@@ -46,6 +46,14 @@ struct Result
         return m_ec.message();
     }
 
+#if LUABRIDGE_HAS_EXCEPTIONS
+    void throw_on_error() const
+    {
+        if (m_ec)
+            throw std::system_error(m_ec);
+    }
+#endif
+
 private:
     std::error_code m_ec;
 };
@@ -57,7 +65,7 @@ private:
 template <class T>
 struct TypeResult
 {
-    TypeResult() = default;
+    TypeResult() noexcept = default;
 
     template <class U, class = std::enable_if_t<std::is_convertible_v<U, T> && !std::is_same_v<std::decay_t<U>, std::error_code>>>
     TypeResult(U&& value) noexcept
@@ -70,12 +78,12 @@ struct TypeResult
     {
     }
 
-    TypeResult(const TypeResult&) = default;
-    TypeResult(TypeResult&&) = default;
-    TypeResult& operator=(const TypeResult&) = default;
-    TypeResult& operator=(TypeResult&&) = default;
+    TypeResult(const TypeResult&) noexcept = default;
+    TypeResult(TypeResult&&) noexcept = default;
+    TypeResult& operator=(const TypeResult&) noexcept = default;
+    TypeResult& operator=(TypeResult&&) noexcept = default;
 
-    explicit operator bool() const
+    explicit operator bool() const noexcept
     {
         return m_value.hasValue();
     }
@@ -100,6 +108,11 @@ struct TypeResult
         return m_value.value();
     }
 
+    T operator*() const&&
+    {
+        return std::move(m_value.value());
+    }
+
     std::error_code error() const
     {
         return m_value.error();
@@ -114,6 +127,14 @@ struct TypeResult
     {
         return m_value.error().message();
     }
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    void throw_on_error() const
+    {
+        if (! m_value.hasValue())
+            throw std::system_error(m_value.error());
+    }
+#endif
 
 private:
     Expected<T, std::error_code> m_value;

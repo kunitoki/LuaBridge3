@@ -83,7 +83,7 @@ protected:
     {
     };
 
-    LuaRefBase(lua_State* L)
+    LuaRefBase(lua_State* L) noexcept
         : m_L(L)
     {
     }
@@ -96,7 +96,7 @@ protected:
      */
     int createRef() const
     {
-        impl().push();
+        impl().push(m_L);
 
         return luaL_ref(m_L, LUA_REGISTRYINDEX);
     }
@@ -119,7 +119,7 @@ public:
 
         lua_getglobal(m_L, "tostring");
 
-        impl().push();
+        impl().push(m_L);
 
         lua_call(m_L, 1, 1);
 
@@ -198,34 +198,6 @@ public:
 
     //=============================================================================================
     /**
-     * @brief Place the object onto the Lua stack.
-     *
-     * @param L A Lua state.
-     */
-    void push(lua_State* L) const
-    {
-        LUABRIDGE_ASSERT(equalstates(L, m_L));
-        (void) L;
-
-        impl().push();
-    }
-
-    //=============================================================================================
-    /**
-     * @brief Pop the top of Lua stack and assign it to the reference.
-     *
-     * @param L A Lua state.
-     */
-    void pop(lua_State* L)
-    {
-        LUABRIDGE_ASSERT(equalstates(L, m_L));
-        (void) L;
-
-        impl().pop();
-    }
-
-    //=============================================================================================
-    /**
      * @brief Return the Lua type of the referred value.
      *
      * This invokes lua_type().
@@ -238,11 +210,9 @@ public:
     {
         const StackRestore stackRestore(m_L);
 
-        impl().push();
+        impl().push(m_L);
 
-        const int refType = lua_type(m_L, -1);
-
-        return refType;
+        return lua_type(m_L, -1);
     }
 
     /**
@@ -333,7 +303,7 @@ public:
     {
         const StackRestore stackRestore(m_L);
 
-        impl().push();
+        impl().push(m_L);
 
         return Stack<T>::get(m_L, -1);
     }
@@ -348,7 +318,7 @@ public:
     {
         const StackRestore stackRestore(m_L);
 
-        impl().push();
+        impl().push(m_L);
 
         return *Stack<T>::get(m_L, -1);
     }
@@ -364,7 +334,7 @@ public:
     {
         const StackRestore stackRestore(m_L);
 
-        impl().push();
+        impl().push(m_L);
 
         return Stack<T>::isInstance(m_L, -1);
     }
@@ -397,7 +367,7 @@ public:
 
         const StackRestore stackRestore(m_L);
 
-        impl().push();
+        impl().push(m_L);
 
         if (! lua_getmetatable(m_L, -1))
             return LuaRef(m_L);
@@ -420,7 +390,7 @@ public:
     {
         const StackRestore stackRestore(m_L);
 
-        impl().push();
+        impl().push(m_L);
 
         if (! Stack<T>::push(m_L, rhs))
             return false;
@@ -457,7 +427,7 @@ public:
     {
         const StackRestore stackRestore(m_L);
 
-        impl().push();
+        impl().push(m_L);
 
         if (! Stack<T>::push(m_L, rhs))
             return false;
@@ -484,7 +454,7 @@ public:
     {
         const StackRestore stackRestore(m_L);
 
-        impl().push();
+        impl().push(m_L);
 
         if (! Stack<T>::push(m_L, rhs))
             return false;
@@ -511,7 +481,7 @@ public:
     {
         const StackRestore stackRestore(m_L);
 
-        impl().push();
+        impl().push(m_L);
 
         if (! Stack<T>::push(m_L, rhs))
             return false;
@@ -538,7 +508,7 @@ public:
     {
         const StackRestore stackRestore(m_L);
 
-        impl().push();
+        impl().push(m_L);
 
         if (! Stack<T>::push(m_L, rhs))
             return false;
@@ -565,7 +535,7 @@ public:
     {
         const StackRestore stackRestore(m_L);
 
-        impl().push();
+        impl().push(m_L);
 
         if (! Stack<T>::push(m_L, v))
             return false;
@@ -585,7 +555,7 @@ public:
     {
         const StackRestore stackRestore(m_L);
 
-        impl().push();
+        impl().push(m_L);
 
         return get_length(m_L, -1);
     }
@@ -758,19 +728,24 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         /**
          * @brief Push the value onto the Lua stack.
          */
-        using LuaRefBase::push;
-
         void push() const
         {
+            push(m_L);
+        }
+
+        void push(lua_State* L) const
+        {
+            LUABRIDGE_ASSERT(equalstates(L, m_L));
+
 #if LUABRIDGE_SAFE_STACK_CHECKS
-            if (! lua_checkstack(m_L, 3))
+            if (! lua_checkstack(L, 3))
                 return;
 #endif
 
-            lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_tableRef);
-            lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_keyRef);
-            lua_gettable(m_L, -2);
-            lua_remove(m_L, -2); // remove the table
+            lua_rawgeti(L, LUA_REGISTRYINDEX, m_tableRef);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, m_keyRef);
+            lua_gettable(L, -2);
+            lua_remove(L, -2); // remove the table
         }
 
         //=========================================================================================
@@ -827,7 +802,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
      *
      * @note The object is popped.
      */
-    LuaRef(lua_State* L, FromStack)
+    LuaRef(lua_State* L, FromStack) noexcept
         : LuaRefBase(L)
         , m_ref(luaL_ref(m_L, LUA_REGISTRYINDEX))
     {
@@ -867,7 +842,7 @@ public:
      *
      * @param L A Lua state.
      */
-    LuaRef(lua_State* L)
+    LuaRef(lua_State* L) noexcept
         : LuaRefBase(L)
         , m_ref(LUA_NOREF)
     {
@@ -921,7 +896,7 @@ public:
      *
      * @param other An existing reference.
      */
-    LuaRef(LuaRef&& other)
+    LuaRef(LuaRef&& other) noexcept
         : LuaRefBase(other.m_L)
         , m_ref(std::exchange(other.m_ref, LUA_NOREF))
     {
@@ -1046,7 +1021,7 @@ public:
      *
      * @returns This reference.
      */
-    LuaRef& operator=(LuaRef&& rhs)
+    LuaRef& operator=(LuaRef&& rhs) noexcept
     {
         if (m_ref != LUA_NOREF)
             luaL_unref(m_L, LUA_REGISTRYINDEX, m_ref);
@@ -1105,16 +1080,21 @@ public:
     /**
      * @brief Place the object onto the Lua stack.
      */
-    using LuaRefBase::push;
-
     void push() const
     {
+        push(m_L);
+    }
+
+    void push(lua_State* L) const
+    {
+        LUABRIDGE_ASSERT(equalstates(L, m_L));
+
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        if (! lua_checkstack(m_L, 1))
+        if (! lua_checkstack(L, 1))
             return;
 #endif
 
-        lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_ref);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, m_ref);
     }
 
     //=============================================================================================
@@ -1123,10 +1103,17 @@ public:
      */
     void pop()
     {
-        if (m_ref != LUA_NOREF)
-            luaL_unref(m_L, LUA_REGISTRYINDEX, m_ref);
+        pop(m_L);
+    }
 
-        m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX);
+    void pop(lua_State* L)
+    {
+        LUABRIDGE_ASSERT(equalstates(L, m_L));
+
+        if (m_ref != LUA_NOREF)
+            luaL_unref(L, LUA_REGISTRYINDEX, m_ref);
+
+        m_ref = luaL_ref(L, LUA_REGISTRYINDEX);
     }
 
     //=============================================================================================
@@ -1139,11 +1126,7 @@ public:
 
         lua_xmove(m_L, newL, 1);
 
-        if (m_ref != LUA_NOREF)
-            luaL_unref(m_L, LUA_REGISTRYINDEX, m_ref);
-
         m_L = newL;
-        m_ref = luaL_ref(newL, LUA_REGISTRYINDEX);
     }
 
     //=============================================================================================
@@ -1230,7 +1213,7 @@ public:
     }
 
 private:
-    void swap(LuaRef& other)
+    void swap(LuaRef& other) noexcept
     {
         using std::swap;
 

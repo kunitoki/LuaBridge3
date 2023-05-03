@@ -381,7 +381,7 @@ TEST_F(LuaBridgeTest, ClassFunction)
 #endif
 }
 
-TEST_F(LuaBridgeTest, PropertyGetterFailOnUnregistredClass)
+TEST_F(LuaBridgeTest, PropertyGetterFailOnUnregisteredClass)
 {
     struct Clazz {} clazz;
     
@@ -391,7 +391,7 @@ TEST_F(LuaBridgeTest, PropertyGetterFailOnUnregistredClass)
         .endNamespace();
 
 #if LUABRIDGE_HAS_EXCEPTIONS
-    EXPECT_THROW(runLua("result = ns.clazz"), std::runtime_error);
+    EXPECT_ANY_THROW(runLua("result = ns.clazz"));
 #else
     EXPECT_FALSE(runLua("result = ns.clazz"));
 #endif
@@ -468,6 +468,50 @@ TEST_F(LuaBridgeTest, InvokePassingUnregisteredClassShouldThrowAndRestoreStack)
         EXPECT_EQ(stackTop, lua_gettop(L));
 #endif
     }
+}
+
+namespace {
+struct Foo {};
+} // namespace
+
+TEST_F(LuaBridgeTest, NonConstMethodOnConstPointer)
+{
+   luabridge::getGlobalNamespace(L)
+      .beginNamespace("test")
+         .addFunction("constCall", [](const Foo*) { return "const"; })
+         .addFunction("mutableCall", [](Foo*) { return "mutable"; })
+         .beginClass<Foo>("Foo")
+            .addFunction("constCall", [](const Foo*) { return "const"; })
+            .addFunction("mutableCall", [](Foo*) { return "mutable"; })
+         .endClass()
+      .endNamespace();
+
+    Foo a, b;
+    luabridge::setGlobal(L, std::addressof(a), "a");
+    luabridge::setGlobal(L, std::addressof(std::as_const(b)), "b");
+
+    runLua("result = a:constCall()");
+    EXPECT_EQ("const", result<std::string>());
+    runLua("result = test.constCall(a)");
+    EXPECT_EQ("const", result<std::string>());
+
+    runLua("result = a:mutableCall()");
+    EXPECT_EQ("mutable", result<std::string>());
+    runLua("result = test.mutableCall(a)");
+    EXPECT_EQ("mutable", result<std::string>());
+
+    runLua("result = b:constCall()");
+    EXPECT_EQ("const", result<std::string>());
+    runLua("result = test.constCall(b)");
+    EXPECT_EQ("const", result<std::string>());
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_ANY_THROW(runLua("result = b:mutableCall()"));
+    EXPECT_ANY_THROW(runLua("result = test.mutableCall(b)"));
+#else
+    EXPECT_FALSE(runLua("result = b:mutableCall()"));
+    EXPECT_FALSE(runLua("result = test.mutableCall(b)"));
+#endif
 }
 
 namespace {
@@ -687,6 +731,10 @@ TEST_F(LuaBridgeTest, StdSharedPtrDerivedPolymorphic)
         //EXPECT_FALSE(!!c1);
 #endif
     }
+
+#if LUABRIDGE_ON_RAVI
+    return; // TODO - Ravi asserts on the lua state being invalid because of the previous exception
+#endif
 
     EXPECT_TRUE(runLua("local x = test.A(2); result = x:myNameIs()"));
     auto x1 = result<std::string>();
