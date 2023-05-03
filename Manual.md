@@ -1793,7 +1793,11 @@ Class<T> addConstructor (Functions... functions);
 
 /// Registers one or multiple overloaded constructors for type T when usable from intrusive container C.
 template <class C, class... Functions>
-Class<T> addConstructor ();
+Class<T> addConstructorFrom ();
+
+/// Registers one or multiple overloaded constructors for type T when usable from intrusive container C using callable arguments.
+template <class C, class... Functions>
+Class<T> addConstructorFrom (Functions... functions);
 
 /// Registers allocator and deallocators for type T.
 template <class Alloc, class Dealloc>
