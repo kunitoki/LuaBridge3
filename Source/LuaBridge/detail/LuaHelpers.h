@@ -503,6 +503,47 @@ void* lua_newuserdata_aligned(lua_State* L, Args&&... args)
 }
 
 /**
+ * @brief Deallocate lua userdata from pointer.
+ */
+template <class T>
+int lua_deleteuserdata_pointer(lua_State* L)
+{
+    assert(isfulluserdata(L, 1));
+
+    T** aligned = align<T*>(lua_touserdata(L, 1));
+    delete *aligned;
+
+    return 0;
+}
+
+/**
+ * @brief Allocate lua userdata from pointer.
+ */
+template <class T>
+void* lua_newuserdata_pointer(lua_State* L, T* ptr)
+{
+#if LUABRIDGE_ON_LUAU
+    void* pointer = lua_newuserdatadtor(L, maximum_space_needed_to_align<T*>(), [](void* x)
+    {
+        T** aligned = align<T*>(x);
+        delete *aligned;
+    });
+#else
+    void* pointer = lua_newuserdata_x<T*>(L, maximum_space_needed_to_align<T*>());
+
+    lua_newtable(L);
+    lua_pushcfunction_x(L, &lua_deleteuserdata_pointer<T*>);
+    rawsetfield(L, -2, "__gc");
+    lua_setmetatable(L, -2);
+#endif
+
+    T** aligned = align<T*>(pointer);
+    *aligned = ptr;
+
+    return pointer;
+}
+
+/**
  * @brief Safe error able to walk backwards for error reporting correctly.
  */
 inline int raise_lua_error(lua_State* L, const char* fmt, ...)

@@ -34,10 +34,22 @@ template <class T>
 auto unwrap_argument_or_error(lua_State* L, std::size_t index, std::size_t start)
 {
     auto result = Stack<T>::get(L, static_cast<int>(index + start));
-    if (! result)
-        raise_lua_error(L, "Error decoding argument #%d: %s", static_cast<int>(index + 1), result.message().c_str());
+    if (result)
+        return std::move(*result);
 
-    return std::move(*result);
+    // TODO - this might be costly, how to deal with it ?
+    if constexpr (! std::is_lvalue_reference_v<T>)
+    {
+        using U = std::reference_wrapper<std::remove_reference_t<T>>;
+
+        auto resultRef = Stack<U>::get(L, static_cast<int>(index));
+        if (resultRef)
+            return (*resultRef).get();
+    }
+
+    raise_lua_error(L, "Error decoding argument #%d: %s", static_cast<int>(index + 1), result.message().c_str());
+
+    unreachable();
 }
 
 template <class ArgsPack, std::size_t Start, std::size_t... Indices>
@@ -567,7 +579,6 @@ struct property_getter<T, void>
         return 1;
     }
 };
-
 /**
  * @brief lua_CFunction to get a class data member.
  *

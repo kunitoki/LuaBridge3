@@ -2786,6 +2786,139 @@ TEST_F(ClassTests, NewIndexFallbackMetaMethodFreeFunctor)
     ASSERT_EQ(246, result<int>());
 }
 
+TEST_F(ClassTests, ReferenceWrapperRead)
+{
+    int x = 13;
+    std::reference_wrapper<int> ref_wrap_x(x);
+
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("test")
+        .addProperty("ref_wrap_x", &ref_wrap_x)
+        .addFunction("changeReference", [](std::reference_wrapper<int> r) { r.get() = 100; })
+        .endNamespace();
+
+    runLua(R"(
+        result = test.ref_wrap_x
+        test.changeReference(result)
+    )");
+
+    EXPECT_TRUE(result().isUserdata());
+    EXPECT_EQ(x, result().unsafe_cast<std::reference_wrapper<int>>().get());
+    EXPECT_EQ(100, x);
+}
+
+TEST_F(ClassTests, ReferenceWrapperWrite)
+{
+    int x = 13;
+    std::reference_wrapper<int> ref_wrap_x(x);
+
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("test")
+        .addProperty("ref_wrap_x", &ref_wrap_x)
+        .endNamespace();
+
+    runLua(R"(
+        test.ref_wrap_x(100)
+        result = test.ref_wrap_x
+    )");
+
+    EXPECT_TRUE(result().isUserdata());
+    EXPECT_EQ(x, result().unsafe_cast<std::reference_wrapper<int>>().get());
+    EXPECT_EQ(100, x);
+}
+
+TEST_F(ClassTests, ReferenceWrapperRedirect)
+{
+    int x = 13;
+    int y = 100;
+    std::reference_wrapper<int> ref_wrap_x(x);
+    std::reference_wrapper<int> ref_wrap_y(y);
+
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("test")
+        .addProperty("ref_wrap_x", &ref_wrap_x)
+        .addProperty("ref_wrap_y", &ref_wrap_y)
+        .endNamespace();
+
+    runLua(R"(
+        test.ref_wrap_x = test.ref_wrap_y
+        result = test.ref_wrap_x
+    )");
+
+    EXPECT_TRUE(result().isUserdata());
+    EXPECT_EQ(y, result().unsafe_cast<std::reference_wrapper<int>>().get());
+}
+
+TEST_F(ClassTests, ReferenceWrapperDecaysToType)
+{
+    int x = 13;
+    std::reference_wrapper<int> ref_wrap_x(x);
+
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("test")
+        .addProperty("ref_wrap_x", &ref_wrap_x)
+        .addFunction("takeReference", [](int r) { return r * 10; })
+        .endNamespace();
+
+    runLua(R"(
+        result = test.takeReference(test.ref_wrap_x)
+    )");
+
+    EXPECT_EQ(130, result().unsafe_cast<int>());
+}
+
+TEST_F(ClassTests, ReferenceWrapperFailsOnInvalidType)
+{
+    int x = 13;
+    std::reference_wrapper ref_wrap_x(x);
+
+    float y = 1.0f;
+    std::reference_wrapper ref_wrap_y(y);
+
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("test")
+        .addProperty("ref_wrap_x", &ref_wrap_x)
+        .addProperty("ref_wrap_y", &ref_wrap_y)
+        .addFunction("takeReference1", [](float r) { return r * 10; })
+        .addFunction("takeReference2", [](int r) { return r * 10; })
+        .addFunction("takeReference3", [](std::reference_wrapper<float> r) { return r.get() * 10; })
+        .addFunction("takeReference4", [](std::reference_wrapper<int> r) { return r.get() * 10; })
+        .endNamespace();
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_THROW(runLua("result = test.takeReference1(test.ref_wrap_x)"), std::exception);
+    EXPECT_THROW(runLua("result = test.takeReference2(test.ref_wrap_y)"), std::exception);
+    EXPECT_THROW(runLua("result = test.takeReference3(test.ref_wrap_x)"), std::exception);
+    EXPECT_THROW(runLua("result = test.takeReference4(test.ref_wrap_y)"), std::exception);
+#else
+    EXPECT_FALSE(runLua("result = test.takeReference1(test.ref_wrap_x)"));
+    EXPECT_FALSE(runLua("result = test.takeReference2(test.ref_wrap_y)"));
+    EXPECT_FALSE(runLua("result = test.takeReference3(test.ref_wrap_x)"));
+    EXPECT_FALSE(runLua("result = test.takeReference4(test.ref_wrap_y)"));
+#endif
+}
+
+TEST_F(ClassTests, ReferenceWrapperAccessFromLua)
+{
+    int x = 13;
+    std::reference_wrapper<int> ref_wrap_x(x);
+
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("test")
+        .addProperty("ref_wrap_x", &ref_wrap_x)
+        .endNamespace();
+
+    runLua(R"(
+        function xyz(x)
+            return x() * 10
+        end
+
+        result = xyz(test.ref_wrap_x)
+    )");
+
+    EXPECT_EQ(130, result().unsafe_cast<int>());
+}
+
 namespace {
 struct ExtensibleBase
 {

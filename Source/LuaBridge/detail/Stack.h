@@ -1343,8 +1343,81 @@ struct Stack<T[N]>
     }
 };
 
-namespace detail {
+//=================================================================================================
+/**
+ * @brief Stack specialization for `std::reference_wrapper`.
+ */
+template <class T>
+struct Stack<std::reference_wrapper<T>>
+{
+    static Result push(lua_State* L, const std::reference_wrapper<T>& reference)
+    {
+        lua_newuserdata_aligned<std::reference_wrapper<T>>(L, reference.get());
 
+        luaL_newmetatable(L, typeName());
+        lua_pushvalue(L, -2);
+        lua_pushcclosure_x(L, &get_set_reference_value<T>, 1);
+        rawsetfield(L, -2, "__call");
+        lua_setmetatable(L, -2);
+
+        return {};
+    }
+
+    static TypeResult<std::reference_wrapper<T>> get(lua_State* L, int index)
+    {
+        auto ptr = luaL_testudata(L, index, typeName());
+        if (ptr == nullptr)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        auto reference = reinterpret_cast<std::reference_wrapper<T>*>(ptr);
+        if (reference == nullptr)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        return *reference;
+    }
+    
+    static bool isInstance(lua_State* L, int index)
+    {
+        return luaL_testudata(L, index, typeName()) != nullptr;
+    }
+
+private:
+    static const char* typeName()
+    {
+        static const std::string s{ detail::typeName<std::reference_wrapper<T>>() };
+        return s.c_str();
+    }
+
+    template <class U>
+    static int get_set_reference_value(lua_State* L)
+    {
+        LUABRIDGE_ASSERT(lua_isuserdata(L, lua_upvalueindex(1)));
+
+        std::reference_wrapper<U>* ptr = static_cast<std::reference_wrapper<U>*>(lua_touserdata(L, lua_upvalueindex(1)));
+        LUABRIDGE_ASSERT(ptr != nullptr);
+
+        if (lua_gettop(L) > 1)
+        {
+            auto result = Stack<U>::get(L, 2);
+            if (! result)
+                luaL_error(L, "%s", result.message().c_str());
+
+            ptr->get() = *result;
+
+            return 0;
+        }
+        else
+        {
+            auto result = Stack<U>::push(L, ptr->get());
+            if (! result)
+                luaL_error(L, "%s", result.message().c_str());
+
+            return 1;
+        }
+    }
+};
+
+namespace detail {
 template <class T>
 struct StackOpSelector<T&, false>
 {
@@ -1398,7 +1471,6 @@ struct StackOpSelector<const T*, false>
 
     static bool isInstance(lua_State* L, int index) { return Stack<T>::isInstance(L, index); }
 };
-
 } // namespace detail
 
 template <class T>
