@@ -1345,6 +1345,25 @@ luabridge::getGlobalNamespace (L)
   .endNamespace ()
 ```
 
+Alternatively is possible to pass custom lambdas to construct the container, where the return value of those lambdas must be exactly the container specified:
+
+```cpp
+class C : public std::enable_shared_from_this<C>
+{
+  C () { }
+  C (int) { }
+};
+
+luabridge::getGlobalNamespace (L)
+  .beginNamespace ("test")
+    .beginClass <C> ("C")
+      .addConstructorFrom<std::shared_ptr<C>> (
+        []() { return std::make_shared<C> (); },
+        [](int value) { return std::make_shared<C> (value); })
+    .endClass ()
+  .endNamespace ()
+```
+
 3.5 - Mixing Lifetimes
 ----------------------
 

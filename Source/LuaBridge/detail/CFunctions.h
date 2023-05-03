@@ -1241,6 +1241,22 @@ struct placement_constructor
 
 //=================================================================================================
 /**
+ * @brief Container allocator generators.
+ */
+template <class C>
+struct container_constructor
+{
+    template <class F, class Args>
+    static C construct(const F& func, const Args& args)
+    {
+        auto alloc = [&func](auto&&... args) { return func(std::forward<decltype(args)>(args)...); };
+
+        return std::apply(alloc, args);
+    }
+};
+
+//=================================================================================================
+/**
  * @brief External allocator generators.
  */
 template <class T>
@@ -1360,6 +1376,36 @@ struct factory_forwarder
 private:
     Alloc m_alloc;
     Dealloc m_dealloc;
+};
+
+//=================================================================================================
+/**
+ * @brief Container forwarder.
+ */
+template <class C, class F>
+struct container_forwarder
+{
+    explicit container_forwarder(F f)
+        : m_func(std::move(f))
+    {
+    }
+
+    C operator()(lua_State* L)
+    {
+        using FnTraits = function_traits<F>;
+        using FnArgs = typename FnTraits::argument_types;
+
+        auto obj = container_constructor<C>::construct(m_func, make_arguments_list<FnArgs, 2>(L));
+
+        auto result = UserdataSharedHelper<C, false>::push(L, obj);
+        if (! result)
+            raise_lua_error(L, "%s", result.message().c_str());
+
+        return obj;
+    }
+
+private:
+    F m_func;
 };
 
 } // namespace detail
