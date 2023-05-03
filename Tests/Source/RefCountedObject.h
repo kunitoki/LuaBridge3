@@ -39,12 +39,9 @@
 
 #pragma once
 
-#include "detail/Config.h"
-#include "detail/TypeTraits.h"
+#include "TestBase.h"
 
 #include <utility>
-
-namespace luabridge {
 
 //==============================================================================
 /**
@@ -355,6 +352,7 @@ bool operator!=(ReferenceCountedObjectClass* object1,
 }
 
 //==============================================================================
+namespace luabridge {
 
 template<class T>
 struct ContainerTraits<RefCountedObjectPtr<T>>
@@ -365,7 +363,5 @@ struct ContainerTraits<RefCountedObjectPtr<T>>
 
     static T* get(RefCountedObjectPtr<T> const& c) { return c.getObject(); }
 };
-
-//==============================================================================
 
 } // namespace luabridge

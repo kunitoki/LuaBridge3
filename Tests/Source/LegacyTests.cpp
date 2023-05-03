@@ -9,8 +9,6 @@
 #include "TestBase.h"
 #include "LegacyTests.h"
 
-#include "LuaBridge/RefCountedObject.h"
-
 #include <cstring>
 #include <iostream>
 #include <memory>
