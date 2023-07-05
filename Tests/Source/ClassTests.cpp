@@ -3191,6 +3191,21 @@ TEST_F(ClassTests, MetatableSecurity)
     }
 }
 
+TEST_F(ClassTests, MetatablePrinting)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<ExampleStringifiableClass>("ExampleStringifiableClass", luabridge::visibleMetatables)
+            .addConstructor<void(*) ()>()
+        .endClass();
+
+    runLua(R"(
+        local mt = getmetatable(ExampleStringifiableClass)
+        for k, v in pairs(mt) do
+          print(('%s - %s'):format(k, v))
+        end
+    )");
+}
+
 namespace {
 struct XYZ { int x = 0; };
 struct ABC { float y = 0.0f; };
