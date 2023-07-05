@@ -6117,17 +6117,15 @@ inline int newindex_extended_class(lua_State* L)
 template <class C>
 static int tostring_metamethod(lua_State* L)
 {
-    Userdata* ud = Userdata::getExact<C>(L, 1);
-    LUABRIDGE_ASSERT(ud);
+    const void* ptr = lua_topointer(L, -1);
 
     lua_getmetatable(L, -1); 
     lua_rawgetp(L, -1, getTypeKey()); 
     lua_remove(L, -2); 
 
     std::stringstream ss;
-    ss << ": 0x" << std::hex << reinterpret_cast<std::uintptr_t>(static_cast<void*>(ud));
+    ss << ": 0x" << std::hex << reinterpret_cast<std::uintptr_t>(const_cast<void*>(ptr));
     lua_pushstring(L, ss.str().c_str()); 
-
     lua_concat(L, 2); 
 
     return 1;
@@ -8320,6 +8318,7 @@ class Namespace : public detail::Registrar
                 lua_pushcfunction_x(L, &detail::gc_metamethod<T>); 
                 rawsetfield(L, -2, "__gc"); 
 #endif
+
                 lua_pushcfunction_x(L, &detail::tostring_metamethod<T>);
                 rawsetfield(L, -2, "__tostring");
                 ++m_stackSize;
