@@ -8,6 +8,7 @@
 
 #include "Config.h"
 
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
