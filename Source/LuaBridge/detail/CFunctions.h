@@ -337,8 +337,21 @@ inline std::optional<int> try_call_newindex_fallback(lua_State* L, const char* k
             lua_pushvalue(L, -2);  // Stack: mt, nifb, mt, ct, field, mt2, field
             rawsetfield(L, -2, (std::string("super_") + key).c_str()); // Stack: mt, nifb, mt, ct, field, mt2
 
-            lua_pop(L, 3); // Stack: mt, nifb, mt
-            break;
+            if (is_metamethod(key))
+            {
+                lua_pop(L, 2); // Stack: mt, nifb, mt, ct
+                lua_remove(L, -4); // Stack: nifb, mt, ct
+                lua_remove(L, -2); // Stack: nifb, ct
+                lua_pushvalue(L, 2); // Stack: nifb, arg1 (ct), arg2
+                lua_pushvalue(L, 3); // Stack: nifb, arg1 (ct), arg2, arg3
+                lua_call(L, 3, 0); // Stack: -
+                return 0;
+            }
+            else
+            {
+                lua_pop(L, 3); // Stack: mt, nifb, mt, ct
+                break;
+            }
         }
 
         lua_pop(L, 2); // Stack: mt, nifb, mt
@@ -510,7 +523,7 @@ inline int newindex_extended_class(lua_State* L)
 template <class C>
 static int tostring_metamethod(lua_State* L)
 {
-    const void* ptr = lua_topointer(L, -1);
+    const void* ptr = lua_topointer(L, 1);
 
     lua_getmetatable(L, -1); // Stack: metatable (mt)
     lua_rawgetp(L, -1, getTypeKey()); // Stack: mt, classname (cn)
