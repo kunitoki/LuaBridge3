@@ -3050,6 +3050,27 @@ TEST_F(ClassTests, ExtensibleClassCustomMetamethods)
     EXPECT_EQ("ExtensibleBase(1)", result<std::string>());
 }
 
+TEST_F(ClassTests, ExtensibleClassCustomMetamethodsSuper)
+{
+    auto options = luabridge::allowOverridingMethods | luabridge::extensibleClass;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<ExtensibleBase>("ExtensibleBase", options)
+            .addConstructor<void(*)()>()
+        .endClass()
+    ;
+
+    runLua(R"(
+        function ExtensibleBase:__tostring()
+            return '123456 - ' .. self:super___tostring()
+        end
+
+        local base = ExtensibleBase(); result = tostring(base)
+    )");
+
+    EXPECT_EQ(0u, result<std::string>().find("123456"));
+    EXPECT_NE(std::string::npos, result<std::string>().find("ExtensibleBase"));
+}
 
 TEST_F(ClassTests, ExtensibleClassWithCustomIndexMethod)
 {
