@@ -3191,6 +3191,7 @@ TEST_F(ClassTests, MetatableSecurity)
     }
 }
 
+#if LUABRIDGEDEMO_LUA_VERSION >= 502
 TEST_F(ClassTests, MetatablePrinting)
 {
     luabridge::getGlobalNamespace(L)
@@ -3199,12 +3200,19 @@ TEST_F(ClassTests, MetatablePrinting)
         .endClass();
 
     runLua(R"(
+        local text = ''
         local mt = getmetatable(ExampleStringifiableClass)
         for k, v in pairs(mt) do
-          print(('%s - %s'):format(k, v))
+          text = text .. ('%s - %s'):format(k, v)
         end
+        result = text
     )");
+
+    const auto res = result();
+    ASSERT_TRUE(res.isString());
+    EXPECT_FALSE(res.unsafe_cast<std::string>().empty());
 }
+#endif
 
 namespace {
 struct XYZ { int x = 0; };
