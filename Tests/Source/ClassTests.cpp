@@ -3050,6 +3050,30 @@ TEST_F(ClassTests, ExtensibleClassCustomMetamethods)
     EXPECT_EQ("ExtensibleBase(1)", result<std::string>());
 }
 
+TEST_F(ClassTests, ExtensibleClassCustomMetamethodEq)
+{
+    auto options = luabridge::allowOverridingMethods | luabridge::extensibleClass;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<ExtensibleBase>("ExtensibleBase", options)
+            .addConstructor<void(*)()>()
+            .addFunction("baseClass", &ExtensibleBase::baseClass)
+        .endClass()
+    ;
+
+    runLua(R"(
+        function ExtensibleBase:__eq(other)
+            return self:baseClass() == other:baseClass()
+        end
+
+        local base1 = ExtensibleBase()
+        local base2 = ExtensibleBase()
+        result = base1 == base2
+    )");
+
+    EXPECT_TRUE(result<bool>());
+}
+
 TEST_F(ClassTests, ExtensibleClassCustomMetamethodsSuper)
 {
     auto options = luabridge::allowOverridingMethods | luabridge::extensibleClass;
@@ -3062,7 +3086,7 @@ TEST_F(ClassTests, ExtensibleClassCustomMetamethodsSuper)
 
     runLua(R"(
         function ExtensibleBase:__tostring()
-            return '123456 - ' .. self:super___tostring()
+            return '123456 - ' .. self:super__tostring()
         end
 
         local base = ExtensibleBase(); result = tostring(base)

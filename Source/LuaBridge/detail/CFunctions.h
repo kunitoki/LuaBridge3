@@ -151,6 +151,35 @@ inline bool is_metamethod(std::string_view method_name)
     return result != metamethods.end() && *result == method_name;
 }
 
+/**
+ * @brief Make super method name.
+ */
+inline std::string make_super_method_name(const char* name, bool is_metamethod_name)
+{
+    return is_metamethod_name
+        ? (std::string("super") + name)
+        : (std::string("super_") + name);
+}
+
+//=================================================================================================
+/**
+ * @brief Make super method name.
+ */
+inline Options get_class_options(lua_State* L, int index)
+{
+    LUABRIDGE_ASSERT(lua_istable(L, index)); // Stack: mt
+
+    Options options = defaultOptions;
+
+    lua_rawgetp(L, index, getClassOptionsKey()); // Stack: mt, ifb (may be nil)
+    if (lua_isnumber(L, -1))
+        options = Options::fromUnderlying(lua_tointeger(L, -1));
+
+    lua_pop(L, 1);
+
+    return options;
+}
+
 //=================================================================================================
 /**
  * @brief __index metamethod for a namespace or class static and non-static members.
@@ -208,16 +237,8 @@ inline int index_metamethod(lua_State* L)
 
     for (;;)
     {
-        // Obtain class options
-        Options options = defaultOptions;
-
-        lua_rawgetp(L, -1, getClassOptionsKey()); // Stack: mt, ifb (may be nil)
-        if (lua_isnumber(L, -1))
-            options = Options::fromUnderlying(lua_tointeger(L, -1));
-
-        lua_pop(L, 1);
-
         // If we allow method overriding, we need to prioritise it
+        const Options options = get_class_options(L, -1); // Stack: mt
         if (options.test(allowOverridingMethods))
         {
             if (auto result = try_call_index_fallback(L))
@@ -291,12 +312,14 @@ inline std::optional<int> try_call_newindex_fallback(lua_State* L, const char* k
 {
     LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt
 
-    lua_rawgetp(L, -1, getNewIndexFallbackKey()); // Stack: mt, nifb (may be nil)
+    lua_rawgetp(L, -1, getNewIndexFallbackKey()); // Stack: mt, nifb | nil
     if (! lua_iscfunction(L, -1))
     {
         lua_pop(L, 1); // Stack: mt
         return std::nullopt;
     }
+
+    const bool is_key_metamethod = is_metamethod(key);
 
     lua_pushvalue(L, -2); // Stack: mt, nifb, mt
 
@@ -318,62 +341,49 @@ inline std::optional<int> try_call_newindex_fallback(lua_State* L, const char* k
         lua_pushvalue(L, 2); // Stack: mt, nifb, mt, ct, field name
         lua_rawget(L, -2); // Stack: mt, nifb, mt, ct, field | nil
 
-        if (! lua_isnil(L, -1)) // Stack: mt, nifb, mt, ct, nil
+        if (! lua_isnil(L, -1)) // Stack: mt, nifb, mt, ct, field
         {
-            Options options = defaultOptions;
-            lua_rawgetp(L, -2, getClassOptionsKey()); // Stack: mt, nifb, mt, ct, field, opt | nil
-            if (lua_isnumber(L, -1))
-                options = Options::fromUnderlying(lua_tointeger(L, -1));
-            lua_pop(L, 1); // Stack: mt, nifb, mt, ct, field
-
+            // Obtain class options
+            const Options options = get_class_options(L, -2); // Stack: mt, nifb, mt, ct, field,
             if (! options.test(allowOverridingMethods))
-            {
-                lua_pop(L, 5); // Stack: -
                 luaL_error(L, "immutable member '%s'", key);
-                return 0;
-            }
 
             lua_getmetatable(L, 1); // Stack: mt, nifb, mt, ct, field, mt2
             lua_pushvalue(L, -2);  // Stack: mt, nifb, mt, ct, field, mt2, field
-            rawsetfield(L, -2, (std::string("super_") + key).c_str()); // Stack: mt, nifb, mt, ct, field, mt2
+            rawsetfield(L, -2, make_super_method_name(key, is_key_metamethod).c_str()); // Stack: mt, nifb, mt, ct, field, mt2
 
-            if (is_metamethod(key))
-            {
-                lua_pop(L, 2); // Stack: mt, nifb, mt, ct
-                lua_remove(L, -4); // Stack: nifb, mt, ct
-                lua_remove(L, -2); // Stack: nifb, ct
-                lua_pushvalue(L, 2); // Stack: nifb, arg1 (ct), arg2
-                lua_pushvalue(L, 3); // Stack: nifb, arg1 (ct), arg2, arg3
-                lua_call(L, 3, 0); // Stack: -
-                return 0;
-            }
-            else
-            {
-                lua_pop(L, 3); // Stack: mt, nifb, mt, ct
-                break;
-            }
-        }
-
-        lua_pop(L, 2); // Stack: mt, nifb, mt
-
-        lua_rawgetp(L, -1, getParentKey()); // Stack: mt, nifb, mt, parent mt | nil
-        if (lua_isnil(L, -1)) // Stack: mt, nifb, mt
-        {
-            lua_pop(L, 1); // Stack: mt, nifb, mt
+            lua_pop(L, 2); // Stack: mt, nifb, mt, ct
             break;
         }
 
-        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt, nifb, mt, parent mt
-        lua_remove(L, -2); // Stack: mt, nifb, parent mt
+        lua_pop(L, 1); // Stack: mt, nifb, mt, ct
+
+        lua_rawgetp(L, -2, getParentKey()); // Stack: mt, nifb, mt, ct, parent mt (pmt) | nil
+        if (lua_isnil(L, -1)) // Stack: mt, nifb, mt, ct, nil
+        {
+            lua_pop(L, 1); // Stack: mt, nifb, mt, ct
+            break;
+        }
+
+        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt, nifb, mt, ct, pmt
+        lua_remove(L, -2); // Stack: mt, nifb, mt, pmt
+        lua_remove(L, -2); // Stack: mt, nifb, pmt
     }
 
-    lua_pop(L, 1); // Stack: mt, nifb
+    if (is_key_metamethod)
+    {
+        lua_remove(L, -2); // Stack: mt, nifb, ct
+    }
+    else
+    {
+        lua_pop(L, 2); // Stack: mt, nifb
+        lua_pushvalue(L, 1); // Stack: mt, nifb, mt, arg1
+    }
 
-    lua_remove(L, -2); // Stack: nifb
-    lua_pushvalue(L, 1); // Stack: nifb, arg1
-    lua_pushvalue(L, 2); // Stack: nifb, arg1, arg2
-    lua_pushvalue(L, 3); // Stack: nifb, arg1, arg2, arg3
-    lua_call(L, 3, 0); // Stack: -
+    lua_pushvalue(L, 2); // Stack: mt, nifb, arg1 | ct, arg2
+    lua_pushvalue(L, 3); // Stack: mt, nifb, arg1 | ct, arg2, arg3
+    lua_call(L, 3, 0); // Stack: mt
+
     return 0;
 }
 
@@ -395,11 +405,7 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
         // Try in the property set table
         lua_rawgetp(L, -1, getPropsetKey()); // Stack: mt, propset table (ps) | nil
         if (lua_isnil(L, -1)) // Stack: mt, nil
-        {
-            lua_pop(L, 2); // Stack: -
             luaL_error(L, "no member named '%s'", key);
-            return 0;
-        }
 
         LUABRIDGE_ASSERT(lua_istable(L, -1));
 
@@ -427,11 +433,7 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
         // Try in the parent
         lua_rawgetp(L, -1, getParentKey()); // Stack: mt, parent mt | nil
         if (lua_isnil(L, -1)) // Stack: mt, nil
-        {
-            lua_pop(L, 2); // Stack: -
             luaL_error(L, "no writable member '%s'", key);
-            return 0;
-        }
 
         LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt, parent mt
         lua_remove(L, -2); // Stack: parent mt
