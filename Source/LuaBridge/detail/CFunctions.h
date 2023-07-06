@@ -377,7 +377,7 @@ inline std::optional<int> try_call_newindex_fallback(lua_State* L, const char* k
     else
     {
         lua_pop(L, 2); // Stack: mt, nifb
-        lua_pushvalue(L, 1); // Stack: mt, nifb, mt, arg1
+        lua_pushvalue(L, 1); // Stack: mt, nifb, arg1
     }
 
     lua_pushvalue(L, 2); // Stack: mt, nifb, arg1 | ct, arg2
