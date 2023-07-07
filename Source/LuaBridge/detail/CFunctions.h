@@ -147,6 +147,9 @@ inline bool is_metamethod(std::string_view method_name)
         "__unm"
     );
 
+    if (method_name.size() <= 2 || method_name[0] != '_' || method_name[1] != '_')
+        return false;
+
     auto result = std::lower_bound(metamethods.begin(), metamethods.end(), method_name);
     return result != metamethods.end() && *result == method_name;
 }
@@ -227,14 +230,10 @@ inline int index_metamethod(lua_State* L)
 
     // Protect internal meta methods
     const char* key = lua_tostring(L, 2);
-    if (key != nullptr)
+    if (key != nullptr && is_metamethod(key))
     {
-        const auto name = std::string_view(key);
-        if (name.size() > 2 && name[0] == '_' && name[1] == '_' && is_metamethod(name))
-        {
-            lua_pushnil(L);
-            return 1;
-        }
+        lua_pushnil(L);
+        return 1;
     }
 
     for (;;)
@@ -312,6 +311,7 @@ inline int index_metamethod(lua_State* L)
 
 inline std::optional<int> try_call_newindex_fallback(lua_State* L, const char* key)
 {
+    LUABRIDGE_ASSERT(key != nullptr);
     LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt
 
     lua_rawgetp(L, -1, getNewIndexFallbackKey()); // Stack: mt, nifb | nil
@@ -1020,8 +1020,7 @@ inline int try_overload_functions(lua_State* L)
         if (err == LUABRIDGE_LUA_OK)
         {
             // calculate number of return values and return
-            const int nresults = lua_gettop(L) - nargs - 4; // 4: overloads, errors, key, table
-            return nresults;
+            return lua_gettop(L) - nargs - 4; // 4: overloads, errors, key, table
         }
         else if (err == LUA_ERRRUN)
         {
