@@ -154,9 +154,11 @@ inline bool is_metamethod(std::string_view method_name)
 /**
  * @brief Make super method name.
  */
-inline std::string make_super_method_name(const char* name, bool is_metamethod_name)
+inline std::string make_super_method_name(const char* name)
 {
-    return is_metamethod_name
+    LUABRIDGE_ASSERT(name != nullptr);
+
+    return (std::string_view(name).find("_") == 0u)
         ? (std::string("super") + name)
         : (std::string("super_") + name);
 }
@@ -350,7 +352,7 @@ inline std::optional<int> try_call_newindex_fallback(lua_State* L, const char* k
 
             lua_getmetatable(L, 1); // Stack: mt, nifb, mt, ct, field, mt2
             lua_pushvalue(L, -2);  // Stack: mt, nifb, mt, ct, field, mt2, field
-            rawsetfield(L, -2, make_super_method_name(key, is_key_metamethod).c_str()); // Stack: mt, nifb, mt, ct, field, mt2
+            rawsetfield(L, -2, make_super_method_name(key).c_str()); // Stack: mt, nifb, mt, ct, field, mt2
 
             lua_pop(L, 2); // Stack: mt, nifb, mt, ct
             break;
