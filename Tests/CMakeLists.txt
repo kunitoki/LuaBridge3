@@ -14,6 +14,7 @@ add_subdirectory(${LUABRIDGE_RAVI_LOCATION} ravi)
 set (LUABRIDGE_TEST_SOURCE_FILES
   Source/AmalgamateTests.cpp
   Source/ArrayTests.cpp
+  Source/ClassExtensibleTests.cpp
   Source/ClassTests.cpp
   Source/CoroutineTests.cpp
   Source/EnumTests.cpp

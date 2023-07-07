@@ -165,7 +165,7 @@ TEST_F(ClassTests, PassingUnregisteredClassToLuaThrows)
 
     Unregistered value(1);
     const Unregistered constValue(2);
-    
+
 #if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_THROW(process_fn(value), std::exception);
     ASSERT_THROW(process_fn(constValue), std::exception);
@@ -511,17 +511,17 @@ T proxyConstFunctionNoexcept(const Class<T, Base>* object, T value) noexcept
 int proxyCFunctionState(lua_State* L)
 {
     using Int = Class<int, EmptyBase>;
-    
+
     auto ref = luabridge::LuaRef::fromStack(L, 1);
     if (!ref.isUserdata() || !ref.isInstance<Int>()) {
         return 0;
     }
-    
+
     auto arg = luabridge::LuaRef::fromStack(L, 2);
     if (!arg.isNumber()) {
         return 0;
     }
-    
+
     [[maybe_unused]] auto result = luabridge::push(L, arg.unsafe_cast<int>() + 1000);
 
     return 1;
@@ -2240,13 +2240,13 @@ TEST_F(ClassMetaMethods, SimulateArray)
             {
                 if (index < 0)
                     luaL_error(L, "Invalid index access in table %d", index);
-                
+
                 if (! ref.isString())
                     luaL_error(L, "Invalid value provided to set table at index %d", index);
 
                 if (index >= static_cast<int>(data.size()))
                     data.resize(index + 1);
-                
+
                 data[index] = ref.unsafe_cast<std::string>();
             })
         .endTable();
@@ -2317,7 +2317,7 @@ TEST_F(ClassTests, ConstructorWithReferences)
     struct OuterClass
     {
         OuterClass(const InnerClass& x) : y(x) {}
-        
+
     private:
         [[maybe_unused]] InnerClass y;
     };
@@ -2385,7 +2385,7 @@ TEST_F(ClassTests, ConstructorTakesMoreThanEightArgs)
             a9_ = a9;
             a10_ = a10;
         }
-        
+
         int a1_, a2_, a3_, a4_, a5_, a6_, a7_, a8_, a9_, a10_;
     };
 
@@ -2414,7 +2414,7 @@ TEST_F(ClassTests, MethodTakesMoreThanEightArgs)
     struct WideClass
     {
         WideClass() = default;
-        
+
         void testLotsOfArgs(int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9, int a10)
         {
             a1_ = a1;
@@ -2428,7 +2428,7 @@ TEST_F(ClassTests, MethodTakesMoreThanEightArgs)
             a9_ = a9;
             a10_ = a10;
         }
-        
+
         int a1_, a2_, a3_, a4_, a5_, a6_, a7_, a8_, a9_, a10_;
     };
 
@@ -2509,7 +2509,7 @@ class BaseExampleClass
 public:
     BaseExampleClass() = default;
     virtual ~BaseExampleClass() = default;
-    
+
     virtual void virtualFunction(int arg) = 0;
     virtual int virtualCFunction(lua_State*) = 0;
     virtual void virtualFunctionConst(int arg) const = 0;
@@ -2534,7 +2534,7 @@ class DerivedExampleClass : public BaseExampleClass
 {
 public:
     DerivedExampleClass() = default;
-    
+
     void virtualFunction(int arg) override
     {
         virtualFunction_ = arg;
@@ -2600,7 +2600,7 @@ TEST_F(ClassTests, NilCanBeConvertedToNullptrButNotToReference)
     struct X {};
 
     bool result = false, resultConst = false, called = false;
-    
+
     luabridge::getGlobalNamespace(L)
         .addFunction("TakeNullptr", [&result](X* iAmNullptr) { result = (iAmNullptr == nullptr); })
         .addFunction("TakeConstNullptr", [&resultConst](const X* iAmNullptr) { resultConst = (iAmNullptr == nullptr); })
@@ -2610,7 +2610,7 @@ TEST_F(ClassTests, NilCanBeConvertedToNullptrButNotToReference)
 
     runLua("TakeNullptr(nil)");
     EXPECT_TRUE(result);
-    
+
     runLua("TakeConstNullptr(nil)");
     EXPECT_TRUE(resultConst);
 
@@ -2620,516 +2620,6 @@ TEST_F(ClassTests, NilCanBeConvertedToNullptrButNotToReference)
     EXPECT_FALSE(runLua("TakeReference(nil)"));
 #endif
     EXPECT_FALSE(called);
-}
-
-namespace {
-struct OverridableX
-{
-    OverridableX() = default;
-
-    luabridge::LuaRef indexMetaMethod(const luabridge::LuaRef& key, lua_State* L);
-    luabridge::LuaRef newIndexMetaMethod(const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State* L);
-
-    std::unordered_map<luabridge::LuaRef, luabridge::LuaRef> data;
-};
-
-luabridge::LuaRef indexMetaMethodFunction(OverridableX& x, const luabridge::LuaRef& key, lua_State* L)
-{
-    if (key.tostring() == "xyz")
-    {
-        if (!luabridge::push(L, "123"))
-            lua_pushnil(L);
-    }
-    else
-    {
-        auto it = x.data.find(key);
-        if (it != x.data.end())
-            return it->second;
-
-        lua_pushnil(L);
-    }
-
-    return luabridge::LuaRef::fromStack(L);
-}
-
-luabridge::LuaRef OverridableX::indexMetaMethod(const luabridge::LuaRef& key, lua_State* L)
-{
-    return indexMetaMethodFunction(*this, key, L);
-}
-
-luabridge::LuaRef newIndexMetaMethodFunction(OverridableX& x, const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State* L)
-{
-    x.data.emplace(std::make_pair(key, value));
-    return value;
-}
-
-luabridge::LuaRef OverridableX::newIndexMetaMethod(const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State* L)
-{
-    return newIndexMetaMethodFunction(*this, key, value, L);
-}
-} // namespace
-
-TEST_F(ClassTests, IndexFallbackMetaMethodMemberFptr)
-{
-    luabridge::getGlobalNamespace(L)
-        .beginClass<OverridableX>("X")
-            .addIndexMetaMethod(&OverridableX::indexMetaMethod)
-        .endClass();
-
-    OverridableX x;
-    luabridge::setGlobal(L, &x, "x");
-
-    runLua("result = x.xyz");
-    ASSERT_EQ("123", result<std::string_view>());
-}
-
-TEST_F(ClassTests, IndexFallbackMetaMethodFunctionPtr)
-{
-    luabridge::getGlobalNamespace(L)
-        .beginClass<OverridableX>("X")
-            .addIndexMetaMethod(&indexMetaMethodFunction)
-        .endClass();
-
-    OverridableX x;
-    luabridge::setGlobal(L, &x, "x");
-
-    runLua("result = x.xyz");
-    ASSERT_EQ("123", result<std::string_view>());
-}
-
-TEST_F(ClassTests, IndexFallbackMetaMethodFreeFunctor)
-{
-    std::string capture = "123";
-
-    auto indexMetaMethod = [&capture](OverridableX&, luabridge::LuaRef key, lua_State* L) -> luabridge::LuaRef
-    {
-        if (key.tostring() == "xyz")
-        {
-            if (!luabridge::push(L, capture + "123"))
-                lua_pushnil(L);
-        }
-        else
-        {
-            if (!luabridge::push(L, 456))
-                lua_pushnil(L);
-        }
-
-        return luabridge::LuaRef::fromStack(L);
-    };
-
-    luabridge::getGlobalNamespace(L)
-        .beginClass<OverridableX>("X")
-            .addIndexMetaMethod(indexMetaMethod)
-        .endClass();
-
-    OverridableX x;
-    luabridge::setGlobal(L, &x, "x");
-
-    runLua("result = x.xyz");
-    ASSERT_EQ("123123", result<std::string_view>());
-}
-
-TEST_F(ClassTests, NewIndexFallbackMetaMethodMemberFptr)
-{
-    luabridge::getGlobalNamespace(L)
-        .beginClass<OverridableX>("X")
-            .addIndexMetaMethod(&OverridableX::indexMetaMethod)
-            .addNewIndexMetaMethod(&OverridableX::newIndexMetaMethod)
-        .endClass();
-
-    OverridableX x;
-    luabridge::setGlobal(L, &x, "x");
-
-    runLua("x.qwertyuiop = 123; result = x.qwertyuiop");
-    ASSERT_EQ(123, result<int>());
-}
-
-TEST_F(ClassTests, NewIndexFallbackMetaMethodFunctionPtr)
-{
-    luabridge::getGlobalNamespace(L)
-        .beginClass<OverridableX>("X")
-            .addIndexMetaMethod(&indexMetaMethodFunction)
-            .addNewIndexMetaMethod(&newIndexMetaMethodFunction)
-        .endClass();
-
-    OverridableX x;
-    luabridge::setGlobal(L, &x, "x");
-
-    runLua("x.qwertyuiop = 123; result = x.qwertyuiop");
-    ASSERT_EQ(123, result<int>());
-}
-
-TEST_F(ClassTests, NewIndexFallbackMetaMethodFreeFunctor)
-{
-    int capture = 123;
-
-    auto newIndexMetaMethod = [&capture](OverridableX& x, const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State* L) -> luabridge::LuaRef
-    {
-        if (!luabridge::push(L, capture + value.unsafe_cast<int>()))
-            lua_pushnil(L);
-
-        auto v = luabridge::LuaRef::fromStack(L);
-        x.data.emplace(std::make_pair(key, v));
-        return v;
-    };
-
-    luabridge::getGlobalNamespace(L)
-        .beginClass<OverridableX>("X")
-            .addIndexMetaMethod(&indexMetaMethodFunction)
-            .addNewIndexMetaMethod(newIndexMetaMethod)
-        .endClass();
-
-    OverridableX x;
-    luabridge::setGlobal(L, &x, "x");
-
-    runLua("x.qwertyuiop = 123; result = x.qwertyuiop");
-    ASSERT_EQ(246, result<int>());
-}
-
-namespace {
-struct ExtensibleBase
-{
-    ExtensibleBase() = default;
-
-    int baseClass() { return 1; }
-    int baseClassConst() const { return 2; }
-
-    std::unordered_map<luabridge::LuaRef, luabridge::LuaRef> properties;
-};
-
-struct ExtensibleDerived : ExtensibleBase
-{
-    ExtensibleDerived() = default;
-
-    int derivedClass() { return 11; }
-    int derivedClassConst() const { return 22; }
-};
-
-} // namespace
-
-TEST_F(ClassTests, ExtensibleClass)
-{
-    luabridge::getGlobalNamespace(L)
-        .beginClass<ExtensibleBase>("ExtensibleBase", luabridge::extensibleClass)
-            .addConstructor<void(*)()>()
-            .addFunction("baseClass", &ExtensibleBase::baseClass)
-        .endClass()
-    ;
-
-    runLua(R"(
-        function ExtensibleBase:test() return 41 + self:baseClass() end
-
-        local base = ExtensibleBase(); result = base:test()
-    )");
-
-    EXPECT_EQ(42, result<int>());
-}
-
-TEST_F(ClassTests, ExtensibleBaseClassNotDerived)
-{
-    luabridge::getGlobalNamespace(L)
-        .beginClass<ExtensibleBase>("ExtensibleBase", luabridge::extensibleClass)
-            .addConstructor<void(*)()>()
-            .addFunction("baseClass", &ExtensibleBase::baseClass)
-        .endClass()
-        .deriveClass<ExtensibleDerived, ExtensibleBase>("ExtensibleDerived")
-            .addConstructor<void(*)()>()
-        .endClass()
-    ;
-
-    runLua(R"(
-        function ExtensibleBase:test() return 41 + self:baseClass() end
-
-        local derived = ExtensibleDerived(); result = derived:test()
-    )");
-
-    EXPECT_EQ(42, result<int>());
-}
-
-TEST_F(ClassTests, ExtensibleDerivedClassNotBase)
-{
-    luabridge::getGlobalNamespace(L)
-        .beginClass<ExtensibleBase>("ExtensibleBase")
-            .addConstructor<void(*)()>()
-            .addFunction("baseClass", &ExtensibleBase::baseClass)
-        .endClass()
-        .deriveClass<ExtensibleDerived, ExtensibleBase>("ExtensibleDerived", luabridge::extensibleClass)
-            .addConstructor<void(*)()>()
-        .endClass()
-    ;
-
-    runLua(R"(
-        function ExtensibleDerived:test() return 41 + self:baseClass() end
-
-        local derived = ExtensibleDerived(); result = derived:test()
-    )");
-
-    EXPECT_EQ(42, result<int>());
-}
-
-TEST_F(ClassTests, ExtensibleDerivedClassAndBase)
-{
-    luabridge::getGlobalNamespace(L)
-        .beginClass<ExtensibleBase>("ExtensibleBase", luabridge::extensibleClass)
-            .addConstructor<void(*)()>()
-            .addFunction("baseClass", &ExtensibleBase::baseClass)
-        .endClass()
-        .deriveClass<ExtensibleDerived, ExtensibleBase>("ExtensibleDerived", luabridge::extensibleClass)
-            .addConstructor<void(*)()>()
-            .addFunction("derivedClass", &ExtensibleDerived::derivedClass)
-        .endClass()
-    ;
-
-    runLua(R"(
-        function ExtensibleBase:test1() return self:baseClass() end
-        function ExtensibleDerived:test2() return self:derivedClass() end
-
-        local derived = ExtensibleDerived(); result = derived:test1() - derived:test2()
-    )");
-
-    EXPECT_EQ(-10, result<int>());
-}
-
-TEST_F(ClassTests, ExtensibleDerivedClassAndBaseCascading)
-{
-    luabridge::getGlobalNamespace(L)
-        .beginClass<ExtensibleBase>("ExtensibleBase", luabridge::extensibleClass)
-            .addConstructor<void(*)()>()
-            .addFunction("baseClass", &ExtensibleBase::baseClass)
-        .endClass()
-        .deriveClass<ExtensibleDerived, ExtensibleBase>("ExtensibleDerived", luabridge::extensibleClass)
-            .addConstructor<void(*)()>()
-            .addFunction("derivedClass", &ExtensibleDerived::derivedClass)
-        .endClass()
-    ;
-
-    runLua(R"(
-        function ExtensibleBase:testBase() return self:baseClass() end
-        function ExtensibleDerived:testDerived() return self:testBase() end
-
-        local derived = ExtensibleDerived(); result = derived:testDerived()
-    )");
-
-    EXPECT_EQ(1, result<int>());
-}
-
-TEST_F(ClassTests, ExtensibleDerivedClassAndBaseSameMethod)
-{
-    luabridge::getGlobalNamespace(L)
-        .beginClass<ExtensibleBase>("ExtensibleBase", luabridge::extensibleClass)
-            .addConstructor<void(*)()>()
-        .endClass()
-        .deriveClass<ExtensibleDerived, ExtensibleBase>("ExtensibleDerived", luabridge::extensibleClass)
-            .addConstructor<void(*)()>()
-        .endClass()
-    ;
-
-    runLua(R"(
-        function ExtensibleBase:test() return 1337 end
-        function ExtensibleBase:test() return 1338 end -- This is on purpose
-        function ExtensibleDerived:test() return 42 end
-
-        local derived = ExtensibleDerived(); result = derived:test()
-    )");
-
-    EXPECT_EQ(42, result<int>());
-}
-
-TEST_F(ClassTests, ExtensibleClassExtendExistingMethod)
-{
-    luabridge::getGlobalNamespace(L)
-        .beginClass<ExtensibleBase>("ExtensibleBase", luabridge::extensibleClass)
-            .addConstructor<void(*)()>()
-            .addFunction("baseClass", &ExtensibleBase::baseClass)
-            .addFunction("baseClassConst", &ExtensibleBase::baseClassConst)
-        .endClass()
-    ;
-
-#if LUABRIDGE_HAS_EXCEPTIONS
-    EXPECT_ANY_THROW(runLua(R"(
-        function ExtensibleBase:baseClass() return 42 end
-
-        local base = ExtensibleBase(); result = base:baseClass()
-    )"));
-#else
-    EXPECT_FALSE(runLua(R"(
-        function ExtensibleBase:baseClass() return 42 end
-
-        local base = ExtensibleBase(); result = base:baseClass()
-    )"));
-#endif
-
-#if LUABRIDGE_HAS_EXCEPTIONS
-    EXPECT_ANY_THROW(runLua(R"(
-        function ExtensibleBase:baseClassConst() return 42 end
-
-        local base = ExtensibleBase(); result = base:baseClassConst()
-    )"));
-#else
-    EXPECT_FALSE(runLua(R"(
-        function ExtensibleBase:baseClassConst() return 42 end
-
-        local base = ExtensibleBase(); result = base:baseClassConst()
-    )"));
-#endif
-}
-
-TEST_F(ClassTests, ExtensibleClassExtendExistingMethodAllowingOverride)
-{
-    luabridge::getGlobalNamespace(L)
-        .beginClass<ExtensibleBase>("ExtensibleBase", luabridge::extensibleClass | luabridge::allowOverridingMethods)
-            .addConstructor<void(*)()>()
-            .addFunction("baseClass", &ExtensibleBase::baseClass)
-            .addFunction("baseClassConst", &ExtensibleBase::baseClassConst)
-        .endClass()
-    ;
-
-    runLua(R"(
-        function ExtensibleBase:baseClass() return 42 + self:super_baseClass() end
-
-        local base = ExtensibleBase(); result = base:baseClass()
-    )");
-
-    EXPECT_EQ(43, result<int>());
-
-    runLua(R"(
-        function ExtensibleBase:baseClassConst() return 42 + self:super_baseClassConst() end
-
-        local base = ExtensibleBase(); result = base:baseClassConst()
-    )");
-
-    EXPECT_EQ(44, result<int>());
-}
-
-TEST_F(ClassTests, ExtensibleDerivedOverrideOneFunctionCallBaseForTheOther)
-{
-    constexpr auto options = luabridge::extensibleClass | luabridge::allowOverridingMethods;
-
-    luabridge::getGlobalNamespace(L)
-        .beginClass<ExtensibleBase>("ExtensibleBase", options)
-            .addConstructor<void(*)()>()
-            .addFunction("baseClass", &ExtensibleBase::baseClass)
-            .addFunction("baseClassConst", &ExtensibleBase::baseClassConst)
-        .endClass()
-        .deriveClass<ExtensibleDerived, ExtensibleBase>("ExtensibleDerived", options)
-            .addConstructor<void(*)()>()
-            .addFunction("derivedClass", &ExtensibleDerived::derivedClass)
-            .addFunction("derivedClassConst", &ExtensibleDerived::derivedClassConst)
-        .endClass()
-    ;
-
-    runLua(R"(
-        function ExtensibleDerived:baseClass() return 100 + self:super_baseClass() end
-
-        local derived = ExtensibleDerived()
-        result = derived:baseClass() + derived:baseClassConst()
-    )");
-
-    EXPECT_EQ(103, result<int>());
-}
-
-TEST_F(ClassTests, ExtensibleClassCustomMetamethods)
-{
-    auto options = luabridge::allowOverridingMethods | luabridge::extensibleClass;
-
-    luabridge::getGlobalNamespace(L)
-        .beginClass<ExtensibleBase>("ExtensibleBase", options)
-            .addConstructor<void(*)()>()
-            .addFunction("baseClass", &ExtensibleBase::baseClass)
-        .endClass()
-    ;
-
-    runLua(R"(
-        function ExtensibleBase:__tostring()
-            return ('ExtensibleBase(%d)'):format(self:baseClass())
-        end
-
-        local base = ExtensibleBase(); result = tostring(base)
-    )");
-
-    EXPECT_EQ("ExtensibleBase(1)", result<std::string>());
-}
-
-TEST_F(ClassTests, ExtensibleClassCustomMetamethodEq)
-{
-    auto options = luabridge::allowOverridingMethods | luabridge::extensibleClass;
-
-    luabridge::getGlobalNamespace(L)
-        .beginClass<ExtensibleBase>("ExtensibleBase", options)
-            .addConstructor<void(*)()>()
-            .addFunction("baseClass", &ExtensibleBase::baseClass)
-        .endClass()
-    ;
-
-    runLua(R"(
-        function ExtensibleBase:__eq(other)
-            return self:baseClass() == other:baseClass()
-        end
-
-        local base1 = ExtensibleBase()
-        local base2 = ExtensibleBase()
-        result = base1 == base2
-    )");
-
-    EXPECT_TRUE(result<bool>());
-}
-
-TEST_F(ClassTests, ExtensibleClassCustomMetamethodsSuper)
-{
-    auto options = luabridge::allowOverridingMethods | luabridge::extensibleClass;
-
-    luabridge::getGlobalNamespace(L)
-        .beginClass<ExtensibleBase>("ExtensibleBase", options)
-            .addConstructor<void(*)()>()
-        .endClass()
-    ;
-
-    runLua(R"(
-        function ExtensibleBase:__tostring()
-            return '123456 - ' .. self:super__tostring()
-        end
-
-        local base = ExtensibleBase(); result = tostring(base)
-    )");
-
-    EXPECT_EQ(0u, result<std::string>().find("123456"));
-    EXPECT_NE(std::string::npos, result<std::string>().find("ExtensibleBase"));
-}
-
-TEST_F(ClassTests, ExtensibleClassWithCustomIndexMethod)
-{
-    luabridge::getGlobalNamespace(L)
-        .beginClass<ExtensibleBase>("ExtensibleBase", luabridge::extensibleClass)
-            .addConstructor<void(*)()>()
-            .addFunction("baseClass", &ExtensibleBase::baseClass)
-            .addIndexMetaMethod([](ExtensibleBase& self, const luabridge::LuaRef& key, lua_State* L)
-            {
-                auto metatable = luabridge::getGlobal(L, "ExtensibleBase").getMetatable();
-                if (auto value = metatable[key])
-                    return value.cast<luabridge::LuaRef>().value();
-
-                auto it = self.properties.find(key);
-                if (it != self.properties.end())
-                    return it->second;
-
-                luaL_error(L, "%s", "Failed lookup of key !");
-                return luabridge::LuaRef(L, luabridge::LuaNil());
-            })
-            .addNewIndexMetaMethod([](ExtensibleBase& self, const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State* L)
-            {
-                self.properties.emplace(std::make_pair (key, value));
-                return luabridge::LuaRef(L, luabridge::LuaNil());
-            })
-        .endClass()
-    ;
-
-    runLua(R"(
-        function ExtensibleBase:test() return 41 + self.xyz + self:baseClass() end
-
-        local base = ExtensibleBase(); base.xyz = 1000; result = base:test()
-    )");
-
-    EXPECT_EQ(1042, result<int>());
 }
 
 namespace {
@@ -3184,103 +2674,6 @@ TEST_F(ClassTests, OveralignedClasses)
     runLua("result = Vec32(3.0, 2.0, 1.0, 0.5):checkIsAligned()");
     EXPECT_TRUE(result<bool>());
 }
-
-namespace {
-class ExampleStringifiableClass
-{
-public:
-    ExampleStringifiableClass()
-        : a(0), b(0), c(0)
-    {
-    }
-
-    std::string tostring() const
-    {
-        return "whatever";
-    }
-
-    int a, b, c;
-};
-} // namespace
-
-TEST_F(ClassTests, MetatableSecurityNotHidden)
-{
-    {
-        luabridge::getGlobalNamespace(L)
-            .beginNamespace("test", luabridge::visibleMetatables)
-            .endNamespace();
-
-        runLua("local t = test; result = getmetatable(t)");
-
-        const auto res = result();
-        ASSERT_TRUE(res.isTable());
-    }
-
-    {
-        luabridge::getGlobalNamespace(L)
-            .beginClass<ExampleStringifiableClass>("ExampleStringifiableClass", luabridge::visibleMetatables)
-                .addConstructor<void(*) ()>()
-                .addFunction("__tostring", &ExampleStringifiableClass::tostring)
-            .endClass();
-
-        runLua("local t = ExampleStringifiableClass(); result = getmetatable(t)");
-
-        const auto res = result();
-        ASSERT_TRUE(res.isTable());
-    }
-}
-
-TEST_F(ClassTests, MetatableSecurity)
-{
-    {
-        luabridge::getGlobalNamespace(L)
-            .beginNamespace("test")
-            .endNamespace();
-
-        runLua("local t = test; result = getmetatable(t)");
-
-        const auto res = result();
-        ASSERT_TRUE(res.isBool());
-        EXPECT_FALSE(res.unsafe_cast<bool>());
-    }
-
-    {
-        luabridge::getGlobalNamespace(L)
-            .beginClass<ExampleStringifiableClass>("ExampleStringifiableClass")
-                .addConstructor<void(*) ()>()
-                .addFunction("__tostring", &ExampleStringifiableClass::tostring)
-            .endClass();
-
-        runLua("local t = ExampleStringifiableClass(); result = getmetatable(t)");
-
-        const auto res = result();
-        ASSERT_TRUE(res.isBool());
-        EXPECT_FALSE(res.unsafe_cast<bool>());
-    }
-}
-
-#if ! LUABRIDGEDEMO_LUAU && LUABRIDGEDEMO_LUA_VERSION >= 502
-TEST_F(ClassTests, MetatablePrinting)
-{
-    luabridge::getGlobalNamespace(L)
-        .beginClass<ExampleStringifiableClass>("ExampleStringifiableClass", luabridge::visibleMetatables)
-            .addConstructor<void(*) ()>()
-        .endClass();
-
-    runLua(R"(
-        local text = ''
-        local mt = getmetatable(ExampleStringifiableClass)
-        for k, v in pairs(mt) do
-          text = text .. ('%s - %s'):format(k, v)
-        end
-        result = text
-    )");
-
-    const auto res = result();
-    ASSERT_TRUE(res.isString());
-    EXPECT_FALSE(res.unsafe_cast<std::string>().empty());
-}
-#endif
 
 namespace {
 struct XYZ { int x = 0; };
@@ -3382,7 +2775,6 @@ TEST_F(ClassTests, WrongThrowBadArgObjectDescription)
         ASSERT_FALSE(result);
         EXPECT_NE(std::string::npos, errorMessage.find("got ABC"));
     }
-
 #endif
 }
 
