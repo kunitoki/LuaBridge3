@@ -5807,8 +5807,35 @@ inline bool is_metamethod(std::string_view method_name)
         "__unm"
     );
 
+    if (method_name.size() <= 2 || method_name[0] != '_' || method_name[1] != '_')
+        return false;
+
     auto result = std::lower_bound(metamethods.begin(), metamethods.end(), method_name);
     return result != metamethods.end() && *result == method_name;
+}
+
+inline std::string make_super_method_name(const char* name)
+{
+    LUABRIDGE_ASSERT(name != nullptr);
+
+    return (std::string_view(name).find("_") == 0u)
+        ? (std::string("super") + name)
+        : (std::string("super_") + name);
+}
+
+inline Options get_class_options(lua_State* L, int index)
+{
+    LUABRIDGE_ASSERT(lua_istable(L, index)); 
+
+    Options options = defaultOptions;
+
+    lua_rawgetp(L, index, getClassOptionsKey()); 
+    if (lua_isnumber(L, -1))
+        options = Options::fromUnderlying(lua_tointeger(L, -1));
+
+    lua_pop(L, 1);
+
+    return options;
 }
 
 inline std::optional<int> try_call_index_fallback(lua_State* L)
@@ -5848,27 +5875,16 @@ inline int index_metamethod(lua_State* L)
     LUABRIDGE_ASSERT(lua_istable(L, -1));
 
     const char* key = lua_tostring(L, 2);
-    if (key != nullptr)
+    if (key != nullptr && is_metamethod(key))
     {
-        const auto name = std::string_view(key);
-        if (name.size() > 2 && name[0] == '_' && name[1] == '_' && is_metamethod(name))
-        {
-            lua_pushnil(L);
-            return 1;
-        }
+        lua_pushnil(L);
+        return 1;
     }
 
     for (;;)
     {
         
-        Options options = defaultOptions;
-
-        lua_rawgetp(L, -1, getClassOptionsKey()); 
-        if (lua_isnumber(L, -1))
-            options = Options::fromUnderlying(lua_tointeger(L, -1));
-
-        lua_pop(L, 1);
-
+        const Options options = get_class_options(L, -1); 
         if (options.test(allowOverridingMethods))
         {
             if (auto result = try_call_index_fallback(L))
@@ -5923,6 +5939,7 @@ inline int index_metamethod(lua_State* L)
 
 inline std::optional<int> try_call_newindex_fallback(lua_State* L, const char* key)
 {
+    LUABRIDGE_ASSERT(key != nullptr);
     LUABRIDGE_ASSERT(lua_istable(L, -1)); 
 
     lua_rawgetp(L, -1, getNewIndexFallbackKey()); 
@@ -5931,6 +5948,8 @@ inline std::optional<int> try_call_newindex_fallback(lua_State* L, const char* k
         lua_pop(L, 1); 
         return std::nullopt;
     }
+
+    const bool is_key_metamethod = is_metamethod(key);
 
     lua_pushvalue(L, -2); 
 
@@ -5954,30 +5973,22 @@ inline std::optional<int> try_call_newindex_fallback(lua_State* L, const char* k
 
         if (! lua_isnil(L, -1)) 
         {
-            Options options = defaultOptions;
-            lua_rawgetp(L, -2, getClassOptionsKey()); 
-            if (lua_isnumber(L, -1))
-                options = Options::fromUnderlying(lua_tointeger(L, -1));
-            lua_pop(L, 1); 
-
+            
+            const Options options = get_class_options(L, -2); 
             if (! options.test(allowOverridingMethods))
-            {
-                lua_pop(L, 5); 
                 luaL_error(L, "immutable member '%s'", key);
-                return 0;
-            }
 
             lua_getmetatable(L, 1); 
             lua_pushvalue(L, -2);  
-            rawsetfield(L, -2, (std::string("super_") + key).c_str()); 
+            rawsetfield(L, -2, make_super_method_name(key).c_str()); 
 
-            lua_pop(L, 3); 
+            lua_pop(L, 2); 
             break;
         }
 
-        lua_pop(L, 2); 
+        lua_pop(L, 1); 
 
-        lua_rawgetp(L, -1, getParentKey()); 
+        lua_rawgetp(L, -2, getParentKey()); 
         if (lua_isnil(L, -1)) 
         {
             lua_pop(L, 1); 
@@ -5986,15 +5997,23 @@ inline std::optional<int> try_call_newindex_fallback(lua_State* L, const char* k
 
         LUABRIDGE_ASSERT(lua_istable(L, -1)); 
         lua_remove(L, -2); 
+        lua_remove(L, -2); 
     }
 
-    lua_pop(L, 1); 
+    if (is_key_metamethod)
+    {
+        lua_remove(L, -2); 
+    }
+    else
+    {
+        lua_pop(L, 2); 
+        lua_pushvalue(L, 1); 
+    }
 
-    lua_remove(L, -2); 
-    lua_pushvalue(L, 1); 
     lua_pushvalue(L, 2); 
     lua_pushvalue(L, 3); 
     lua_call(L, 3, 0); 
+
     return 0;
 }
 
@@ -6016,11 +6035,7 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
         
         lua_rawgetp(L, -1, getPropsetKey()); 
         if (lua_isnil(L, -1)) 
-        {
-            lua_pop(L, 2); 
             luaL_error(L, "no member named '%s'", key);
-            return 0;
-        }
 
         LUABRIDGE_ASSERT(lua_istable(L, -1));
 
@@ -6046,11 +6061,7 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
 
         lua_rawgetp(L, -1, getParentKey()); 
         if (lua_isnil(L, -1)) 
-        {
-            lua_pop(L, 2); 
             luaL_error(L, "no writable member '%s'", key);
-            return 0;
-        }
 
         LUABRIDGE_ASSERT(lua_istable(L, -1)); 
         lua_remove(L, -2); 
@@ -6117,7 +6128,7 @@ inline int newindex_extended_class(lua_State* L)
 template <class C>
 static int tostring_metamethod(lua_State* L)
 {
-    const void* ptr = lua_topointer(L, -1);
+    const void* ptr = lua_topointer(L, 1);
 
     lua_getmetatable(L, -1); 
     lua_rawgetp(L, -1, getTypeKey()); 
@@ -6529,8 +6540,7 @@ inline int try_overload_functions(lua_State* L)
         if (err == LUABRIDGE_LUA_OK)
         {
             
-            const int nresults = lua_gettop(L) - nargs - 4; 
-            return nresults;
+            return lua_gettop(L) - nargs - 4; 
         }
         else if (err == LUA_ERRRUN)
         {
@@ -8376,6 +8386,8 @@ class Namespace : public detail::Registrar
             lua_pushcfunction_x(L, &detail::gc_metamethod<T>); 
             rawsetfield(L, -2, "__gc"); 
 #endif
+            lua_pushcfunction_x(L, &detail::tostring_metamethod<T>);
+            rawsetfield(L, -2, "__tostring");
             ++m_stackSize;
 
             createStaticTable(name, options); 
