@@ -384,6 +384,8 @@ class Namespace : public detail::Registrar
             lua_pushcfunction_x(L, &detail::gc_metamethod<T>); // Stack: ns, co, cl, function
             rawsetfield(L, -2, "__gc"); // cl ["__gc"] = function. Stack: ns, co, cl
 #endif
+            lua_pushcfunction_x(L, &detail::tostring_metamethod<T>);
+            rawsetfield(L, -2, "__tostring");
             ++m_stackSize;
 
             createStaticTable(name, options); // Stack: ns, co, cl, st
