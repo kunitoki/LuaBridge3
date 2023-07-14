@@ -1,6 +1,6 @@
 [submodule "ThirdParty/luau"]
 	path = ThirdParty/luau
-	url = https://github.com/kunitoki/luau.git
+	url = https://github.com/Roblox/luau.git
 [submodule "ThirdParty/googletest"]
 	path = ThirdParty/googletest
 	url = https://github.com/kunitoki/googletest.git
