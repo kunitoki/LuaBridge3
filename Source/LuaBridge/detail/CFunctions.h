@@ -250,7 +250,7 @@ inline int index_metamethod(lua_State* L)
         lua_pushvalue(L, 2); // Stack: mt, field name
         lua_rawget(L, -2); // Stack: mt, field | nil
 
-        if (lua_iscfunction(L, -1)) // Stack: mt, field
+        if (! lua_isnil(L, -1)) // Stack: mt, field
         {
             lua_remove(L, -2); // Stack: field
             return 1;

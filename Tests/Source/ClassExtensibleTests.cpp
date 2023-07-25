@@ -521,12 +521,30 @@ TEST_F(ClassExtensibleTests, ExtensibleClassWithCustomIndexMethod)
     ;
 
     runLua(R"(
-        function ExtensibleBase:test() return 41 + self.xyz + self:baseClass() end
+        function ExtensibleBase:test()
+            return 41 + self.xyz + self:baseClass()
+        end
 
-        local base = ExtensibleBase(); base.xyz = 1000; result = base:test()
+        local base = ExtensibleBase()
+        base.xyz = 1000
+        result = base:test()
     )");
 
     EXPECT_EQ(1042, result<int>());
+
+    runLua(R"(
+        ExtensibleBase.staticProperty = 101;
+        result = ExtensibleBase.staticProperty
+    )");
+
+    EXPECT_EQ(101, result<int>());
+
+    runLua(R"(
+        ExtensibleBase.staticProperty = nil;
+        result = ExtensibleBase.staticProperty
+    )");
+
+    EXPECT_TRUE(result().isNil());
 }
 
 namespace {
