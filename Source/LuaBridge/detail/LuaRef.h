@@ -292,6 +292,29 @@ public:
         return metatable.isTable() && metatable["__call"].isFunction();
     }
 
+    /**
+     * @brief Get the name of the class, only if it is a C++ registered class via the library.
+     *
+     * @returns An optional string containing the name used to register the class with `beginClass`, nullopt in case it's not a registered class.
+     */
+    std::optional<std::string> getClassName()
+    {
+        if (isNil())
+            return std::nullopt;
+
+        const StackRestore stackRestore(m_L);
+
+        impl().push(m_L);
+        if (! lua_getmetatable(m_L, -1))
+            return std::nullopt;
+
+        lua_rawgetp(m_L, -1, detail::getTypeKey());
+        if (lua_isstring(m_L, -1))
+            return lua_tostring(m_L, -1);
+
+        return std::nullopt;
+    }
+
     //=============================================================================================
     /**
      * @brief Perform a safe explicit conversion to the type T.

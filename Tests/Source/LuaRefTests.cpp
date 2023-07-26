@@ -561,6 +561,7 @@ TEST_F(LuaRefTests, IsInstance)
     EXPECT_FALSE(result().isInstance<Other>());
     EXPECT_FALSE(result().isInstance<Unknown>());
     EXPECT_TRUE(result().isUserdata());
+    EXPECT_EQ("Base", result().getClassName().value_or(""));
 
     runLua("result = Derived ()");
     EXPECT_TRUE(result().isInstance<Base>());
@@ -568,6 +569,7 @@ TEST_F(LuaRefTests, IsInstance)
     EXPECT_FALSE(result().isInstance<Other>());
     EXPECT_FALSE(result().isInstance<Unknown>());
     EXPECT_TRUE(result().isUserdata());
+    EXPECT_EQ("Derived", result().getClassName().value_or(""));
 
     runLua("result = Other ()");
     EXPECT_FALSE(result().isInstance<Base>());
@@ -575,6 +577,16 @@ TEST_F(LuaRefTests, IsInstance)
     EXPECT_TRUE(result().isInstance<Other>());
     EXPECT_FALSE(result().isInstance<Unknown>());
     EXPECT_TRUE(result().isUserdata());
+    EXPECT_EQ("Other", result().getClassName().value_or(""));
+
+    runLua("result = {}");
+    EXPECT_FALSE(result().isInstance<Base>());
+    EXPECT_FALSE(result().isInstance<Derived>());
+    EXPECT_FALSE(result().isInstance<Other>());
+    EXPECT_FALSE(result().isInstance<Unknown>());
+    EXPECT_FALSE(result().isUserdata());
+    EXPECT_TRUE(result().isTable());
+    EXPECT_FALSE(result().getClassName());
 
     runLua("result = 3.14");
     EXPECT_FALSE(result().isInstance<Base>());
@@ -582,6 +594,8 @@ TEST_F(LuaRefTests, IsInstance)
     EXPECT_FALSE(result().isInstance<Other>());
     EXPECT_FALSE(result().isInstance<Unknown>());
     EXPECT_FALSE(result().isUserdata());
+    EXPECT_TRUE(result().isNumber());
+    EXPECT_FALSE(result().getClassName());
 }
 
 TEST_F(LuaRefTests, Print)
