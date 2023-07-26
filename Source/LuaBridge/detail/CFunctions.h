@@ -192,11 +192,11 @@ inline Options get_class_options(lua_State* L, int index)
  * Retrieves functions from metatables and properties from propget tables. Looks through the class hierarchy if inheritance is present.
  */
 
-inline std::optional<int> try_call_index_fallback(lua_State* L)
+inline std::optional<int> try_call_index_fallback(lua_State* L, const void* callbackKey)
 {
     LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt
 
-    lua_rawgetp(L, -1, getIndexFallbackKey()); // Stack: mt, ifb (may be nil)
+    lua_rawgetp(L, -1, callbackKey); // Stack: mt, ifb (may be nil)
     if (! lua_iscfunction(L, -1))
     {
         lua_pop(L, 1); // Stack: mt
@@ -242,7 +242,7 @@ inline int index_metamethod(lua_State* L)
         const Options options = get_class_options(L, -1); // Stack: mt
         if (options.test(allowOverridingMethods))
         {
-            if (auto result = try_call_index_fallback(L))
+            if (auto result = try_call_index_fallback(L, getIndexExtensibleKey()))
                 return *result;
         }
 
@@ -281,8 +281,12 @@ inline int index_metamethod(lua_State* L)
         // It may mean that the field may be in const table and it's constness violation.
         // Don't check that, just return nil
 
+        // Repeat the lookup in the index extensible
+        if (auto result = try_call_index_fallback(L, getIndexExtensibleKey()))
+            return *result;
+
         // Repeat the lookup in the index fallback
-        if (auto result = try_call_index_fallback(L))
+        if (auto result = try_call_index_fallback(L, getIndexFallbackKey()))
             return *result;
 
         // Repeat the lookup in the parent metafield,
@@ -309,12 +313,12 @@ inline int index_metamethod(lua_State* L)
  * Retrieves properties from propset tables.
  */
 
-inline std::optional<int> try_call_newindex_fallback(lua_State* L, const char* key)
+inline std::optional<int> try_call_newindex_fallback(lua_State* L, const char* key, const void* callbackKey)
 {
     LUABRIDGE_ASSERT(key != nullptr);
     LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt
 
-    lua_rawgetp(L, -1, getNewIndexFallbackKey()); // Stack: mt, nifb | nil
+    lua_rawgetp(L, -1, callbackKey); // Stack: mt, nifb | nil
     if (! lua_iscfunction(L, -1))
     {
         lua_pop(L, 1); // Stack: mt
@@ -428,8 +432,12 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
         LUABRIDGE_ASSERT(lua_isnil(L, -1)); // Stack: mt, nil
         lua_pop(L, 1); // Stack: mt
 
+        // Try in the new index extensible
+        if (auto result = try_call_newindex_fallback(L, key, getNewIndexExtensibleKey()))
+            return *result;
+
         // Try in the new index fallback
-        if (auto result = try_call_newindex_fallback(L, key))
+        if (auto result = try_call_newindex_fallback(L, key, getNewIndexFallbackKey()))
             return *result;
 
         // Try in the parent

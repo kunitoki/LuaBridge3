@@ -578,7 +578,7 @@ TEST_F(LuaRefTests, IsInstance)
     lua_setmetatable(L, -2);
     EXPECT_TRUE(lua_isuserdata(L, -1));
     lua_setglobal(L, "unkown");
-    runLua("print(unkown); result = unknown");
+    runLua("result = unknown");
     EXPECT_FALSE(result().isInstance<Base>());
     EXPECT_FALSE(result().isInstance<Derived>());
     EXPECT_FALSE(result().isInstance<Other>());

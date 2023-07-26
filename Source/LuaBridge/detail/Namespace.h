@@ -334,11 +334,11 @@ class Namespace : public detail::Registrar
                 if (options.test(extensibleClass))
                 {
                     lua_pushcfunction_x(L, &detail::newindex_extended_class); // Stack: ns, co, cl, fn
-                    lua_rawsetp(L, -2, detail::getNewIndexFallbackKey()); // Stack: ns, co, cl
+                    lua_rawsetp(L, -2, detail::getNewIndexExtensibleKey()); // Stack: ns, co, cl
 
                     lua_pushvalue(L, -1); // Stack: ns, co, cl, st, st
                     lua_pushcclosure_x(L, &detail::index_extended_class, 1); // Stack: ns, co, cl, fn
-                    lua_rawsetp(L, -3, detail::getIndexFallbackKey()); // Stack: ns, co, cl
+                    lua_rawsetp(L, -3, detail::getIndexExtensibleKey()); // Stack: ns, co, cl
                 }
             }
             else
@@ -423,11 +423,11 @@ class Namespace : public detail::Registrar
             if (options.test(extensibleClass))
             {
                 lua_pushcfunction_x(L, &detail::newindex_extended_class); // Stack: ns, co, cl, fn
-                lua_rawsetp(L, -2, detail::getNewIndexFallbackKey()); // Stack: ns, co, cl
+                lua_rawsetp(L, -2, detail::getNewIndexExtensibleKey()); // Stack: ns, co, cl
 
                 lua_pushvalue(L, -1); // Stack: ns, co, cl, st, st
                 lua_pushcclosure_x(L, &detail::index_extended_class, 1); // Stack: ns, co, cl, fn
-                lua_rawsetp(L, -3, detail::getIndexFallbackKey()); // Stack: ns, co, cl
+                lua_rawsetp(L, -3, detail::getIndexExtensibleKey()); // Stack: ns, co, cl
             }
         }
 

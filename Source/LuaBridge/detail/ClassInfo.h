@@ -143,7 +143,12 @@ template <class T, auto = typeName<T>().find_first_of('.')>
  */
 [[nodiscard]] inline const void* getIndexFallbackKey()
 {
-  return reinterpret_cast<void*>(0x81ca);
+    return reinterpret_cast<void*>(0x81ca);
+}
+
+[[nodiscard]] inline const void* getIndexExtensibleKey()
+{
+    return reinterpret_cast<void*>(0x81cb);
 }
 
 //=================================================================================================
@@ -152,7 +157,12 @@ template <class T, auto = typeName<T>().find_first_of('.')>
  */
 [[nodiscard]] inline const void* getNewIndexFallbackKey()
 {
-  return reinterpret_cast<void*>(0x8107);
+    return reinterpret_cast<void*>(0x8107);
+}
+
+[[nodiscard]] inline const void* getNewIndexExtensibleKey()
+{
+    return reinterpret_cast<void*>(0x8108);
 }
 
 //=================================================================================================
