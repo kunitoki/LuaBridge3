@@ -299,7 +299,7 @@ public:
      */
     std::optional<std::string> getClassName()
     {
-        if (isNil())
+        if (! isUserdata())
             return std::nullopt;
 
         const StackRestore stackRestore(m_L);
