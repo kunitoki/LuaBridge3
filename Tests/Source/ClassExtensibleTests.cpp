@@ -127,6 +127,52 @@ TEST_F(ClassExtensibleTests, IndexFallbackMetaMethodFreeFunctor)
     ASSERT_EQ("123123", result<std::string_view>());
 }
 
+TEST_F(ClassExtensibleTests, IndexFallbackMetaMethodFreeFunctorOnClass)
+{
+    auto indexMetaMethod = [&](OverridableX& x, const luabridge::LuaRef& key, lua_State* L) -> luabridge::LuaRef
+    {
+        auto it = x.data.find(key);
+        if (it != x.data.end())
+            return it->second;
+
+        return luabridge::LuaRef(L);
+    };
+
+    auto newIndexMetaMethod = [&](OverridableX& x, const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State* L) -> luabridge::LuaRef
+    {
+        x.data.emplace(std::make_pair(key, value));
+        return luabridge::LuaRef(L);
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<OverridableX>("X", luabridge::extensibleClass)
+            .addIndexMetaMethod(indexMetaMethod)
+            .addNewIndexMetaMethod(newIndexMetaMethod)
+        .endClass();
+
+    OverridableX x, y;
+    luabridge::setGlobal(L, &x, "x");
+    luabridge::setGlobal(L, &y, "y");
+
+    runLua(R"(
+        X.xyz = 1
+
+        function X:setProperty(v)
+            self.xyz = v
+        end
+
+        function X:getProperty()
+            return self.xyz
+        end
+
+        y.xyz = 100
+        x:setProperty(2)
+
+        result = x.xyz + y.xyz
+    )");
+    ASSERT_EQ(102, result<int>());
+}
+
 TEST_F(ClassExtensibleTests, NewIndexFallbackMetaMethodMemberFptr)
 {
     luabridge::getGlobalNamespace(L)

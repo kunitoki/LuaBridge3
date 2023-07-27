@@ -242,6 +242,9 @@ inline int index_metamethod(lua_State* L)
         const Options options = get_class_options(L, -1); // Stack: mt
         if (options.test(allowOverridingMethods))
         {
+            if (auto result = try_call_index_fallback(L, getIndexFallbackKey()))
+                return *result;
+
             if (auto result = try_call_index_fallback(L, getIndexExtensibleKey()))
                 return *result;
         }
@@ -281,13 +284,16 @@ inline int index_metamethod(lua_State* L)
         // It may mean that the field may be in const table and it's constness violation.
         // Don't check that, just return nil
 
-        // Repeat the lookup in the index extensible
-        if (auto result = try_call_index_fallback(L, getIndexExtensibleKey()))
-            return *result;
-
         // Repeat the lookup in the index fallback
-        if (auto result = try_call_index_fallback(L, getIndexFallbackKey()))
-            return *result;
+        if (! options.test(allowOverridingMethods))
+        {
+            if (auto result = try_call_index_fallback(L, getIndexFallbackKey()))
+                return *result;
+
+            // Repeat the lookup in the index extensible
+            if (auto result = try_call_index_fallback(L, getIndexExtensibleKey()))
+                return *result;
+        }
 
         // Repeat the lookup in the parent metafield,
         // or return nil if the field doesn't exist.
