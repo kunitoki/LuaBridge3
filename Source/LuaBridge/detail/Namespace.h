@@ -303,13 +303,16 @@ class Namespace : public detail::Registrar
                 lua_pop(L, 1); // Stack: ns
 
                 createConstTable(name, true, options); // Stack: ns, const table (co)
+                ++m_stackSize;
 #if !defined(LUABRIDGE_ON_LUAU)
                 lua_pushcfunction_x(L, &detail::gc_metamethod<T>); // Stack: ns, co, function
                 rawsetfield(L, -2, "__gc"); // co ["__gc"] = function. Stack: ns, co
 #endif
-                ++m_stackSize;
+                lua_pushcfunction_x(L, &detail::tostring_metamethod<T>);
+                rawsetfield(L, -2, "__tostring");
 
                 createClassTable(name, options); // Stack: ns, co, class table (cl)
+                ++m_stackSize;
 #if !defined(LUABRIDGE_ON_LUAU)
                 lua_pushcfunction_x(L, &detail::gc_metamethod<T>); // Stack: ns, co, cl, function
                 rawsetfield(L, -2, "__gc"); // cl ["__gc"] = function. Stack: ns, co, cl
@@ -317,7 +320,6 @@ class Namespace : public detail::Registrar
 
                 lua_pushcfunction_x(L, &detail::tostring_metamethod<T>);
                 rawsetfield(L, -2, "__tostring");
-                ++m_stackSize;
 
                 createStaticTable(name, options); // Stack: ns, co, cl, st
                 ++m_stackSize;
@@ -373,20 +375,22 @@ class Namespace : public detail::Registrar
             LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
 
             createConstTable(name, true, options); // Stack: ns, const table (co)
+            ++m_stackSize;
 #if !defined(LUABRIDGE_ON_LUAU)
             lua_pushcfunction_x(L, &detail::gc_metamethod<T>); // Stack: ns, co, function
             rawsetfield(L, -2, "__gc"); // co ["__gc"] = function. Stack: ns, co
 #endif
-            ++m_stackSize;
+            lua_pushcfunction_x(L, &detail::tostring_metamethod<T>);
+            rawsetfield(L, -2, "__tostring");
 
             createClassTable(name, options); // Stack: ns, co, class table (cl)
+            ++m_stackSize;
 #if !defined(LUABRIDGE_ON_LUAU)
             lua_pushcfunction_x(L, &detail::gc_metamethod<T>); // Stack: ns, co, cl, function
             rawsetfield(L, -2, "__gc"); // cl ["__gc"] = function. Stack: ns, co, cl
 #endif
             lua_pushcfunction_x(L, &detail::tostring_metamethod<T>);
             rawsetfield(L, -2, "__tostring");
-            ++m_stackSize;
 
             createStaticTable(name, options); // Stack: ns, co, cl, st
             ++m_stackSize;

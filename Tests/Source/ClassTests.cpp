@@ -113,6 +113,54 @@ T Class<T, Base>::staticData = {};
 
 template <class T, class Base>
 const T Class<T, Base>::staticConstData = {};
+
+class Foo
+{
+public:
+    Foo() = default;
+
+    Foo(const std::string& name)
+        : name(name)
+    {
+    }
+
+    const std::string& getName() const
+    {
+        return name;
+    }
+
+    static const Foo& createConstRef(const std::string& name)
+    {
+        static Foo instance(name);
+        return instance;
+    }
+
+private:
+    std::string name;
+};
+
+class Bar
+{
+public:
+    Bar() = default;
+
+    void setFoo(const luabridge::LuaRef& ref)
+    {
+        if (ref.isInstance<Foo>())
+            foo = ref.cast<Foo>().value();
+        else
+            foo = Foo("undefined");
+    }
+
+    const std::string& getFooName() const
+    {
+        return foo.getName();
+    }
+
+private:
+    Foo foo;
+};
+
 } // namespace
 
 TEST_F(ClassTests, IsInstance)
@@ -152,6 +200,39 @@ TEST_F(ClassTests, IsInstance)
     ASSERT_FALSE(luabridge::isInstance<BaseClass>(L, -1));
     ASSERT_FALSE(luabridge::isInstance<DerivedClass>(L, -1));
     ASSERT_TRUE(luabridge::isInstance<OtherClass>(L, -1));
+}
+
+TEST_F(ClassTests, IsInstanceConstRef)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Foo>("Foo")
+            .addConstructor<void(*)(const std::string&)>()
+            .addStaticFunction("createConstRef", &Foo::createConstRef)
+            .addFunction("__tostring", +[](const Foo& self) { return self.getName(); })
+        .endClass()
+        .beginClass<Bar>("Bar")
+            .addConstructor<void(*)()>()
+            .addFunction("setFoo", &Bar::setFoo)
+            .addFunction("getFooName", &Bar::getFooName)
+        .endClass();
+
+    runLua(R"(
+        local fooFirst = Foo('first')
+
+        local bar = Bar()
+        bar:setFoo(fooFirst)
+        result = bar:getFooName() .. " " .. tostring(fooFirst)
+    )");
+    EXPECT_EQ("first first", result<std::string>());
+
+    runLua(R"(
+        local fooSecond = Foo.createConstRef('second')
+
+        local bar = Bar()
+        bar:setFoo(fooSecond)
+        result = bar:getFooName() .. " " .. tostring(fooSecond)
+    )");
+    EXPECT_EQ("second second", result<std::string>());
 }
 
 TEST_F(ClassTests, PassingUnregisteredClassToLuaThrows)

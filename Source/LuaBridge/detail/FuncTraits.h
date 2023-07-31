@@ -452,7 +452,7 @@ inline static constexpr bool is_proxy_member_function_v =
 template <class T, class F>
 inline static constexpr bool is_const_proxy_function_v =
     is_proxy_member_function_v<T, F> &&
-    std::is_const_v<std::remove_pointer_t<function_argument_or_void_t<0, F>>>;
+    std::is_const_v<std::remove_reference_t<std::remove_pointer_t<function_argument_or_void_t<0, F>>>>;
 
 //=================================================================================================
 /**
