@@ -633,6 +633,72 @@ TEST_F(ClassExtensibleTests, ExtensibleClassWithCustomIndexMethod)
 }
 
 namespace {
+class NonExtensible
+{
+public:
+    luabridge::LuaRef getProperty(const luabridge::LuaRef& key, lua_State* L)
+    {
+        auto it = properties.find(key);
+        if (it != properties.end())
+            return it->second;
+
+        return luabridge::LuaRef(L);
+    }
+
+    luabridge::LuaRef setProperty(const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State* L)
+    {
+        properties.emplace(key, value);
+        return luabridge::LuaRef(L);
+    }
+
+private:
+    std::unordered_map<luabridge::LuaRef, luabridge::LuaRef> properties;
+};
+
+class DerivedExtensible : public NonExtensible
+{
+public:
+    inline DerivedExtensible() {};
+};
+} // namespace
+
+TEST_F(ClassExtensibleTests, IndexAndNewMetaMethodCalledInBaseClass)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<NonExtensible>("NonExtensible")
+            .addIndexMetaMethod(&NonExtensible::getProperty)
+            .addNewIndexMetaMethod(&NonExtensible::setProperty)
+        .endClass()
+        .deriveClass<DerivedExtensible, NonExtensible>("DerivedExtensible", luabridge::extensibleClass)
+            .addConstructor<void()>()
+        .endClass();
+
+    runLua(R"(
+        function DerivedExtensible:getProperty()
+          return self.property
+        end
+
+        function DerivedExtensible:setProperty(value)
+          self.property = value
+        end
+
+        local test = DerivedExtensible()
+        test:setProperty(2)
+        result = test:getProperty()
+    )");
+
+    EXPECT_EQ(2, result<int>());
+
+    runLua(R"(
+        local test = DerivedExtensible()
+        test.property = 3
+        result = test.property
+    )");
+
+    EXPECT_EQ(3, result<int>());
+}
+
+namespace {
 class ExampleStringifiableClass
 {
 public:
