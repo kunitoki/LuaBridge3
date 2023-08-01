@@ -1343,6 +1343,68 @@ struct Stack<T[N]>
     }
 };
 
+//=================================================================================================
+/**
+ * @brief Specialization for `void*` and `const void*` type.
+ */
+template <>
+struct Stack<void*>
+{
+    [[nodiscard]] static Result push(lua_State* L, void* ptr)
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 1))
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
+        lua_pushlightuserdata(L, ptr);
+        return {};
+    }
+
+    [[nodiscard]] static TypeResult<void*> get(lua_State* L, int index)
+    {
+        if (! lua_islightuserdata(L, index))
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        return lua_touserdata(L, index);
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        return lua_islightuserdata(L, index);
+    }
+};
+
+template <>
+struct Stack<const void*>
+{
+    [[nodiscard]] static Result push(lua_State* L, const void* ptr)
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 1))
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
+        lua_pushlightuserdata(L, const_cast<void*>(ptr));
+        return {};
+    }
+
+    [[nodiscard]] static TypeResult<const void*> get(lua_State* L, int index)
+    {
+        if (! lua_islightuserdata(L, index))
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        return lua_touserdata(L, index);
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        return lua_islightuserdata(L, index);
+    }
+};
+
+//=================================================================================================
+
 namespace detail {
 
 template <class T>
