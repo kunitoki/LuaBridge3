@@ -10267,8 +10267,10 @@ inline void dumpTable(lua_State* L, int index, unsigned maxDepth, unsigned level
         stream << '\n';
 }
 
-inline void dumpState(lua_State* L, std::ostream& stream = std::cerr)
+inline void dumpState(lua_State* L, unsigned maxDepth = 1, std::ostream& stream = std::cerr)
 {
+    stream << "----------------------------------------------" << '\n';
+
     int top = lua_gettop(L);
     for (int i = 1; i <= top; ++i)
     {
