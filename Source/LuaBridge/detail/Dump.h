@@ -97,12 +97,13 @@ inline void dumpTable(lua_State* L, int index, unsigned maxDepth, unsigned level
     lua_pushnil(L); // Initial key
     while (lua_next(L, index))
     {
-        stream << "\n";
+        stream << '\n';
         putIndent(stream, level + 1);
 
         dumpValue(L, -2, maxDepth, level + 1, false, stream); // Key
         stream << ": ";
         dumpValue(L, -1, maxDepth, level + 1, false, stream); // Value
+        stream << ",";
 
         lua_pop(L, 1); // Value
 
@@ -111,7 +112,7 @@ inline void dumpTable(lua_State* L, int index, unsigned maxDepth, unsigned level
 
     if (valuesCount > 0)
     {
-        stream << "\n";
+        stream << '\n';
         putIndent(stream, level);
     }
 
