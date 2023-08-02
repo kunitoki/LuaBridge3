@@ -209,7 +209,8 @@ TEST_F(ClassExtensibleTests, IndexFallbackMetaMethodFreeFunctorOnClassOverwriteP
 
         result = x.property
     )");
-    ASSERT_EQ(2, result<int>());
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(2, result<int>());
 }
 
 TEST_F(ClassExtensibleTests, NewIndexFallbackMetaMethodMemberFptr)
@@ -411,7 +412,8 @@ TEST_F(ClassExtensibleTests, ExtensibleDerivedClassAndBaseSameMethod)
         function ExtensibleBase:test() return 1338 end -- This is on purpose
         function ExtensibleDerived:test() return 42 end
 
-        local derived = ExtensibleDerived(); result = derived:test()
+        local derived = ExtensibleDerived()
+        result = derived:test()
     )");
 
     EXPECT_EQ(42, result<int>());
@@ -467,17 +469,23 @@ TEST_F(ClassExtensibleTests, ExtensibleClassExtendExistingMethodAllowingOverride
     ;
 
     runLua(R"(
-        function ExtensibleBase:baseClass() return 42 + self:super_baseClass() end
+        function ExtensibleBase:baseClass()
+            return 42 + self:super_baseClass()
+        end
 
-        local base = ExtensibleBase(); result = base:baseClass()
+        local base = ExtensibleBase()
+        result = base:baseClass()
     )");
 
     EXPECT_EQ(43, result<int>());
 
     runLua(R"(
-        function ExtensibleBase:baseClassConst() return 42 + self:super_baseClassConst() end
+        function ExtensibleBase:baseClassConst()
+            return 42 + self:super_baseClassConst()
+        end
 
-        local base = ExtensibleBase(); result = base:baseClassConst()
+        local base = ExtensibleBase()
+        result = base:baseClassConst()
     )");
 
     EXPECT_EQ(44, result<int>());
@@ -586,21 +594,17 @@ TEST_F(ClassExtensibleTests, ExtensibleClassWithCustomIndexMethod)
             .addFunction("baseClass", &ExtensibleBase::baseClass)
             .addIndexMetaMethod([](ExtensibleBase& self, const luabridge::LuaRef& key, lua_State* L)
             {
-                auto metatable = luabridge::getGlobal(L, "ExtensibleBase").getMetatable();
-                if (auto value = metatable[key])
-                    return value.cast<luabridge::LuaRef>().value();
 
                 auto it = self.properties.find(key);
                 if (it != self.properties.end())
                     return it->second;
 
-                luaL_error(L, "%s", "Failed lookup of key !");
-                return luabridge::LuaRef(L, luabridge::LuaNil());
+                return luabridge::LuaRef(L);
             })
             .addNewIndexMetaMethod([](ExtensibleBase& self, const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State* L)
             {
                 self.properties.emplace(std::make_pair (key, value));
-                return luabridge::LuaRef(L, luabridge::LuaNil());
+                return luabridge::LuaRef(L);
             })
         .endClass()
     ;
@@ -674,6 +678,8 @@ TEST_F(ClassExtensibleTests, IndexAndNewMetaMethodCalledInBaseClass)
         .endClass();
 
     runLua(R"(
+        DerivedExtensible.property = 100
+
         function DerivedExtensible:getProperty()
           return self.property
         end
@@ -684,10 +690,10 @@ TEST_F(ClassExtensibleTests, IndexAndNewMetaMethodCalledInBaseClass)
 
         local test = DerivedExtensible()
         test:setProperty(2)
-        result = test:getProperty()
+        result = test:getProperty() + DerivedExtensible.property
     )");
 
-    EXPECT_EQ(2, result<int>());
+    EXPECT_EQ(102, result<int>());
 
     runLua(R"(
         local test = DerivedExtensible()
