@@ -10234,7 +10234,11 @@ inline void dumpTable(lua_State* L, int index, unsigned maxDepth, unsigned level
     }
 
     index = lua_absindex(L, index);
+
     stream << " {";
+
+    int valuesCount = 0;
+
     lua_pushnil(L); 
     while (lua_next(L, index))
     {
