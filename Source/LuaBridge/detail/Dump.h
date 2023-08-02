@@ -21,9 +21,9 @@ inline void putIndent(std::ostream& stream, unsigned level)
         stream << "    ";
 }
 
-inline void dumpTable(lua_State* L, int index, unsigned maxDepth = 1, unsigned level = 0, std::ostream& stream = std::cerr);
+inline void dumpTable(lua_State* L, int index, unsigned maxDepth = 1, unsigned level = 0, bool newLine = true, std::ostream& stream = std::cerr);
 
-inline void dumpValue(lua_State* L, int index, unsigned maxDepth = 1, unsigned level = 0, std::ostream& stream = std::cerr)
+inline void dumpValue(lua_State* L, int index, unsigned maxDepth = 1, unsigned level = 0, bool newLine = true, std::ostream& stream = std::cerr)
 {
     const int type = lua_type(L, index);
     switch (type)
@@ -60,7 +60,7 @@ inline void dumpValue(lua_State* L, int index, unsigned maxDepth = 1, unsigned l
         break;
 
     case LUA_TTABLE:
-        dumpTable(L, index, maxDepth, level, stream);
+        dumpTable(L, index, maxDepth, level, false, stream);
         break;
 
     case LUA_TUSERDATA:
@@ -71,30 +71,34 @@ inline void dumpValue(lua_State* L, int index, unsigned maxDepth = 1, unsigned l
         stream << lua_typename(L, type);
         break;
     }
+
+    if (newLine)
+        stream << '\n';
 }
 
-inline void dumpTable(lua_State* L, int index, unsigned maxDepth, unsigned level, std::ostream& stream)
+inline void dumpTable(lua_State* L, int index, unsigned maxDepth, unsigned level, bool newLine, std::ostream& stream)
 {
     stream << "table@" << lua_topointer(L, index);
 
     if (level > maxDepth)
+    {
+        if (newLine)
+            stream << '\n';
+
         return;
+    }
 
     index = lua_absindex(L, index);
-
     stream << " {";
-
-    int valuesCount = 0;
-
     lua_pushnil(L); // Initial key
     while (lua_next(L, index))
     {
         stream << "\n";
         putIndent(stream, level + 1);
 
-        dumpValue(L, -2, maxDepth, level + 1, stream); // Key
+        dumpValue(L, -2, maxDepth, level + 1, false, stream); // Key
         stream << ": ";
-        dumpValue(L, -1, maxDepth, level + 1, stream); // Value
+        dumpValue(L, -1, maxDepth, level + 1, false, stream); // Value
 
         lua_pop(L, 1); // Value
 
@@ -108,18 +112,21 @@ inline void dumpTable(lua_State* L, int index, unsigned maxDepth, unsigned level
     }
 
     stream << "}";
+
+    if (newLine)
+        stream << '\n';
 }
 
 inline void dumpState(lua_State* L, unsigned maxDepth = 1, std::ostream& stream = std::cerr)
 {
     stream << "----------------------------------------------" << '\n';
 
-    const int top = lua_gettop(L);
+    int top = lua_gettop(L);
     for (int i = 1; i <= top; ++i)
     {
         stream << "stack #" << i << " (" << -(top - i + 1) << "): ";
-        dumpValue(L, i, maxDepth, 0, stream);
-        stream << "\n";
+
+        dumpValue(L, i, maxDepth, 0, true, stream);
     }
 }
 
