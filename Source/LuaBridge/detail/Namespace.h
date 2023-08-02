@@ -165,24 +165,25 @@ class Namespace : public detail::Registrar
             std::string type_name = std::string(trueConst ? "const " : "") + name;
 
             // Stack: namespace table (ns)
+
             lua_newtable(L); // Stack: ns, const table (co)
             lua_pushvalue(L, -1); // Stack: ns, co, co
             lua_setmetatable(L, -2); // co.__metatable = co. Stack: ns, co
 
-            pushunsigned(L, options.toUnderlying());
+            pushunsigned(L, options.toUnderlying()); // Stack: ns, co, options
             lua_rawsetp(L, -2, detail::getClassOptionsKey()); // co [classOptionsKey] = options. Stack: ns, co
 
-            lua_pushstring(L, type_name.c_str());
+            lua_pushstring(L, type_name.c_str()); // Stack: ns, co, name
             lua_rawsetp(L, -2, detail::getTypeKey()); // co [typeKey] = name. Stack: ns, co
 
-            lua_pushcfunction_x(L, &detail::index_metamethod);
-            rawsetfield(L, -2, "__index");
+            lua_pushcfunction_x(L, &detail::index_metamethod); // Stack: ns, co, im
+            rawsetfield(L, -2, "__index"); // Stack: ns, co
 
-            lua_pushcfunction_x(L, &detail::newindex_object_metamethod);
-            rawsetfield(L, -2, "__newindex");
+            lua_pushcfunction_x(L, &detail::newindex_object_metamethod); // Stack: ns, co, nim
+            rawsetfield(L, -2, "__newindex"); // Stack: ns, co
 
-            lua_newtable(L);
-            lua_rawsetp(L, -2, detail::getPropgetKey());
+            lua_newtable(L); // Stack: ns, co, tb
+            lua_rawsetp(L, -2, detail::getPropgetKey()); // Stack: ns, co
 
             if (! options.test(visibleMetatables))
             {
@@ -225,12 +226,13 @@ class Namespace : public detail::Registrar
             LUABRIDGE_ASSERT(name != nullptr);
 
             // Stack: namespace table (ns), const table (co), class table (cl)
-            lua_newtable(L); // Stack: ns, co, cl, visible static table (vst)
-            lua_newtable(L); // Stack: ns, co, cl, st, static metatable (st)
-            lua_pushvalue(L, -1); // Stack: ns, co, cl, vst, st, st
-            lua_setmetatable(L, -3); // st.__metatable = mt. Stack: ns, co, cl, vst, st
-            lua_insert(L, -2); // Stack: ns, co, cl, st, vst
-            rawsetfield(L, -5, name); // ns [name] = vst. Stack: ns, co, cl, st
+
+            lua_newtable(L); // Stack: ns, co, cl, static table (st)
+            lua_newtable(L); // Stack: ns, co, cl, st, static metatable (mt)
+            lua_pushvalue(L, -1); // Stack: ns, co, cl, st, mt, mt
+            lua_setmetatable(L, -3); // st.__metatable = mt. Stack: ns, co, cl, st, mt
+            lua_insert(L, -2); // Stack: ns, co, cl, st, mt, st
+            rawsetfield(L, -5, name); // ns [name] = st. Stack: ns, co, cl, st, mt
 
             lua_pushcfunction_x(L, &detail::index_metamethod);
             rawsetfield(L, -2, "__index");
@@ -335,12 +337,12 @@ class Namespace : public detail::Registrar
                 // Setup class extensibility
                 if (options.test(extensibleClass))
                 {
-                    lua_pushcfunction_x(L, &detail::newindex_extended_class); // Stack: ns, co, cl, fn
-                    lua_rawsetp(L, -2, detail::getNewIndexExtensibleKey()); // Stack: ns, co, cl
+                    lua_pushcfunction_x(L, &detail::newindex_extended_class); // Stack: ns, co, cl, st, fn
+                    lua_rawsetp(L, -2, detail::getNewIndexExtensibleKey()); // Stack: ns, co, cl, st
 
                     lua_pushvalue(L, -1); // Stack: ns, co, cl, st, st
-                    lua_pushcclosure_x(L, &detail::index_extended_class, 1); // Stack: ns, co, cl, fn
-                    lua_rawsetp(L, -3, detail::getIndexExtensibleKey()); // Stack: ns, co, cl
+                    lua_pushcclosure_x(L, &detail::index_extended_class, 1); // Stack: ns, co, cl, st, fn
+                    lua_rawsetp(L, -3, detail::getIndexExtensibleKey()); // Stack: ns, co, cl, st
                 }
             }
             else
@@ -426,12 +428,12 @@ class Namespace : public detail::Registrar
             // Setup class extensibility
             if (options.test(extensibleClass))
             {
-                lua_pushcfunction_x(L, &detail::newindex_extended_class); // Stack: ns, co, cl, fn
-                lua_rawsetp(L, -2, detail::getNewIndexExtensibleKey()); // Stack: ns, co, cl
+                lua_pushcfunction_x(L, &detail::newindex_extended_class); // Stack: ns, co, cl, st, fn
+                lua_rawsetp(L, -2, detail::getNewIndexExtensibleKey()); // Stack: ns, co, cl, st
 
                 lua_pushvalue(L, -1); // Stack: ns, co, cl, st, st
-                lua_pushcclosure_x(L, &detail::index_extended_class, 1); // Stack: ns, co, cl, fn
-                lua_rawsetp(L, -3, detail::getIndexExtensibleKey()); // Stack: ns, co, cl
+                lua_pushcclosure_x(L, &detail::index_extended_class, 1); // Stack: ns, co, cl, st, fn
+                lua_rawsetp(L, -3, detail::getIndexExtensibleKey()); // Stack: ns, co, cl, st
             }
         }
 
