@@ -2118,7 +2118,7 @@ TEST_F(StackTests, PairFailUnregistered)
         auto value = std::make_pair(Unregistered(), 1);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
-        EXPECT_ANY_THROW(luabridge::push(L, value));
+        EXPECT_ANY_THROW(luabridge::push(L, value).error());
 #else
         ASSERT_FALSE(luabridge::push(L, value));
         EXPECT_EQ(luabridge::ErrorCode::ClassNotRegistered, luabridge::push(L, value).error());
@@ -2129,7 +2129,7 @@ TEST_F(StackTests, PairFailUnregistered)
         auto value = std::make_pair(1, Unregistered());
 
 #if LUABRIDGE_HAS_EXCEPTIONS
-        EXPECT_ANY_THROW(luabridge::push(L, value));
+        EXPECT_ANY_THROW(luabridge::push(L, value).error());
 #else
         ASSERT_FALSE(luabridge::push(L, value));
         EXPECT_EQ(luabridge::ErrorCode::ClassNotRegistered, luabridge::push(L, value).error());

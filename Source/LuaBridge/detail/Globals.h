@@ -21,9 +21,9 @@ TypeResult<T> getGlobal(lua_State* L, const char* name)
     lua_getglobal(L, name);
 
     auto result = luabridge::Stack<T>::get(L, -1);
-    
+
     lua_pop(L, 1);
-    
+
     return result;
 }
 
@@ -32,7 +32,7 @@ TypeResult<T> getGlobal(lua_State* L, const char* name)
  * @brief Set a global value in the lua_State.
  *
  * @note This works on any type specialized by `Stack`, including `LuaRef` and its table proxies.
-*/
+ */
 template <class T>
 bool setGlobal(lua_State* L, T&& t, const char* name)
 {
