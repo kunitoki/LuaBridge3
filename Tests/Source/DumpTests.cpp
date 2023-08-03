@@ -232,15 +232,19 @@ TEST_F(DumpTests, DumpTable)
         std::stringstream ss;
 
         lua_newtable(L);
-        lua_pushliteral(L, "key");
-        lua_pushliteral(L, "value");
+        lua_pushliteral(L, "key1");
+        lua_pushliteral(L, "value1");
+        lua_settable(L, -3);
+        lua_pushliteral(L, "key2");
+        lua_pushliteral(L, "value2");
         lua_settable(L, -3);
 
         luabridge::dumpValue(L, -1, 1, 0, false, ss);
         EXPECT_TRUE(ss.str().find("table@") == 0);
         EXPECT_TRUE(ss.str().find("\n") != std::string::npos);
         EXPECT_TRUE(ss.str().find("{") != std::string::npos);
-        EXPECT_TRUE(ss.str().find("\"key\": \"value\",") != std::string::npos);
+        EXPECT_TRUE(ss.str().find("\"key1\": \"value1\",") != std::string::npos);
+        EXPECT_TRUE(ss.str().find("\"key2\": \"value2\",") != std::string::npos);
         EXPECT_TRUE(ss.str().find("}") != std::string::npos);
     }
 
