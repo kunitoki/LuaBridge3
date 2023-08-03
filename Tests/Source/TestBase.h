@@ -10,7 +10,7 @@
 #include "Lua/LuaLibrary.h"
 
 #include "LuaBridge/LuaBridge.h"
-#include "LuaBridge/detail/Dump.h"
+#include "LuaBridge/Dump.h"
 
 #include <gtest/gtest.h>
 
