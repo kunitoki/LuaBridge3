@@ -176,10 +176,10 @@ class Namespace : public detail::Registrar
             lua_pushstring(L, type_name.c_str()); // Stack: ns, co, name
             lua_rawsetp(L, -2, detail::getTypeKey()); // co [typeKey] = name. Stack: ns, co
 
-            lua_pushcfunction_x(L, &detail::index_object_metamethod); // Stack: ns, co, im
+            lua_pushcfunction_x(L, &detail::index_metamethod<true>); // Stack: ns, co, im
             rawsetfield(L, -2, "__index"); // Stack: ns, co
 
-            lua_pushcfunction_x(L, &detail::newindex_object_metamethod); // Stack: ns, co, nim
+            lua_pushcfunction_x(L, &detail::newindex_metamethod<true>); // Stack: ns, co, nim
             rawsetfield(L, -2, "__newindex"); // Stack: ns, co
 
             lua_newtable(L); // Stack: ns, co, tb
@@ -237,10 +237,10 @@ class Namespace : public detail::Registrar
             pushunsigned(L, options.toUnderlying()); // Stack: ns, co, cl, st, mt, options
             lua_rawsetp(L, -2, detail::getClassOptionsKey()); // st [classOptionsKey] = options. Stack: ns, co, cl, st, mt
 
-            lua_pushcfunction_x(L, &detail::index_static_metamethod);
+            lua_pushcfunction_x(L, &detail::index_metamethod<false>);
             rawsetfield(L, -2, "__index");
 
-            lua_pushcfunction_x(L, &detail::newindex_static_metamethod);
+            lua_pushcfunction_x(L, &detail::newindex_metamethod<false>);
             rawsetfield(L, -2, "__newindex");
 
             lua_newtable(L); // Stack: ns, co, cl, st, proget table (pg)
@@ -1487,7 +1487,7 @@ private:
         lua_setmetatable(L, -2); // Stack: ns
 
         // ns.__index = index_static_metamethod
-        lua_pushcfunction_x(L, &detail::index_static_metamethod);
+        lua_pushcfunction_x(L, &detail::index_metamethod<false>);
         rawsetfield(L, -2, "__index"); // Stack: ns
 
         lua_newtable(L); // Stack: ns, mt, propget table (pg)
@@ -1535,11 +1535,11 @@ private:
             lua_setmetatable(L, -2); // Stack: pns, ns
 
             // ns.__index = index_static_metamethod
-            lua_pushcfunction_x(L, &detail::index_static_metamethod);
+            lua_pushcfunction_x(L, &detail::index_metamethod<false>);
             rawsetfield(L, -2, "__index"); // Stack: pns, ns
 
             // ns.__newindex = newindex_static_metamethod
-            lua_pushcfunction_x(L, &detail::newindex_static_metamethod);
+            lua_pushcfunction_x(L, &detail::newindex_metamethod<false>);
             rawsetfield(L, -2, "__newindex"); // Stack: pns, ns
 
             lua_newtable(L); // Stack: pns, ns, propget table (pg)

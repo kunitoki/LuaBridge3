@@ -255,7 +255,8 @@ inline std::optional<int> try_call_index_extensible(lua_State* L, const char* ke
     return std::nullopt;
 }
 
-inline int index_metamethod(lua_State* L, bool pushSelf)
+template <bool IsObject>
+inline int index_metamethod(lua_State* L)
 {
 #if LUABRIDGE_SAFE_STACK_CHECKS
     luaL_checkstack(L, 3, detail::error_lua_stack_overflow);
@@ -276,7 +277,7 @@ inline int index_metamethod(lua_State* L, bool pushSelf)
 
     for (;;)
     {
-        if (pushSelf)
+        if constexpr (IsObject)
         {
             // Repeat the lookup in the index fallback
             if (auto result = try_call_index_fallback(L))
@@ -286,7 +287,7 @@ inline int index_metamethod(lua_State* L, bool pushSelf)
         // Search into self or metatable
         if (lua_istable(L, 1))
         {
-            if (pushSelf)
+            if constexpr (IsObject)
                 lua_pushvalue(L, 1); // Stack: mt, self
             else
                 push_class_or_const_table(L, -1);
@@ -414,7 +415,7 @@ inline std::optional<int> try_call_newindex_fallback(lua_State* L)
     return 0;
 }
 
-inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char* key, bool pushSelf)
+inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char* key)
 {
     LUABRIDGE_ASSERT(key != nullptr);
     LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt
@@ -423,17 +424,11 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
 
     for (;;)
     {
-        lua_rawgetp(L, -1, getClassKey()); // Stack: mt, mt, class table (ct) | nil
+        push_class_or_const_table(L, -1); // Stack: mt, mt, class table (ct) | nil
         if (! lua_istable(L, -1)) // Stack: mt, mt, nil
         {
-            lua_pop(L, 1); // Stack: mt, mt
-
-            lua_rawgetp(L, -1, getConstKey()); // Stack: mt, mt, const table (co) | nil
-            if (! lua_istable(L, -1)) // Stack: mt, mt, nil
-            {
-                lua_pop(L, 2); // Stack: mt
-                return std::nullopt;
-            }
+            lua_pop(L, 2); // Stack: mt
+            return std::nullopt;
         }
 
         lua_pushvalue(L, 2); // Stack: mt, mt, ct | co, field name
@@ -480,7 +475,8 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
     return 0;
 }
 
-inline int newindex_metamethod(lua_State* L, bool pushSelf)
+template <bool IsObject>
+inline int newindex_metamethod(lua_State* L)
 {
 #if LUABRIDGE_SAFE_STACK_CHECKS
     luaL_checkstack(L, 3, detail::error_lua_stack_overflow);
@@ -511,17 +507,17 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
         if (lua_iscfunction(L, -1)) // Stack: mt, setter
         {
             lua_remove(L, -2); // Stack: setter
-            if (pushSelf)
+            if constexpr (IsObject)
                 lua_pushvalue(L, 1); // Stack: setter, table | userdata
             lua_pushvalue(L, 3); // Stack: setter, table | userdata, new value
-            lua_call(L, pushSelf ? 2 : 1, 0); // Stack: -
+            lua_call(L, IsObject ? 2 : 1, 0); // Stack: -
             return 0;
         }
 
         LUABRIDGE_ASSERT(lua_isnil(L, -1)); // Stack: mt, nil
         lua_pop(L, 1); // Stack: mt
 
-        if (pushSelf)
+        if constexpr (IsObject)
         {
             // Try in the new index fallback
             if (auto result = try_call_newindex_fallback(L))
@@ -532,7 +528,7 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
             // Try in the new index extensible
             if (options.test(extensibleClass))
             {
-                if (auto result = try_call_newindex_extensible(L, key, pushSelf))
+                if (auto result = try_call_newindex_extensible(L, key))
                     return *result;
             }
         }
@@ -549,40 +545,6 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
     }
 
     return 0;
-}
-
-//=================================================================================================
-/**
- * @brief __index metamethod for objects.
- */
-inline int index_object_metamethod(lua_State* L)
-{
-    return index_metamethod(L, true);
-}
-
-/**
- * @brief __newindex metamethod for objects.
- */
-inline int newindex_object_metamethod(lua_State* L)
-{
-    return newindex_metamethod(L, true);
-}
-
-//=================================================================================================
-/**
- * @brief __index metamethod for namespace or class static members.
- */
-inline int index_static_metamethod(lua_State* L)
-{
-    return index_metamethod(L, false);
-}
-
-/**
- * @brief __newindex metamethod for namespace or class static members.
- */
-inline int newindex_static_metamethod(lua_State* L)
-{
-    return newindex_metamethod(L, false);
 }
 
 //=================================================================================================
