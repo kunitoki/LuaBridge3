@@ -7,22 +7,30 @@
 
 #pragma once
 
-#include "ClassInfo.h"
+#include "detail/ClassInfo.h"
 
 #include <iostream>
 #include <string>
 
 namespace luabridge {
-namespace debug {
-
+namespace detail {
 inline void putIndent(std::ostream& stream, unsigned level)
 {
     for (unsigned i = 0; i < level; ++i)
         stream << "    ";
 }
+} // namespace detail
 
+//=================================================================================================
+/**
+ * @brief Forward for dumpTable.
+ */
 inline void dumpTable(lua_State* L, int index, unsigned maxDepth = 1, unsigned level = 0, bool newLine = true, std::ostream& stream = std::cerr);
 
+//=================================================================================================
+/**
+ * @brief Dump a lua value on the stack.
+ */
 inline void dumpValue(lua_State* L, int index, unsigned maxDepth = 1, unsigned level = 0, bool newLine = true, std::ostream& stream = std::cerr)
 {
     const int type = lua_type(L, index);
@@ -76,6 +84,10 @@ inline void dumpValue(lua_State* L, int index, unsigned maxDepth = 1, unsigned l
         stream << '\n';
 }
 
+//=================================================================================================
+/**
+ * @brief Dump a lua table on the stack.
+ */
 inline void dumpTable(lua_State* L, int index, unsigned maxDepth, unsigned level, bool newLine, std::ostream& stream)
 {
     stream << "table@" << lua_topointer(L, index);
@@ -98,7 +110,7 @@ inline void dumpTable(lua_State* L, int index, unsigned maxDepth, unsigned level
     while (lua_next(L, index))
     {
         stream << '\n';
-        putIndent(stream, level + 1);
+        detail::putIndent(stream, level + 1);
 
         dumpValue(L, -2, maxDepth, level + 1, false, stream); // Key
         stream << ": ";
@@ -113,7 +125,7 @@ inline void dumpTable(lua_State* L, int index, unsigned maxDepth, unsigned level
     if (valuesCount > 0)
     {
         stream << '\n';
-        putIndent(stream, level);
+        detail::putIndent(stream, level);
     }
 
     stream << "}";
@@ -122,6 +134,10 @@ inline void dumpTable(lua_State* L, int index, unsigned maxDepth, unsigned level
         stream << '\n';
 }
 
+//=================================================================================================
+/**
+ * @brief Dump the current stack, optionally recursively.
+ */
 inline void dumpState(lua_State* L, unsigned maxDepth = 1, std::ostream& stream = std::cerr)
 {
     stream << "----------------------------------------------" << '\n';
@@ -135,5 +151,4 @@ inline void dumpState(lua_State* L, unsigned maxDepth = 1, std::ostream& stream 
     }
 }
 
-} // namespace debug
 } // namespace luabridge
