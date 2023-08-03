@@ -1148,11 +1148,7 @@ private:
 
         auto result = Stack<T>::push(L, std::get<Index>(p));
         if (! result)
-        {
-            lua_pushnil(L);
-            lua_settable(L, -3);
             return result;
-        }
 
         lua_settable(L, -3);
 
@@ -1253,11 +1249,7 @@ private:
 
         auto result = Stack<T>::push(L, std::get<Index>(t));
         if (! result)
-        {
-            lua_pushnil(L);
-            lua_settable(L, -3);
             return result;
-        }
 
         lua_settable(L, -3);
 
