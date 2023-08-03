@@ -77,7 +77,7 @@ file (GLOB_RECURSE LUABRIDGE_TEST_LUA53_FILES
 
 file (GLOB_RECURSE LUABRIDGE_TEST_LUA54_FILES
   Lua/LuaLibrary.h
-  Lua/LuaLibrary5.4.4.cpp
+  Lua/LuaLibrary5.4.6.cpp
 )
 
 # ====================================================== Luau
