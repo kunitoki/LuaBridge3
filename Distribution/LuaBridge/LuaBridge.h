@@ -4880,15 +4880,18 @@ struct Stack<void*>
 
     [[nodiscard]] static TypeResult<void*> get(lua_State* L, int index)
     {
-        if (! lua_islightuserdata(L, index))
-            return makeErrorCode(ErrorCode::InvalidTypeCast);
+        if (lua_isnil(L, index))
+            return nullptr;
 
-        return lua_touserdata(L, index);
+        if (lua_islightuserdata(L, index))
+            return lua_touserdata(L, index);
+
+        return makeErrorCode(ErrorCode::InvalidTypeCast);
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
     {
-        return lua_islightuserdata(L, index);
+        return lua_islightuserdata(L, index) || lua_isnil(L, index);
     }
 };
 
@@ -4908,15 +4911,18 @@ struct Stack<const void*>
 
     [[nodiscard]] static TypeResult<const void*> get(lua_State* L, int index)
     {
-        if (! lua_islightuserdata(L, index))
-            return makeErrorCode(ErrorCode::InvalidTypeCast);
+        if (lua_isnil(L, index))
+            return nullptr;
 
-        return lua_touserdata(L, index);
+        if (lua_islightuserdata(L, index))
+            return lua_touserdata(L, index);
+
+        return makeErrorCode(ErrorCode::InvalidTypeCast);
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
     {
-        return lua_islightuserdata(L, index);
+        return lua_islightuserdata(L, index) || lua_isnil(L, index);
     }
 };
 
