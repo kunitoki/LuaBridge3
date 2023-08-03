@@ -1,9 +1,9 @@
 [submodule "ThirdParty/luau"]
 	path = ThirdParty/luau
-	url = https://github.com/kunitoki/luau.git
+	url = https://github.com/Roblox/luau.git
 [submodule "ThirdParty/googletest"]
 	path = ThirdParty/googletest
-	url = https://github.com/kunitoki/googletest.git
+	url = https://github.com/google/googletest.git
 [submodule "ThirdParty/ravi"]
 	path = ThirdParty/ravi
 	url = https://github.com/dibyendumajumdar/ravi.git
