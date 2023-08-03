@@ -47,6 +47,7 @@
 #include "../../ThirdParty/luau/Compiler/src/CostModel.cpp"
 #include "../../ThirdParty/luau/Compiler/src/lcode.cpp"
 #include "../../ThirdParty/luau/Compiler/src/TableShape.cpp"
+#include "../../ThirdParty/luau/Compiler/src/Types.cpp"
 #include "../../ThirdParty/luau/Compiler/src/ValueTracking.cpp"
 
 // Ast

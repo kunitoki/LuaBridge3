@@ -4677,11 +4677,7 @@ private:
 
         auto result = Stack<T>::push(L, std::get<Index>(p));
         if (! result)
-        {
-            lua_pushnil(L);
-            lua_settable(L, -3);
             return result;
-        }
 
         lua_settable(L, -3);
 
@@ -4778,11 +4774,7 @@ private:
 
         auto result = Stack<T>::push(L, std::get<Index>(t));
         if (! result)
-        {
-            lua_pushnil(L);
-            lua_settable(L, -3);
             return result;
-        }
 
         lua_settable(L, -3);
 
@@ -4880,15 +4872,18 @@ struct Stack<void*>
 
     [[nodiscard]] static TypeResult<void*> get(lua_State* L, int index)
     {
-        if (! lua_islightuserdata(L, index))
-            return makeErrorCode(ErrorCode::InvalidTypeCast);
+        if (lua_isnil(L, index))
+            return nullptr;
 
-        return lua_touserdata(L, index);
+        if (lua_islightuserdata(L, index))
+            return lua_touserdata(L, index);
+
+        return makeErrorCode(ErrorCode::InvalidTypeCast);
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
     {
-        return lua_islightuserdata(L, index);
+        return lua_islightuserdata(L, index) || lua_isnil(L, index);
     }
 };
 
@@ -4908,15 +4903,18 @@ struct Stack<const void*>
 
     [[nodiscard]] static TypeResult<const void*> get(lua_State* L, int index)
     {
-        if (! lua_islightuserdata(L, index))
-            return makeErrorCode(ErrorCode::InvalidTypeCast);
+        if (lua_isnil(L, index))
+            return nullptr;
 
-        return lua_touserdata(L, index);
+        if (lua_islightuserdata(L, index))
+            return lua_touserdata(L, index);
+
+        return makeErrorCode(ErrorCode::InvalidTypeCast);
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
     {
-        return lua_islightuserdata(L, index);
+        return lua_islightuserdata(L, index) || lua_isnil(L, index);
     }
 };
 
@@ -5127,6 +5125,136 @@ struct Stack<std::array<T, Size>>
 
 
 // End File: Source/LuaBridge/Array.h
+
+// Begin File: Source/LuaBridge/Dump.h
+
+namespace luabridge {
+namespace detail {
+inline void putIndent(std::ostream& stream, unsigned level)
+{
+    for (unsigned i = 0; i < level; ++i)
+        stream << "    ";
+}
+} 
+
+inline void dumpTable(lua_State* L, int index, unsigned maxDepth = 1, unsigned level = 0, bool newLine = true, std::ostream& stream = std::cerr);
+
+inline void dumpValue(lua_State* L, int index, unsigned maxDepth = 1, unsigned level = 0, bool newLine = true, std::ostream& stream = std::cerr)
+{
+    const int type = lua_type(L, index);
+    switch (type)
+    {
+    case LUA_TNIL:
+        stream << "nil";
+        break;
+
+    case LUA_TBOOLEAN:
+        stream << (lua_toboolean(L, index) ? "true" : "false");
+        break;
+
+    case LUA_TNUMBER:
+        stream << lua_tonumber(L, index);
+        break;
+
+    case LUA_TSTRING:
+        stream << '"' << lua_tostring(L, index) << '"';
+        break;
+
+    case LUA_TFUNCTION:
+        if (lua_iscfunction(L, index))
+            stream << "cfunction@" << lua_topointer(L, index);
+        else
+            stream << "function@" << lua_topointer(L, index);
+        break;
+
+    case LUA_TTHREAD:
+        stream << "thread@" << lua_tothread(L, index);
+        break;
+
+    case LUA_TLIGHTUSERDATA:
+        stream << "lightuserdata@" << lua_touserdata(L, index);
+        break;
+
+    case LUA_TTABLE:
+        dumpTable(L, index, maxDepth, level, false, stream);
+        break;
+
+    case LUA_TUSERDATA:
+        stream << "userdata@" << lua_touserdata(L, index);
+        break;
+
+    default:
+        stream << lua_typename(L, type);
+        break;
+    }
+
+    if (newLine)
+        stream << '\n';
+}
+
+inline void dumpTable(lua_State* L, int index, unsigned maxDepth, unsigned level, bool newLine, std::ostream& stream)
+{
+    stream << "table@" << lua_topointer(L, index);
+
+    if (level > maxDepth)
+    {
+        if (newLine)
+            stream << '\n';
+
+        return;
+    }
+
+    index = lua_absindex(L, index);
+
+    stream << " {";
+
+    int valuesCount = 0;
+
+    lua_pushnil(L); 
+    while (lua_next(L, index))
+    {
+        stream << '\n';
+        detail::putIndent(stream, level + 1);
+
+        dumpValue(L, -2, maxDepth, level + 1, false, stream); 
+        stream << ": ";
+        dumpValue(L, -1, maxDepth, level + 1, false, stream); 
+        stream << ",";
+
+        lua_pop(L, 1); 
+
+        ++valuesCount;
+    }
+
+    if (valuesCount > 0)
+    {
+        stream << '\n';
+        detail::putIndent(stream, level);
+    }
+
+    stream << "}";
+
+    if (newLine)
+        stream << '\n';
+}
+
+inline void dumpState(lua_State* L, unsigned maxDepth = 1, std::ostream& stream = std::cerr)
+{
+    stream << "----------------------------------------------" << '\n';
+
+    int top = lua_gettop(L);
+    for (int i = 1; i <= top; ++i)
+    {
+        stream << "stack #" << i << " (" << -(top - i + 1) << "): ";
+
+        dumpValue(L, i, maxDepth, 0, true, stream);
+    }
+}
+
+} 
+
+
+// End File: Source/LuaBridge/Dump.h
 
 // Begin File: Source/LuaBridge/List.h
 
@@ -7014,9 +7142,9 @@ TypeResult<T> getGlobal(lua_State* L, const char* name)
     lua_getglobal(L, name);
 
     auto result = luabridge::Stack<T>::get(L, -1);
-    
+
     lua_pop(L, 1);
-    
+
     return result;
 }
 
@@ -10210,136 +10338,5 @@ struct Stack<std::vector<T>>
 
 
 // End File: Source/LuaBridge/Vector.h
-
-// Begin File: Source/LuaBridge/detail/Dump.h
-
-namespace luabridge {
-namespace debug {
-
-inline void putIndent(std::ostream& stream, unsigned level)
-{
-    for (unsigned i = 0; i < level; ++i)
-        stream << "    ";
-}
-
-inline void dumpTable(lua_State* L, int index, unsigned maxDepth = 1, unsigned level = 0, bool newLine = true, std::ostream& stream = std::cerr);
-
-inline void dumpValue(lua_State* L, int index, unsigned maxDepth = 1, unsigned level = 0, bool newLine = true, std::ostream& stream = std::cerr)
-{
-    const int type = lua_type(L, index);
-    switch (type)
-    {
-    case LUA_TNIL:
-        stream << "nil";
-        break;
-
-    case LUA_TBOOLEAN:
-        stream << (lua_toboolean(L, index) ? "true" : "false");
-        break;
-
-    case LUA_TNUMBER:
-        stream << lua_tonumber(L, index);
-        break;
-
-    case LUA_TSTRING:
-        stream << '"' << lua_tostring(L, index) << '"';
-        break;
-
-    case LUA_TFUNCTION:
-        if (lua_iscfunction(L, index))
-            stream << "cfunction@" << lua_topointer(L, index);
-        else
-            stream << "function@" << lua_topointer(L, index);
-        break;
-
-    case LUA_TTHREAD:
-        stream << "thread@" << lua_tothread(L, index);
-        break;
-
-    case LUA_TLIGHTUSERDATA:
-        stream << "lightuserdata@" << lua_touserdata(L, index);
-        break;
-
-    case LUA_TTABLE:
-        dumpTable(L, index, maxDepth, level, false, stream);
-        break;
-
-    case LUA_TUSERDATA:
-        stream << "userdata@" << lua_touserdata(L, index);
-        break;
-
-    default:
-        stream << lua_typename(L, type);
-        break;
-    }
-
-    if (newLine)
-        stream << '\n';
-}
-
-inline void dumpTable(lua_State* L, int index, unsigned maxDepth, unsigned level, bool newLine, std::ostream& stream)
-{
-    stream << "table@" << lua_topointer(L, index);
-
-    if (level > maxDepth)
-    {
-        if (newLine)
-            stream << '\n';
-
-        return;
-    }
-
-    index = lua_absindex(L, index);
-
-    stream << " {";
-
-    int valuesCount = 0;
-
-    lua_pushnil(L); 
-    while (lua_next(L, index))
-    {
-        stream << '\n';
-        putIndent(stream, level + 1);
-
-        dumpValue(L, -2, maxDepth, level + 1, false, stream); 
-        stream << ": ";
-        dumpValue(L, -1, maxDepth, level + 1, false, stream); 
-        stream << ",";
-
-        lua_pop(L, 1); 
-
-        ++valuesCount;
-    }
-
-    if (valuesCount > 0)
-    {
-        stream << '\n';
-        putIndent(stream, level);
-    }
-
-    stream << "}";
-
-    if (newLine)
-        stream << '\n';
-}
-
-inline void dumpState(lua_State* L, unsigned maxDepth = 1, std::ostream& stream = std::cerr)
-{
-    stream << "----------------------------------------------" << '\n';
-
-    int top = lua_gettop(L);
-    for (int i = 1; i <= top; ++i)
-    {
-        stream << "stack #" << i << " (" << -(top - i + 1) << "): ";
-
-        dumpValue(L, i, maxDepth, 0, true, stream);
-    }
-}
-
-} 
-} 
-
-
-// End File: Source/LuaBridge/detail/Dump.h
 // clang-format on
 
