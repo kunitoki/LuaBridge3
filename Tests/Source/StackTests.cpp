@@ -5,6 +5,10 @@
 
 #include "TestBase.h"
 
+namespace {
+struct Unregistered {};
+} // namespace
+
 struct StackTests : TestBase
 {
 };
@@ -2108,6 +2112,31 @@ TEST_F(StackTests, PairStackOverflow)
     ASSERT_FALSE(luabridge::push(L, value));
 }
 
+TEST_F(StackTests, PairFailUnregistered)
+{
+    {
+        auto value = std::make_pair(Unregistered(), 1);
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        EXPECT_ANY_THROW(luabridge::push(L, value).error());
+#else
+        ASSERT_FALSE(luabridge::push(L, value));
+        EXPECT_EQ(luabridge::ErrorCode::ClassNotRegistered, luabridge::push(L, value).error());
+#endif
+    }
+
+    {
+        auto value = std::make_pair(1, Unregistered());
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        EXPECT_ANY_THROW(luabridge::push(L, value).error());
+#else
+        ASSERT_FALSE(luabridge::push(L, value));
+        EXPECT_EQ(luabridge::ErrorCode::ClassNotRegistered, luabridge::push(L, value).error());
+#endif
+    }
+}
+
 TEST_F(StackTests, Tuple)
 {
     {
@@ -2160,6 +2189,31 @@ TEST_F(StackTests, TupleStackOverflow)
     auto value = std::make_tuple(1, 1.0f, "one");
 
     ASSERT_FALSE(luabridge::push(L, value));
+}
+
+TEST_F(StackTests, TupleFailUnregistered)
+{
+    {
+        auto value = std::make_tuple(Unregistered(), 1);
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        EXPECT_ANY_THROW(luabridge::push(L, value).error());
+#else
+        ASSERT_FALSE(luabridge::push(L, value));
+        EXPECT_EQ(luabridge::ErrorCode::ClassNotRegistered, luabridge::push(L, value).error());
+#endif
+    }
+
+    {
+        auto value = std::make_tuple(1, Unregistered());
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        EXPECT_ANY_THROW(luabridge::push(L, value).error());
+#else
+        ASSERT_FALSE(luabridge::push(L, value));
+        EXPECT_EQ(luabridge::ErrorCode::ClassNotRegistered, luabridge::push(L, value).error());
+#endif
+    }
 }
 
 TEST_F(StackTests, NilStackOverflow)
@@ -2297,22 +2351,55 @@ TEST_F(StackTests, StdStringView)
 
 TEST_F(StackTests, VoidPointer)
 {
-    void* ptr = reinterpret_cast<void*>(0xdead1984);
-    (void)luabridge::push(L, ptr);
-
-    EXPECT_TRUE(luabridge::isInstance<void*>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<const void*>(L, -1));
-
     {
-        auto result = luabridge::get<void*>(L, -1);
-        ASSERT_TRUE(result);
-        EXPECT_EQ(ptr, *result);
+        void* ptr = reinterpret_cast<void*>(0xdead1984);
+        (void)luabridge::push(L, ptr);
+
+        EXPECT_TRUE(luabridge::isInstance<void*>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<const void*>(L, -1));
+
+        {
+            auto result = luabridge::get<void*>(L, -1);
+            ASSERT_TRUE(result);
+            EXPECT_EQ(ptr, *result);
+        }
+
+        {
+            auto result = luabridge::get<const void*>(L, -1);
+            ASSERT_TRUE(result);
+            EXPECT_EQ(ptr, *result);
+        }
     }
 
     {
-        auto result = luabridge::get<const void*>(L, -1);
-        ASSERT_TRUE(result);
-        EXPECT_EQ(ptr, *result);
+        void* ptr = nullptr;
+        (void)luabridge::push(L, ptr);
+
+        EXPECT_TRUE(luabridge::isInstance<void*>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<const void*>(L, -1));
+
+        {
+            auto result = luabridge::get<void*>(L, -1);
+            ASSERT_TRUE(result);
+            EXPECT_EQ(ptr, *result);
+        }
+
+        {
+            auto result = luabridge::get<const void*>(L, -1);
+            ASSERT_TRUE(result);
+            EXPECT_EQ(ptr, *result);
+        }
+    }
+
+    {
+        lua_pushnumber(L, 0.0);
+
+        EXPECT_FALSE(luabridge::isInstance<void*>(L, -1));
+
+        {
+            auto result = luabridge::get<void*>(L, -1);
+            EXPECT_FALSE(result);
+        }
     }
 }
 
@@ -2327,22 +2414,55 @@ TEST_F(StackTests, VoidPointerStackOverflow)
 
 TEST_F(StackTests, ConstVoidPointer)
 {
-    const void* ptr = reinterpret_cast<const void*>(0xdead1984);
-    (void)luabridge::push(L, ptr);
-
-    EXPECT_TRUE(luabridge::isInstance<void*>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<const void*>(L, -1));
-
     {
-        auto result = luabridge::get<void*>(L, -1);
-        ASSERT_TRUE(result);
-        EXPECT_EQ(ptr, *result);
+        const void* ptr = reinterpret_cast<const void*>(0xdead1984);
+        (void)luabridge::push(L, ptr);
+
+        EXPECT_TRUE(luabridge::isInstance<void*>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<const void*>(L, -1));
+
+        {
+            auto result = luabridge::get<void*>(L, -1);
+            ASSERT_TRUE(result);
+            EXPECT_EQ(ptr, *result);
+        }
+
+        {
+            auto result = luabridge::get<const void*>(L, -1);
+            ASSERT_TRUE(result);
+            EXPECT_EQ(ptr, *result);
+        }
     }
 
     {
-        auto result = luabridge::get<const void*>(L, -1);
-        ASSERT_TRUE(result);
-        EXPECT_EQ(ptr, *result);
+        const void* ptr = nullptr;
+        (void)luabridge::push(L, ptr);
+
+        EXPECT_TRUE(luabridge::isInstance<void*>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<const void*>(L, -1));
+
+        {
+            auto result = luabridge::get<void*>(L, -1);
+            ASSERT_TRUE(result);
+            EXPECT_EQ(ptr, *result);
+        }
+
+        {
+            auto result = luabridge::get<const void*>(L, -1);
+            ASSERT_TRUE(result);
+            EXPECT_EQ(ptr, *result);
+        }
+    }
+
+    {
+        lua_pushnumber(L, 0.0);
+
+        EXPECT_FALSE(luabridge::isInstance<const void*>(L, -1));
+
+        {
+            auto result = luabridge::get<const void*>(L, -1);
+            EXPECT_FALSE(result);
+        }
     }
 }
 
@@ -2357,8 +2477,6 @@ TEST_F(StackTests, ConstVoidPointerStackOverflow)
 
 TEST_F(StackTests, ResultCheck)
 {
-    struct Unregistered {};
-
 #if LUABRIDGE_HAS_EXCEPTIONS
     EXPECT_ANY_THROW(luabridge::push(L, std::optional<Unregistered>(Unregistered{})).error());
 #else
