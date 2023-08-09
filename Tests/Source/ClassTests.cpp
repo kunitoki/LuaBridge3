@@ -301,6 +301,12 @@ TEST_F(ClassTests, RefExtensible)
         result = foo.getName
     )");
     EXPECT_EQ("xyz", result<std::string>());
+
+    runLua(R"(
+        local foo = Foo.createRef('xyz')
+        result = foo.nonExistent
+    )");
+    EXPECT_TRUE(result().isNil());
 }
 
 TEST_F(ClassTests, ConstRefExtensible)
@@ -320,6 +326,12 @@ TEST_F(ClassTests, ConstRefExtensible)
         result = foo.getName
     )");
     EXPECT_EQ("xyz", result<std::string>());
+
+    runLua(R"(
+        local foo = Foo.createConstRef('xyz')
+        result = foo.nonExistent
+    )");
+    EXPECT_TRUE(result().isNil());
 }
 
 TEST_F(ClassTests, PassingUnregisteredClassToLuaThrows)

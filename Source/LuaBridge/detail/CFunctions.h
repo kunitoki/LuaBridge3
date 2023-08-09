@@ -295,12 +295,12 @@ inline int index_metamethod(lua_State* L)
             if constexpr (IsObject)
                 lua_pushvalue(L, 1); // Stack: mt, self
             else
-                push_class_or_const_table(L, -1);
+                push_class_or_const_table(L, -1); // Stack: mt, cl | co
 
             if (lua_istable(L, -1))
             {
-                lua_pushvalue(L, 2); // Stack: mt, self | st, field name
-                lua_rawget(L, -2); // Stack: mt, self | st, field | nil
+                lua_pushvalue(L, 2); // Stack: mt, self | cl | co, field name
+                lua_rawget(L, -2); // Stack: mt, self | cl | co, field | nil
                 lua_remove(L, -2); // Stack: mt, field | nil
                 if (! lua_isnil(L, -1)) // Stack: mt, field
                 {
