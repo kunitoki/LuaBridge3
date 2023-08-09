@@ -236,15 +236,20 @@ inline std::optional<int> try_call_index_fallback(lua_State* L)
     return std::nullopt;
 }
 
+template <bool IsObject>
 inline std::optional<int> try_call_index_extensible(lua_State* L, const char* key)
 {
     LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt
 
-    lua_rawgetp(L, -1, getStaticKey()); // Stack: mt, st
-    LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt, st
+    if constexpr (IsObject)
+        push_class_or_const_table(L, -1); // Stack: mt, cl | co
+    else
+        lua_rawgetp(L, -1, getStaticKey()); // Stack: mt, st
+
+    LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt, cl | co | st
     rawgetfield(L, -1, key); // Stack: mt, st, ifbresult | nil
 
-    if (! lua_isnoneornil(L, -1)) // Stack: mt, st, ifbresult
+    if (! lua_isnoneornil(L, -1)) // Stack: mt, cl | co | st, ifbresult
     {
         lua_remove(L, -2); // Stack: mt, ifbresult
         lua_remove(L, -2); // Stack: ifbresult
@@ -322,7 +327,7 @@ inline int index_metamethod(lua_State* L)
         const Options options = get_class_options(L, -1); // Stack: mt
         if (options.test(extensibleClass | allowOverridingMethods))
         {
-            if (auto result = try_call_index_extensible(L, key))
+            if (auto result = try_call_index_extensible<IsObject>(L, key))
                 return *result;
         }
 
@@ -369,7 +374,7 @@ inline int index_metamethod(lua_State* L)
 
         if (options.test(extensibleClass | ~allowOverridingMethods))
         {
-            if (auto result = try_call_index_extensible(L, key))
+            if (auto result = try_call_index_extensible<IsObject>(L, key))
                 return *result;
         }
 

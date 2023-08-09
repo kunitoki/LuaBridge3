@@ -235,6 +235,22 @@ TEST_F(ClassTests, IsInstanceConstRef)
     EXPECT_EQ("second second", result<std::string>());
 }
 
+TEST_F(ClassTests, IsInstanceConstRefExtensible)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Foo>("Foo", luabridge::extensibleClass)
+            .addConstructor<void(*)(const std::string&)>()
+            .addStaticFunction("createConstRef", &Foo::createConstRef)
+            .addProperty("getName", &Foo::getName)
+        .endClass();
+
+    runLua(R"(
+        local foo = Foo.createConstRef('second')
+        result = foo.getName
+    )");
+    EXPECT_EQ("second", result<std::string>());
+}
+
 TEST_F(ClassTests, PassingUnregisteredClassToLuaThrows)
 {
     using Unregistered = Class<int, EmptyBase>;
