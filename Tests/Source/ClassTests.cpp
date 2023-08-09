@@ -114,6 +114,7 @@ T Class<T, Base>::staticData = {};
 template <class T, class Base>
 const T Class<T, Base>::staticConstData = {};
 
+template <class T>
 class Foo
 {
 public:
@@ -129,6 +130,12 @@ public:
         return name;
     }
 
+    static Foo& createRef(const std::string& name)
+    {
+        static Foo instance(name);
+        return instance;
+    }
+
     static const Foo& createConstRef(const std::string& name)
     {
         static Foo instance(name);
@@ -139,6 +146,7 @@ private:
     std::string name;
 };
 
+template <class T>
 class Bar
 {
 public:
@@ -146,10 +154,10 @@ public:
 
     void setFoo(const luabridge::LuaRef& ref)
     {
-        if (ref.isInstance<Foo>())
-            foo = ref.cast<Foo>().value();
+        if (ref.isInstance<Foo<T>>())
+            foo = ref.cast<Foo<T>>().value();
         else
-            foo = Foo("undefined");
+            foo = Foo<T>("undefined");
     }
 
     const std::string& getFooName() const
@@ -158,7 +166,7 @@ public:
     }
 
 private:
-    Foo foo;
+    Foo<T> foo;
 };
 
 } // namespace
@@ -202,18 +210,59 @@ TEST_F(ClassTests, IsInstance)
     ASSERT_TRUE(luabridge::isInstance<OtherClass>(L, -1));
 }
 
+TEST_F(ClassTests, IsInstanceRef)
+{
+    struct A {};
+    using Fool = Foo<A>;
+    using Barn = Bar<A>;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Fool>("Foo")
+            .addConstructor<void(*)(const std::string&)>()
+            .addStaticFunction("createRef", &Fool::createRef)
+            .addFunction("__tostring", +[](const Fool& self) { return self.getName(); })
+        .endClass()
+        .beginClass<Barn>("Bar")
+            .addConstructor<void(*)()>()
+            .addFunction("setFoo", &Barn::setFoo)
+            .addFunction("getFooName", &Barn::getFooName)
+        .endClass();
+
+    runLua(R"(
+        local fooFirst = Foo('first')
+
+        local bar = Bar()
+        bar:setFoo(fooFirst)
+        result = bar:getFooName() .. " " .. tostring(fooFirst)
+    )");
+    EXPECT_EQ("first first", result<std::string>());
+
+    runLua(R"(
+        local fooSecond = Foo.createRef('second')
+
+        local bar = Bar()
+        bar:setFoo(fooSecond)
+        result = bar:getFooName() .. " " .. tostring(fooSecond)
+    )");
+    EXPECT_EQ("second second", result<std::string>());
+}
+
 TEST_F(ClassTests, IsInstanceConstRef)
 {
+    struct B {};
+    using Fool = Foo<B>;
+    using Barn = Bar<B>;
+
     luabridge::getGlobalNamespace(L)
-        .beginClass<Foo>("Foo")
+        .beginClass<Fool>("Foo")
             .addConstructor<void(*)(const std::string&)>()
-            .addStaticFunction("createConstRef", &Foo::createConstRef)
-            .addFunction("__tostring", +[](const Foo& self) { return self.getName(); })
+            .addStaticFunction("createConstRef", &Fool::createConstRef)
+            .addFunction("__tostring", +[](const Fool& self) { return self.getName(); })
         .endClass()
-        .beginClass<Bar>("Bar")
+        .beginClass<Barn>("Bar")
             .addConstructor<void(*)()>()
-            .addFunction("setFoo", &Bar::setFoo)
-            .addFunction("getFooName", &Bar::getFooName)
+            .addFunction("setFoo", &Barn::setFoo)
+            .addFunction("getFooName", &Barn::getFooName)
         .endClass();
 
     runLua(R"(
@@ -235,20 +284,42 @@ TEST_F(ClassTests, IsInstanceConstRef)
     EXPECT_EQ("second second", result<std::string>());
 }
 
-TEST_F(ClassTests, IsInstanceConstRefExtensible)
+TEST_F(ClassTests, RefExtensible)
 {
+    struct C {};
+    using Fool = Foo<C>;
+
     luabridge::getGlobalNamespace(L)
-        .beginClass<Foo>("Foo", luabridge::extensibleClass)
+        .beginClass<Fool>("Foo", luabridge::extensibleClass)
             .addConstructor<void(*)(const std::string&)>()
-            .addStaticFunction("createConstRef", &Foo::createConstRef)
-            .addProperty("getName", &Foo::getName)
+            .addStaticFunction("createRef", &Fool::createRef)
+            .addProperty("getName", &Fool::getName)
         .endClass();
 
     runLua(R"(
-        local foo = Foo.createConstRef('second')
+        local foo = Foo.createRef('xyz')
         result = foo.getName
     )");
-    EXPECT_EQ("second", result<std::string>());
+    EXPECT_EQ("xyz", result<std::string>());
+}
+
+TEST_F(ClassTests, ConstRefExtensible)
+{
+    struct D {};
+    using Fool = Foo<D>;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Fool>("Foo", luabridge::extensibleClass)
+            .addConstructor<void(*)(const std::string&)>()
+            .addStaticFunction("createConstRef", &Fool::createConstRef)
+            .addProperty("getName", &Fool::getName)
+        .endClass();
+
+    runLua(R"(
+        local foo = Foo.createConstRef('xyz')
+        result = foo.getName
+    )");
+    EXPECT_EQ("xyz", result<std::string>());
 }
 
 TEST_F(ClassTests, PassingUnregisteredClassToLuaThrows)
