@@ -214,7 +214,7 @@ TEST_F(SetTests, StackOverflow)
 {
     exhaustStackSpace();
 
-    std::map<std::string, int> value{ { "x", 1 }, { "y", 2 }, { "z", 3 } };
+    std::set<std::string> value{ "x", "y", "z" };
 
     ASSERT_FALSE(luabridge::push(L, value));
 }
