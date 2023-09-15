@@ -8306,17 +8306,21 @@ protected:
     {
     }
 
-    Registrar(const Registrar& rhs)
+    Registrar(const Registrar& rhs) = delete;
+
+    Registrar(Registrar&& rhs)
         : L(rhs.L)
         , m_stackSize(std::exchange(rhs.m_stackSize, 0))
         , m_skipStackPops(std::exchange(rhs.m_skipStackPops, 0))
     {
     }
 
-    Registrar& operator=(const Registrar& rhs)
+    Registrar& operator=(const Registrar& rhs) = delete;
+
+    Registrar& operator=(Registrar&& rhs)
     {
-        m_stackSize = rhs.m_stackSize;
-        m_skipStackPops = rhs.m_skipStackPops;
+        m_stackSize = std::exchange(rhs.m_stackSize, 0);
+        m_skipStackPops = std::exchange(rhs.m_skipStackPops, 0);
 
         return *this;
     }
@@ -8341,8 +8345,8 @@ protected:
     }
 
     lua_State* const L = nullptr;
-    int mutable m_stackSize = 0;
-    int mutable m_skipStackPops = 0;
+    int m_stackSize = 0;
+    int m_skipStackPops = 0;
 };
 
 } 
@@ -8384,8 +8388,8 @@ class Namespace : public detail::Registrar
     class ClassBase : public detail::Registrar
     {
     public:
-        explicit ClassBase(Namespace& parent)
-            : Registrar(parent)
+        explicit ClassBase(Namespace parent)
+            : Registrar(std::move(parent))
         {
         }
 
@@ -8488,8 +8492,8 @@ class Namespace : public detail::Registrar
     {
     public:
         
-        Class(const char* name, Namespace& parent, Options options)
-            : ClassBase(parent)
+        Class(const char* name, Namespace parent, Options options)
+            : ClassBase(std::move(parent))
         {
             LUABRIDGE_ASSERT(name != nullptr);
             LUABRIDGE_ASSERT(lua_istable(L, -1)); 
@@ -8552,8 +8556,8 @@ class Namespace : public detail::Registrar
             }
         }
 
-        Class(const char* name, Namespace& parent, const void* const staticKey, Options options)
-            : ClassBase(parent)
+        Class(const char* name, Namespace parent, const void* const staticKey, Options options)
+            : ClassBase(std::move(parent))
         {
             LUABRIDGE_ASSERT(name != nullptr);
             LUABRIDGE_ASSERT(lua_istable(L, -1)); 
@@ -8622,7 +8626,8 @@ class Namespace : public detail::Registrar
 
             m_stackSize -= 3;
             lua_pop(L, 3);
-            return Namespace(*this);
+
+            return Namespace(std::move(*this));
         }
 
         template <class U, class = std::enable_if_t<std::is_base_of_v<U, LuaRef> || !std::is_invocable_v<U>>>
@@ -9437,8 +9442,8 @@ class Namespace : public detail::Registrar
     class Table : public detail::Registrar
     {
     public:
-        explicit Table(const char* name, Namespace& parent)
-            : Registrar(parent)
+        explicit Table(const char* name, Namespace parent)
+            : Registrar(std::move(parent))
         {
             lua_newtable(L); 
             lua_pushvalue(L, -1); 
@@ -9489,7 +9494,8 @@ class Namespace : public detail::Registrar
 
             m_stackSize -= 2;
             lua_pop(L, 2);
-            return Namespace(*this);
+
+            return Namespace(std::move(*this));
         }
     };
 
@@ -9533,8 +9539,8 @@ private:
         ++m_stackSize;
     }
 
-    Namespace(const char* name, Namespace& parent, Options options)
-        : Registrar(parent)
+    Namespace(const char* name, Namespace parent, Options options)
+        : Registrar(std::move(parent))
     {
         LUABRIDGE_ASSERT(name != nullptr);
         LUABRIDGE_ASSERT(lua_istable(L, -1)); 
@@ -9575,13 +9581,13 @@ private:
         ++m_stackSize;
     }
 
-    explicit Namespace(ClassBase& child)
-        : Registrar(child)
+    explicit Namespace(ClassBase child)
+        : Registrar(std::move(child))
     {
     }
 
-    explicit Namespace(Table& child)
-        : Registrar(child)
+    explicit Namespace(Table child)
+        : Registrar(std::move(child))
     {
     }
 
@@ -9602,7 +9608,7 @@ public:
     Namespace beginNamespace(const char* name, Options options = defaultOptions)
     {
         assertIsActive();
-        return Namespace(name, *this, options);
+        return Namespace(name, std::move(*this), options);
     }
 
     Namespace endNamespace()
@@ -9611,13 +9617,14 @@ public:
         {
             throw_or_assert<std::logic_error>("endNamespace() called on global namespace");
 
-            return Namespace(*this);
+            return Namespace(std::move(*this));
         }
 
         LUABRIDGE_ASSERT(m_stackSize > 1);
         --m_stackSize;
         lua_pop(L, 1);
-        return Namespace(*this);
+
+        return Namespace(std::move(*this));
     }
 
     template <class T>
@@ -9891,21 +9898,21 @@ public:
     Table beginTable(const char* name)
     {
         assertIsActive();
-        return Table(name, *this);
+        return Table(name, std::move(*this));
     }
 
     template <class T>
     Class<T> beginClass(const char* name, Options options = defaultOptions)
     {
         assertIsActive();
-        return Class<T>(name, *this, options);
+        return Class<T>(name, std::move(*this), options);
     }
 
     template <class Derived, class Base>
     Class<Derived> deriveClass(const char* name, Options options = defaultOptions)
     {
         assertIsActive();
-        return Class<Derived>(name, *this, detail::getStaticRegistryKey<Base>(), options);
+        return Class<Derived>(name, std::move(*this), detail::getStaticRegistryKey<Base>(), options);
     }
 };
 
