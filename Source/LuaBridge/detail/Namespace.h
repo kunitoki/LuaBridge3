@@ -52,17 +52,21 @@ protected:
     {
     }
 
-    Registrar(const Registrar& rhs)
+    Registrar(const Registrar& rhs) = delete;
+
+    Registrar(Registrar&& rhs)
         : L(rhs.L)
         , m_stackSize(std::exchange(rhs.m_stackSize, 0))
         , m_skipStackPops(std::exchange(rhs.m_skipStackPops, 0))
     {
     }
 
-    Registrar& operator=(const Registrar& rhs)
+    Registrar& operator=(const Registrar& rhs) = delete;
+
+    Registrar& operator=(Registrar&& rhs)
     {
-        m_stackSize = rhs.m_stackSize;
-        m_skipStackPops = rhs.m_skipStackPops;
+        m_stackSize = std::exchange(rhs.m_stackSize, 0);
+        m_skipStackPops = std::exchange(rhs.m_skipStackPops, 0);
 
         return *this;
     }
@@ -87,8 +91,8 @@ protected:
     }
 
     lua_State* const L = nullptr;
-    int mutable m_stackSize = 0;
-    int mutable m_skipStackPops = 0;
+    int m_stackSize = 0;
+    int m_skipStackPops = 0;
 };
 
 } // namespace detail
@@ -146,8 +150,8 @@ class Namespace : public detail::Registrar
     class ClassBase : public detail::Registrar
     {
     public:
-        explicit ClassBase(Namespace& parent)
-            : Registrar(parent)
+        explicit ClassBase(Namespace parent)
+            : Registrar(std::move(parent))
         {
         }
 
@@ -290,8 +294,8 @@ class Namespace : public detail::Registrar
          * @param parent A parent namespace object.
          * @param options Class options.
          */
-        Class(const char* name, Namespace& parent, Options options)
-            : ClassBase(parent)
+        Class(const char* name, Namespace parent, Options options)
+            : ClassBase(std::move(parent))
         {
             LUABRIDGE_ASSERT(name != nullptr);
             LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
@@ -366,8 +370,8 @@ class Namespace : public detail::Registrar
          * @param parent A parent namespace object.
          * @param staticKey Key where the class is stored.
         */
-        Class(const char* name, Namespace& parent, const void* const staticKey, Options options)
-            : ClassBase(parent)
+        Class(const char* name, Namespace parent, const void* const staticKey, Options options)
+            : ClassBase(std::move(parent))
         {
             LUABRIDGE_ASSERT(name != nullptr);
             LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
@@ -443,7 +447,8 @@ class Namespace : public detail::Registrar
 
             m_stackSize -= 3;
             lua_pop(L, 3);
-            return Namespace(*this);
+
+            return Namespace(std::move(*this));
         }
 
         //=========================================================================================
@@ -1400,8 +1405,8 @@ class Namespace : public detail::Registrar
     class Table : public detail::Registrar
     {
     public:
-        explicit Table(const char* name, Namespace& parent)
-            : Registrar(parent)
+        explicit Table(const char* name, Namespace parent)
+            : Registrar(std::move(parent))
         {
             lua_newtable(L); // Stack: ns, table (tb)
             lua_pushvalue(L, -1); // Stack: ns, tb, tb
@@ -1452,7 +1457,8 @@ class Namespace : public detail::Registrar
 
             m_stackSize -= 2;
             lua_pop(L, 2);
-            return Namespace(*this);
+
+            return Namespace(std::move(*this));
         }
     };
 
@@ -1521,8 +1527,8 @@ private:
      *
      * @pre The parent namespace is at the top of the Lua stack.
      */
-    Namespace(const char* name, Namespace& parent, Options options)
-        : Registrar(parent)
+    Namespace(const char* name, Namespace parent, Options options)
+        : Registrar(std::move(parent))
     {
         LUABRIDGE_ASSERT(name != nullptr);
         LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: parent namespace (pns)
@@ -1573,13 +1579,13 @@ private:
      *
      * @param child A child class registration object.
      */
-    explicit Namespace(ClassBase& child)
-        : Registrar(child)
+    explicit Namespace(ClassBase child)
+        : Registrar(std::move(child))
     {
     }
 
-    explicit Namespace(Table& child)
-        : Registrar(child)
+    explicit Namespace(Table child)
+        : Registrar(std::move(child))
     {
     }
 
@@ -1627,7 +1633,7 @@ public:
     Namespace beginNamespace(const char* name, Options options = defaultOptions)
     {
         assertIsActive();
-        return Namespace(name, *this, options);
+        return Namespace(name, std::move(*this), options);
     }
 
     //=============================================================================================
@@ -1644,13 +1650,14 @@ public:
         {
             throw_or_assert<std::logic_error>("endNamespace() called on global namespace");
 
-            return Namespace(*this);
+            return Namespace(std::move(*this));
         }
 
         LUABRIDGE_ASSERT(m_stackSize > 1);
         --m_stackSize;
         lua_pop(L, 1);
-        return Namespace(*this);
+
+        return Namespace(std::move(*this));
     }
 
     //=============================================================================================
@@ -2004,7 +2011,7 @@ public:
     Table beginTable(const char* name)
     {
         assertIsActive();
-        return Table(name, *this);
+        return Table(name, std::move(*this));
     }
 
     //=============================================================================================
@@ -2020,7 +2027,7 @@ public:
     Class<T> beginClass(const char* name, Options options = defaultOptions)
     {
         assertIsActive();
-        return Class<T>(name, *this, options);
+        return Class<T>(name, std::move(*this), options);
     }
 
     //=============================================================================================
@@ -2038,7 +2045,7 @@ public:
     Class<Derived> deriveClass(const char* name, Options options = defaultOptions)
     {
         assertIsActive();
-        return Class<Derived>(name, *this, detail::getStaticRegistryKey<Base>(), options);
+        return Class<Derived>(name, std::move(*this), detail::getStaticRegistryKey<Base>(), options);
     }
 };
 
