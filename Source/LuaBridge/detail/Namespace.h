@@ -347,8 +347,12 @@ class Namespace : public detail::Registrar
             }
             else
             {
-                LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: ns, st
+                LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: ns, vst
                 ++m_stackSize;
+
+                lua_getmetatable(L, -1); // Stack: ns, vst, st
+                lua_insert(L, -2); // Stack: ns, st, vst
+                lua_pop(L, 1); // Stack: ns, st
 
                 // Map T back from its stored tables
 
