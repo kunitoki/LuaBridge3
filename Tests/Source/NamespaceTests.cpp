@@ -537,6 +537,21 @@ TEST_F(NamespaceTests, IndexAccessByNonStringShouldNotCrash)
     EXPECT_TRUE(result().isNil());
 }
 
+TEST_F(NamespaceTests, NamespaceAsRValueReferenceShouldWork)
+{
+    auto ns = luabridge::getGlobalNamespace(L);
+
+    ns = ns.beginNamespace("test");
+    
+    auto cls = ns.beginClass<SystemDestroyer>("SystemDestroyer");
+    ns = cls.endClass();
+    
+    ns.endNamespace();
+
+    runLua("result = test[SystemDestroyer]");
+    EXPECT_TRUE(result().isNil());
+}
+
 #ifdef _M_IX86 // Windows 32bit only
 
 namespace {
