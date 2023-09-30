@@ -355,7 +355,6 @@ class Namespace : public detail::Registrar
                 lua_pop(L, 1); // Stack: ns, st
 
                 // Map T back from its stored tables
-
                 lua_rawgetp(L, LUA_REGISTRYINDEX, detail::getConstRegistryKey<T>()); // Stack: ns, st, co
                 lua_insert(L, -2); // Stack: ns, co, st
                 ++m_stackSize;
