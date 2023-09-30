@@ -2463,6 +2463,18 @@ struct TypeResult
         return std::move(m_value.value());
     }
 
+    template <class U>
+    T valueOr(U&& defaultValue) const&
+    {
+        return m_value.valueOr(std::forward<U>(defaultValue));
+    }
+
+    template <class U>
+    T valueOr(U&& defaultValue) &&
+    {
+        return m_value.valueOr(std::forward<U>(defaultValue));
+    }
+
     std::error_code error() const
     {
         return m_value.error();
