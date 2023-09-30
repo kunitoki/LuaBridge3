@@ -1005,6 +1005,23 @@ struct ClassProperties : ClassTests
 {
 };
 
+TEST_F(ClassProperties, FieldPointersNonRegistered)
+{
+    using Int = Class<int, EmptyBase>;
+    using UnregisteredInt = Class<long, EmptyBase>;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addProperty("staticData", [](const Int&) { return UnregisteredInt(1); })
+        .endClass();
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    ASSERT_THROW(runLua("result = Int.staticData"), std::exception);
+#else
+    ASSERT_FALSE(runLua("result = Int.staticData"));
+#endif
+}
+
 TEST_F(ClassProperties, FieldPointers)
 {
     using Int = Class<int, EmptyBase>;
@@ -1641,6 +1658,23 @@ TEST_F(ClassStaticFunctions, StdFunctions)
 struct ClassStaticProperties : ClassTests
 {
 };
+
+TEST_F(ClassStaticProperties, FieldPointersNonRegistered)
+{
+    using Int = Class<int, EmptyBase>;
+    using UnregisteredInt = Class<long, EmptyBase>;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addStaticProperty("staticData", [] { return UnregisteredInt(1); })
+        .endClass();
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    ASSERT_THROW(runLua("result = Int.staticData"), std::exception);
+#else
+    ASSERT_FALSE(runLua("result = Int.staticData"));
+#endif
+}
 
 TEST_F(ClassStaticProperties, FieldPointers)
 {
