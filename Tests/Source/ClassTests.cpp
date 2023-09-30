@@ -1718,6 +1718,27 @@ TEST_F(ClassStaticProperties, FieldPointers_Overridden)
     ASSERT_EQ(7, Derived::staticData);
 }
 
+TEST_F(ClassStaticProperties, SubsequentRegistration)
+{
+    using Int = Class<int, EmptyBase>;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .endClass()
+        .beginClass<Int>("Int")
+        .addStaticProperty("staticData", &Int::staticData, true)
+        .endClass();
+
+    Int::staticData = 10;
+
+    runLua("result = Int.staticData");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(10, result<int>());
+
+    runLua("Int.staticData = 20");
+    ASSERT_EQ(20, Int::staticData);
+}
+
 struct ClassMetaMethods : ClassTests
 {
 };
