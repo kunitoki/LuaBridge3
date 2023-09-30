@@ -8546,6 +8546,10 @@ class Namespace : public detail::Registrar
                 LUABRIDGE_ASSERT(lua_istable(L, -1)); 
                 ++m_stackSize;
 
+                lua_getmetatable(L, -1); 
+                lua_insert(L, -2); 
+                lua_pop(L, 1); 
+
                 lua_rawgetp(L, LUA_REGISTRYINDEX, detail::getConstRegistryKey<T>()); 
                 lua_insert(L, -2); 
                 ++m_stackSize;
