@@ -2497,6 +2497,19 @@ TEST_F(StackTests, TypeResultCheck)
     EXPECT_EQ(luabridge::ErrorCode::InvalidTypeCast, static_cast<std::error_code>(luabridge::get<int>(L, -1)));
 }
 
+TEST_F(StackTests, TypeResultValueOr)
+{
+    (void)luabridge::push(L, std::string_view("abc"));
+    EXPECT_EQ(1337, luabridge::get<int>(L, -1).valueOr(1337));
+    auto result1 = luabridge::get<int>(L, -1);
+    EXPECT_EQ(1337, result1.valueOr(1337));
+
+    (void)luabridge::push(L, 42);
+    EXPECT_EQ(42, luabridge::get<int>(L, -1).valueOr(1337));
+    auto result2 = luabridge::get<int>(L, -1);
+    EXPECT_EQ(42, result2.valueOr(1337));
+}
+
 #if LUABRIDGE_HAS_EXCEPTIONS
 TEST_F(StackTests, ResultThrowOnError)
 {
