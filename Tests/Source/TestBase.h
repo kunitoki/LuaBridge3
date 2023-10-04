@@ -209,7 +209,17 @@ struct TestBase : public ::testing::Test
 
     void exhaustStackSpace()
     {
-        for (int i = 0; i < 2000000; ++i)
+        // Exhaust LUAI_MAXSTACK = 1000000
+        for (int i = 0; i < 1000000; ++i)
+        {
+            if (!lua_checkstack(L, 1))
+                break;
+
+            lua_pushnil(L);
+        }
+        
+        // Exhaust ERRORSTACKSIZE = LUAI_MAXSTACK + 200
+        for (int i = 0; i < 200; ++i)
         {
             if (!lua_checkstack(L, 1))
                 break;
