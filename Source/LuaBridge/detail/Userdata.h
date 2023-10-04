@@ -67,10 +67,8 @@ private:
                               const void* registryClassKey,
                               bool canBeConst)
     {
-        index = lua_absindex(L, index);
-
-        lua_getmetatable(L, index); // Stack: object metatable (ot) | nil
-        if (!lua_istable(L, -1))
+        const int result = lua_getmetatable(L, index); // Stack: object metatable (ot) | nil
+        if (result == 0 || !lua_istable(L, -1))
         {
             lua_rawgetp(L, LUA_REGISTRYINDEX, registryClassKey); // Stack: ot | nil, registry metatable (rt) | nil
             return throwBadArg(L, index);
@@ -85,15 +83,10 @@ private:
         // -> canBeConst = false, isConst = true
         // -> 'Class' registry table, 'const Class' object table
         // -> 'expected Class, got const Class'
-        bool isConst = lua_isnil(L, -1); // Stack: ot | nil, nil, rt
-        if (isConst && canBeConst)
-        {
-            lua_rawgetp(L, LUA_REGISTRYINDEX, registryConstKey); // Stack: ot, nil, rt
-        }
-        else
-        {
-            lua_rawgetp(L, LUA_REGISTRYINDEX, registryClassKey); // Stack: ot, co, rt
-        }
+        const bool isConst = lua_isnil(L, -1); // Stack: ot | nil, nil, rt
+        lua_rawgetp(L, LUA_REGISTRYINDEX, (isConst && canBeConst)
+            ? registryConstKey
+            : registryClassKey); // Stack: ot, co | nil, rt
 
         lua_insert(L, -3); // Stack: rt, ot, co | nil
         lua_pop(L, 1); // Stack: rt, ot
@@ -122,13 +115,11 @@ private:
         // no return
     }
 
-    static bool isInstance(lua_State* L, int index, const void* registryClassKey)
+    static bool isInstance(lua_State* L, int index, const void* registryKey)
     {
-        index = lua_absindex(L, index);
-
-        int result = lua_getmetatable(L, index); // Stack: object metatable (ot) | nothing
+        const auto result = lua_getmetatable(L, index); // Stack: object metatable (ot) | nil
         if (result == 0)
-            return false; // Nothing was pushed on the stack
+            return false;
 
         if (!lua_istable(L, -1))
         {
@@ -136,7 +127,7 @@ private:
             return false;
         }
 
-        lua_rawgetp(L, LUA_REGISTRYINDEX, registryClassKey); // Stack: ot, rt
+        lua_rawgetp(L, LUA_REGISTRYINDEX, registryKey); // Stack: ot, rt
         lua_insert(L, -2); // Stack: rt, ot
 
         for (;;)
@@ -152,12 +143,15 @@ private:
 
             if (lua_isnil(L, -1)) // Stack: rt, ot, nil
             {
+                // Drop the object metatable because it may be some parent metatable
                 lua_pop(L, 3); // Stack: -
                 return false;
             }
 
             lua_remove(L, -2); // Stack: rt, pot
         }
+
+        // no return
     }
 
     static Userdata* throwBadArg(lua_State* L, int index)
@@ -254,7 +248,8 @@ public:
     template <class T>
     static bool isInstance(lua_State* L, int index)
     {
-        return isInstance(L, index, detail::getClassRegistryKey<T>());
+        return isInstance(L, index, detail::getClassRegistryKey<T>())
+            || isInstance(L, index, detail::getConstRegistryKey<T>());
     }
 
 protected:

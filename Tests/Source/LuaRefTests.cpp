@@ -528,21 +528,10 @@ TEST_F(LuaRefTests, Pop)
 
 TEST_F(LuaRefTests, IsInstance)
 {
-    struct Base
-    {
-    };
-
-    struct Derived : Base
-    {
-    };
-
-    struct Other
-    {
-    };
-
-    struct Unknown : Base
-    {
-    };
+    struct Base {};
+    struct Derived : Base {};
+    struct Other {};
+    struct Unknown : Base {};
 
     luabridge::getGlobalNamespace(L)
         .beginClass<Base>("Base")
@@ -561,6 +550,8 @@ TEST_F(LuaRefTests, IsInstance)
     EXPECT_FALSE(result().isInstance<Other>());
     EXPECT_FALSE(result().isInstance<Unknown>());
     EXPECT_TRUE(result().isUserdata());
+    EXPECT_FALSE(result().isNil());
+    EXPECT_EQ("Base", result().getClassName().value_or(""));
 
     runLua("result = Derived ()");
     EXPECT_TRUE(result().isInstance<Base>());
@@ -568,6 +559,8 @@ TEST_F(LuaRefTests, IsInstance)
     EXPECT_FALSE(result().isInstance<Other>());
     EXPECT_FALSE(result().isInstance<Unknown>());
     EXPECT_TRUE(result().isUserdata());
+    EXPECT_FALSE(result().isNil());
+    EXPECT_EQ("Derived", result().getClassName().value_or(""));
 
     runLua("result = Other ()");
     EXPECT_FALSE(result().isInstance<Base>());
@@ -575,6 +568,35 @@ TEST_F(LuaRefTests, IsInstance)
     EXPECT_TRUE(result().isInstance<Other>());
     EXPECT_FALSE(result().isInstance<Unknown>());
     EXPECT_TRUE(result().isUserdata());
+    EXPECT_FALSE(result().isNil());
+    EXPECT_EQ("Other", result().getClassName().value_or(""));
+
+    lua_newuserdata(L, sizeof(Unknown));
+    EXPECT_TRUE(lua_isuserdata(L, -1));
+    luaL_newmetatable(L, "Unknown");
+    EXPECT_TRUE(lua_istable(L, -1));
+    lua_setmetatable(L, -2);
+    EXPECT_TRUE(lua_isuserdata(L, -1));
+    lua_setglobal(L, "unkown");
+    runLua("result = unknown");
+    EXPECT_FALSE(result().isInstance<Base>());
+    EXPECT_FALSE(result().isInstance<Derived>());
+    EXPECT_FALSE(result().isInstance<Other>());
+    EXPECT_FALSE(result().isInstance<Unknown>());
+    //EXPECT_TRUE(result().isUserdata()); // TODO
+    EXPECT_FALSE(result().isTable());
+    //EXPECT_FALSE(result().isNil()); // TODO
+    EXPECT_FALSE(result().getClassName());
+
+    runLua("result = {}");
+    EXPECT_FALSE(result().isInstance<Base>());
+    EXPECT_FALSE(result().isInstance<Derived>());
+    EXPECT_FALSE(result().isInstance<Other>());
+    EXPECT_FALSE(result().isInstance<Unknown>());
+    EXPECT_FALSE(result().isUserdata());
+    EXPECT_TRUE(result().isTable());
+    EXPECT_FALSE(result().isNil());
+    EXPECT_FALSE(result().getClassName());
 
     runLua("result = 3.14");
     EXPECT_FALSE(result().isInstance<Base>());
@@ -582,6 +604,9 @@ TEST_F(LuaRefTests, IsInstance)
     EXPECT_FALSE(result().isInstance<Other>());
     EXPECT_FALSE(result().isInstance<Unknown>());
     EXPECT_FALSE(result().isUserdata());
+    EXPECT_TRUE(result().isNumber());
+    EXPECT_FALSE(result().isNil());
+    EXPECT_FALSE(result().getClassName());
 }
 
 TEST_F(LuaRefTests, Print)
