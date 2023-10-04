@@ -1012,13 +1012,13 @@ TEST_F(ClassProperties, FieldPointersNonRegistered)
 
     luabridge::getGlobalNamespace(L)
         .beginClass<Int>("Int")
-        .addProperty("staticData", [](const Int&) { return UnregisteredInt(1); })
+        .addProperty("data", [](const Int&) { return UnregisteredInt(1); })
         .endClass();
 
 #if LUABRIDGE_HAS_EXCEPTIONS
-    ASSERT_THROW(runLua("result = Int.staticData"), std::exception);
+    ASSERT_THROW(runLua("result = Int().data"), std::exception);
 #else
-    ASSERT_FALSE(runLua("result = Int.staticData"));
+    ASSERT_FALSE(runLua("result = Int().data"));
 #endif
 }
 
