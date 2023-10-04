@@ -2624,12 +2624,22 @@ template <class T, auto = typeName<T>().find_first_of('.')>
 
 [[nodiscard]] inline const void* getIndexFallbackKey()
 {
-  return reinterpret_cast<void*>(0x81ca);
+    return reinterpret_cast<void*>(0x81ca);
+}
+
+[[nodiscard]] inline const void* getIndexExtensibleKey()
+{
+    return reinterpret_cast<void*>(0x81cb);
 }
 
 [[nodiscard]] inline const void* getNewIndexFallbackKey()
 {
-  return reinterpret_cast<void*>(0x8107);
+    return reinterpret_cast<void*>(0x8107);
+}
+
+[[nodiscard]] inline const void* getNewIndexExtensibleKey()
+{
+    return reinterpret_cast<void*>(0x8108);
 }
 
 template <class T>
@@ -2903,10 +2913,8 @@ private:
                               const void* registryClassKey,
                               bool canBeConst)
     {
-        index = lua_absindex(L, index);
-
-        lua_getmetatable(L, index); 
-        if (!lua_istable(L, -1))
+        const int result = lua_getmetatable(L, index); 
+        if (result == 0 || !lua_istable(L, -1))
         {
             lua_rawgetp(L, LUA_REGISTRYINDEX, registryClassKey); 
             return throwBadArg(L, index);
@@ -2915,15 +2923,10 @@ private:
         lua_rawgetp(L, -1, getConstKey()); 
         LUABRIDGE_ASSERT(lua_istable(L, -1) || lua_isnil(L, -1));
 
-        bool isConst = lua_isnil(L, -1); 
-        if (isConst && canBeConst)
-        {
-            lua_rawgetp(L, LUA_REGISTRYINDEX, registryConstKey); 
-        }
-        else
-        {
-            lua_rawgetp(L, LUA_REGISTRYINDEX, registryClassKey); 
-        }
+        const bool isConst = lua_isnil(L, -1); 
+        lua_rawgetp(L, LUA_REGISTRYINDEX, (isConst && canBeConst)
+            ? registryConstKey
+            : registryClassKey); 
 
         lua_insert(L, -3); 
         lua_pop(L, 1); 
@@ -2950,13 +2953,11 @@ private:
 
     }
 
-    static bool isInstance(lua_State* L, int index, const void* registryClassKey)
+    static bool isInstance(lua_State* L, int index, const void* registryKey)
     {
-        index = lua_absindex(L, index);
-
-        int result = lua_getmetatable(L, index); 
+        const auto result = lua_getmetatable(L, index); 
         if (result == 0)
-            return false; 
+            return false;
 
         if (!lua_istable(L, -1))
         {
@@ -2964,7 +2965,7 @@ private:
             return false;
         }
 
-        lua_rawgetp(L, LUA_REGISTRYINDEX, registryClassKey); 
+        lua_rawgetp(L, LUA_REGISTRYINDEX, registryKey); 
         lua_insert(L, -2); 
 
         for (;;)
@@ -2979,12 +2980,14 @@ private:
 
             if (lua_isnil(L, -1)) 
             {
+                
                 lua_pop(L, 3); 
                 return false;
             }
 
             lua_remove(L, -2); 
         }
+
     }
 
     static Userdata* throwBadArg(lua_State* L, int index)
@@ -3054,7 +3057,8 @@ public:
     template <class T>
     static bool isInstance(lua_State* L, int index)
     {
-        return isInstance(L, index, detail::getClassRegistryKey<T>());
+        return isInstance(L, index, detail::getClassRegistryKey<T>())
+            || isInstance(L, index, detail::getConstRegistryKey<T>());
     }
 
 protected:
@@ -5675,7 +5679,7 @@ inline static constexpr bool is_proxy_member_function_v =
 template <class T, class F>
 inline static constexpr bool is_const_proxy_function_v =
     is_proxy_member_function_v<T, F> &&
-    std::is_const_v<std::remove_pointer_t<function_argument_or_void_t<0, F>>>;
+    std::is_const_v<std::remove_reference_t<std::remove_pointer_t<function_argument_or_void_t<0, F>>>>;
 
 template <class, class>
 struct function_arity_excluding
@@ -6034,6 +6038,21 @@ inline Options get_class_options(lua_State* L, int index)
     return options;
 }
 
+inline void push_class_or_const_table(lua_State* L, int index)
+{
+    LUABRIDGE_ASSERT(lua_istable(L, index)); 
+
+    lua_rawgetp(L, index, getClassKey()); 
+    if (! lua_istable(L, -1)) 
+    {
+        lua_pop(L, 1); 
+
+        lua_rawgetp(L, index, getConstKey()); 
+        if (! lua_istable(L, -1)) 
+            return;
+    }
+}
+
 inline std::optional<int> try_call_index_fallback(lua_State* L)
 {
     LUABRIDGE_ASSERT(lua_istable(L, -1)); 
@@ -6059,6 +6078,31 @@ inline std::optional<int> try_call_index_fallback(lua_State* L)
     return std::nullopt;
 }
 
+template <bool IsObject>
+inline std::optional<int> try_call_index_extensible(lua_State* L, const char* key)
+{
+    LUABRIDGE_ASSERT(lua_istable(L, -1)); 
+
+    if constexpr (IsObject)
+        push_class_or_const_table(L, -1); 
+    else
+        lua_rawgetp(L, -1, getStaticKey()); 
+
+    LUABRIDGE_ASSERT(lua_istable(L, -1)); 
+    rawgetfield(L, -1, key); 
+
+    if (! lua_isnoneornil(L, -1)) 
+    {
+        lua_remove(L, -2); 
+        lua_remove(L, -2); 
+        return 1;
+    }
+
+    lua_pop(L, 2); 
+    return std::nullopt;
+}
+
+template <bool IsObject>
 inline int index_metamethod(lua_State* L)
 {
 #if LUABRIDGE_SAFE_STACK_CHECKS
@@ -6079,18 +6123,38 @@ inline int index_metamethod(lua_State* L)
 
     for (;;)
     {
-        
-        const Options options = get_class_options(L, -1); 
-        if (options.test(allowOverridingMethods))
+        if constexpr (IsObject)
         {
+            
             if (auto result = try_call_index_fallback(L))
                 return *result;
         }
 
+        if (lua_istable(L, 1))
+        {
+            if constexpr (IsObject)
+                lua_pushvalue(L, 1); 
+            else
+                push_class_or_const_table(L, -1); 
+
+            if (lua_istable(L, -1))
+            {
+                lua_pushvalue(L, 2); 
+                lua_rawget(L, -2); 
+                lua_remove(L, -2); 
+                if (! lua_isnil(L, -1)) 
+                {
+                    lua_remove(L, -2); 
+                    return 1;
+                }
+            }
+
+            lua_pop(L, 1); 
+        }
+
         lua_pushvalue(L, 2); 
         lua_rawget(L, -2); 
-
-        if (lua_iscfunction(L, -1)) 
+        if (! lua_isnil(L, -1)) 
         {
             lua_remove(L, -2); 
             return 1;
@@ -6098,6 +6162,13 @@ inline int index_metamethod(lua_State* L)
 
         LUABRIDGE_ASSERT(lua_isnil(L, -1)); 
         lua_pop(L, 1); 
+
+        const Options options = get_class_options(L, -1); 
+        if (options.test(extensibleClass | allowOverridingMethods))
+        {
+            if (auto result = try_call_index_extensible<IsObject>(L, key))
+                return *result;
+        }
 
         lua_rawgetp(L, -1, getPropgetKey()); 
         LUABRIDGE_ASSERT(lua_istable(L, -1));
@@ -6117,8 +6188,29 @@ inline int index_metamethod(lua_State* L)
         LUABRIDGE_ASSERT(lua_isnil(L, -1)); 
         lua_pop(L, 1); 
 
-        if (auto result = try_call_index_fallback(L))
-            return *result;
+        lua_rawgetp(L, -1, getParentKey()); 
+        if (lua_isnil(L, -1)) 
+        {
+            lua_pop(L, 2); 
+            break;
+        }
+
+        LUABRIDGE_ASSERT(lua_istable(L, -1)); 
+        lua_remove(L, -2); 
+    }
+
+    lua_getmetatable(L, 1); 
+    LUABRIDGE_ASSERT(lua_istable(L, -1));
+
+    for (;;)
+    {
+        const Options options = get_class_options(L, -1); 
+
+        if (options.test(extensibleClass | ~allowOverridingMethods))
+        {
+            if (auto result = try_call_index_extensible<IsObject>(L, key))
+                return *result;
+        }
 
         lua_rawgetp(L, -1, getParentKey()); 
         if (lua_isnil(L, -1)) 
@@ -6133,9 +6225,8 @@ inline int index_metamethod(lua_State* L)
 
 }
 
-inline std::optional<int> try_call_newindex_fallback(lua_State* L, const char* key)
+inline std::optional<int> try_call_newindex_fallback(lua_State* L)
 {
-    LUABRIDGE_ASSERT(key != nullptr);
     LUABRIDGE_ASSERT(lua_istable(L, -1)); 
 
     lua_rawgetp(L, -1, getNewIndexFallbackKey()); 
@@ -6145,23 +6236,28 @@ inline std::optional<int> try_call_newindex_fallback(lua_State* L, const char* k
         return std::nullopt;
     }
 
-    const bool is_key_metamethod = is_metamethod(key);
+    lua_pushvalue(L, 1); 
+    lua_pushvalue(L, 2); 
+    lua_pushvalue(L, 3); 
+    lua_call(L, 3, 0); 
 
-    lua_pushvalue(L, -2); 
+    return 0;
+}
+
+inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char* key)
+{
+    LUABRIDGE_ASSERT(key != nullptr);
+    LUABRIDGE_ASSERT(lua_istable(L, -1)); 
+
+    lua_pushvalue(L, -1); 
 
     for (;;)
     {
-        lua_rawgetp(L, -1, getClassKey()); 
+        push_class_or_const_table(L, -1); 
         if (! lua_istable(L, -1)) 
         {
-            lua_pop(L, 1); 
-
-            lua_rawgetp(L, -1, getConstKey()); 
-            if (! lua_istable(L, -1)) 
-            {
-                lua_pop(L, 3); 
-                return std::nullopt;
-            }
+            lua_pop(L, 2); 
+            return std::nullopt;
         }
 
         lua_pushvalue(L, 2); 
@@ -6169,16 +6265,17 @@ inline std::optional<int> try_call_newindex_fallback(lua_State* L, const char* k
 
         if (! lua_isnil(L, -1)) 
         {
-            
+            if (! lua_iscfunction(L, -1))
+            {
+                lua_pop(L, 1);
+                break;
+            }
+
             const Options options = get_class_options(L, -2); 
             if (! options.test(allowOverridingMethods))
                 luaL_error(L, "immutable member '%s'", key);
 
-            lua_getmetatable(L, 1); 
-            lua_pushvalue(L, -2);  
             rawsetfield(L, -2, make_super_method_name(key).c_str()); 
-
-            lua_pop(L, 2); 
             break;
         }
 
@@ -6196,24 +6293,18 @@ inline std::optional<int> try_call_newindex_fallback(lua_State* L, const char* k
         lua_remove(L, -2); 
     }
 
-    if (is_key_metamethod)
-    {
-        lua_remove(L, -2); 
-    }
-    else
-    {
-        lua_pop(L, 2); 
-        lua_pushvalue(L, 1); 
-    }
-
-    lua_pushvalue(L, 2); 
+    lua_remove(L, -2); 
+    lua_getmetatable(L, -1); 
     lua_pushvalue(L, 3); 
-    lua_call(L, 3, 0); 
+    rawsetfield(L, -2, key); 
+
+    lua_pop(L, 2); 
 
     return 0;
 }
 
-inline int newindex_metamethod(lua_State* L, bool pushSelf)
+template <bool IsObject>
+inline int newindex_metamethod(lua_State* L)
 {
 #if LUABRIDGE_SAFE_STACK_CHECKS
     luaL_checkstack(L, 3, detail::error_lua_stack_overflow);
@@ -6228,7 +6319,8 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
 
     for (;;)
     {
-        
+        const Options options = get_class_options(L, -1);
+
         lua_rawgetp(L, -1, getPropsetKey()); 
         if (lua_isnil(L, -1)) 
             luaL_error(L, "no member named '%s'", key);
@@ -6242,18 +6334,31 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
         if (lua_iscfunction(L, -1)) 
         {
             lua_remove(L, -2); 
-            if (pushSelf)
+            if constexpr (IsObject)
                 lua_pushvalue(L, 1); 
             lua_pushvalue(L, 3); 
-            lua_call(L, pushSelf ? 2 : 1, 0); 
+            lua_call(L, IsObject ? 2 : 1, 0); 
             return 0;
         }
 
         LUABRIDGE_ASSERT(lua_isnil(L, -1)); 
         lua_pop(L, 1); 
 
-        if (auto result = try_call_newindex_fallback(L, key))
-            return *result;
+        if constexpr (IsObject)
+        {
+            
+            if (auto result = try_call_newindex_fallback(L))
+                return *result;
+        }
+        else
+        {
+            
+            if (options.test(extensibleClass))
+            {
+                if (auto result = try_call_newindex_extensible(L, key))
+                    return *result;
+            }
+        }
 
         lua_rawgetp(L, -1, getParentKey()); 
         if (lua_isnil(L, -1)) 
@@ -6267,16 +6372,6 @@ inline int newindex_metamethod(lua_State* L, bool pushSelf)
     return 0;
 }
 
-inline int newindex_object_metamethod(lua_State* L)
-{
-    return newindex_metamethod(L, true);
-}
-
-inline int newindex_static_metamethod(lua_State* L)
-{
-    return newindex_metamethod(L, false);
-}
-
 inline int read_only_error(lua_State* L)
 {
     std::string s;
@@ -6284,39 +6379,6 @@ inline int read_only_error(lua_State* L)
     s = s + "'" + lua_tostring(L, lua_upvalueindex(1)) + "' is read-only";
 
     raise_lua_error(L, "%s", s.c_str());
-
-    return 0;
-}
-
-inline int index_extended_class(lua_State* L)
-{
-    LUABRIDGE_ASSERT(lua_istable(L, lua_upvalueindex(1)));
-
-    if (! lua_isstring(L, -1))
-        luaL_error(L, "%s", "invalid non string index access in extensible class");
-
-    const char* key = lua_tostring(L, -1);
-    LUABRIDGE_ASSERT(key != nullptr);
-
-    lua_pushvalue(L, lua_upvalueindex(1));
-    rawgetfield(L, -1, key);
-
-    return 1;
-}
-
-inline int newindex_extended_class(lua_State* L)
-{
-    LUABRIDGE_ASSERT(lua_istable(L, -3));
-
-    if (! lua_isstring(L, -2))
-        luaL_error(L, "%s", "invalid non string new index access in extensible class");
-
-    const char* key = lua_tostring(L, -2);
-    LUABRIDGE_ASSERT(key != nullptr);
-
-    lua_getmetatable(L, -3);
-    lua_pushvalue(L, -2);
-    rawsetfield(L, -2, key);
 
     return 0;
 }
@@ -7330,6 +7392,24 @@ public:
 
         auto metatable = getMetatable();
         return metatable.isTable() && metatable["__call"].isFunction();
+    }
+
+    std::optional<std::string> getClassName()
+    {
+        if (! isUserdata())
+            return std::nullopt;
+
+        const StackRestore stackRestore(m_L);
+
+        impl().push(m_L);
+        if (! lua_getmetatable(m_L, -1))
+            return std::nullopt;
+
+        lua_rawgetp(m_L, -1, detail::getTypeKey());
+        if (lua_isstring(m_L, -1))
+            return lua_tostring(m_L, -1);
+
+        return std::nullopt;
     }
 
     template <class T>
@@ -8419,20 +8499,20 @@ class Namespace : public detail::Registrar
             lua_pushvalue(L, -1); 
             lua_setmetatable(L, -2); 
 
-            pushunsigned(L, options.toUnderlying());
+            pushunsigned(L, options.toUnderlying()); 
             lua_rawsetp(L, -2, detail::getClassOptionsKey()); 
 
-            lua_pushstring(L, type_name.c_str());
+            lua_pushstring(L, type_name.c_str()); 
             lua_rawsetp(L, -2, detail::getTypeKey()); 
 
-            lua_pushcfunction_x(L, &detail::index_metamethod);
-            rawsetfield(L, -2, "__index");
+            lua_pushcfunction_x(L, &detail::index_metamethod<true>); 
+            rawsetfield(L, -2, "__index"); 
 
-            lua_pushcfunction_x(L, &detail::newindex_object_metamethod);
-            rawsetfield(L, -2, "__newindex");
+            lua_pushcfunction_x(L, &detail::newindex_metamethod<true>); 
+            rawsetfield(L, -2, "__newindex"); 
 
-            lua_newtable(L);
-            lua_rawsetp(L, -2, detail::getPropgetKey());
+            lua_newtable(L); 
+            lua_rawsetp(L, -2, detail::getPropgetKey()); 
 
             if (! options.test(visibleMetatables))
             {
@@ -8468,10 +8548,13 @@ class Namespace : public detail::Registrar
             lua_insert(L, -2); 
             rawsetfield(L, -5, name); 
 
-            lua_pushcfunction_x(L, &detail::index_metamethod);
+            pushunsigned(L, options.toUnderlying()); 
+            lua_rawsetp(L, -2, detail::getClassOptionsKey()); 
+
+            lua_pushcfunction_x(L, &detail::index_metamethod<false>);
             rawsetfield(L, -2, "__index");
 
-            lua_pushcfunction_x(L, &detail::newindex_static_metamethod);
+            lua_pushcfunction_x(L, &detail::newindex_metamethod<false>);
             rawsetfield(L, -2, "__newindex");
 
             lua_newtable(L); 
@@ -8517,13 +8600,16 @@ class Namespace : public detail::Registrar
                 lua_pop(L, 1); 
 
                 createConstTable(name, true, options); 
+                ++m_stackSize;
 #if !defined(LUABRIDGE_ON_LUAU)
                 lua_pushcfunction_x(L, &detail::gc_metamethod<T>); 
                 rawsetfield(L, -2, "__gc"); 
 #endif
-                ++m_stackSize;
+                lua_pushcfunction_x(L, &detail::tostring_metamethod<T>);
+                rawsetfield(L, -2, "__tostring");
 
                 createClassTable(name, options); 
+                ++m_stackSize;
 #if !defined(LUABRIDGE_ON_LUAU)
                 lua_pushcfunction_x(L, &detail::gc_metamethod<T>); 
                 rawsetfield(L, -2, "__gc"); 
@@ -8531,10 +8617,14 @@ class Namespace : public detail::Registrar
 
                 lua_pushcfunction_x(L, &detail::tostring_metamethod<T>);
                 rawsetfield(L, -2, "__tostring");
-                ++m_stackSize;
 
                 createStaticTable(name, options); 
                 ++m_stackSize;
+
+                lua_pushvalue(L, -1); 
+                lua_rawsetp(L, -2, detail::getStaticKey()); 
+                lua_pushvalue(L, -1); 
+                lua_rawsetp(L, -3, detail::getStaticKey()); 
 
                 lua_pushvalue(L, -1); 
                 lua_rawsetp(L, LUA_REGISTRYINDEX, detail::getStaticRegistryKey<T>()); 
@@ -8542,16 +8632,6 @@ class Namespace : public detail::Registrar
                 lua_rawsetp(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>()); 
                 lua_pushvalue(L, -3); 
                 lua_rawsetp(L, LUA_REGISTRYINDEX, detail::getConstRegistryKey<T>()); 
-
-                if (options.test(extensibleClass))
-                {
-                    lua_pushcfunction_x(L, &detail::newindex_extended_class); 
-                    lua_rawsetp(L, -2, detail::getNewIndexFallbackKey()); 
-
-                    lua_pushvalue(L, -1); 
-                    lua_pushcclosure_x(L, &detail::index_extended_class, 1); 
-                    lua_rawsetp(L, -3, detail::getIndexFallbackKey()); 
-                }
             }
             else
             {
@@ -8579,23 +8659,30 @@ class Namespace : public detail::Registrar
             LUABRIDGE_ASSERT(lua_istable(L, -1)); 
 
             createConstTable(name, true, options); 
-#if !defined(LUABRIDGE_ON_LUAU)
-            lua_pushcfunction_x(L, &detail::gc_metamethod<T>); 
-            rawsetfield(L, -2, "__gc"); 
-#endif
             ++m_stackSize;
-
-            createClassTable(name, options); 
 #if !defined(LUABRIDGE_ON_LUAU)
             lua_pushcfunction_x(L, &detail::gc_metamethod<T>); 
             rawsetfield(L, -2, "__gc"); 
 #endif
             lua_pushcfunction_x(L, &detail::tostring_metamethod<T>);
             rawsetfield(L, -2, "__tostring");
+
+            createClassTable(name, options); 
             ++m_stackSize;
+#if !defined(LUABRIDGE_ON_LUAU)
+            lua_pushcfunction_x(L, &detail::gc_metamethod<T>); 
+            rawsetfield(L, -2, "__gc"); 
+#endif
+            lua_pushcfunction_x(L, &detail::tostring_metamethod<T>);
+            rawsetfield(L, -2, "__tostring");
 
             createStaticTable(name, options); 
             ++m_stackSize;
+
+            lua_pushvalue(L, -1); 
+            lua_rawsetp(L, -2, detail::getStaticKey()); 
+            lua_pushvalue(L, -1); 
+            lua_rawsetp(L, -3, detail::getStaticKey()); 
 
             lua_rawgetp(L, LUA_REGISTRYINDEX, staticKey); 
             if (lua_isnil(L, -1)) 
@@ -8624,16 +8711,6 @@ class Namespace : public detail::Registrar
             lua_rawsetp(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>()); 
             lua_pushvalue(L, -3); 
             lua_rawsetp(L, LUA_REGISTRYINDEX, detail::getConstRegistryKey<T>()); 
-
-            if (options.test(extensibleClass))
-            {
-                lua_pushcfunction_x(L, &detail::newindex_extended_class); 
-                lua_rawsetp(L, -2, detail::getNewIndexFallbackKey()); 
-
-                lua_pushvalue(L, -1); 
-                lua_pushcclosure_x(L, &detail::index_extended_class, 1); 
-                lua_rawsetp(L, -3, detail::getIndexFallbackKey()); 
-            }
         }
 
         Namespace endClass()
@@ -9531,25 +9608,23 @@ private:
     {
         LUABRIDGE_ASSERT(lua_istable(L, -1));
 
+        lua_pushvalue(L, -1); 
+
+        lua_setmetatable(L, -2); 
+
+        lua_pushcfunction_x(L, &detail::index_metamethod<false>);
+        rawsetfield(L, -2, "__index"); 
+
+        lua_newtable(L); 
+        lua_rawsetp(L, -2, detail::getPropgetKey()); 
+
+        lua_newtable(L); 
+        lua_rawsetp(L, -2, detail::getPropsetKey()); 
+
+        if (! options.test(visibleMetatables))
         {
-            lua_pushvalue(L, -1); 
-
-            lua_setmetatable(L, -2); 
-
-            lua_pushcfunction_x(L, &detail::index_metamethod);
-            rawsetfield(L, -2, "__index"); 
-
-            lua_newtable(L); 
-            lua_rawsetp(L, -2, detail::getPropgetKey()); 
-
-            lua_newtable(L); 
-            lua_rawsetp(L, -2, detail::getPropsetKey()); 
-
-            if (! options.test(visibleMetatables))
-            {
-                lua_pushboolean(L, 0);
-                rawsetfield(L, -2, "__metatable");
-            }
+            lua_pushboolean(L, 0);
+            rawsetfield(L, -2, "__metatable");
         }
 
         ++m_stackSize;
@@ -9572,10 +9647,10 @@ private:
 
             lua_setmetatable(L, -2); 
 
-            lua_pushcfunction_x(L, &detail::index_metamethod);
+            lua_pushcfunction_x(L, &detail::index_metamethod<false>);
             rawsetfield(L, -2, "__index"); 
 
-            lua_pushcfunction_x(L, &detail::newindex_static_metamethod);
+            lua_pushcfunction_x(L, &detail::newindex_metamethod<false>);
             rawsetfield(L, -2, "__newindex"); 
 
             lua_newtable(L); 
