@@ -50,7 +50,7 @@
 #include "LuaJIT.2.1/src/lua.hpp"
 
 #elif LUABRIDGEDEMO_LUA_VERSION >= 504
-#include "Lua.5.4.4/src/lua.hpp"
+#include "Lua.5.4.6/src/lua.hpp"
 
 #elif LUABRIDGEDEMO_LUA_VERSION >= 503
 #include "Lua.5.3.6/src/lua.hpp"

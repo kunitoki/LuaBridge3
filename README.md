@@ -11,7 +11,7 @@
 [LuaBridge3](https://github.com/kunitoki/LuaBridge3) is a lightweight and dependency-free library for mapping data,
 functions, and classes back and forth between C++ and [Lua](http://wwww.lua.org) (a powerful,
 fast, lightweight, embeddable scripting language). LuaBridge has been tested
-and works with Lua 5.1.5, 5.2.4, 5.3.6 and 5.4.4 as well as [LuaJit](https://luajit.org/) 2.x onwards
+and works with Lua 5.1.5, 5.2.4, 5.3.6 and 5.4.6 as well as [LuaJit](https://luajit.org/) 2.x onwards
 and for the first time also with [Luau](https://luau-lang.org/) 0.556 onwards and [Ravi](https://github.com/dibyendumajumdar/ravi) 1.0-beta11.
 
 ## Features
