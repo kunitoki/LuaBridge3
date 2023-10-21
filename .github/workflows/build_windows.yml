@@ -44,28 +44,36 @@ jobs:
       shell: bash
       run: |
         ./LuaBridgeTests51.exe
+        ./LuaBridgeTests51LuaC.exe
         ./LuaBridgeTests51Noexcept.exe
+        ./LuaBridgeTests51LuaCNoexcept.exe
 
     - name: Test Lua 5.2
       working-directory: ${{runner.workspace}}/build/Tests/Release
       shell: bash
       run: |
         ./LuaBridgeTests52.exe
+        ./LuaBridgeTests52LuaC.exe
         ./LuaBridgeTests52Noexcept.exe
+        ./LuaBridgeTests52LuaCNoexcept.exe
 
     - name: Test Lua 5.3
       working-directory: ${{runner.workspace}}/build/Tests/Release
       shell: bash
       run: |
         ./LuaBridgeTests53.exe
+        ./LuaBridgeTests53LuaC.exe
         ./LuaBridgeTests53Noexcept.exe
+        ./LuaBridgeTests53LuaCNoexcept.exe
 
     - name: Test Lua 5.4
       working-directory: ${{runner.workspace}}/build/Tests/Release
       shell: bash
       run: |
         ./LuaBridgeTests54.exe
+        ./LuaBridgeTests54LuaC.exe
         ./LuaBridgeTests54Noexcept.exe
+        ./LuaBridgeTests54LuaCNoexcept.exe
 
     - name: Test LuaJIT
       working-directory: ${{runner.workspace}}/build/Tests/Release

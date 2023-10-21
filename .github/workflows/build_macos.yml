@@ -43,25 +43,33 @@ jobs:
       working-directory: ${{runner.workspace}}/build/Tests
       run: |
         ./LuaBridgeTests51
+        ./LuaBridgeTests51LuaC
         ./LuaBridgeTests51Noexcept
+        ./LuaBridgeTests51LuaCNoexcept
 
     - name: Test Lua 5.2
       working-directory: ${{runner.workspace}}/build/Tests
       run: |
         ./LuaBridgeTests52
+        ./LuaBridgeTests52LuaC
         ./LuaBridgeTests52Noexcept
+        ./LuaBridgeTests52LuaCNoexcept
 
     - name: Test Lua 5.3
       working-directory: ${{runner.workspace}}/build/Tests
       run: |
         ./LuaBridgeTests53
+        ./LuaBridgeTests53LuaC
         ./LuaBridgeTests53Noexcept
+        ./LuaBridgeTests53LuaCNoexcept
 
     - name: Test Lua 5.4
       working-directory: ${{runner.workspace}}/build/Tests
       run: |
         ./LuaBridgeTests54
+        ./LuaBridgeTests54LuaC
         ./LuaBridgeTests54Noexcept
+        ./LuaBridgeTests54LuaCNoexcept
 
     - name: Test LuaJIT
       working-directory: ${{runner.workspace}}/build/Tests
