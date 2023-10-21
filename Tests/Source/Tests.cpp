@@ -1016,8 +1016,8 @@ TEST_F(LuaBridgeTest, Bug153)
             std::string msg = e.what();
             EXPECT_FALSE(msg.empty());
 
-            lua_Debug ar;
-            bool isLuaRunning = lua_getstack(L, 0, &ar);
+            lua_Debug debug;
+            bool isLuaRunning = luabridge::lua_getstack_x(L, 0, &debug);
             EXPECT_FALSE(isLuaRunning);
         }
     }
