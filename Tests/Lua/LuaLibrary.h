@@ -59,11 +59,15 @@
 #include "Lua.5.2.4/src/lua.hpp"
 
 #elif LUABRIDGEDEMO_LUA_VERSION >= 501
+#ifdef __cplusplus
 extern "C" {
+#endif
 #include "Lua.5.1.5/src/lua.h"
 #include "Lua.5.1.5/src/lualib.h"
 #include "Lua.5.1.5/src/lauxlib.h"
+#ifdef __cplusplus
 } // extern "C"
+#endif
 
 #else
 #error "Unknown LUA_VERSION_NUM"
