@@ -934,7 +934,21 @@ int invoke_member_cfunction(lua_State* L)
     const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
     LUABRIDGE_ASSERT(func != nullptr);
 
-    return (t->*func)(L);
+#if LUABRIDGE_HAS_EXCEPTIONS
+    try
+    {
+#endif
+        return (t->*func)(L);
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    }
+    catch (const std::exception& e)
+    {
+        raise_lua_error(L, "%s", e.what());
+    }
+    
+    return 0;
+#endif
 }
 
 template <class T>
@@ -949,7 +963,21 @@ int invoke_const_member_cfunction(lua_State* L)
     const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
     LUABRIDGE_ASSERT(func != nullptr);
 
-    return (t->*func)(L);
+#if LUABRIDGE_HAS_EXCEPTIONS
+    try
+    {
+#endif
+        return (t->*func)(L);
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    }
+    catch (const std::exception& e)
+    {
+        raise_lua_error(L, "%s", e.what());
+    }
+    
+    return 0;
+#endif
 }
 
 //=================================================================================================
@@ -988,6 +1016,30 @@ int invoke_proxy_functor(lua_State* L)
 
     return function<typename FnTraits::result_type, typename FnTraits::argument_types, 1>::call(L, func);
 }
+
+//=================================================================================================
+/**
+ * @brief lua_CFunction to call safely by trapping exceptions
+ */
+#if LUABRIDGE_HAS_EXCEPTIONS
+inline int invoke_safe_cfunction(lua_State* L)
+{
+    LUABRIDGE_ASSERT(lua_iscfunction(L, lua_upvalueindex(1)));
+
+    auto func = lua_tocfunction(L, lua_upvalueindex(1));
+    
+    try
+    {
+        return func(L);
+    }
+    catch (const std::exception& e)
+    {
+        raise_lua_error(L, "%s", e.what());
+    }
+
+    return 0;
+}
+#endif
 
 //=================================================================================================
 /**
@@ -1100,10 +1152,16 @@ inline int try_overload_functions(lua_State* L)
 }
 
 //=================================================================================================
+
 // Lua CFunction
 inline void push_function(lua_State* L, lua_CFunction fp)
 {
+#if LUABRIDGE_HAS_EXCEPTIONS
     lua_pushcfunction_x(L, fp);
+    lua_pushcclosure_x(L, invoke_safe_cfunction, 1);
+#else    
+    lua_pushcfunction_x(L, fp);
+#endif
 }
 
 // Generic function pointer
@@ -1138,7 +1196,12 @@ inline void push_function(lua_State* L, F&& f)
 template <class T>
 void push_member_function(lua_State* L, lua_CFunction fp)
 {
+#if LUABRIDGE_HAS_EXCEPTIONS
     lua_pushcfunction_x(L, fp);
+    lua_pushcclosure_x(L, invoke_safe_cfunction, 1);
+#else    
+    lua_pushcfunction_x(L, fp);
+#endif
 }
 
 // Generic function pointer
