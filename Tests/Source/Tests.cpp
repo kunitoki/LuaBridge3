@@ -960,12 +960,7 @@ TEST_F(LuaBridgeTest, BooleanNoValue)
 
 #if LUABRIDGE_HAS_EXCEPTIONS
 namespace {
-static const char* TypedFunction(const char* val)
-{
-    return val;
-}
-
-static int CFunction(lua_State* L)
+static int ThrowingFunction(lua_State* L)
 {
     const int numArgs = lua_gettop(L);
     
@@ -986,40 +981,34 @@ static void RegisterCallback(luabridge::LuaRef callback)
 TEST_F(LuaBridgeTest, Bug153)
 {
     luabridge::getGlobalNamespace(L)
-        .addFunction("TypedFunction", TypedFunction)
-        .addFunction("CFunction", CFunction)
+        .addFunction("ThrowingFunction", ThrowingFunction)
         .addFunction("RegisterCallback", RegisterCallback);
     
     runLua(R"(
-        function callback()
-            local bad_param = {}
-
-            --TypedFunction(bad_param)
-            CFunction(bad_param)
+        function Callback()
+            ThrowingFunction({})
         end
 
-        RegisterCallback(callback)
-
-        -- finenv.RetainLuaState = true
+        RegisterCallback(Callback)
     )");
     
-    if (luaCallback && luaCallback->isFunction())
+    ASSERT_TRUE(luaCallback);
+    ASSERT_TRUE(luaCallback->isFunction());
+    
+    struct ScopeExit{ ~ScopeExit() { luaCallback.reset(); } } finalize;
+    
+    try
     {
-        struct ScopeExit{ ~ScopeExit() { luaCallback.reset(); } } finalize;
-        
-        try
-        {
-            (*luaCallback)();
-        }
-        catch (const std::exception& e)
-        {
-            std::string msg = e.what();
-            EXPECT_FALSE(msg.empty());
+        (*luaCallback)();
+    }
+    catch (const std::exception& e)
+    {
+        std::string msg = e.what();
+        EXPECT_FALSE(msg.empty());
 
-            lua_Debug debug;
-            bool isLuaRunning = luabridge::lua_getstack_x(L, 0, &debug);
-            EXPECT_FALSE(isLuaRunning);
-        }
+        lua_Debug debug;
+        bool isLuaRunning = luabridge::lua_getstack_x(L, 0, &debug);
+        EXPECT_FALSE(isLuaRunning);
     }
 }
 
