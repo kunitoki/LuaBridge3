@@ -71,6 +71,11 @@ inline int lua_error_x(lua_State* L)
     return 0;
 }
 
+inline int lua_getstack_x(lua_State* L, int level, lua_Debug* ar)
+{
+    return lua_getinfo(L, level, "nlS", ar);
+}
+
 inline int lua_getstack_info_x(lua_State* L, int level, const char* what, lua_Debug* ar)
 {
     return lua_getinfo(L, level, what, ar);
@@ -99,6 +104,11 @@ inline void lua_pushcclosure_x(lua_State* L, lua_CFunction fn, int n)
 inline int lua_error_x(lua_State* L)
 {
     return lua_error(L);
+}
+
+inline int lua_getstack_x(lua_State* L, int level, lua_Debug* ar)
+{
+    return lua_getstack(L, level, ar);
 }
 
 inline int lua_getstack_info_x(lua_State* L, int level, const char* what, lua_Debug* ar)
