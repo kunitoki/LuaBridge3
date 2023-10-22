@@ -1021,7 +1021,7 @@ int invoke_proxy_functor(lua_State* L)
 /**
  * @brief lua_CFunction to call safely by trapping exceptions
  */
-#if LUABRIDGE_HAS_EXCEPTIONS
+#if LUABRIDGE_SAFE_LUA_C_EXCEPTION_HANDLING && LUABRIDGE_HAS_EXCEPTIONS
 inline int invoke_safe_cfunction(lua_State* L)
 {
     LUABRIDGE_ASSERT(lua_iscfunction(L, lua_upvalueindex(1)));
@@ -1156,7 +1156,7 @@ inline int try_overload_functions(lua_State* L)
 // Lua CFunction
 inline void push_function(lua_State* L, lua_CFunction fp)
 {
-#if LUABRIDGE_HAS_EXCEPTIONS
+#if LUABRIDGE_SAFE_LUA_C_EXCEPTION_HANDLING && LUABRIDGE_HAS_EXCEPTIONS
     lua_pushcfunction_x(L, fp);
     lua_pushcclosure_x(L, invoke_safe_cfunction, 1);
 #else    
@@ -1196,7 +1196,7 @@ inline void push_function(lua_State* L, F&& f)
 template <class T>
 void push_member_function(lua_State* L, lua_CFunction fp)
 {
-#if LUABRIDGE_HAS_EXCEPTIONS
+#if LUABRIDGE_SAFE_LUA_C_EXCEPTION_HANDLING && LUABRIDGE_HAS_EXCEPTIONS
     lua_pushcfunction_x(L, fp);
     lua_pushcclosure_x(L, invoke_safe_cfunction, 1);
 #else    

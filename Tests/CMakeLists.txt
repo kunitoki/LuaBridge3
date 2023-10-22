@@ -52,6 +52,10 @@ endif ()
 
 source_group ("Source Files" FILES ${LUABRIDGE_TEST_SOURCE_FILES})
 
+# ====================================================== Lua C
+
+set (LUABRIDGE_LUA_C_DEFINES "LUABRIDGE_SAFE_LUA_C_EXCEPTION_HANDLING=1")
+
 # ====================================================== Lua 5.1
 
 file (GLOB_RECURSE LUABRIDGE_TEST_LUA51_FILES
@@ -223,7 +227,7 @@ endfunction ()
 
 # ====================================================== Macro
 
-macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_FILES LUABRIDGE_EXCEPTIONS LUABRIDGE_LIBS)
+macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_FILES LUABRIDGE_EXCEPTIONS LUABRIDGE_DEFINES LUABRIDGE_LIBS)
   get_filename_component (SOURCE_LOCATION "${CMAKE_CURRENT_LIST_DIR}/../Source" ABSOLUTE)
 
   if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
@@ -239,7 +243,8 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
     ${LUABRIDGE_TEST_LUA_LIBRARY_FILES})
 
   target_compile_definitions (${LUABRIDGE_TESTLIB_NAME} PRIVATE
-    LUABRIDGEDEMO_SHARED_EXPORT=1)
+    LUABRIDGEDEMO_SHARED_EXPORT=1
+    ${LUABRIDGE_DEFINES})
 
   target_include_directories (${LUABRIDGE_TESTLIB_NAME} PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}
@@ -253,6 +258,9 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
     ${LUABRIDGE_TEST_SOURCE_FILES}
     ${LUABRIDGE_TEST_LUA_LIBRARY_FILES}
   )
+
+  target_compile_definitions (${LUABRIDGE_TEST_NAME} PRIVATE
+    ${LUABRIDGE_DEFINES})
 
   if (LUABRIDGE_COVERAGE)
     setup_target_for_coverage (${LUABRIDGE_TEST_NAME} ${SOURCE_LOCATION} LuaBridge)
@@ -325,34 +333,34 @@ endmacro (add_test_app)
 
 # ====================================================== Real Unit Tests
 
-add_test_app (LuaBridgeTests51 501 "${LUABRIDGE_TEST_LUA51_FILES}" 1 "")
-add_test_app (LuaBridgeTests51LuaC 501 "${LUABRIDGE_TEST_LUA51_C_FILES}" 1 "")
-add_test_app (LuaBridgeTests51Noexcept 501 "${LUABRIDGE_TEST_LUA51_FILES}" 0 "")
-add_test_app (LuaBridgeTests51LuaCNoexcept 501 "${LUABRIDGE_TEST_LUA51_C_FILES}" 0 "")
+add_test_app (LuaBridgeTests51 501 "${LUABRIDGE_TEST_LUA51_FILES}" 1 "" "")
+add_test_app (LuaBridgeTests51LuaC 501 "${LUABRIDGE_TEST_LUA51_C_FILES}" 1 "${LUABRIDGE_LUA_C_DEFINES}" "")
+add_test_app (LuaBridgeTests51Noexcept 501 "${LUABRIDGE_TEST_LUA51_FILES}" 0 "" "")
+add_test_app (LuaBridgeTests51LuaCNoexcept 501 "${LUABRIDGE_TEST_LUA51_C_FILES}" 0 "${LUABRIDGE_LUA_C_DEFINES}" "")
 
-add_test_app (LuaBridgeTests52 502 "${LUABRIDGE_TEST_LUA52_FILES}" 1 "")
-add_test_app (LuaBridgeTests52LuaC 502 "${LUABRIDGE_TEST_LUA52_C_FILES}" 1 "")
-add_test_app (LuaBridgeTests52Noexcept 502 "${LUABRIDGE_TEST_LUA52_FILES}" 0 "")
-add_test_app (LuaBridgeTests52LuaCNoexcept 502 "${LUABRIDGE_TEST_LUA52_C_FILES}" 0 "")
+add_test_app (LuaBridgeTests52 502 "${LUABRIDGE_TEST_LUA52_FILES}" 1 "" "")
+add_test_app (LuaBridgeTests52LuaC 502 "${LUABRIDGE_TEST_LUA52_C_FILES}" 1 "${LUABRIDGE_LUA_C_DEFINES}" "")
+add_test_app (LuaBridgeTests52Noexcept 502 "${LUABRIDGE_TEST_LUA52_FILES}" 0 "" "")
+add_test_app (LuaBridgeTests52LuaCNoexcept 502 "${LUABRIDGE_TEST_LUA52_C_FILES}" 0 "${LUABRIDGE_LUA_C_DEFINES}" "")
 
-add_test_app (LuaBridgeTests53 503 "${LUABRIDGE_TEST_LUA53_FILES}" 1 "")
-add_test_app (LuaBridgeTests53LuaC 503 "${LUABRIDGE_TEST_LUA53_C_FILES}" 1 "")
-add_test_app (LuaBridgeTests53Noexcept 503 "${LUABRIDGE_TEST_LUA53_FILES}" 0 "")
-add_test_app (LuaBridgeTests53LuaCNoexcept 503 "${LUABRIDGE_TEST_LUA53_C_FILES}" 0 "")
+add_test_app (LuaBridgeTests53 503 "${LUABRIDGE_TEST_LUA53_FILES}" 1 "" "")
+add_test_app (LuaBridgeTests53LuaC 503 "${LUABRIDGE_TEST_LUA53_C_FILES}" 1 "${LUABRIDGE_LUA_C_DEFINES}" "")
+add_test_app (LuaBridgeTests53Noexcept 503 "${LUABRIDGE_TEST_LUA53_FILES}" 0 "" "")
+add_test_app (LuaBridgeTests53LuaCNoexcept 503 "${LUABRIDGE_TEST_LUA53_C_FILES}" 0 "${LUABRIDGE_LUA_C_DEFINES}" "")
 
-add_test_app (LuaBridgeTests54 504 "${LUABRIDGE_TEST_LUA54_FILES}" 1 "")
-add_test_app (LuaBridgeTests54LuaC 504 "${LUABRIDGE_TEST_LUA54_C_FILES}" 1 "")
-add_test_app (LuaBridgeTests54Noexcept 504 "${LUABRIDGE_TEST_LUA54_FILES}" 0 "")
-add_test_app (LuaBridgeTests54LuaCNoexcept 504 "${LUABRIDGE_TEST_LUA54_C_FILES}" 0 "")
+add_test_app (LuaBridgeTests54 504 "${LUABRIDGE_TEST_LUA54_FILES}" 1 "" "")
+add_test_app (LuaBridgeTests54LuaC 504 "${LUABRIDGE_TEST_LUA54_C_FILES}" 1 "${LUABRIDGE_LUA_C_DEFINES}" "")
+add_test_app (LuaBridgeTests54Noexcept 504 "${LUABRIDGE_TEST_LUA54_FILES}" 0 "" "")
+add_test_app (LuaBridgeTests54LuaCNoexcept 504 "${LUABRIDGE_TEST_LUA54_C_FILES}" 0 "${LUABRIDGE_LUA_C_DEFINES}" "")
 
-add_test_app (LuaBridgeTestsLuaJIT "LUAJIT" "${LUABRIDGE_TEST_LUAJIT_FILES}" 1 "liblua-static")
-add_test_app (LuaBridgeTestsLuaJITNoexcept "LUAJIT" "${LUABRIDGE_TEST_LUAJIT_FILES}" 0 "liblua-static")
+add_test_app (LuaBridgeTestsLuaJIT "LUAJIT" "${LUABRIDGE_TEST_LUAJIT_FILES}" 1 "" "liblua-static")
+add_test_app (LuaBridgeTestsLuaJITNoexcept "LUAJIT" "${LUABRIDGE_TEST_LUAJIT_FILES}" 0 "" "liblua-static")
 
-add_test_app (LuaBridgeTestsLuau "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 1 "")
-#add_test_app (LuaBridgeTestsLuauNoexcept "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 0 "")
+add_test_app (LuaBridgeTestsLuau "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 1 "" "")
+#add_test_app (LuaBridgeTestsLuauNoexcept "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 0 "" "")
 
-add_test_app (LuaBridgeTestsRavi "RAVI" "${LUABRIDGE_TEST_RAVI_FILES}" 1 "libravi")
-#add_test_app (LuaBridgeTestsRaviNoexcept "RAVI" "${LUABRIDGE_TEST_RAVI_FILES}" 0 "libravi")
+add_test_app (LuaBridgeTestsRavi "RAVI" "${LUABRIDGE_TEST_RAVI_FILES}" 1 "" "libravi")
+#add_test_app (LuaBridgeTestsRaviNoexcept "RAVI" "${LUABRIDGE_TEST_RAVI_FILES}" 0 "" "libravi")
 
 if (LUABRIDGE_COVERAGE)
   setup_coverage_single_target ()

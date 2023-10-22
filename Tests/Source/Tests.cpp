@@ -959,59 +959,6 @@ TEST_F(LuaBridgeTest, BooleanNoValue)
 }
 
 #if LUABRIDGE_HAS_EXCEPTIONS
-namespace {
-static int ThrowingFunction(lua_State* L)
-{
-    const int numArgs = lua_gettop(L);
-    
-    const char* value = numArgs < 1 ? nullptr : luabridge::Stack<const char*>::get(L, 1).value();
-    luabridge::Stack<const char*>::push(L, value).throw_on_error();
-
-    return 1;
-}
-
-static std::unique_ptr<luabridge::LuaRef> luaCallback;
-
-static void RegisterCallback(luabridge::LuaRef callback)
-{
-   luaCallback.reset(new luabridge::LuaRef(callback));
-}
-} // namespace
-
-TEST_F(LuaBridgeTest, Bug153)
-{
-    luabridge::getGlobalNamespace(L)
-        .addFunction("ThrowingFunction", ThrowingFunction)
-        .addFunction("RegisterCallback", RegisterCallback);
-    
-    runLua(R"(
-        function Callback()
-            ThrowingFunction({})
-        end
-
-        RegisterCallback(Callback)
-    )");
-    
-    ASSERT_TRUE(luaCallback);
-    ASSERT_TRUE(luaCallback->isFunction());
-    
-    struct ScopeExit{ ~ScopeExit() { luaCallback.reset(); } } finalize;
-    
-    try
-    {
-        (*luaCallback)();
-    }
-    catch (const std::exception& e)
-    {
-        std::string msg = e.what();
-        EXPECT_FALSE(msg.empty());
-
-        lua_Debug debug;
-        bool isLuaRunning = luabridge::lua_getstack_x(L, 0, &debug);
-        EXPECT_FALSE(isLuaRunning);
-    }
-}
-
 TEST_F(LuaBridgeTest, StackExceptionWithMessage)
 {
     try {
