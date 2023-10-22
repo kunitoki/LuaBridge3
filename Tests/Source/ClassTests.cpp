@@ -171,6 +171,18 @@ private:
 
 } // namespace
 
+TEST_F(ClassTests, Assignment)
+{
+    using BaseClass = Class<int, EmptyBase>;
+    
+    auto registeredClass = luabridge::getGlobalNamespace(L)
+        .beginClass<BaseClass>("BaseClass");
+
+    registeredClass.addConstructor<void(*)()>();
+    
+    registeredClass.endClass();
+}
+
 TEST_F(ClassTests, IsInstance)
 {
     using BaseClass = Class<int, EmptyBase>;

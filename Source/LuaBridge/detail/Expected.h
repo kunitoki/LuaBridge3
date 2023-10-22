@@ -1010,17 +1010,17 @@ public:
 };
 
 template <class E>
-class BadExpectedAccess : public BadExpectedAccess<void>
+class BadExpectedAccess : public std::runtime_error
 {
 public:
     explicit BadExpectedAccess(E error) noexcept(std::is_nothrow_constructible_v<E, E&&>)
-        : BadExpectedAccess<void>([](const E& error)
-        {
-            if constexpr (detail::has_member_message_v<E>)
-                return error.message();
-            else
-                return std::in_place;
-        }(error))
+        : std::runtime_error([](const E& error)
+            {
+                if constexpr (detail::has_member_message_v<E>)
+                    return error.message();
+                else
+                    return "Bad access to expected value";
+            }(error))
         , error_(std::move(error))
     {
     }
