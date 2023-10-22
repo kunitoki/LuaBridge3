@@ -166,7 +166,7 @@ jobs:
         ./LuaBridgeTests54Noexcept
         ./LuaBridgeTests54LuaCNoexcept
 
-  luaJIT:
+  luajit:
     runs-on: ubuntu-latest
     steps:
 
