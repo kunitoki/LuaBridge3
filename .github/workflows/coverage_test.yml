@@ -16,7 +16,6 @@ concurrency:
 
 env:
   BUILD_TYPE: Debug
-  CACHE_NAME: cache-lcov-files
 
 jobs:
   lua51:
@@ -71,7 +70,7 @@ jobs:
 
     - name: Cache Lcov Files
       uses: actions/cache@v2
-      id: ${{env.CACHE_NAME}}
+      id: cache-lcov-files
       with:
         path: "${{runner.workspace}}/coverage/*.info"
         key: lcov-lua51-${{runner.os}}-${{github.sha}}
@@ -89,7 +88,7 @@ jobs:
 
       - name: Restore Lcov Files
         uses: actions/cache@v2
-        id: ${{env.CACHE_NAME}}
+        id: cache-lcov-files
         with:
           path: "${{runner.workspace}}/coverage/*.info"
           key: lcov-lua51-${{runner.os}}-${{github.sha}}
