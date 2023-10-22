@@ -47,31 +47,23 @@ jobs:
           LuaBridgeTests51Noexcept \
           LuaBridgeTests51LuaCNoexcept
 
+    - name: Test Lua 5.1
+      working-directory: ${{runner.workspace}}/build/Tests
+      run: |
+        ./LuaBridgeTests51
+        ./LuaBridgeTests51LuaC
+        ./LuaBridgeTests51Noexcept
+        ./LuaBridgeTests51LuaCNoexcept
+
     - name: Coverage Lua 5.1
       working-directory: ${{runner.workspace}}
       run: |
-        pushd build/Tests && ./LuaBridgeTests51 && popd
-        lcov -c -d "${{runner.workspace}}/build/Tests" --rc lcov_branch_coverage=1 \
+        lcov -c -d "${{runner.workspace}}/build" --rc lcov_branch_coverage=1 \
           --include "*/LuaBridge/*" --exclude "*/Tests/*" --exclude "*/Distribution/*" --exclude "*/coverage_html/*" \
-          -o "coverage/LuaBridgeTests51.info"
-
-        pushd build/Tests && ./LuaBridgeTests51LuaC && popd
-        lcov -c -d "${{runner.workspace}}/build/Tests" --rc lcov_branch_coverage=1 \
-          --include "*/LuaBridge/*" --exclude "*/Tests/*" --exclude "*/Distribution/*" --exclude "*/coverage_html/*" \
-          -o "coverage/LuaBridgeTests51LuaC.info"
-
-        pushd build/Tests && ./LuaBridgeTests51Noexcept && popd
-        lcov -c -d "${{runner.workspace}}/build/Tests" --rc lcov_branch_coverage=1 \
-          --include "*/LuaBridge/*" --exclude "*/Tests/*" --exclude "*/Distribution/*" --exclude "*/coverage_html/*" \
-          -o "coverage/LuaBridgeTests51Noexcept.info"
-
-        pushd build/Tests && ./LuaBridgeTests51LuaCNoexcept && popd
-        lcov -c -d "${{runner.workspace}}/build/Tests" --rc lcov_branch_coverage=1 \
-          --include "*/LuaBridge/*" --exclude "*/Tests/*" --exclude "*/Distribution/*" --exclude "*/coverage_html/*" \
-          -o "coverage/LuaBridgeTests51LuaCNoexcept.info"
+          -o "coverage/lua51.info"
 
     - name: Cache Lcov Files
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       with:
         path: "${{runner.workspace}}/coverage/*.info"
         key: lcov-lua51-${{runner.os}}-${{github.sha}}
@@ -105,38 +97,130 @@ jobs:
           LuaBridgeTests52Noexcept \
           LuaBridgeTests52LuaCNoexcept
 
+    - name: Test Lua 5.2
+      working-directory: ${{runner.workspace}}/build/Tests
+      run: |
+        ./LuaBridgeTests52
+        ./LuaBridgeTests52LuaC
+        ./LuaBridgeTests52Noexcept
+        ./LuaBridgeTests52LuaCNoexcept
+
     - name: Coverage Lua 5.2
       working-directory: ${{runner.workspace}}
       run: |
-        pushd build/Tests && ./LuaBridgeTests52 && popd
-        lcov -c -d "${{runner.workspace}}/build/Tests" --rc lcov_branch_coverage=1 \
+        lcov -c -d "${{runner.workspace}}/build" --rc lcov_branch_coverage=1 \
           --include "*/LuaBridge/*" --exclude "*/Tests/*" --exclude "*/Distribution/*" --exclude "*/coverage_html/*" \
-          -o "coverage/LuaBridgeTests52.info"
-
-        pushd build/Tests && ./LuaBridgeTests52LuaC && popd
-        lcov -c -d "${{runner.workspace}}/build/Tests" --rc lcov_branch_coverage=1 \
-          --include "*/LuaBridge/*" --exclude "*/Tests/*" --exclude "*/Distribution/*" --exclude "*/coverage_html/*" \
-          -o "coverage/LuaBridgeTests52LuaC.info"
-
-        pushd build/Tests && ./LuaBridgeTests52Noexcept && popd
-        lcov -c -d "${{runner.workspace}}/build/Tests" --rc lcov_branch_coverage=1 \
-          --include "*/LuaBridge/*" --exclude "*/Tests/*" --exclude "*/Distribution/*" --exclude "*/coverage_html/*" \
-          -o "coverage/LuaBridgeTests52Noexcept.info"
-
-        pushd build/Tests && ./LuaBridgeTests52LuaCNoexcept && popd
-        lcov -c -d "${{runner.workspace}}/build/Tests" --rc lcov_branch_coverage=1 \
-          --include "*/LuaBridge/*" --exclude "*/Tests/*" --exclude "*/Distribution/*" --exclude "*/coverage_html/*" \
-          -o "coverage/LuaBridgeTests52LuaCNoexcept.info"
+          -o "coverage/lua52.info"
 
     - name: Cache Lcov Files
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       with:
         path: "${{runner.workspace}}/coverage/*.info"
         key: lcov-lua52-${{runner.os}}-${{github.sha}}
 
+  lua53:
+    runs-on: ubuntu-latest
+    steps:
+
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+
+    - name: Install lcov
+      run: sudo apt-get install -y lcov ninja-build
+
+    - name: Create Build Environment
+      run: |
+        cmake -E make_directory ${{runner.workspace}}/build
+        cmake -E make_directory ${{runner.workspace}}/coverage
+
+    - name: Configure
+      working-directory: ${{runner.workspace}}/build
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DLUABRIDGE_COVERAGE=ON -G Ninja
+
+    - name: Build Lua 5.3
+      working-directory: ${{runner.workspace}}/build
+      run: |
+        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
+          LuaBridgeTests53 \
+          LuaBridgeTests53LuaC \
+          LuaBridgeTests53Noexcept \
+          LuaBridgeTests53LuaCNoexcept
+
+    - name: Test Lua 5.3
+      working-directory: ${{runner.workspace}}/build/Tests
+      run: |
+        ./LuaBridgeTests53
+        ./LuaBridgeTests53LuaC
+        ./LuaBridgeTests53Noexcept
+        ./LuaBridgeTests53LuaCNoexcept
+
+    - name: Coverage Lua 5.3
+      working-directory: ${{runner.workspace}}
+      run: |
+        lcov -c -d "${{runner.workspace}}/build" --rc lcov_branch_coverage=1 \
+          --include "*/LuaBridge/*" --exclude "*/Tests/*" --exclude "*/Distribution/*" --exclude "*/coverage_html/*" \
+          -o "coverage/lua53.info"
+
+    - name: Cache Lcov Files
+      uses: actions/cache@v3
+      with:
+        path: "${{runner.workspace}}/coverage/*.info"
+        key: lcov-lua53-${{runner.os}}-${{github.sha}}
+
+  lua54:
+    runs-on: ubuntu-latest
+    steps:
+
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+
+    - name: Install lcov
+      run: sudo apt-get install -y lcov ninja-build
+
+    - name: Create Build Environment
+      run: |
+        cmake -E make_directory ${{runner.workspace}}/build
+        cmake -E make_directory ${{runner.workspace}}/coverage
+
+    - name: Configure
+      working-directory: ${{runner.workspace}}/build
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DLUABRIDGE_COVERAGE=ON -G Ninja
+
+    - name: Build Lua 5.4
+      working-directory: ${{runner.workspace}}/build
+      run: |
+        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
+          LuaBridgeTests54 \
+          LuaBridgeTests54LuaC \
+          LuaBridgeTests54Noexcept \
+          LuaBridgeTests54LuaCNoexcept
+
+    - name: Test Lua 5.4
+      working-directory: ${{runner.workspace}}/build/Tests
+      run: |
+        ./LuaBridgeTests54
+        ./LuaBridgeTests54LuaC
+        ./LuaBridgeTests54Noexcept
+        ./LuaBridgeTests54LuaCNoexcept
+
+    - name: Coverage Lua 5.3
+      working-directory: ${{runner.workspace}}
+      run: |
+        lcov -c -d "${{runner.workspace}}/build" --rc lcov_branch_coverage=1 \
+          --include "*/LuaBridge/*" --exclude "*/Tests/*" --exclude "*/Distribution/*" --exclude "*/coverage_html/*" \
+          -o "coverage/lua54.info"
+
+    - name: Cache Lcov Files
+      uses: actions/cache@v3
+      with:
+        path: "${{runner.workspace}}/coverage/*.info"
+        key: lcov-lua54-${{runner.os}}-${{github.sha}}
+
   coveralls:
     runs-on: ubuntu-latest
-    needs: [lua51, lua52]
+    needs: [lua51, lua52, lua53, lua54]
     steps:
       - name: Install lcov
         run: sudo apt-get install -y lcov
@@ -145,33 +229,41 @@ jobs:
         run: cmake -E make_directory ${{runner.workspace}}/coverage
 
       - name: Restore Lcov Files 5.1
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: "${{runner.workspace}}/coverage/*.info"
           key: lcov-lua51-${{runner.os}}-${{github.sha}}
 
       - name: Restore Lcov Files 5.2
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: "${{runner.workspace}}/coverage/*.info"
           key: lcov-lua52-${{runner.os}}-${{github.sha}}
+
+      - name: Restore Lcov Files 5.3
+        uses: actions/cache@v3
+        with:
+          path: "${{runner.workspace}}/coverage/*.info"
+          key: lcov-lua53-${{runner.os}}-${{github.sha}}
+
+      - name: Restore Lcov Files 5.4
+        uses: actions/cache@v3
+        with:
+          path: "${{runner.workspace}}/coverage/*.info"
+          key: lcov-lua54-${{runner.os}}-${{github.sha}}
 
       - name: List Files
         working-directory: ${{runner.workspace}}
         run: |
           lcov \
-            -a "coverage/LuaBridgeTests51.info" \
-            -a "coverage/LuaBridgeTests51LuaC.info" \
-            -a "coverage/LuaBridgeTests51Noexcept.info" \
-            -a "coverage/LuaBridgeTests51LuaCNoexcept.info" \
-            -a "coverage/LuaBridgeTests52.info" \
-            -a "coverage/LuaBridgeTests52LuaC.info" \
-            -a "coverage/LuaBridgeTests52Noexcept.info" \
-            -a "coverage/LuaBridgeTests52LuaCNoexcept.info" \
-            -o "coverage/Merged.info"
+            -a "coverage/lua51.info" \
+            -a "coverage/lua52.info" \
+            -a "coverage/lua53.info" \
+            -a "coverage/lua54.info" \
+            -o "coverage/merged.info"
 
       - name: Coveralls
         uses: coverallsapp/github-action@master
         with:
-          path-to-lcov: ${{runner.workspace}}/coverage/Merged.info
+          path-to-lcov: ${{runner.workspace}}/coverage/merged.info
           github-token: ${{ secrets.GITHUB_TOKEN }}
