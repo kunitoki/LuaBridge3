@@ -173,9 +173,10 @@ jobs:
 
     - name: Build LuaJIT
       working-directory: ${{runner.workspace}}/build
-      run: cmake --build . --config $BUILD_TYPE --parallel 4 --target \
-        LuaBridgeTestsLuaJIT \
-        LuaBridgeTestsLuaJITNoexcept
+      run: |
+        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
+          LuaBridgeTestsLuaJIT \
+          LuaBridgeTestsLuaJITNoexcept
 
     - name: Test LuaJIT
       working-directory: ${{runner.workspace}}/build/Tests
