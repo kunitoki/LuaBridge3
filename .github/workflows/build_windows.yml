@@ -18,7 +18,7 @@ env:
   BUILD_TYPE: Release
 
 jobs:
-  build:
+  lua51:
     runs-on: windows-latest
     steps:
 
@@ -34,38 +34,153 @@ jobs:
       working-directory: ${{runner.workspace}}/build
       run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE
 
-    - name: Build
+    - name: Build Lua 5.1
       working-directory: ${{runner.workspace}}/build
       shell: bash
-      run: cmake --build . --config $BUILD_TYPE --parallel 4
+      run: |
+        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
+          LuaBridgeTests51 \
+          LuaBridgeTests51LuaC \
+          LuaBridgeTests51Noexcept \
+          LuaBridgeTests51LuaCNoexcept
 
     - name: Test Lua 5.1
       working-directory: ${{runner.workspace}}/build/Tests/Release
       shell: bash
       run: |
         ./LuaBridgeTests51.exe
+        ./LuaBridgeTests51LuaC.exe
         ./LuaBridgeTests51Noexcept.exe
+        ./LuaBridgeTests51LuaCNoexcept.exe
+
+  lua52:
+    runs-on: windows-latest
+    steps:
+
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+
+    - name: Create Build Environment
+      run: cmake -E make_directory ${{runner.workspace}}/build
+
+    - name: Configure
+      shell: bash
+      working-directory: ${{runner.workspace}}/build
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+
+    - name: Build Lua 5.2
+      working-directory: ${{runner.workspace}}/build
+      shell: bash
+      run: |
+        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
+          LuaBridgeTests52 \
+          LuaBridgeTests52LuaC \
+          LuaBridgeTests52Noexcept \
+          LuaBridgeTests52LuaCNoexcept
 
     - name: Test Lua 5.2
       working-directory: ${{runner.workspace}}/build/Tests/Release
       shell: bash
       run: |
         ./LuaBridgeTests52.exe
+        ./LuaBridgeTests52LuaC.exe
         ./LuaBridgeTests52Noexcept.exe
+        ./LuaBridgeTests52LuaCNoexcept.exe
+
+  lua53:
+    runs-on: windows-latest
+    steps:
+
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+
+    - name: Create Build Environment
+      run: cmake -E make_directory ${{runner.workspace}}/build
+
+    - name: Configure
+      shell: bash
+      working-directory: ${{runner.workspace}}/build
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+
+    - name: Build Lua 5.3
+      working-directory: ${{runner.workspace}}/build
+      shell: bash
+      run: |
+        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
+          LuaBridgeTests53 \
+          LuaBridgeTests53LuaC \
+          LuaBridgeTests53Noexcept \
+          LuaBridgeTests53LuaCNoexcept
 
     - name: Test Lua 5.3
       working-directory: ${{runner.workspace}}/build/Tests/Release
       shell: bash
       run: |
         ./LuaBridgeTests53.exe
+        ./LuaBridgeTests53LuaC.exe
         ./LuaBridgeTests53Noexcept.exe
+        ./LuaBridgeTests53LuaCNoexcept.exe
+
+  lua54:
+    runs-on: windows-latest
+    steps:
+
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+
+    - name: Create Build Environment
+      run: cmake -E make_directory ${{runner.workspace}}/build
+
+    - name: Configure
+      shell: bash
+      working-directory: ${{runner.workspace}}/build
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+
+    - name: Build Lua 5.4
+      working-directory: ${{runner.workspace}}/build
+      shell: bash
+      run: |
+        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
+          LuaBridgeTests54 \
+          LuaBridgeTests54LuaC \
+          LuaBridgeTests54Noexcept \
+          LuaBridgeTests54LuaCNoexcept
 
     - name: Test Lua 5.4
       working-directory: ${{runner.workspace}}/build/Tests/Release
       shell: bash
       run: |
         ./LuaBridgeTests54.exe
+        ./LuaBridgeTests54LuaC.exe
         ./LuaBridgeTests54Noexcept.exe
+        ./LuaBridgeTests54LuaCNoexcept.exe
+
+  luajit:
+    runs-on: windows-latest
+    steps:
+
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+
+    - name: Create Build Environment
+      run: cmake -E make_directory ${{runner.workspace}}/build
+
+    - name: Configure
+      shell: bash
+      working-directory: ${{runner.workspace}}/build
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+
+    - name: Build LuaJIT
+      working-directory: ${{runner.workspace}}/build
+      shell: bash
+      run: |
+        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
+          LuaBridgeTestsLuaJIT \
+          LuaBridgeTestsLuaJITNoexcept
 
     - name: Test LuaJIT
       working-directory: ${{runner.workspace}}/build/Tests/Release
@@ -73,10 +188,52 @@ jobs:
       # run: ./LuaBridgeTestsLuaJIT.exe
       run: ./LuaBridgeTestsLuaJITNoexcept.exe
 
+  luau:
+    runs-on: windows-latest
+    steps:
+
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+
+    - name: Create Build Environment
+      run: cmake -E make_directory ${{runner.workspace}}/build
+
+    - name: Configure
+      shell: bash
+      working-directory: ${{runner.workspace}}/build
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+
+    - name: Build Luau
+      working-directory: ${{runner.workspace}}/build
+      shell: bash
+      run: cmake --build . --config $BUILD_TYPE --parallel 4 --target LuaBridgeTestsLuau
+
     - name: Test Luau
       working-directory: ${{runner.workspace}}/build/Tests/Release
       shell: bash
       run: ./LuaBridgeTestsLuau.exe
+
+  ravi:
+    runs-on: windows-latest
+    steps:
+
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+
+    - name: Create Build Environment
+      run: cmake -E make_directory ${{runner.workspace}}/build
+
+    - name: Configure
+      shell: bash
+      working-directory: ${{runner.workspace}}/build
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+
+    - name: Build Ravi
+      working-directory: ${{runner.workspace}}/build
+      shell: bash
+      run: cmake --build . --config $BUILD_TYPE --parallel 4 --target LuaBridgeTestsRavi
 
     - name: Test Ravi
       working-directory: ${{runner.workspace}}/build/Tests/Release

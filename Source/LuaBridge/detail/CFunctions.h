@@ -934,7 +934,21 @@ int invoke_member_cfunction(lua_State* L)
     const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
     LUABRIDGE_ASSERT(func != nullptr);
 
-    return (t->*func)(L);
+#if LUABRIDGE_HAS_EXCEPTIONS
+    try
+    {
+#endif
+        return (t->*func)(L);
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    }
+    catch (const std::exception& e)
+    {
+        raise_lua_error(L, "%s", e.what());
+    }
+    
+    return 0;
+#endif
 }
 
 template <class T>
@@ -949,7 +963,21 @@ int invoke_const_member_cfunction(lua_State* L)
     const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
     LUABRIDGE_ASSERT(func != nullptr);
 
-    return (t->*func)(L);
+#if LUABRIDGE_HAS_EXCEPTIONS
+    try
+    {
+#endif
+        return (t->*func)(L);
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    }
+    catch (const std::exception& e)
+    {
+        raise_lua_error(L, "%s", e.what());
+    }
+    
+    return 0;
+#endif
 }
 
 //=================================================================================================
@@ -988,6 +1016,30 @@ int invoke_proxy_functor(lua_State* L)
 
     return function<typename FnTraits::result_type, typename FnTraits::argument_types, 1>::call(L, func);
 }
+
+//=================================================================================================
+/**
+ * @brief lua_CFunction to call safely by trapping exceptions
+ */
+#if LUABRIDGE_SAFE_LUA_C_EXCEPTION_HANDLING && LUABRIDGE_HAS_EXCEPTIONS
+inline int invoke_safe_cfunction(lua_State* L)
+{
+    LUABRIDGE_ASSERT(lua_iscfunction(L, lua_upvalueindex(1)));
+
+    auto func = lua_tocfunction(L, lua_upvalueindex(1));
+    
+    try
+    {
+        return func(L);
+    }
+    catch (const std::exception& e)
+    {
+        raise_lua_error(L, "%s", e.what());
+    }
+
+    return 0;
+}
+#endif
 
 //=================================================================================================
 /**
@@ -1100,10 +1152,16 @@ inline int try_overload_functions(lua_State* L)
 }
 
 //=================================================================================================
+
 // Lua CFunction
 inline void push_function(lua_State* L, lua_CFunction fp)
 {
+#if LUABRIDGE_SAFE_LUA_C_EXCEPTION_HANDLING && LUABRIDGE_HAS_EXCEPTIONS
     lua_pushcfunction_x(L, fp);
+    lua_pushcclosure_x(L, invoke_safe_cfunction, 1);
+#else    
+    lua_pushcfunction_x(L, fp);
+#endif
 }
 
 // Generic function pointer
@@ -1138,7 +1196,12 @@ inline void push_function(lua_State* L, F&& f)
 template <class T>
 void push_member_function(lua_State* L, lua_CFunction fp)
 {
+#if LUABRIDGE_SAFE_LUA_C_EXCEPTION_HANDLING && LUABRIDGE_HAS_EXCEPTIONS
     lua_pushcfunction_x(L, fp);
+    lua_pushcclosure_x(L, invoke_safe_cfunction, 1);
+#else    
+    lua_pushcfunction_x(L, fp);
+#endif
 }
 
 // Generic function pointer
@@ -1272,14 +1335,14 @@ void push_member_function(lua_State* L, int (U::*mfp)(lua_State*) const)
 template <class T, class Args>
 struct constructor
 {
-    static T* call(const Args& args)
+    static T* construct(const Args& args)
     {
         auto alloc = [](auto&&... args) { return new T(std::forward<decltype(args)>(args)...); };
 
         return std::apply(alloc, args);
     }
 
-    static T* call(void* ptr, const Args& args)
+    static T* construct(void* ptr, const Args& args)
     {
         auto alloc = [ptr](auto&&... args) { return new (ptr) T(std::forward<decltype(args)>(args)...); };
 
@@ -1344,7 +1407,21 @@ int constructor_container_proxy(lua_State* L)
 {
     using T = typename ContainerTraits<C>::Type;
 
-    T* object = constructor<T, Args>::call(detail::make_arguments_list<Args, 2>(L));
+    T* object = nullptr;
+    
+#if LUABRIDGE_HAS_EXCEPTIONS
+    try
+    {
+#endif
+        object = constructor<T, Args>::construct(detail::make_arguments_list<Args, 2>(L));
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    }
+    catch (const std::exception& e)
+    {
+        raise_lua_error(L, "%s", e.what());
+    }
+#endif
 
     auto result = UserdataSharedHelper<C, false>::push(L, object);
     if (! result)
@@ -1366,8 +1443,21 @@ int constructor_placement_proxy(lua_State* L)
     if (! value)
         raise_lua_error(L, "%s", ec.message().c_str());
 
-    constructor<T, Args>::call(value->getObject(), std::move(args));
+#if LUABRIDGE_HAS_EXCEPTIONS
+    try
+    {
+#endif
 
+        constructor<T, Args>::construct(value->getObject(), std::move(args));
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    }
+    catch (const std::exception& e)
+    {
+        raise_lua_error(L, "%s", e.what());
+    }
+#endif
+        
     value->commit();
 
     return 1;
@@ -1397,12 +1487,25 @@ struct constructor_forwarder
         if (! value)
             raise_lua_error(L, "%s", ec.message().c_str());
 
-        T* obj = placement_constructor<T>::construct(
-            value->getObject(), m_func, std::move(args));
+        T* object = nullptr;
+        
+#if LUABRIDGE_HAS_EXCEPTIONS
+        try
+        {
+#endif
+            object = placement_constructor<T>::construct(value->getObject(), m_func, std::move(args));
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        }
+        catch (const std::exception& e)
+        {
+            raise_lua_error(L, "%s", e.what());
+        }
+#endif
 
         value->commit();
 
-        return obj;
+        return object;
     }
 
 private:
@@ -1427,14 +1530,28 @@ struct factory_forwarder
         using FnTraits = function_traits<Alloc>;
         using FnArgs = typename FnTraits::argument_types;
 
-        T* obj = external_constructor<T>::construct(m_alloc, make_arguments_list<FnArgs, 0>(L));
+        T* object = nullptr;
+        
+#if LUABRIDGE_HAS_EXCEPTIONS
+        try
+        {
+#endif
+            object = external_constructor<T>::construct(m_alloc, make_arguments_list<FnArgs, 0>(L));
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        }
+        catch (const std::exception& e)
+        {
+            raise_lua_error(L, "%s", e.what());
+        }
+#endif
 
         std::error_code ec;
-        auto* value = UserdataValueExternal<T>::place(L, obj, m_dealloc, ec);
+        auto* value = UserdataValueExternal<T>::place(L, object, m_dealloc, ec);
         if (! value)
             raise_lua_error(L, "%s", ec.message().c_str());
 
-        return obj;
+        return object;
     }
 
 private:
@@ -1459,13 +1576,27 @@ struct container_forwarder
         using FnTraits = function_traits<F>;
         using FnArgs = typename FnTraits::argument_types;
 
-        auto obj = container_constructor<C>::construct(m_func, make_arguments_list<FnArgs, 2>(L));
+        C object;
+        
+#if LUABRIDGE_HAS_EXCEPTIONS
+        try
+        {
+#endif
+            object = container_constructor<C>::construct(m_func, make_arguments_list<FnArgs, 2>(L));
 
-        auto result = UserdataSharedHelper<C, false>::push(L, obj);
+#if LUABRIDGE_HAS_EXCEPTIONS
+        }
+        catch (const std::exception& e)
+        {
+            raise_lua_error(L, "%s", e.what());
+        }
+#endif
+
+        auto result = UserdataSharedHelper<C, false>::push(L, object);
         if (! result)
             raise_lua_error(L, "%s", result.message().c_str());
 
-        return obj;
+        return object;
     }
 
 private:

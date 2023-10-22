@@ -18,7 +18,147 @@ env:
   BUILD_TYPE: Release
 
 jobs:
-  build:
+  lua51:
+    runs-on: ubuntu-latest
+    steps:
+
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+
+    - name: Install Dependencies
+      run: sudo apt-get -y install ninja-build
+
+    - name: Create Build Environment
+      run: cmake -E make_directory ${{runner.workspace}}/build
+
+    - name: Configure
+      working-directory: ${{runner.workspace}}/build
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -G Ninja
+
+    - name: Build Lua 5.1
+      working-directory: ${{runner.workspace}}/build
+      run: |
+        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
+          LuaBridgeTests51 \
+          LuaBridgeTests51LuaC \
+          LuaBridgeTests51Noexcept \
+          LuaBridgeTests51LuaCNoexcept
+
+    - name: Test Lua 5.1
+      working-directory: ${{runner.workspace}}/build/Tests
+      run: |
+        ./LuaBridgeTests51
+        ./LuaBridgeTests51LuaC
+        ./LuaBridgeTests51Noexcept
+        ./LuaBridgeTests51LuaCNoexcept
+
+  lua52:
+    runs-on: ubuntu-latest
+    steps:
+
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+
+    - name: Install Dependencies
+      run: sudo apt-get -y install ninja-build
+
+    - name: Create Build Environment
+      run: cmake -E make_directory ${{runner.workspace}}/build
+
+    - name: Configure
+      working-directory: ${{runner.workspace}}/build
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -G Ninja
+
+    - name: Build Lua 5.2
+      working-directory: ${{runner.workspace}}/build
+      run: |
+        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
+          LuaBridgeTests52 \
+          LuaBridgeTests52LuaC \
+          LuaBridgeTests52Noexcept \
+          LuaBridgeTests52LuaCNoexcept
+
+    - name: Test Lua 5.2
+      working-directory: ${{runner.workspace}}/build/Tests
+      run: |
+        ./LuaBridgeTests52
+        ./LuaBridgeTests52LuaC
+        ./LuaBridgeTests52Noexcept
+        ./LuaBridgeTests52LuaCNoexcept
+
+  lua53:
+    runs-on: ubuntu-latest
+    steps:
+
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+
+    - name: Install Dependencies
+      run: sudo apt-get -y install ninja-build
+
+    - name: Create Build Environment
+      run: cmake -E make_directory ${{runner.workspace}}/build
+
+    - name: Configure
+      working-directory: ${{runner.workspace}}/build
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -G Ninja
+
+    - name: Build Lua 5.3
+      working-directory: ${{runner.workspace}}/build
+      run: |
+        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
+          LuaBridgeTests53 \
+          LuaBridgeTests53LuaC \
+          LuaBridgeTests53Noexcept \
+          LuaBridgeTests53LuaCNoexcept
+
+    - name: Test Lua 5.3
+      working-directory: ${{runner.workspace}}/build/Tests
+      run: |
+        ./LuaBridgeTests53
+        ./LuaBridgeTests53LuaC
+        ./LuaBridgeTests53Noexcept
+        ./LuaBridgeTests53LuaCNoexcept
+
+  lua54:
+    runs-on: ubuntu-latest
+    steps:
+
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+
+    - name: Install Dependencies
+      run: sudo apt-get -y install ninja-build
+
+    - name: Create Build Environment
+      run: cmake -E make_directory ${{runner.workspace}}/build
+
+    - name: Configure
+      working-directory: ${{runner.workspace}}/build
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -G Ninja
+
+    - name: Build Lua 5.4
+      working-directory: ${{runner.workspace}}/build
+      run: |
+        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
+          LuaBridgeTests54 \
+          LuaBridgeTests54LuaC \
+          LuaBridgeTests54Noexcept \
+          LuaBridgeTests54LuaCNoexcept
+
+    - name: Test Lua 5.4
+      working-directory: ${{runner.workspace}}/build/Tests
+      run: |
+        ./LuaBridgeTests54
+        ./LuaBridgeTests54LuaC
+        ./LuaBridgeTests54Noexcept
+        ./LuaBridgeTests54LuaCNoexcept
+
+  luajit:
     runs-on: ubuntu-latest
     steps:
 
@@ -38,33 +178,12 @@ jobs:
       working-directory: ${{runner.workspace}}/build
       run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -G Ninja
 
-    - name: Build
+    - name: Build LuaJIT
       working-directory: ${{runner.workspace}}/build
-      run: cmake --build . --config $BUILD_TYPE
-
-    - name: Test Lua 5.1
-      working-directory: ${{runner.workspace}}/build/Tests
       run: |
-        ./LuaBridgeTests51
-        ./LuaBridgeTests51Noexcept
-
-    - name: Test Lua 5.2
-      working-directory: ${{runner.workspace}}/build/Tests
-      run: |
-        ./LuaBridgeTests52
-        ./LuaBridgeTests52Noexcept
-
-    - name: Test Lua 5.3
-      working-directory: ${{runner.workspace}}/build/Tests
-      run: |
-        ./LuaBridgeTests53
-        ./LuaBridgeTests53Noexcept
-
-    - name: Test Lua 5.4
-      working-directory: ${{runner.workspace}}/build/Tests
-      run: |
-        ./LuaBridgeTests54
-        ./LuaBridgeTests54Noexcept
+        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
+          LuaBridgeTestsLuaJIT \
+          LuaBridgeTestsLuaJITNoexcept
 
     - name: Test LuaJIT
       working-directory: ${{runner.workspace}}/build/Tests
@@ -72,9 +191,53 @@ jobs:
         ./LuaBridgeTestsLuaJIT
         ./LuaBridgeTestsLuaJITNoexcept
 
+  luau:
+    runs-on: ubuntu-latest
+    steps:
+
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+
+    - name: Install Dependencies
+      run: sudo apt-get -y install ninja-build
+
+    - name: Create Build Environment
+      run: cmake -E make_directory ${{runner.workspace}}/build
+
+    - name: Configure
+      working-directory: ${{runner.workspace}}/build
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -G Ninja
+
+    - name: Build Luau
+      working-directory: ${{runner.workspace}}/build
+      run: cmake --build . --config $BUILD_TYPE --parallel 4 --target LuaBridgeTestsLuau
+
     - name: Test Luau
       working-directory: ${{runner.workspace}}/build/Tests
       run: ./LuaBridgeTestsLuau
+
+  ravi:
+    runs-on: ubuntu-latest
+    steps:
+
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+
+    - name: Install Dependencies
+      run: sudo apt-get -y install ninja-build
+
+    - name: Create Build Environment
+      run: cmake -E make_directory ${{runner.workspace}}/build
+
+    - name: Configure
+      working-directory: ${{runner.workspace}}/build
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -G Ninja
+
+    - name: Build Ravi
+      working-directory: ${{runner.workspace}}/build
+      run: cmake --build . --config $BUILD_TYPE --parallel 4 --target LuaBridgeTestsRavi
 
     - name: Test Ravi
       working-directory: ${{runner.workspace}}/build/Tests

@@ -50,13 +50,31 @@
 #include "LuaJIT.2.1/src/lua.hpp"
 
 #elif LUABRIDGEDEMO_LUA_VERSION >= 504
+#ifdef __cplusplus
 #include "Lua.5.4.6/src/lua.hpp"
+#else
+#include "Lua.5.4.6/src/lua.h"
+#include "Lua.5.4.6/src/lualib.h"
+#include "Lua.5.4.6/src/lauxlib.h"
+#endif
 
 #elif LUABRIDGEDEMO_LUA_VERSION >= 503
+#ifdef __cplusplus
 #include "Lua.5.3.6/src/lua.hpp"
+#else
+#include "Lua.5.3.6/src/lua.h"
+#include "Lua.5.3.6/src/lualib.h"
+#include "Lua.5.3.6/src/lauxlib.h"
+#endif
 
 #elif LUABRIDGEDEMO_LUA_VERSION >= 502
+#ifdef __cplusplus
 #include "Lua.5.2.4/src/lua.hpp"
+#else
+#include "Lua.5.2.4/src/lua.h"
+#include "Lua.5.2.4/src/lualib.h"
+#include "Lua.5.2.4/src/lauxlib.h"
+#endif
 
 #elif LUABRIDGEDEMO_LUA_VERSION >= 501
 #ifdef __cplusplus
