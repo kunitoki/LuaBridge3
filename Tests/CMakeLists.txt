@@ -359,7 +359,7 @@ add_test_app (LuaBridgeTestsLuaJITNoexcept "LUAJIT" "${LUABRIDGE_TEST_LUAJIT_FIL
 add_test_app (LuaBridgeTestsLuau "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 1 "" "")
 #add_test_app (LuaBridgeTestsLuauNoexcept "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 0 "" "")
 
-add_test_app (LuaBridgeTestsRavi "RAVI" "${LUABRIDGE_TEST_RAVI_FILES}" 1 "" "libravi")
+add_test_app (LuaBridgeTestsRavi "RAVI" "${LUABRIDGE_TEST_RAVI_FILES}" 1 "${LUABRIDGE_LUA_C_DEFINES}" "libravi")
 #add_test_app (LuaBridgeTestsRaviNoexcept "RAVI" "${LUABRIDGE_TEST_RAVI_FILES}" 0 "" "libravi")
 
 if (LUABRIDGE_COVERAGE)
