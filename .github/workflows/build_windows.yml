@@ -38,7 +38,7 @@ jobs:
       working-directory: ${{runner.workspace}}/build
       shell: bash
       run: |
-        cmake --build . --config $BUILD_TYPE --target \
+        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
           LuaBridgeTests51 \
           LuaBridgeTests51LuaC \
           LuaBridgeTests51Noexcept \
@@ -73,7 +73,7 @@ jobs:
       working-directory: ${{runner.workspace}}/build
       shell: bash
       run: |
-        cmake --build . --config $BUILD_TYPE --target \
+        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
           LuaBridgeTests52 \
           LuaBridgeTests52LuaC \
           LuaBridgeTests52Noexcept \
@@ -108,7 +108,7 @@ jobs:
       working-directory: ${{runner.workspace}}/build
       shell: bash
       run: |
-        cmake --build . --config $BUILD_TYPE --target \
+        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
           LuaBridgeTests53 \
           LuaBridgeTests53LuaC \
           LuaBridgeTests53Noexcept \
@@ -143,7 +143,7 @@ jobs:
       working-directory: ${{runner.workspace}}/build
       shell: bash
       run: |
-        cmake --build . --config $BUILD_TYPE --target \
+        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
           LuaBridgeTests54 \
           LuaBridgeTests54LuaC \
           LuaBridgeTests54Noexcept \
@@ -177,7 +177,10 @@ jobs:
     - name: Build LuaJIT
       working-directory: ${{runner.workspace}}/build
       shell: bash
-      run: cmake --build . --config $BUILD_TYPE --target LuaBridgeTestsLuaJIT LuaBridgeTestsLuaJITNoexcept
+      run: |
+        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
+          LuaBridgeTestsLuaJIT \
+          LuaBridgeTestsLuaJITNoexcept
 
     - name: Test LuaJIT
       working-directory: ${{runner.workspace}}/build/Tests/Release
@@ -204,7 +207,7 @@ jobs:
     - name: Build Luau
       working-directory: ${{runner.workspace}}/build
       shell: bash
-      run: cmake --build . --config $BUILD_TYPE --target LuaBridgeTestsLuau
+      run: cmake --build . --config $BUILD_TYPE --parallel 4 --target LuaBridgeTestsLuau
 
     - name: Test Luau
       working-directory: ${{runner.workspace}}/build/Tests/Release
@@ -230,7 +233,7 @@ jobs:
     - name: Build Ravi
       working-directory: ${{runner.workspace}}/build
       shell: bash
-      run: cmake --build . --config $BUILD_TYPE --target LuaBridgeTestsRavi
+      run: cmake --build . --config $BUILD_TYPE --parallel 4 --target LuaBridgeTestsRavi
 
     - name: Test Ravi
       working-directory: ${{runner.workspace}}/build/Tests/Release

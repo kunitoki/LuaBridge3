@@ -228,7 +228,7 @@ jobs:
 
     - name: Build LuaJIT
       working-directory: ${{runner.workspace}}/build
-      run: cmake --build . --config $BUILD_TYPE --target LuaBridgeTestsRavi
+      run: cmake --build . --config $BUILD_TYPE --parallel 4 --target LuaBridgeTestsRavi
 
     - name: Test Ravi
       working-directory: ${{runner.workspace}}/build/Tests
