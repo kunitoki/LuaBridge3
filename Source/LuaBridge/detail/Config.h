@@ -70,8 +70,13 @@
 /**
  * @brief Enable safe exception handling when lua is compiled as `C` and exceptions raise during execution of registered `lua_CFunction`.
  * 
- * This is a problem 
- *
+ * This is a problem that manifests when exceptions are leaking a CFunction when lua is compiled as `C` because the library will then longjmp
+ * instead of correctly unwinding the exception into C++ land. If you have exceptions enabled and are compiling lua as `C` and you are getting random
+ * crashes when invoking CFunctions that throw, you have two options: or you catch exceptions in your CFunction and raise a `lua_error` instead
+ * or you enable this macro, which will add a safe indirection doing exceptions catching and raising when invoking your registered CFunction.
+ * 
+ * @warning When enabled, some performance degradation is to be expected when invoking registered  `lua_CFunction` through the library.
+ *  
  * @note Default is disabled, can only be enabled when  `LUABRIDGE_HAS_EXCEPTIONS` is 1.
  */
 #if !defined(LUABRIDGE_SAFE_LUA_C_EXCEPTION_HANDLING)
