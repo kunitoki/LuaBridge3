@@ -27,7 +27,7 @@ jobs:
         submodules: true
 
     - name: Install lcov
-      run: sudo apt-get install -y lcov
+      run: sudo apt-get install -y lcov ninja-build
 
     - name: Create Build Environment
       run: |
@@ -82,7 +82,7 @@ jobs:
         submodules: true
 
     - name: Install lcov
-      run: sudo apt-get install -y lcov
+      run: sudo apt-get install -y lcov ninja-build
 
     - name: Create Build Environment
       run: |
