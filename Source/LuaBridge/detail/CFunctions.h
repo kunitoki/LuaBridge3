@@ -1335,14 +1335,14 @@ void push_member_function(lua_State* L, int (U::*mfp)(lua_State*) const)
 template <class T, class Args>
 struct constructor
 {
-    static T* call(const Args& args)
+    static T* construct(const Args& args)
     {
         auto alloc = [](auto&&... args) { return new T(std::forward<decltype(args)>(args)...); };
 
         return std::apply(alloc, args);
     }
 
-    static T* call(void* ptr, const Args& args)
+    static T* construct(void* ptr, const Args& args)
     {
         auto alloc = [ptr](auto&&... args) { return new (ptr) T(std::forward<decltype(args)>(args)...); };
 
@@ -1407,7 +1407,21 @@ int constructor_container_proxy(lua_State* L)
 {
     using T = typename ContainerTraits<C>::Type;
 
-    T* object = constructor<T, Args>::call(detail::make_arguments_list<Args, 2>(L));
+    T* object = nullptr;
+    
+#if LUABRIDGE_HAS_EXCEPTIONS
+    try
+    {
+#endif
+        object = constructor<T, Args>::construct(detail::make_arguments_list<Args, 2>(L));
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    }
+    catch (const std::exception& e)
+    {
+        raise_lua_error(L, "%s", e.what());
+    }
+#endif
 
     auto result = UserdataSharedHelper<C, false>::push(L, object);
     if (! result)
@@ -1429,8 +1443,21 @@ int constructor_placement_proxy(lua_State* L)
     if (! value)
         raise_lua_error(L, "%s", ec.message().c_str());
 
-    constructor<T, Args>::call(value->getObject(), std::move(args));
+#if LUABRIDGE_HAS_EXCEPTIONS
+    try
+    {
+#endif
 
+        constructor<T, Args>::construct(value->getObject(), std::move(args));
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    }
+    catch (const std::exception& e)
+    {
+        raise_lua_error(L, "%s", e.what());
+    }
+#endif
+        
     value->commit();
 
     return 1;
@@ -1460,12 +1487,25 @@ struct constructor_forwarder
         if (! value)
             raise_lua_error(L, "%s", ec.message().c_str());
 
-        T* obj = placement_constructor<T>::construct(
-            value->getObject(), m_func, std::move(args));
+        T* object = nullptr;
+        
+#if LUABRIDGE_HAS_EXCEPTIONS
+        try
+        {
+#endif
+            object = placement_constructor<T>::construct(value->getObject(), m_func, std::move(args));
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        }
+        catch (const std::exception& e)
+        {
+            raise_lua_error(L, "%s", e.what());
+        }
+#endif
 
         value->commit();
 
-        return obj;
+        return object;
     }
 
 private:
@@ -1490,14 +1530,28 @@ struct factory_forwarder
         using FnTraits = function_traits<Alloc>;
         using FnArgs = typename FnTraits::argument_types;
 
-        T* obj = external_constructor<T>::construct(m_alloc, make_arguments_list<FnArgs, 0>(L));
+        T* object = nullptr;
+        
+#if LUABRIDGE_HAS_EXCEPTIONS
+        try
+        {
+#endif
+            object = external_constructor<T>::construct(m_alloc, make_arguments_list<FnArgs, 0>(L));
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        }
+        catch (const std::exception& e)
+        {
+            raise_lua_error(L, "%s", e.what());
+        }
+#endif
 
         std::error_code ec;
-        auto* value = UserdataValueExternal<T>::place(L, obj, m_dealloc, ec);
+        auto* value = UserdataValueExternal<T>::place(L, object, m_dealloc, ec);
         if (! value)
             raise_lua_error(L, "%s", ec.message().c_str());
 
-        return obj;
+        return object;
     }
 
 private:
@@ -1522,13 +1576,27 @@ struct container_forwarder
         using FnTraits = function_traits<F>;
         using FnArgs = typename FnTraits::argument_types;
 
-        auto obj = container_constructor<C>::construct(m_func, make_arguments_list<FnArgs, 2>(L));
+        C object;
+        
+#if LUABRIDGE_HAS_EXCEPTIONS
+        try
+        {
+#endif
+            object = container_constructor<C>::construct(m_func, make_arguments_list<FnArgs, 2>(L));
 
-        auto result = UserdataSharedHelper<C, false>::push(L, obj);
+#if LUABRIDGE_HAS_EXCEPTIONS
+        }
+        catch (const std::exception& e)
+        {
+            raise_lua_error(L, "%s", e.what());
+        }
+#endif
+
+        auto result = UserdataSharedHelper<C, false>::push(L, object);
         if (! result)
             raise_lua_error(L, "%s", result.message().c_str());
 
-        return obj;
+        return object;
     }
 
 private:
