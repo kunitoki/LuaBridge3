@@ -222,6 +222,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: [lua51, lua52, lua53, lua54]
     steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+
       - name: Install lcov
         run: sudo apt-get install -y lcov
 
