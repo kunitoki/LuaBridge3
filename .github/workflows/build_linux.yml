@@ -27,9 +27,7 @@ jobs:
         submodules: true
 
     - name: Install Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get -y install ninja-build
+      run: sudo apt-get -y install ninja-build
 
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
@@ -41,7 +39,7 @@ jobs:
     - name: Build Lua 5.1
       working-directory: ${{runner.workspace}}/build
       run: |
-        cmake --build . --config $BUILD_TYPE --target \
+        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
           LuaBridgeTests51 \
           LuaBridgeTests51LuaC \
           LuaBridgeTests51Noexcept \
@@ -64,9 +62,7 @@ jobs:
         submodules: true
 
     - name: Install Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get -y install ninja-build
+      run: sudo apt-get -y install ninja-build
 
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
@@ -78,7 +74,7 @@ jobs:
     - name: Build Lua 5.2
       working-directory: ${{runner.workspace}}/build
       run: |
-        cmake --build . --config $BUILD_TYPE --target \
+        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
           LuaBridgeTests52 \
           LuaBridgeTests52LuaC \
           LuaBridgeTests52Noexcept \
@@ -101,9 +97,7 @@ jobs:
         submodules: true
 
     - name: Install Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get -y install ninja-build
+      run: sudo apt-get -y install ninja-build
 
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
@@ -115,7 +109,7 @@ jobs:
     - name: Build Lua 5.3
       working-directory: ${{runner.workspace}}/build
       run: |
-        cmake --build . --config $BUILD_TYPE --target \
+        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
           LuaBridgeTests53 \
           LuaBridgeTests53LuaC \
           LuaBridgeTests53Noexcept \
@@ -138,9 +132,7 @@ jobs:
         submodules: true
 
     - name: Install Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get -y install ninja-build
+      run: sudo apt-get -y install ninja-build
 
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
@@ -152,7 +144,7 @@ jobs:
     - name: Build Lua 5.4
       working-directory: ${{runner.workspace}}/build
       run: |
-        cmake --build . --config $BUILD_TYPE --target \
+        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
           LuaBridgeTests54 \
           LuaBridgeTests54LuaC \
           LuaBridgeTests54Noexcept \
@@ -188,7 +180,9 @@ jobs:
 
     - name: Build LuaJIT
       working-directory: ${{runner.workspace}}/build
-      run: cmake --build . --config $BUILD_TYPE --target LuaBridgeTestsLuaJIT LuaBridgeTestsLuaJITNoexcept
+      run: cmake --build . --config $BUILD_TYPE --parallel 4 --target \
+        LuaBridgeTestsLuaJIT \
+        LuaBridgeTestsLuaJITNoexcept
 
     - name: Test LuaJIT
       working-directory: ${{runner.workspace}}/build/Tests
@@ -205,9 +199,7 @@ jobs:
         submodules: true
 
     - name: Install Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get -y install ninja-build
+      run: sudo apt-get -y install ninja-build
 
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
@@ -218,7 +210,7 @@ jobs:
 
     - name: Build Luau
       working-directory: ${{runner.workspace}}/build
-      run: cmake --build . --config $BUILD_TYPE --target LuaBridgeTestsLuau
+      run: cmake --build . --config $BUILD_TYPE --parallel 4 --target LuaBridgeTestsLuau
 
     - name: Test Luau
       working-directory: ${{runner.workspace}}/build/Tests
@@ -233,9 +225,7 @@ jobs:
         submodules: true
 
     - name: Install Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get -y install ninja-build
+      run: sudo apt-get -y install ninja-build
 
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
@@ -246,7 +236,7 @@ jobs:
 
     - name: Build Ravi
       working-directory: ${{runner.workspace}}/build
-      run: cmake --build . --config $BUILD_TYPE --target LuaBridgeTestsRavi
+      run: cmake --build . --config $BUILD_TYPE --parallel 4 --target LuaBridgeTestsRavi
 
     - name: Test Ravi
       working-directory: ${{runner.workspace}}/build/Tests
