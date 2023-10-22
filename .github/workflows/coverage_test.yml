@@ -31,98 +31,137 @@ jobs:
 
     - name: Create Build Environment
       run: |
-        cmake -E make_directory ${{runner.workspace}}/build51
+        cmake -E make_directory ${{runner.workspace}}/build
         cmake -E make_directory ${{runner.workspace}}/coverage
 
     - name: Configure
-      working-directory: ${{runner.workspace}}/build51
+      working-directory: ${{runner.workspace}}/build
       run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DLUABRIDGE_COVERAGE=ON -G Ninja
 
     - name: Build Lua 5.1
-      working-directory: ${{runner.workspace}}/build51
+      working-directory: ${{runner.workspace}}/build
       run: |
         cmake --build . --config $BUILD_TYPE --parallel 4 --target \
-          LuaBridgeTests51
-
-#          LuaBridgeTests51LuaC \
-#          LuaBridgeTests51Noexcept \
-#          LuaBridgeTests51LuaCNoexcept
+          LuaBridgeTests51 \
+          LuaBridgeTests51LuaC \
+          LuaBridgeTests51Noexcept \
+          LuaBridgeTests51LuaCNoexcept
 
     - name: Test Lua 5.1
-      working-directory: ${{runner.workspace}}/build51/Tests
+      working-directory: ${{runner.workspace}}/build/Tests
       run: |
-        ./LuaBridgeTests51
-
-#        ./LuaBridgeTests51LuaC
-#        ./LuaBridgeTests51Noexcept
-#        ./LuaBridgeTests51LuaCNoexcept
+        ./LuaBridgeTests51 \
+        ./LuaBridgeTests51LuaC \
+        ./LuaBridgeTests51Noexcept \
+        ./LuaBridgeTests51LuaCNoexcept
 
     - name: Coverage Lua 5.1
       working-directory: ${{runner.workspace}}
       run: |
-        lcov -c -d "${{runner.workspace}}/build51/Tests" \
+        lcov -c -d "${{runner.workspace}}/build/Tests" \
           --include "*/LuaBridge/*" \
           --exclude "*/Tests/*" \
           --exclude "*/Distribution/*" \
           --exclude "*/coverage_html/*" \
           --rc lcov_branch_coverage=1 \
-          -o "coverage/lua51.info"
+          -o "coverage/${{vars.JOB_NAME}}.info"
 
     - name: Cache Lcov Files
       uses: actions/cache@v2
-      id: cache-lcov-files
+      id: cache-lcov-lua51
       with:
         path: "${{runner.workspace}}/coverage/*.info"
-        key: lcov-lua51-${{runner.os}}-${{github.sha}}
+        key: lcov-${{vars.JOB_NAME}}-${{runner.os}}-${{github.sha}}
+
+  lua52:
+    runs-on: ubuntu-latest
+    steps:
+
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+
+    - name: Install lcov
+      run: sudo apt-get install -y lcov
+
+    - name: Create Build Environment
+      run: |
+        cmake -E make_directory ${{runner.workspace}}/build
+        cmake -E make_directory ${{runner.workspace}}/coverage
+
+    - name: Configure
+      working-directory: ${{runner.workspace}}/build
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DLUABRIDGE_COVERAGE=ON -G Ninja
+
+    - name: Build Lua 5.2
+      working-directory: ${{runner.workspace}}/build
+      run: |
+        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
+          LuaBridgeTests52 \
+          LuaBridgeTests52LuaC \
+          LuaBridgeTests52Noexcept \
+          LuaBridgeTests52LuaCNoexcept
+
+    - name: Test Lua 5.2
+      working-directory: ${{runner.workspace}}/build/Tests
+      run: |
+        ./LuaBridgeTests52 \
+        ./LuaBridgeTests52LuaC \
+        ./LuaBridgeTests52Noexcept \
+        ./LuaBridgeTests52LuaCNoexcept
+
+    - name: Coverage Lua 5.2
+      working-directory: ${{runner.workspace}}
+      run: |
+        lcov -c -d "${{runner.workspace}}/build/Tests" \
+          --include "*/LuaBridge/*" \
+          --exclude "*/Tests/*" \
+          --exclude "*/Distribution/*" \
+          --exclude "*/coverage_html/*" \
+          --rc lcov_branch_coverage=1 \
+          -o "coverage/${{vars.JOB_NAME}}.info"
+
+    - name: Cache Lcov Files
+      uses: actions/cache@v2
+      id: cache-lcov-lua52
+      with:
+        path: "${{runner.workspace}}/coverage/*.info"
+        key: lcov-${{vars.JOB_NAME}}-${{runner.os}}-${{github.sha}}
 
   coveralls:
     runs-on: ubuntu-latest
-    needs: [lua51]
+    needs: [lua51, lua52]
     steps:
       - name: Install lcov
         run: sudo apt-get install -y lcov
 
       - name: Create Build Environment
-        run: |
-          cmake -E make_directory ${{runner.workspace}}/coverage
+        run: cmake -E make_directory ${{runner.workspace}}/coverage
 
-      - name: Restore Lcov Files
+      - name: Restore Lcov Files 5.1
         uses: actions/cache@v2
-        id: cache-lcov-files
+        id: cache-lcov-lua51
         with:
           path: "${{runner.workspace}}/coverage/*.info"
           key: lcov-lua51-${{runner.os}}-${{github.sha}}
 
+      - name: Restore Lcov Files 5.2
+        uses: actions/cache@v2
+        id: cache-lcov-lua52
+        with:
+          path: "${{runner.workspace}}/coverage/*.info"
+          key: lcov-lua52-${{runner.os}}-${{github.sha}}
+
       - name: List Files
+        working-directory: ${{runner.workspace}}
         run: |
-          ls -la .
-          ls -la ${{runner.workspace}}
-          ls -la ${{runner.workspace}}/coverage
+          lcov \
+            -a "coverage/lua51.info" \
+            -a "coverage/lua52.info" \
+            -o "coverage/merged.info"
 
-#    - name: Coveralls
-#      uses: coverallsapp/github-action@master
-#      with:
-#        path-to-lcov: ${{runner.workspace}}/build/coverage/Merged.info
-#        github-token: ${{ secrets.GITHUB_TOKEN }}
-
-#        add_custom_command(TARGET ${TARGET_NAME} PRE_BUILD
-#        COMMAND ${FIND_EXECUTABLE} . -path "*/Tests/*/${TARGET_NAME}.*/*/*.gcda" -delete
-#          WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-#          VERBATIM)
-
-#        add_custom_command (
-#          OUTPUT "coverage/${TARGET_NAME}.info"
-#          COMMAND ${FIND_EXECUTABLE} . -path "*/Tests/*/${TARGET_NAME}.*/*/*.gcda" -delete
-#          COMMAND ${TARGET_NAME} ${ARGV3}
-#          COMMAND ${CMAKE_COMMAND} -E make_directory coverage
-#          COMMAND ${CMAKE_COMMAND} -E rm -f coverage/${TARGET_NAME}.info
-#          COMMAND ${LCOV_EXECUTABLE}
-#            -c -d "${CMAKE_BINARY_DIR}"
-#            --include "*/${SOURCE_PACKAGE}/*"
-#            --exclude "*/Tests/*"
-#            --exclude "*/Distribution/*"
-#            --exclude "*/coverage_html/*"
-#            --rc lcov_branch_coverage=1
-#            -o "coverage/${TARGET_NAME}.info"
-#          WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-#          VERBATIM)
+      - name: Coveralls
+        uses: coverallsapp/github-action@master
+        with:
+          path-to-lcov: ${{runner.workspace}}/coverage/merged.info
+          github-token: ${{ secrets.GITHUB_TOKEN }}
