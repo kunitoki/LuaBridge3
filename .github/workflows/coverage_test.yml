@@ -47,24 +47,28 @@ jobs:
           LuaBridgeTests51Noexcept \
           LuaBridgeTests51LuaCNoexcept
 
-    - name: Test Lua 5.1
-      working-directory: ${{runner.workspace}}/build/Tests
-      run: |
-        ./LuaBridgeTests51 \
-        ./LuaBridgeTests51LuaC \
-        ./LuaBridgeTests51Noexcept \
-        ./LuaBridgeTests51LuaCNoexcept
-
     - name: Coverage Lua 5.1
       working-directory: ${{runner.workspace}}
       run: |
-        lcov -c -d "${{runner.workspace}}/build/Tests" \
-          --include "*/LuaBridge/*" \
-          --exclude "*/Tests/*" \
-          --exclude "*/Distribution/*" \
-          --exclude "*/coverage_html/*" \
-          --rc lcov_branch_coverage=1 \
-          -o "coverage/${{vars.JOB_NAME}}.info"
+        pushd build/Tests && ./LuaBridgeTests51 && popd
+        lcov -c -d "${{runner.workspace}}/build/Tests" --rc lcov_branch_coverage=1 \
+          --include "*/LuaBridge/*" --exclude "*/Tests/*" --exclude "*/Distribution/*" --exclude "*/coverage_html/*" \
+          -o "coverage/LuaBridgeTests51.info"
+
+        pushd build/Tests && ./LuaBridgeTests51LuaC && popd
+        lcov -c -d "${{runner.workspace}}/build/Tests" --rc lcov_branch_coverage=1 \
+          --include "*/LuaBridge/*" --exclude "*/Tests/*" --exclude "*/Distribution/*" --exclude "*/coverage_html/*" \
+          -o "coverage/LuaBridgeTests51LuaC.info"
+
+        pushd build/Tests && ./LuaBridgeTests51Noexcept && popd
+        lcov -c -d "${{runner.workspace}}/build/Tests" --rc lcov_branch_coverage=1 \
+          --include "*/LuaBridge/*" --exclude "*/Tests/*" --exclude "*/Distribution/*" --exclude "*/coverage_html/*" \
+          -o "coverage/LuaBridgeTests51Noexcept.info"
+
+        pushd build/Tests && ./LuaBridgeTests51LuaCNoexcept && popd
+        lcov -c -d "${{runner.workspace}}/build/Tests" --rc lcov_branch_coverage=1 \
+          --include "*/LuaBridge/*" --exclude "*/Tests/*" --exclude "*/Distribution/*" --exclude "*/coverage_html/*" \
+          -o "coverage/LuaBridgeTests51LuaCNoexcept.info"
 
     - name: Cache Lcov Files
       uses: actions/cache@v2
@@ -102,24 +106,28 @@ jobs:
           LuaBridgeTests52Noexcept \
           LuaBridgeTests52LuaCNoexcept
 
-    - name: Test Lua 5.2
-      working-directory: ${{runner.workspace}}/build/Tests
-      run: |
-        ./LuaBridgeTests52 \
-        ./LuaBridgeTests52LuaC \
-        ./LuaBridgeTests52Noexcept \
-        ./LuaBridgeTests52LuaCNoexcept
-
     - name: Coverage Lua 5.2
       working-directory: ${{runner.workspace}}
       run: |
-        lcov -c -d "${{runner.workspace}}/build/Tests" \
-          --include "*/LuaBridge/*" \
-          --exclude "*/Tests/*" \
-          --exclude "*/Distribution/*" \
-          --exclude "*/coverage_html/*" \
-          --rc lcov_branch_coverage=1 \
-          -o "coverage/${{vars.JOB_NAME}}.info"
+        pushd build/Tests && ./LuaBridgeTests52 && popd
+        lcov -c -d "${{runner.workspace}}/build/Tests" --rc lcov_branch_coverage=1 \
+          --include "*/LuaBridge/*" --exclude "*/Tests/*" --exclude "*/Distribution/*" --exclude "*/coverage_html/*" \
+          -o "coverage/LuaBridgeTests52.info"
+
+        pushd build/Tests && ./LuaBridgeTests52LuaC && popd
+        lcov -c -d "${{runner.workspace}}/build/Tests" --rc lcov_branch_coverage=1 \
+          --include "*/LuaBridge/*" --exclude "*/Tests/*" --exclude "*/Distribution/*" --exclude "*/coverage_html/*" \
+          -o "coverage/LuaBridgeTests52LuaC.info"
+
+        pushd build/Tests && ./LuaBridgeTests52Noexcept && popd
+        lcov -c -d "${{runner.workspace}}/build/Tests" --rc lcov_branch_coverage=1 \
+          --include "*/LuaBridge/*" --exclude "*/Tests/*" --exclude "*/Distribution/*" --exclude "*/coverage_html/*" \
+          -o "coverage/LuaBridgeTests52Noexcept.info"
+
+        pushd build/Tests && ./LuaBridgeTests52LuaCNoexcept && popd
+        lcov -c -d "${{runner.workspace}}/build/Tests" --rc lcov_branch_coverage=1 \
+          --include "*/LuaBridge/*" --exclude "*/Tests/*" --exclude "*/Distribution/*" --exclude "*/coverage_html/*" \
+          -o "coverage/LuaBridgeTests52LuaCNoexcept.info"
 
     - name: Cache Lcov Files
       uses: actions/cache@v2
@@ -156,12 +164,18 @@ jobs:
         working-directory: ${{runner.workspace}}
         run: |
           lcov \
-            -a "coverage/lua51.info" \
-            -a "coverage/lua52.info" \
-            -o "coverage/merged.info"
+            -a "coverage/LuaBridgeTests51.info" \
+            -a "coverage/LuaBridgeTests51LuaC.info" \
+            -a "coverage/LuaBridgeTests51Noexcept.info" \
+            -a "coverage/LuaBridgeTests51LuaCNoexcept.info" \
+            -a "coverage/LuaBridgeTests52.info" \
+            -a "coverage/LuaBridgeTests52LuaC.info" \
+            -a "coverage/LuaBridgeTests52Noexcept.info" \
+            -a "coverage/LuaBridgeTests52LuaCNoexcept.info" \
+            -o "coverage/Merged.info"
 
       - name: Coveralls
         uses: coverallsapp/github-action@master
         with:
-          path-to-lcov: ${{runner.workspace}}/coverage/merged.info
+          path-to-lcov: ${{runner.workspace}}/coverage/Merged.info
           github-token: ${{ secrets.GITHUB_TOKEN }}
