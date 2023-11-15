@@ -6,6 +6,8 @@
 
 #include "Errors.h"
 
+#include <type_traits>
+
 namespace luabridge {
 
 //=================================================================================================
@@ -78,10 +80,10 @@ struct TypeResult
     {
     }
 
-    TypeResult(const TypeResult&) noexcept = default;
-    TypeResult(TypeResult&&) noexcept = default;
-    TypeResult& operator=(const TypeResult&) noexcept = default;
-    TypeResult& operator=(TypeResult&&) noexcept = default;
+    TypeResult(const TypeResult&) noexcept(std::is_nothrow_copy_constructible_v<T>) = default;
+    TypeResult(TypeResult&&) noexcept(std::is_nothrow_move_constructible_v<T>) = default;
+    TypeResult& operator=(const TypeResult&) noexcept(std::is_nothrow_copy_assignable_v<T>) = default;
+    TypeResult& operator=(TypeResult&&) noexcept(std::is_nothrow_move_assignable_v<T>) = default;
 
     explicit operator bool() const noexcept
     {
