@@ -668,21 +668,49 @@ TEST_F(LuaRefTests, RegisterLambdaInTable)
 {
     luabridge::getGlobalNamespace(L)
         .beginNamespace("Entities")
-        .addFunction("GetLocalHero", [&]() {
-            auto table = luabridge::newTable(L);
-            table.push(L);
-            
-            luabridge::getNamespaceFromStack(L)
-                .addProperty("index", [] { return 150; })
-                .addFunction("Health", [&] { return 500; });
+            .addFunction("GetLocalHero", [&]() {
+                auto table = luabridge::newTable(L);
+                table.push(L);
+                
+                luabridge::getNamespaceFromStack(L)
+                    .addProperty("index", [] { return 150; })
+                    .addFunction("Health", [&] { return 500; });
 
-            table.pop();
-            return table;
-        })
-    .endNamespace();
+                table.pop();
+                return table;
+            })
+        .endNamespace();
     
     runLua("result = Entities.GetLocalHero().Health()");
     ASSERT_EQ(500, result<int>());
+}
+
+TEST_F(LuaRefTests, RegisterLambdaInFunction)
+{
+    struct Class
+    {
+        Class() = default;
+
+        int test() const
+        {
+            return 1;
+        }
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Class>("Class")
+            .addConstructor<void (*)()>()
+            .addFunction("test", &Class::test)
+        .endClass();
+
+    luabridge::setGlobal(L, luabridge::newFunction(L, [](const Class* obj, int x) { return obj->test() + x; }), "takeClass");
+    luabridge::setGlobal(L, luabridge::newFunction(L, [](Class* obj, int x, int y, lua_State* L) { return obj->test() + x + y + lua_gettop(L); }), "takeClassState");
+    
+    runLua("obj = Class(); result = takeClass (obj, 10)");
+    ASSERT_EQ(1 + 10, result<int>());
+
+    runLua("obj = Class(); result = takeClassState (obj, 10, 100)");
+    ASSERT_EQ(1 + 10 + 100 + 3, result<int>());
 }
 
 TEST_F(LuaRefTests, HookTesting)

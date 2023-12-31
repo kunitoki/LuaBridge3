@@ -39,7 +39,7 @@ namespace detail {
 }
 
 template <class T>
-[[nodiscard]] static constexpr auto typeName() noexcept
+[[nodiscard]] static constexpr auto typeName(T* = nullptr) noexcept
 {
     constexpr std::string_view prettyName{ LUABRIDGE_PRETTY_FUNCTION };
 
@@ -49,7 +49,7 @@ template <class T>
 }
 
 template <class T, auto = typeName<T>().find_first_of('.')>
-[[nodiscard]] static constexpr auto typeHash() noexcept
+[[nodiscard]] static constexpr auto typeHash(T* = nullptr) noexcept
 {
     constexpr auto stripped = typeName<T>();
 
