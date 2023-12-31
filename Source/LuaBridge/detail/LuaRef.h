@@ -86,6 +86,7 @@ protected:
     LuaRefBase(lua_State* L) noexcept
         : m_L(L)
     {
+        LUABRIDGE_ASSERT(L != nullptr);
     }
 
     //=============================================================================================
@@ -856,6 +857,8 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX);
     }
 
+    LuaRef(std::nullptr_t) noexcept = delete;
+
 public:
     //=============================================================================================
     /**
@@ -988,6 +991,28 @@ public:
 #endif
 
         lua_newtable(L);
+        return LuaRef(L, FromStack());
+    }
+    
+    //=============================================================================================
+    /**
+     * @brief Create a new function on the top of a Lua stack and return a reference to it.
+     *
+     * @param L A Lua state.
+     *
+     * @returns A reference to the newly created function.
+     *
+     * @see luabridge::newFunction()
+     */
+    template <class F>
+    static LuaRef newFunction(lua_State* L, F&& func)
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 1))
+            return { L };
+#endif
+
+        detail::push_function(L, std::forward<F>(func));
         return LuaRef(L, FromStack());
     }
 
@@ -1352,6 +1377,18 @@ struct Stack<LuaRef::TableItem>
 [[nodiscard]] inline LuaRef newTable(lua_State* L)
 {
     return LuaRef::newTable(L);
+}
+
+//=================================================================================================
+/**
+ * @brief Create a reference to a new function.
+ *
+ * This is a syntactic abbreviation for LuaRef::newFunction ().
+ */
+template <class F>
+[[nodiscard]] inline LuaRef newFunction(lua_State* L, F&& func)
+{
+    return LuaRef::newFunction(L, std::forward<F>(func));
 }
 
 //=================================================================================================

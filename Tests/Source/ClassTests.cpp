@@ -489,6 +489,88 @@ TEST_F(ClassTests, PassRegisteredClassInsteadOfUnregisteredThrows)
 }
 
 namespace {
+struct NodeX
+{
+    virtual ~NodeX() = default;
+};
+
+struct TriggerX : NodeX
+{
+    int trigger() const
+    {
+        return 2;
+    }
+};
+
+struct ExplosionX : NodeX
+{
+    int explode() const
+    {
+        return 3;
+    }
+};
+
+template <class From, class To>
+auto classCast(luabridge::LuaRef from, lua_State* L)
+    -> std::enable_if_t<std::is_base_of_v<From, To>, To*>
+{
+    auto fromInstance = from.cast<From*>();
+    if (! fromInstance)
+        luabridge::raise_lua_error(L, "Impossible to perform the desired cast: %s", fromInstance.message().c_str());
+
+    auto toInstance = dynamic_cast<To*>(fromInstance.value());
+    if (toInstance == nullptr)
+        luabridge::raise_lua_error(L, "Impossible to perform the desired cast: instance is not of the desired type");
+
+    return toInstance;
+}
+} // namespace
+
+TEST_F(ClassTests, DerivedClassCast)
+{
+    TriggerX triggerInstance;
+    ExplosionX explosionInstance;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<NodeX>("NodeX")
+        .endClass()
+        .deriveClass<TriggerX, NodeX>("TriggerX")
+            .addFunction("trigger", &TriggerX::trigger)
+        .endClass()
+        .deriveClass<ExplosionX, NodeX>("ExplosionX")
+            .addFunction("explode", &ExplosionX::explode)
+        .endClass()
+        .addFunction("getNode", [&](int value) -> NodeX*
+        {
+            if (value == 0)
+                return std::addressof(triggerInstance);
+            else
+                return std::addressof(explosionInstance);
+        });
+
+    luabridge::LuaRef castTable = luabridge::newTable(L);
+    castTable[luabridge::getGlobal(L, "TriggerX")] = luabridge::newFunction(L, &classCast<NodeX, TriggerX>);
+    castTable[luabridge::getGlobal(L, "ExplosionX")] = luabridge::newFunction(L, &classCast<NodeX, ExplosionX>);
+    luabridge::setGlobal(L, castTable, "cast");
+
+    ASSERT_TRUE(runLua("node = getNode (0); result = cast[TriggerX](node):trigger()"));
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(result().cast<int>(), 2);
+
+    ASSERT_TRUE(runLua("node = getNode (1); result = cast[ExplosionX](node):explode()"));
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(result().cast<int>(), 3);
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    ASSERT_THROW(runLua("node = getNode (1); result = cast[TriggerX](node):trigger()"), std::exception);
+    ASSERT_THROW(runLua("node = 1; result = cast[TriggerX](node):trigger()"), std::exception);
+#else
+    ASSERT_FALSE(runLua("node = getNode (1); result = cast[TriggerX](node):trigger()"));
+    ASSERT_FALSE(runLua("node = 1; result = cast[TriggerX](node):trigger()"));
+#endif
+}
+
+namespace {
 Class<int, EmptyBase>& returnRef()
 {
     static Class<int, EmptyBase> value(1);
