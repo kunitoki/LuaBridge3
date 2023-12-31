@@ -2574,7 +2574,7 @@ namespace detail {
 }
 
 template <class T>
-[[nodiscard]] static constexpr auto typeName() noexcept
+[[nodiscard]] static constexpr auto typeName(T* = nullptr) noexcept
 {
     constexpr std::string_view prettyName{ LUABRIDGE_PRETTY_FUNCTION };
 
@@ -2584,7 +2584,7 @@ template <class T>
 }
 
 template <class T, auto = typeName<T>().find_first_of('.')>
-[[nodiscard]] static constexpr auto typeHash() noexcept
+[[nodiscard]] static constexpr auto typeHash(T* = nullptr) noexcept
 {
     constexpr auto stripped = typeName<T>();
 
@@ -7422,6 +7422,7 @@ protected:
     LuaRefBase(lua_State* L) noexcept
         : m_L(L)
     {
+        LUABRIDGE_ASSERT(L != nullptr);
     }
 
     int createRef() const
@@ -7872,6 +7873,8 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX);
     }
 
+    LuaRef(std::nullptr_t) noexcept = delete;
+
 public:
     
     LuaRef(lua_State* L) noexcept
@@ -7933,6 +7936,18 @@ public:
 #endif
 
         lua_newtable(L);
+        return LuaRef(L, FromStack());
+    }
+    
+    template <class F>
+    static LuaRef newFunction(lua_State* L, F&& func)
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 1))
+            return { L };
+#endif
+
+        detail::push_function(L, std::forward<F>(func));
         return LuaRef(L, FromStack());
     }
 
@@ -8173,6 +8188,12 @@ struct Stack<LuaRef::TableItem>
 [[nodiscard]] inline LuaRef newTable(lua_State* L)
 {
     return LuaRef::newTable(L);
+}
+
+template <class F>
+[[nodiscard]] inline LuaRef newFunction(lua_State* L, F&& func)
+{
+    return LuaRef::newFunction(L, std::forward<F>(func));
 }
 
 [[nodiscard]] inline LuaRef getGlobal(lua_State* L, const char* name)
