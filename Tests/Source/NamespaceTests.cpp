@@ -224,12 +224,12 @@ TEST_F(NamespaceTests, AddVariable)
 
     enum class A { a, b, c, d };
 
-#if LUABRIDGE_HAS_EXCEPTIONS
-    ASSERT_THROW(luabridge::getGlobalNamespace(L).addVariable("int", &int_), std::logic_error);
-#endif
-    
+    luabridge::getGlobalNamespace(L)
+        .addVariable("int", &int_);
+
     runLua("result = int");
-    ASSERT_TRUE(result().isNil());
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(int_, result<int>());
 
     luabridge::getGlobalNamespace(L)
         .beginNamespace("ns")
