@@ -67,133 +67,136 @@ struct function_traits_base
     static constexpr auto is_const = IsConst;
 };
 
-template <class...>
+template <class, bool Enable>
 struct function_traits_impl;
 
 template <class R, class... Args>
-struct function_traits_impl<R(Args...)> : function_traits_base<false, false, R, Args...>
+struct function_traits_impl<R(Args...), true> : function_traits_base<false, false, R, Args...>
 {
 };
 
 template <class R, class... Args>
-struct function_traits_impl<R (*)(Args...)> : function_traits_base<false, false, R, Args...>
+struct function_traits_impl<R (*)(Args...), true> : function_traits_base<false, false, R, Args...>
 {
 };
 
 template <class C, class R, class... Args>
-struct function_traits_impl<R (C::*)(Args...)> : function_traits_base<true, false, R, Args...>
+struct function_traits_impl<R (C::*)(Args...), true> : function_traits_base<true, false, R, Args...>
 {
 };
 
 template <class C, class R, class... Args>
-struct function_traits_impl<R (C::*)(Args...) const> : function_traits_base<true, true, R, Args...>
+struct function_traits_impl<R (C::*)(Args...) const, true> : function_traits_base<true, true, R, Args...>
 {
 };
 
 template <class R, class... Args>
-struct function_traits_impl<R(Args...) noexcept> : function_traits_base<false, false, R, Args...>
+struct function_traits_impl<R(Args...) noexcept, true> : function_traits_base<false, false, R, Args...>
 {
 };
 
 template <class R, class... Args>
-struct function_traits_impl<R (*)(Args...) noexcept> : function_traits_base<false, false, R, Args...>
+struct function_traits_impl<R (*)(Args...) noexcept, true> : function_traits_base<false, false, R, Args...>
 {
 };
 
 template <class C, class R, class... Args>
-struct function_traits_impl<R (C::*)(Args...) noexcept> : function_traits_base<true, false, R, Args...>
+struct function_traits_impl<R (C::*)(Args...) noexcept, true> : function_traits_base<true, false, R, Args...>
 {
 };
 
 template <class C, class R, class... Args>
-struct function_traits_impl<R (C::*)(Args...) const noexcept> : function_traits_base<true, true, R, Args...>
+struct function_traits_impl<R (C::*)(Args...) const noexcept, true> : function_traits_base<true, true, R, Args...>
 {
 };
 
 #if defined(_MSC_VER) && defined(_M_IX86) // Windows: WINAPI (a.k.a. __stdcall) function pointers (32bit only).
-template <class R, class... Args>
-struct function_traits_impl<R __stdcall(Args...)> : function_traits_base<false, false, R, Args...>
-{
-};
+inline static constexpr bool is_stdcall_default_calling_convention = std::is_same_v<void __stdcall(), void()>;
+inline static constexpr bool is_fastcall_default_calling_convention = std::is_same_v<void __fastcall(), void()>;
 
 template <class R, class... Args>
-struct function_traits_impl<R (__stdcall *)(Args...)> : function_traits_base<false, false, R, Args...>
-{
-};
-
-template <class C, class R, class... Args>
-struct function_traits_impl<R (__stdcall C::*)(Args...)> : function_traits_base<true, false, R, Args...>
-{
-};
-
-template <class C, class R, class... Args>
-struct function_traits_impl<R (__stdcall C::*)(Args...) const> : function_traits_base<true, true, R, Args...>
+struct function_traits_impl<R __stdcall(Args...), !is_stdcall_default_calling_convention> : function_traits_base<false, false, R, Args...>
 {
 };
 
 template <class R, class... Args>
-struct function_traits_impl<R __stdcall(Args...) noexcept> : function_traits_base<false, false, R, Args...>
+struct function_traits_impl<R (__stdcall *)(Args...), !is_stdcall_default_calling_convention> : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (__stdcall C::*)(Args...), true> : function_traits_base<true, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (__stdcall C::*)(Args...) const, true> : function_traits_base<true, true, R, Args...>
 {
 };
 
 template <class R, class... Args>
-struct function_traits_impl<R (__stdcall *)(Args...) noexcept> : function_traits_base<false, false, R, Args...>
-{
-};
-
-template <class C, class R, class... Args>
-struct function_traits_impl<R (__stdcall C::*)(Args...) noexcept> : function_traits_base<true, false, R, Args...>
-{
-};
-
-template <class C, class R, class... Args>
-struct function_traits_impl<R (__stdcall C::*)(Args...) const noexcept> : function_traits_base<true, true, R, Args...>
+struct function_traits_impl<R __stdcall(Args...) noexcept, !is_stdcall_default_calling_convention> : function_traits_base<false, false, R, Args...>
 {
 };
 
 template <class R, class... Args>
-struct function_traits_impl<R __fastcall(Args...)> : function_traits_base<false, false, R, Args...>
+struct function_traits_impl<R (__stdcall *)(Args...) noexcept, !is_stdcall_default_calling_convention> : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (__stdcall C::*)(Args...) noexcept, true> : function_traits_base<true, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (__stdcall C::*)(Args...) const noexcept, true> : function_traits_base<true, true, R, Args...>
 {
 };
 
 template <class R, class... Args>
-struct function_traits_impl<R (__fastcall *)(Args...)> : function_traits_base<false, false, R, Args...>
-{
-};
-
-template <class C, class R, class... Args>
-struct function_traits_impl<R (__fastcall C::*)(Args...)> : function_traits_base<true, false, R, Args...>
-{
-};
-
-template <class C, class R, class... Args>
-struct function_traits_impl<R (__fastcall C::*)(Args...) const> : function_traits_base<true, true, R, Args...>
+struct function_traits_impl<R __fastcall(Args...), !is_fastcall_default_calling_convention> : function_traits_base<false, false, R, Args...>
 {
 };
 
 template <class R, class... Args>
-struct function_traits_impl<R __fastcall(Args...) noexcept> : function_traits_base<false, false, R, Args...>
+struct function_traits_impl<R (__fastcall *)(Args...), !is_fastcall_default_calling_convention> : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (__fastcall C::*)(Args...), true> : function_traits_base<true, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (__fastcall C::*)(Args...) const, true> : function_traits_base<true, true, R, Args...>
 {
 };
 
 template <class R, class... Args>
-struct function_traits_impl<R (__fastcall *)(Args...) noexcept> : function_traits_base<false, false, R, Args...>
+struct function_traits_impl<R __fastcall(Args...) noexcept, !is_fastcall_default_calling_convention> : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class R, class... Args>
+struct function_traits_impl<R (__fastcall *)(Args...) noexcept, !is_fastcall_default_calling_convention> : function_traits_base<false, false, R, Args...>
 {
 };
 
 template <class C, class R, class... Args>
-struct function_traits_impl<R (__fastcall C::*)(Args...) noexcept> : function_traits_base<true, false, R, Args...>
+struct function_traits_impl<R (__fastcall C::*)(Args...) noexcept, true> : function_traits_base<true, false, R, Args...>
 {
 };
 
 template <class C, class R, class... Args>
-struct function_traits_impl<R (__fastcall C::*)(Args...) const noexcept> : function_traits_base<true, true, R, Args...>
+struct function_traits_impl<R (__fastcall C::*)(Args...) const noexcept, true> : function_traits_base<true, true, R, Args...>
 {
 };
 #endif
 
 template <class F>
-struct functor_traits_impl : function_traits_impl<decltype(&F::operator())>
+struct functor_traits_impl : function_traits_impl<decltype(&F::operator()), true>
 {
 };
 
@@ -206,7 +209,7 @@ struct functor_traits_impl : function_traits_impl<decltype(&F::operator())>
 template <class F>
 struct function_traits : std::conditional_t<std::is_class_v<F>,
                                             detail::functor_traits_impl<F>,
-                                            detail::function_traits_impl<F>>
+                                            detail::function_traits_impl<F, true>>
 {
 };
 
