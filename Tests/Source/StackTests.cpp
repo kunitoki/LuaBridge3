@@ -2352,7 +2352,7 @@ TEST_F(StackTests, StdStringView)
 TEST_F(StackTests, VoidPointer)
 {
     {
-        void* ptr = reinterpret_cast<void*>(0xdead1984);
+        void* ptr = reinterpret_cast<void*>(static_cast<std::uintptr_t>(0xdead1984ll));
         (void)luabridge::push(L, ptr);
 
         EXPECT_TRUE(luabridge::isInstance<void*>(L, -1));
@@ -2407,7 +2407,7 @@ TEST_F(StackTests, VoidPointerStackOverflow)
 {
     exhaustStackSpace();
 
-    void* ptr = reinterpret_cast<void*>(0xdead1984);
+    void* ptr = reinterpret_cast<void*>(static_cast<std::uintptr_t>(0xdead1984ll));
 
     ASSERT_FALSE(luabridge::push(L, ptr));
 }
@@ -2415,7 +2415,7 @@ TEST_F(StackTests, VoidPointerStackOverflow)
 TEST_F(StackTests, ConstVoidPointer)
 {
     {
-        const void* ptr = reinterpret_cast<const void*>(0xdead1984);
+        const void* ptr = reinterpret_cast<const void*>(static_cast<std::uintptr_t>(0xdead1984ll));
         (void)luabridge::push(L, ptr);
 
         EXPECT_TRUE(luabridge::isInstance<void*>(L, -1));
@@ -2470,7 +2470,7 @@ TEST_F(StackTests, ConstVoidPointerStackOverflow)
 {
     exhaustStackSpace();
 
-    const void* ptr = reinterpret_cast<const void*>(0xdead1984);
+    const void* ptr = reinterpret_cast<const void*>(static_cast<std::uintptr_t>(0xdead1984ll));
 
     ASSERT_FALSE(luabridge::push(L, ptr));
 }
