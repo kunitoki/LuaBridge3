@@ -1012,7 +1012,7 @@ public:
             return { L };
 #endif
 
-        detail::push_function(L, std::forward<F>(func));
+        detail::push_function(L, std::forward<F>(func), "");
         return LuaRef(L, FromStack());
     }
 

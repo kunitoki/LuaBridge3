@@ -1154,91 +1154,91 @@ inline int try_overload_functions(lua_State* L)
 //=================================================================================================
 
 // Lua CFunction
-inline void push_function(lua_State* L, lua_CFunction fp)
+inline void push_function(lua_State* L, lua_CFunction fp, const char* debugname)
 {
 #if LUABRIDGE_SAFE_LUA_C_EXCEPTION_HANDLING && LUABRIDGE_HAS_EXCEPTIONS
-    lua_pushcfunction_x(L, fp);
-    lua_pushcclosure_x(L, invoke_safe_cfunction, 1);
-#else    
-    lua_pushcfunction_x(L, fp);
+    lua_pushcfunction_x(L, fp, debugname);
+    lua_pushcclosure_x(L, invoke_safe_cfunction, debugname, 1);
+#else
+    lua_pushcfunction_x(L, fp, debugname);
 #endif
 }
 
 // Generic function pointer
 template <class ReturnType, class... Params>
-inline void push_function(lua_State* L, ReturnType (*fp)(Params...))
+inline void push_function(lua_State* L, ReturnType (*fp)(Params...), const char* debugname)
 {
     using FnType = decltype(fp);
 
     lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
-    lua_pushcclosure_x(L, &invoke_proxy_function<FnType>, 1);
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType>, debugname, 1);
 }
 
 template <class ReturnType, class... Params>
-inline void push_function(lua_State* L, ReturnType (*fp)(Params...) noexcept)
+inline void push_function(lua_State* L, ReturnType (*fp)(Params...) noexcept, const char* debugname)
 {
     using FnType = decltype(fp);
 
     lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
-    lua_pushcclosure_x(L, &invoke_proxy_function<FnType>, 1);
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType>, debugname, 1);
 }
 
 // Callable object (lambdas)
 template <class F, class = std::enable_if<is_callable_v<F> && !std::is_pointer_v<F> && !std::is_member_function_pointer_v<F>>>
-inline void push_function(lua_State* L, F&& f)
+inline void push_function(lua_State* L, F&& f, const char* debugname)
 {
     lua_newuserdata_aligned<F>(L, std::forward<F>(f));
-    lua_pushcclosure_x(L, &invoke_proxy_functor<F>, 1);
+    lua_pushcclosure_x(L, &invoke_proxy_functor<F>, debugname, 1);
 }
 
 //=================================================================================================
 // Lua CFunction
 template <class T>
-void push_member_function(lua_State* L, lua_CFunction fp)
+void push_member_function(lua_State* L, lua_CFunction fp, const char* debugname)
 {
 #if LUABRIDGE_SAFE_LUA_C_EXCEPTION_HANDLING && LUABRIDGE_HAS_EXCEPTIONS
-    lua_pushcfunction_x(L, fp);
-    lua_pushcclosure_x(L, invoke_safe_cfunction, 1);
+    lua_pushcfunction_x(L, fp, debugname);
+    lua_pushcclosure_x(L, invoke_safe_cfunction, debugname, 1);
 #else    
-    lua_pushcfunction_x(L, fp);
+    lua_pushcfunction_x(L, fp, debugname);
 #endif
 }
 
 // Generic function pointer
 template <class T, class ReturnType, class... Params>
-void push_member_function(lua_State* L, ReturnType (*fp)(T*, Params...))
+void push_member_function(lua_State* L, ReturnType (*fp)(T*, Params...), const char* debugname)
 {
     using FnType = decltype(fp);
 
     lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
-    lua_pushcclosure_x(L, &invoke_proxy_function<FnType>, 1);
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType>, debugname, 1);
 }
 
 template <class T, class ReturnType, class... Params>
-void push_member_function(lua_State* L, ReturnType (*fp)(T*, Params...) noexcept)
+void push_member_function(lua_State* L, ReturnType (*fp)(T*, Params...) noexcept, const char* debugname)
 {
     using FnType = decltype(fp);
 
     lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
-    lua_pushcclosure_x(L, &invoke_proxy_function<FnType>, 1);
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType>, debugname, 1);
 }
 
 template <class T, class ReturnType, class... Params>
-void push_member_function(lua_State* L, ReturnType (*fp)(const T*, Params...))
+void push_member_function(lua_State* L, ReturnType (*fp)(const T*, Params...), const char* debugname)
 {
     using FnType = decltype(fp);
 
     lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
-    lua_pushcclosure_x(L, &invoke_proxy_function<FnType>, 1);
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType>, debugname, 1);
 }
 
 template <class T, class ReturnType, class... Params>
-void push_member_function(lua_State* L, ReturnType (*fp)(const T*, Params...) noexcept)
+void push_member_function(lua_State* L, ReturnType (*fp)(const T*, Params...) noexcept, const char* debugname)
 {
     using FnType = decltype(fp);
 
     lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
-    lua_pushcclosure_x(L, &invoke_proxy_function<FnType>, 1);
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType>, debugname, 1);
 }
 
 // Callable object (lambdas)
@@ -1247,82 +1247,82 @@ template <class T, class F, class = std::enable_if<
         std::is_object_v<F> &&
         !std::is_pointer_v<F> &&
         !std::is_member_function_pointer_v<F>>>
-void push_member_function(lua_State* L, F&& f)
+void push_member_function(lua_State* L, F&& f, const char* debugname)
 {
     static_assert(std::is_same_v<T, remove_cvref_t<std::remove_pointer_t<function_argument_or_void_t<0, F>>>>);
 
     lua_newuserdata_aligned<F>(L, std::forward<F>(f));
-    lua_pushcclosure_x(L, &invoke_proxy_functor<F>, 1);
+    lua_pushcclosure_x(L, &invoke_proxy_functor<F>, debugname, 1);
 }
 
 // Non const member function pointer
 template <class T, class U, class ReturnType, class... Params>
-void push_member_function(lua_State* L, ReturnType (U::*mfp)(Params...))
+void push_member_function(lua_State* L, ReturnType (U::*mfp)(Params...), const char* debugname)
 {
     static_assert(std::is_same_v<T, U> || std::is_base_of_v<U, T>);
 
     using F = decltype(mfp);
 
     new (lua_newuserdata_x<F>(L, sizeof(F))) F(mfp);
-    lua_pushcclosure_x(L, &invoke_member_function<F, T>, 1);
+    lua_pushcclosure_x(L, &invoke_member_function<F, T>, debugname, 1);
 }
 
 template <class T, class U, class ReturnType, class... Params>
-void push_member_function(lua_State* L, ReturnType (U::*mfp)(Params...) noexcept)
+void push_member_function(lua_State* L, ReturnType (U::*mfp)(Params...) noexcept, const char* debugname)
 {
     static_assert(std::is_same_v<T, U> || std::is_base_of_v<U, T>);
 
     using F = decltype(mfp);
 
     new (lua_newuserdata_x<F>(L, sizeof(F))) F(mfp);
-    lua_pushcclosure_x(L, &invoke_member_function<F, T>, 1);
+    lua_pushcclosure_x(L, &invoke_member_function<F, T>, debugname, 1);
 }
 
 // Const member function pointer
 template <class T, class U, class ReturnType, class... Params>
-void push_member_function(lua_State* L, ReturnType (U::*mfp)(Params...) const)
+void push_member_function(lua_State* L, ReturnType (U::*mfp)(Params...) const, const char* debugname)
 {
     static_assert(std::is_same_v<T, U> || std::is_base_of_v<U, T>);
 
     using F = decltype(mfp);
 
     new (lua_newuserdata_x<F>(L, sizeof(F))) F(mfp);
-    lua_pushcclosure_x(L, &detail::invoke_const_member_function<F, T>, 1);
+    lua_pushcclosure_x(L, &detail::invoke_const_member_function<F, T>, debugname, 1);
 }
 
 template <class T, class U, class ReturnType, class... Params>
-void push_member_function(lua_State* L, ReturnType (U::*mfp)(Params...) const noexcept)
+void push_member_function(lua_State* L, ReturnType (U::*mfp)(Params...) const noexcept, const char* debugname)
 {
     static_assert(std::is_same_v<T, U> || std::is_base_of_v<U, T>);
 
     using F = decltype(mfp);
 
     new (lua_newuserdata_x<F>(L, sizeof(F))) F(mfp);
-    lua_pushcclosure_x(L, &detail::invoke_const_member_function<F, T>, 1);
+    lua_pushcclosure_x(L, &detail::invoke_const_member_function<F, T>, debugname, 1);
 }
 
 // Non const member Lua CFunction pointer
 template <class T, class U = T>
-void push_member_function(lua_State* L, int (U::*mfp)(lua_State*))
+void push_member_function(lua_State* L, int (U::*mfp)(lua_State*), const char* debugname)
 {
     static_assert(std::is_same_v<T, U> || std::is_base_of_v<U, T>);
 
     using F = decltype(mfp);
 
     new (lua_newuserdata_x<F>(L, sizeof(F))) F(mfp);
-    lua_pushcclosure_x(L, &invoke_member_cfunction<T>, 1);
+    lua_pushcclosure_x(L, &invoke_member_cfunction<T>, debugname, 1);
 }
 
 // Const member Lua CFunction pointer
 template <class T, class U = T>
-void push_member_function(lua_State* L, int (U::*mfp)(lua_State*) const)
+void push_member_function(lua_State* L, int (U::*mfp)(lua_State*) const, const char* debugname)
 {
     static_assert(std::is_same_v<T, U> || std::is_base_of_v<U, T>);
 
     using F = decltype(mfp);
 
     new (lua_newuserdata_x<F>(L, sizeof(F))) F(mfp);
-    lua_pushcclosure_x(L, &invoke_const_member_cfunction<T>, 1);
+    lua_pushcclosure_x(L, &invoke_const_member_cfunction<T>, debugname, 1);
 }
 
 //=================================================================================================

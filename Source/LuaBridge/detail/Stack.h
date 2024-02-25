@@ -138,7 +138,7 @@ struct Stack<lua_CFunction>
             return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
-        lua_pushcfunction_x(L, f);
+        lua_pushcfunction_x(L, f, "");
         return {};
     }
 
