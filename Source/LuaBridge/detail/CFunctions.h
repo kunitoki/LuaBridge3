@@ -1008,11 +1008,11 @@ int invoke_proxy_function(lua_State* L)
 template <class F>
 int invoke_proxy_functor(lua_State* L)
 {
-    using FnTraits = function_traits<F>;
+    using FnTraits = function_traits<std::remove_reference_t<F>>;
 
     LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
-    auto& func = *align<F>(lua_touserdata(L, lua_upvalueindex(1)));
+    auto& func = *align<std::remove_reference_t<F>>(lua_touserdata(L, lua_upvalueindex(1)));
 
     return function<typename FnTraits::result_type, typename FnTraits::argument_types, 1>::call(L, func);
 }

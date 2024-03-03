@@ -105,6 +105,9 @@ public:
 
 private:
     template <class... Args>
+    friend LuaResult call(const LuaRef&, Args&&...);
+
+    template <class... Args>
     friend LuaResult callWithHandler(const LuaRef&, int, Args&&...);
 
     static LuaResult errorFromStack(lua_State* L, std::error_code ec)
@@ -155,13 +158,13 @@ private:
 /**
  * @brief Safely call Lua code.
  *
- * These overloads allow Lua code to be called throught lua_pcall.  The return value is provided as
- * a LuaResult which will hold the return values or an error if the call failed.
+ * These overloads allow Lua code to be called throught `lua_pcall`.  The return value is provided as
+ * a `LuaResult` which will hold the return values or an error if the call failed.
  *
- * If an error occurs, a LuaException is thrown or if exceptions are disabled the FunctionResult will
+ * If an error occurs, a `LuaException` is thrown or if exceptions are disabled the function result will
  * contain a error code and evaluate false.
  *
- * @note The function might throw a LuaException if the application is compiled with exceptions on
+ * @note The function might throw a `LuaException` if the application is compiled with exceptions on
  * and they are enabled globally by calling `enableExceptions` in two cases:
  * - one of the arguments passed cannot be pushed in the stack, for example a unregistered C++ class
  * - the lua invaction calls the panic handler, which is converted to a C++ exception
@@ -181,11 +184,41 @@ LuaResult callWithHandler(const LuaRef& object, int errorHandler, Args&&... args
         if (! result)
         {
             lua_pop(L, static_cast<int>(index) + 1);
+            // TODO - should we call the error handler ?
             return LuaResult(L, result, result.message());
         }
     }
 
+    errorHandler = errorHandler < 0 ? (errorHandler - sizeof...(Args)) : 0;
+
     const int code = lua_pcall(L, sizeof...(Args), LUA_MULTRET, errorHandler);
+    if (code != LUABRIDGE_LUA_OK)
+    {
+        auto ec = makeErrorCode(ErrorCode::LuaFunctionCallFailed);
+        return LuaResult::errorFromStack(L, ec);
+    }
+
+    return LuaResult::valuesFromStack(L, stackTop);
+}
+
+template <class... Args>
+LuaResult call(const LuaRef& object, Args&&... args)
+{
+    lua_State* L = object.state();
+    const int stackTop = lua_gettop(L);
+
+    object.push();
+
+    {
+        const auto [result, index] = detail::push_arguments(L, std::forward_as_tuple(args...));
+        if (! result)
+        {
+            lua_pop(L, static_cast<int>(index) + 1);
+            return LuaResult(L, result, result.message());
+        }
+    }
+
+    const int code = lua_pcall(L, sizeof...(Args), LUA_MULTRET, 0);
     if (code != LUABRIDGE_LUA_OK)
     {
         auto ec = makeErrorCode(ErrorCode::LuaFunctionCallFailed);
@@ -201,15 +234,9 @@ LuaResult callWithHandler(const LuaRef& object, int errorHandler, Args&&... args
     return LuaResult::valuesFromStack(L, stackTop);
 }
 
-template <class... Args>
-LuaResult call(const LuaRef& object, Args&&... args)
-{
-    return callWithHandler(object, 0, std::forward<Args>(args)...);
-}
-
 //=============================================================================================
 /**
- * @brief Wrapper for lua_pcall that throws if exceptions are enabled.
+ * @brief Wrapper for `lua_pcall` that throws if exceptions are enabled.
  */
 inline int pcall(lua_State* L, int nargs = 0, int nresults = 0, int msgh = 0)
 {
