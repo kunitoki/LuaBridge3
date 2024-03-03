@@ -3327,3 +3327,33 @@ TEST_F(ClassTests, BugWithLuauNotPrintingClassMethodNameInErrors)
     EXPECT_FALSE(result);
     EXPECT_TRUE(error.find("methodWithError") != std::string::npos);
 }
+
+namespace {
+class FooClass {};
+
+class BarClass
+{
+public:
+    BarClass() = default;
+
+    std::shared_ptr<FooClass> getter() const
+    {
+        return std::make_shared<FooClass>();
+    }
+};
+} // namespace
+
+TEST_F(ClassTests, BugWithSharedPtrPropertyGetterFromClassNotDerivingFromSharedFromThis)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<FooClass>("FooClass")
+        .endClass()
+        .beginClass<BarClass>("BarClass")
+            .addConstructor<void (*)()>()
+            .addFunction("getAsFunction", &BarClass::getter)
+            .addProperty("getAsProperty", &BarClass::getter)
+        .endClass();
+
+    EXPECT_TRUE(runLua("result = BarClass():getAsFunction()"));
+    EXPECT_TRUE(runLua("result = BarClass().getAsProperty"));
+}
