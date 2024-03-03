@@ -999,20 +999,22 @@ public:
      * @brief Create a new function on the top of a Lua stack and return a reference to it.
      *
      * @param L A Lua state.
+     * @param func The c++ function to map to lua.
+     * @param debugname Optional debug name (used only by Luau).
      *
      * @returns A reference to the newly created function.
      *
      * @see luabridge::newFunction()
      */
     template <class F>
-    static LuaRef newFunction(lua_State* L, F&& func)
+    static LuaRef newFunction(lua_State* L, F&& func, const char* debugname = "")
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 1))
             return { L };
 #endif
 
-        detail::push_function(L, std::forward<F>(func));
+        detail::push_function(L, std::forward<F>(func), debugname);
         return LuaRef(L, FromStack());
     }
 
