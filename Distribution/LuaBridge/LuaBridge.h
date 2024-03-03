@@ -9096,13 +9096,50 @@ class Namespace : public detail::Registrar
             return *this;
         }
 
-        template <class TG, class TS = TG>
-        Class<T>& addProperty(const char* name, TG (T::*get)() const, void (T::*set)(TS) = nullptr)
+        template <class TG>
+        Class<T>& addProperty(const char* name, TG (T::*get)() const)
         {
             using GetType = TG (T::*)() const;
+
+            LUABRIDGE_ASSERT(name != nullptr);
+            LUABRIDGE_ASSERT(get != nullptr);
+            assertStackState(); 
+
+            new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); 
+            lua_pushcclosure_x(L, &detail::invoke_const_member_function<GetType, T>, name, 1); 
+            lua_pushvalue(L, -1); 
+            detail::add_property_getter(L, name, -5); 
+            detail::add_property_getter(L, name, -3); 
+
+            return *this;
+        }
+
+        template <class TG, class TS = TG>
+        Class<T>& addProperty(const char* name, TG (T::*get)() const, void (T::*set)(TS))
+        {
             using SetType = void (T::*)(TS);
 
             LUABRIDGE_ASSERT(name != nullptr);
+            LUABRIDGE_ASSERT(get != nullptr);
+            LUABRIDGE_ASSERT(set != nullptr);
+            assertStackState(); 
+
+            addProperty(name, get);
+
+            new (lua_newuserdata_x<SetType>(L, sizeof(SetType))) SetType(set); 
+            lua_pushcclosure_x(L, &detail::invoke_member_function<SetType, T>, name, 1); 
+            detail::add_property_setter(L, name, -3); 
+
+            return *this;
+        }
+
+        template <class TG>
+        Class<T>& addProperty(const char* name, TG (T::*get)() const noexcept)
+        {
+            using GetType = TG (T::*)() const noexcept;
+
+            LUABRIDGE_ASSERT(name != nullptr);
+            LUABRIDGE_ASSERT(get != nullptr);
             assertStackState(); 
 
             new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); 
@@ -9111,23 +9148,35 @@ class Namespace : public detail::Registrar
             detail::add_property_getter(L, name, -5); 
             detail::add_property_getter(L, name, -3); 
 
-            if (set != nullptr)
-            {
-                new (lua_newuserdata_x<SetType>(L, sizeof(SetType))) SetType(set); 
-                lua_pushcclosure_x(L, &detail::invoke_member_function<SetType, T>, name, 1); 
-                detail::add_property_setter(L, name, -3); 
-            }
-
             return *this;
         }
 
         template <class TG, class TS = TG>
-        Class<T>& addProperty(const char* name, TG (T::*get)() const noexcept, void (T::*set)(TS) noexcept = nullptr)
+        Class<T>& addProperty(const char* name, TG (T::*get)() const noexcept, void (T::*set)(TS) noexcept)
         {
-            using GetType = TG (T::*)() const noexcept;
             using SetType = void (T::*)(TS) noexcept;
 
             LUABRIDGE_ASSERT(name != nullptr);
+            LUABRIDGE_ASSERT(get != nullptr);
+            LUABRIDGE_ASSERT(set != nullptr);
+            assertStackState(); 
+
+            addProperty(name, get);
+
+            new (lua_newuserdata_x<SetType>(L, sizeof(SetType))) SetType(set); 
+            lua_pushcclosure_x(L, &detail::invoke_member_function<SetType, T>, name, 1); 
+            detail::add_property_setter(L, name, -3); 
+
+            return *this;
+        }
+
+        template <class TG>
+        Class<T>& addProperty(const char* name, TG (T::*get)(lua_State*) const)
+        {
+            using GetType = TG (T::*)(lua_State*) const;
+
+            LUABRIDGE_ASSERT(name != nullptr);
+            LUABRIDGE_ASSERT(get != nullptr);
             assertStackState(); 
 
             new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); 
@@ -9136,23 +9185,35 @@ class Namespace : public detail::Registrar
             detail::add_property_getter(L, name, -5); 
             detail::add_property_getter(L, name, -3); 
 
-            if (set != nullptr)
-            {
-                new (lua_newuserdata_x<SetType>(L, sizeof(SetType))) SetType(set); 
-                lua_pushcclosure_x(L, &detail::invoke_member_function<SetType, T>, name, 1); 
-                detail::add_property_setter(L, name, -3); 
-            }
-
             return *this;
         }
 
         template <class TG, class TS = TG>
-        Class<T>& addProperty(const char* name, TG (T::*get)(lua_State*) const, void (T::*set)(TS, lua_State*) = nullptr)
+        Class<T>& addProperty(const char* name, TG (T::*get)(lua_State*) const, void (T::*set)(TS, lua_State*))
         {
-            using GetType = TG (T::*)(lua_State*) const;
             using SetType = void (T::*)(TS, lua_State*);
 
             LUABRIDGE_ASSERT(name != nullptr);
+            LUABRIDGE_ASSERT(get != nullptr);
+            LUABRIDGE_ASSERT(set != nullptr);
+            assertStackState(); 
+
+            addProperty(name, get);
+
+            new (lua_newuserdata_x<SetType>(L, sizeof(SetType))) SetType(set); 
+            lua_pushcclosure_x(L, &detail::invoke_member_function<SetType, T>, name, 1); 
+            detail::add_property_setter(L, name, -3); 
+
+            return *this;
+        }
+
+        template <class TG>
+        Class<T>& addProperty(const char* name, TG (T::*get)(lua_State*) const noexcept)
+        {
+            using GetType = TG (T::*)(lua_State*) const noexcept;
+
+            LUABRIDGE_ASSERT(name != nullptr);
+            LUABRIDGE_ASSERT(get != nullptr);
             assertStackState(); 
 
             new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); 
@@ -9161,45 +9222,33 @@ class Namespace : public detail::Registrar
             detail::add_property_getter(L, name, -5); 
             detail::add_property_getter(L, name, -3); 
 
-            if (set != nullptr)
-            {
-                new (lua_newuserdata_x<SetType>(L, sizeof(SetType))) SetType(set); 
-                lua_pushcclosure_x(L, &detail::invoke_member_function<SetType, T>, name, 1); 
-                detail::add_property_setter(L, name, -3); 
-            }
-
             return *this;
         }
 
         template <class TG, class TS = TG>
-        Class<T>& addProperty(const char* name, TG (T::*get)(lua_State*) const noexcept, void (T::*set)(TS, lua_State*) noexcept = nullptr)
+        Class<T>& addProperty(const char* name, TG (T::*get)(lua_State*) const noexcept, void (T::*set)(TS, lua_State*) noexcept)
         {
-            using GetType = TG (T::*)(lua_State*) const noexcept;
             using SetType = void (T::*)(TS, lua_State*) noexcept;
 
             LUABRIDGE_ASSERT(name != nullptr);
+            LUABRIDGE_ASSERT(get != nullptr);
+            LUABRIDGE_ASSERT(set != nullptr);
             assertStackState(); 
 
-            new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); 
-            lua_pushcclosure_x(L, &detail::invoke_const_member_function<GetType, T>, name, 1); 
-            lua_pushvalue(L, -1); 
-            detail::add_property_getter(L, name, -5); 
-            detail::add_property_getter(L, name, -3); 
+            addProperty(name, get);
 
-            if (set != nullptr)
-            {
-                new (lua_newuserdata_x<SetType>(L, sizeof(SetType))) SetType(set); 
-                lua_pushcclosure_x(L, &detail::invoke_member_function<SetType, T>, name, 1); 
-                detail::add_property_setter(L, name, -3); 
-            }
+            new (lua_newuserdata_x<SetType>(L, sizeof(SetType))) SetType(set); 
+            lua_pushcclosure_x(L, &detail::invoke_member_function<SetType, T>, name, 1); 
+            detail::add_property_setter(L, name, -3); 
 
             return *this;
         }
 
-        template <class TG, class TS = TG>
-        Class<T>& addProperty(const char* name, TG (*get)(const T*), void (*set)(T*, TS) = nullptr)
+        template <class TG>
+        Class<T>& addProperty(const char* name, TG (*get)(const T*))
         {
             LUABRIDGE_ASSERT(name != nullptr);
+            LUABRIDGE_ASSERT(get != nullptr);
             assertStackState(); 
 
             lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); 
@@ -9208,20 +9257,31 @@ class Namespace : public detail::Registrar
             detail::add_property_getter(L, name, -5); 
             detail::add_property_getter(L, name, -3); 
 
-            if (set != nullptr)
-            {
-                lua_pushlightuserdata( L, reinterpret_cast<void*>(set)); 
-                lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(T*, TS)>, name, 1); 
-                detail::add_property_setter(L, name, -3); 
-            }
-
             return *this;
         }
 
         template <class TG, class TS = TG>
-        Class<T>& addProperty(const char* name, TG (*get)(const T*) noexcept, void (*set)(T*, TS) noexcept = nullptr)
+        Class<T>& addProperty(const char* name, TG (*get)(const T*), void (*set)(T*, TS))
         {
             LUABRIDGE_ASSERT(name != nullptr);
+            LUABRIDGE_ASSERT(get != nullptr);
+            LUABRIDGE_ASSERT(set != nullptr);
+            assertStackState(); 
+
+            addProperty(name, get);
+
+            lua_pushlightuserdata( L, reinterpret_cast<void*>(set)); 
+            lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(T*, TS)>, name, 1); 
+            detail::add_property_setter(L, name, -3); 
+
+            return *this;
+        }
+
+        template <class TG>
+        Class<T>& addProperty(const char* name, TG (*get)(const T*) noexcept)
+        {
+            LUABRIDGE_ASSERT(name != nullptr);
+            LUABRIDGE_ASSERT(get != nullptr);
             assertStackState(); 
 
             lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); 
@@ -9230,19 +9290,30 @@ class Namespace : public detail::Registrar
             detail::add_property_getter(L, name, -5); 
             detail::add_property_getter(L, name, -3); 
 
-            if (set != nullptr)
-            {
-                lua_pushlightuserdata( L, reinterpret_cast<void*>(set)); 
-                lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(T*, TS) noexcept>, name, 1); 
-                detail::add_property_setter(L, name, -3); 
-            }
+            return *this;
+        }
+
+        template <class TG, class TS = TG>
+        Class<T>& addProperty(const char* name, TG (*get)(const T*) noexcept, void (*set)(T*, TS) noexcept)
+        {
+            LUABRIDGE_ASSERT(name != nullptr);
+            LUABRIDGE_ASSERT(get != nullptr);
+            LUABRIDGE_ASSERT(set != nullptr);
+            assertStackState(); 
+
+            addProperty(name, get);
+
+            lua_pushlightuserdata( L, reinterpret_cast<void*>(set)); 
+            lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(T*, TS) noexcept>, name, 1); 
+            detail::add_property_setter(L, name, -3); 
 
             return *this;
         }
 
-        Class<T>& addProperty(const char* name, lua_CFunction get, lua_CFunction set = nullptr)
+        Class<T>& addProperty(const char* name, lua_CFunction get)
         {
             LUABRIDGE_ASSERT(name != nullptr);
+            LUABRIDGE_ASSERT(get != nullptr);
             assertStackState(); 
 
             lua_pushcfunction_x(L, get, name);
@@ -9250,11 +9321,20 @@ class Namespace : public detail::Registrar
             detail::add_property_getter(L, name, -5); 
             detail::add_property_getter(L, name, -3); 
 
-            if (set != nullptr)
-            {
-                lua_pushcfunction_x(L, set, name);
-                detail::add_property_setter(L, name, -3); 
-            }
+            return *this;
+        }
+
+        Class<T>& addProperty(const char* name, lua_CFunction get, lua_CFunction set)
+        {
+            LUABRIDGE_ASSERT(name != nullptr);
+            LUABRIDGE_ASSERT(get != nullptr);
+            LUABRIDGE_ASSERT(set != nullptr);
+            assertStackState(); 
+
+            addProperty(name, get);
+
+            lua_pushcfunction_x(L, set, name);
+            detail::add_property_setter(L, name, -3); 
 
             return *this;
         }
