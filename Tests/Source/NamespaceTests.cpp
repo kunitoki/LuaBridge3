@@ -521,6 +521,17 @@ TEST_F(NamespaceTests, CapturingLambdas)
     ASSERT_EQ(42, result<int>());
 }
 
+TEST_F(NamespaceTests, CapturingMutableLambdas)
+{
+    int x = 30;
+
+    luabridge::getGlobalNamespace(L).addFunction("Function", [x](int v) mutable -> int { x += Function(v); return x; });
+
+    runLua("Function (12); result = Function (12)");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(54, result<int>());
+}
+
 namespace {
 class SystemDestroyer {};
 } // namespacw
@@ -550,6 +561,27 @@ TEST_F(NamespaceTests, NamespaceAsRValueReferenceShouldWork)
 
     runLua("result = test[SystemDestroyer]");
     EXPECT_TRUE(result().isNil());
+}
+
+TEST_F(NamespaceTests, BugWithLuauNotPrintingMethodNameInErrors)
+{
+    auto strangelyNamedMethod = [](lua_State* L)
+    {
+        luaL_argerror(L, 1, "test message");
+        return 0;
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("foo")
+            .addFunction("strangelyNamedMethod", strangelyNamedMethod)
+        .endNamespace();
+
+    auto [result, error] = runLuaCaptureError(R"(
+        local bar = function() foo.strangelyNamedMethod() end
+        bar()
+    )");
+
+    EXPECT_TRUE(error.find("strangelyNamedMethod") != std::string::npos);
 }
 
 #ifdef _M_IX86 // Windows 32bit only

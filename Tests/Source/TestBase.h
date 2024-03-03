@@ -127,7 +127,7 @@ struct TestBase : public ::testing::Test
 
         lua_settop(stateToUse, 0);
 
-        luabridge::lua_pushcfunction_x(stateToUse, &traceback);
+        luabridge::lua_pushcfunction_x(stateToUse, &traceback, "traceback");
 
         if (luaL_loadstring(stateToUse, script.c_str()) != LUABRIDGE_LUA_OK)
         {

@@ -86,7 +86,7 @@ struct UnexpectType
     constexpr UnexpectType() = default;
 };
 
-static constexpr const auto& unexpect = UnexpectType();
+static constexpr auto unexpect = UnexpectType();
 
 namespace detail {
 template <class T, class E, bool = std::is_default_constructible_v<T>, bool = (std::is_void_v<T> || std::is_trivial_v<T>) && std::is_trivial_v<E>>

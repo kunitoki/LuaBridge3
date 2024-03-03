@@ -55,14 +55,14 @@ inline void* lua_newuserdata_x(lua_State* L, size_t sz)
     });
 }
 
-inline void lua_pushcfunction_x(lua_State *L, lua_CFunction fn)
+inline void lua_pushcfunction_x(lua_State *L, lua_CFunction fn, const char* debugname)
 {
-    lua_pushcfunction(L, fn, "");
+    lua_pushcfunction(L, fn, debugname);
 }
 
-inline void lua_pushcclosure_x(lua_State* L, lua_CFunction fn, int n)
+inline void lua_pushcclosure_x(lua_State* L, lua_CFunction fn, const char* debugname, int n)
 {
-    lua_pushcclosure(L, fn, "", n);
+    lua_pushcclosure(L, fn, debugname, n);
 }
 
 inline int lua_error_x(lua_State* L)
@@ -91,13 +91,17 @@ inline void* lua_newuserdata_x(lua_State* L, size_t sz)
     return lua_newuserdata(L, sz);
 }
 
-inline void lua_pushcfunction_x(lua_State *L, lua_CFunction fn)
+inline void lua_pushcfunction_x(lua_State *L, lua_CFunction fn, const char* debugname)
 {
+    unused(debugname);
+
     lua_pushcfunction(L, fn);
 }
 
-inline void lua_pushcclosure_x(lua_State* L, lua_CFunction fn, int n)
+inline void lua_pushcclosure_x(lua_State* L, lua_CFunction fn, const char* debugname, int n)
 {
+    unused(debugname);
+
     lua_pushcclosure(L, fn, n);
 }
 
@@ -501,7 +505,7 @@ void* lua_newuserdata_aligned(lua_State* L, Args&&... args)
     void* pointer = lua_newuserdata_x<T>(L, maximum_space_needed_to_align<T>());
 
     lua_newtable(L);
-    lua_pushcfunction_x(L, &lua_deleteuserdata_aligned<T>);
+    lua_pushcfunction_x(L, &lua_deleteuserdata_aligned<T>, "");
     rawsetfield(L, -2, "__gc");
     lua_setmetatable(L, -2);
 #endif
