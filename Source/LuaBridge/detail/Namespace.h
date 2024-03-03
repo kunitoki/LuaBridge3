@@ -150,8 +150,9 @@ class Namespace : public detail::Registrar
     class ClassBase : public detail::Registrar
     {
     public:
-        explicit ClassBase(Namespace parent)
+        explicit ClassBase(const char* name, Namespace parent)
             : Registrar(std::move(parent))
+            , className(name == nullptr ? "" : name)
         {
         }
 
@@ -180,10 +181,10 @@ class Namespace : public detail::Registrar
             lua_pushstring(L, type_name.c_str()); // Stack: ns, co, name
             lua_rawsetp(L, -2, detail::getTypeKey()); // co [typeKey] = name. Stack: ns, co
 
-            lua_pushcfunction_x(L, &detail::index_metamethod<true>); // Stack: ns, co, im
+            lua_pushcfunction_x(L, &detail::index_metamethod<true>, "__index"); // Stack: ns, co, im
             rawsetfield(L, -2, "__index"); // Stack: ns, co
 
-            lua_pushcfunction_x(L, &detail::newindex_metamethod<true>); // Stack: ns, co, nim
+            lua_pushcfunction_x(L, &detail::newindex_metamethod<true>, "__newindex"); // Stack: ns, co, nim
             rawsetfield(L, -2, "__newindex"); // Stack: ns, co
 
             lua_newtable(L); // Stack: ns, co, tb
@@ -241,10 +242,10 @@ class Namespace : public detail::Registrar
             pushunsigned(L, options.toUnderlying()); // Stack: ns, co, cl, st, mt, options
             lua_rawsetp(L, -2, detail::getClassOptionsKey()); // st [classOptionsKey] = options. Stack: ns, co, cl, st, mt
 
-            lua_pushcfunction_x(L, &detail::index_metamethod<false>);
+            lua_pushcfunction_x(L, &detail::index_metamethod<false>, "__index");
             rawsetfield(L, -2, "__index");
 
-            lua_pushcfunction_x(L, &detail::newindex_metamethod<false>);
+            lua_pushcfunction_x(L, &detail::newindex_metamethod<false>, "__newindex");
             rawsetfield(L, -2, "__newindex");
 
             lua_newtable(L); // Stack: ns, co, cl, st, proget table (pg)
@@ -274,6 +275,9 @@ class Namespace : public detail::Registrar
             LUABRIDGE_ASSERT(lua_istable(L, -2));
             LUABRIDGE_ASSERT(lua_istable(L, -1));
         }
+
+        //=========================================================================================
+        const char* className = "";
     };
 
     //=============================================================================================
@@ -300,7 +304,7 @@ class Namespace : public detail::Registrar
          * @param options Class options.
          */
         Class(const char* name, Namespace parent, Options options)
-            : ClassBase(std::move(parent))
+            : ClassBase(name, std::move(parent))
         {
             LUABRIDGE_ASSERT(name != nullptr);
             LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
@@ -314,20 +318,20 @@ class Namespace : public detail::Registrar
                 createConstTable(name, true, options); // Stack: ns, const table (co)
                 ++m_stackSize;
 #if !defined(LUABRIDGE_ON_LUAU)
-                lua_pushcfunction_x(L, &detail::gc_metamethod<T>); // Stack: ns, co, function
+                lua_pushcfunction_x(L, &detail::gc_metamethod<T>, "__gc"); // Stack: ns, co, function
                 rawsetfield(L, -2, "__gc"); // co ["__gc"] = function. Stack: ns, co
 #endif
-                lua_pushcfunction_x(L, &detail::tostring_metamethod<T>);
+                lua_pushcfunction_x(L, &detail::tostring_metamethod<T>, "__tostring");
                 rawsetfield(L, -2, "__tostring");
 
                 createClassTable(name, options); // Stack: ns, co, class table (cl)
                 ++m_stackSize;
 #if !defined(LUABRIDGE_ON_LUAU)
-                lua_pushcfunction_x(L, &detail::gc_metamethod<T>); // Stack: ns, co, cl, function
+                lua_pushcfunction_x(L, &detail::gc_metamethod<T>, "__gc"); // Stack: ns, co, cl, function
                 rawsetfield(L, -2, "__gc"); // cl ["__gc"] = function. Stack: ns, co, cl
 #endif
 
-                lua_pushcfunction_x(L, &detail::tostring_metamethod<T>);
+                lua_pushcfunction_x(L, &detail::tostring_metamethod<T>, "__tostring");
                 rawsetfield(L, -2, "__tostring");
 
                 createStaticTable(name, options); // Stack: ns, co, cl, st
@@ -375,7 +379,7 @@ class Namespace : public detail::Registrar
          * @param staticKey Key where the class is stored.
         */
         Class(const char* name, Namespace parent, const void* const staticKey, Options options)
-            : ClassBase(std::move(parent))
+            : ClassBase(name, std::move(parent))
         {
             LUABRIDGE_ASSERT(name != nullptr);
             LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
@@ -383,19 +387,19 @@ class Namespace : public detail::Registrar
             createConstTable(name, true, options); // Stack: ns, const table (co)
             ++m_stackSize;
 #if !defined(LUABRIDGE_ON_LUAU)
-            lua_pushcfunction_x(L, &detail::gc_metamethod<T>); // Stack: ns, co, function
+            lua_pushcfunction_x(L, &detail::gc_metamethod<T>, "__gc"); // Stack: ns, co, function
             rawsetfield(L, -2, "__gc"); // co ["__gc"] = function. Stack: ns, co
 #endif
-            lua_pushcfunction_x(L, &detail::tostring_metamethod<T>);
+            lua_pushcfunction_x(L, &detail::tostring_metamethod<T>, "__tostring");
             rawsetfield(L, -2, "__tostring");
 
             createClassTable(name, options); // Stack: ns, co, class table (cl)
             ++m_stackSize;
 #if !defined(LUABRIDGE_ON_LUAU)
-            lua_pushcfunction_x(L, &detail::gc_metamethod<T>); // Stack: ns, co, cl, function
+            lua_pushcfunction_x(L, &detail::gc_metamethod<T>, "__gc"); // Stack: ns, co, cl, function
             rawsetfield(L, -2, "__gc"); // cl ["__gc"] = function. Stack: ns, co, cl
 #endif
-            lua_pushcfunction_x(L, &detail::tostring_metamethod<T>);
+            lua_pushcfunction_x(L, &detail::tostring_metamethod<T>, "__tostring");
             rawsetfield(L, -2, "__tostring");
 
             createStaticTable(name, options); // Stack: ns, co, cl, st
@@ -470,11 +474,11 @@ class Namespace : public detail::Registrar
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             lua_pushlightuserdata(L, const_cast<U*>(value)); // Stack: co, cl, st, pointer
-            lua_pushcclosure_x(L, &detail::property_getter<U>::call, 1); // Stack: co, cl, st, getter
+            lua_pushcclosure_x(L, &detail::property_getter<U>::call, name, 1); // Stack: co, cl, st, getter
             detail::add_property_getter(L, name, -2); // Stack: co, cl, st
 
             lua_pushstring(L, name); // Stack: co, cl, st, name
-            lua_pushcclosure_x(L, &detail::read_only_error, 1); // Stack: co, cl, st, function
+            lua_pushcclosure_x(L, &detail::read_only_error, name, 1); // Stack: co, cl, st, function
 
             detail::add_property_setter(L, name, -2); // Stack: co, cl, st
 
@@ -499,18 +503,18 @@ class Namespace : public detail::Registrar
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             lua_pushlightuserdata(L, value); // Stack: co, cl, st, pointer
-            lua_pushcclosure_x(L, &detail::property_getter<U>::call, 1); // Stack: co, cl, st, getter
+            lua_pushcclosure_x(L, &detail::property_getter<U>::call, name, 1); // Stack: co, cl, st, getter
             detail::add_property_getter(L, name, -2); // Stack: co, cl, st
 
             if (isWritable)
             {
                 lua_pushlightuserdata(L, value); // Stack: co, cl, st, ps, pointer
-                lua_pushcclosure_x(L, &detail::property_setter<U>::call, 1); // Stack: co, cl, st, ps, setter
+                lua_pushcclosure_x(L, &detail::property_setter<U>::call, name, 1); // Stack: co, cl, st, ps, setter
             }
             else
             {
                 lua_pushstring(L, name); // Stack: co, cl, st, name
-                lua_pushcclosure_x(L, &detail::read_only_error, 1); // Stack: co, cl, st, function
+                lua_pushcclosure_x(L, &detail::read_only_error, name, 1); // Stack: co, cl, st, function
             }
 
             detail::add_property_setter(L, name, -2); // Stack: co, cl, st
@@ -537,18 +541,18 @@ class Namespace : public detail::Registrar
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); // Stack: co, cl, st, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_proxy_function<U (*)()>, 1); // Stack: co, cl, st, getter
+            lua_pushcclosure_x(L, &detail::invoke_proxy_function<U (*)()>, name, 1); // Stack: co, cl, st, getter
             detail::add_property_getter(L, name, -2); // Stack: co, cl, st
 
             if (set != nullptr)
             {
                 lua_pushlightuserdata(L, reinterpret_cast<void*>(set)); // Stack: co, cl, st, function ptr
-                lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(U)>, 1); // Stack: co, cl, st, setter
+                lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(U)>, name, 1); // Stack: co, cl, st, setter
             }
             else
             {
                 lua_pushstring(L, name); // Stack: co, cl, st, ps, name
-                lua_pushcclosure_x(L, &detail::read_only_error, 1); // Stack: co, cl, st, function
+                lua_pushcclosure_x(L, &detail::read_only_error, name, 1); // Stack: co, cl, st, function
             }
 
             detail::add_property_setter(L, name, -2); // Stack: co, cl, st
@@ -563,18 +567,18 @@ class Namespace : public detail::Registrar
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); // Stack: co, cl, st, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_proxy_function<U (*)() noexcept>, 1); // Stack: co, cl, st, getter
+            lua_pushcclosure_x(L, &detail::invoke_proxy_function<U (*)() noexcept>, name, 1); // Stack: co, cl, st, getter
             detail::add_property_getter(L, name, -2); // Stack: co, cl, st
 
             if (set != nullptr)
             {
                 lua_pushlightuserdata(L, reinterpret_cast<void*>(set)); // Stack: co, cl, st, function ptr
-                lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(U) noexcept>, 1); // Stack: co, cl, st, setter
+                lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(U) noexcept>, name, 1); // Stack: co, cl, st, setter
             }
             else
             {
                 lua_pushstring(L, name); // Stack: co, cl, st, ps, name
-                lua_pushcclosure_x(L, &detail::read_only_error, 1); // Stack: co, cl, st, function
+                lua_pushcclosure_x(L, &detail::read_only_error, name, 1); // Stack: co, cl, st, function
             }
 
             detail::add_property_setter(L, name, -2); // Stack: co, cl, st
@@ -595,7 +599,7 @@ class Namespace : public detail::Registrar
             using GetType = decltype(get);
 
             lua_newuserdata_aligned<GetType>(L, std::move(get)); // Stack: co, cl, st, function userdata (ud)
-            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<GetType>, 1); // Stack: co, cl, st, function
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<GetType>, name, 1); // Stack: co, cl, st, function
             detail::add_property_getter(L, name, -2); // Stack: co, cl, st
 
             return *this;
@@ -611,11 +615,11 @@ class Namespace : public detail::Registrar
             using SetType = decltype(set);
 
             lua_newuserdata_aligned<GetType>(L, std::move(get)); // Stack: co, cl, st, function userdata (ud)
-            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<GetType>, 1); // Stack: co, cl, st, function
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<GetType>, name, 1); // Stack: co, cl, st, function
             detail::add_property_getter(L, name, -2); // Stack: co, cl, st
 
             lua_newuserdata_aligned<SetType>(L, std::move(set)); // Stack: co, cl, st, function userdata (ud)
-            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<SetType>, 1); // Stack: co, cl, st, function
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<SetType>, name, 1); // Stack: co, cl, st, function
             detail::add_property_setter(L, name, -2); // Stack: co, cl, st
 
             return *this;
@@ -641,7 +645,7 @@ class Namespace : public detail::Registrar
             {
                 ([&]
                 {
-                    detail::push_function(L, std::move(functions));
+                    detail::push_function(L, std::move(functions), name);
 
                 } (), ...);
             }
@@ -662,7 +666,7 @@ class Namespace : public detail::Registrar
                         lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
                     lua_settable(L, -3);
                     lua_pushinteger(L, 2);
-                    detail::push_function(L, std::move(functions));
+                    detail::push_function(L, std::move(functions), name);
                     lua_settable(L, -3);
 
                     lua_rawseti(L, -2, idx);
@@ -670,7 +674,7 @@ class Namespace : public detail::Registrar
 
                 } (), ...);
 
-                lua_pushcclosure_x(L, &detail::try_overload_functions<false>, 1);
+                lua_pushcclosure_x(L, &detail::try_overload_functions<false>, name, 1);
             }
 
             rawsetfield(L, -2, name);
@@ -693,7 +697,7 @@ class Namespace : public detail::Registrar
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             new (lua_newuserdata_x<MemberPtrType>(L, sizeof(MemberPtrType))) MemberPtrType(mp); // Stack: co, cl, st, field ptr
-            lua_pushcclosure_x(L, &detail::property_getter<U, T>::call, 1); // Stack: co, cl, st, getter
+            lua_pushcclosure_x(L, &detail::property_getter<U, T>::call, name, 1); // Stack: co, cl, st, getter
             lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
             detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
             detail::add_property_getter(L, name, -3); // Stack: co, cl, st
@@ -701,7 +705,7 @@ class Namespace : public detail::Registrar
             if (isWritable)
             {
                 new (lua_newuserdata_x<MemberPtrType>(L, sizeof(MemberPtrType))) MemberPtrType(mp); // Stack: co, cl, st, field ptr
-                lua_pushcclosure_x(L, &detail::property_setter<U, T>::call, 1); // Stack: co, cl, st, setter
+                lua_pushcclosure_x(L, &detail::property_setter<U, T>::call, name, 1); // Stack: co, cl, st, setter
                 detail::add_property_setter(L, name, -3); // Stack: co, cl, st
             }
 
@@ -722,7 +726,7 @@ class Namespace : public detail::Registrar
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); // Stack: co, cl, st, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_const_member_function<GetType, T>, 1); // Stack: co, cl, st, getter
+            lua_pushcclosure_x(L, &detail::invoke_const_member_function<GetType, T>, name, 1); // Stack: co, cl, st, getter
             lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
             detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
             detail::add_property_getter(L, name, -3); // Stack: co, cl, st
@@ -730,7 +734,7 @@ class Namespace : public detail::Registrar
             if (set != nullptr)
             {
                 new (lua_newuserdata_x<SetType>(L, sizeof(SetType))) SetType(set); // Stack: co, cl, st, function ptr
-                lua_pushcclosure_x(L, &detail::invoke_member_function<SetType, T>, 1); // Stack: co, cl, st, setter
+                lua_pushcclosure_x(L, &detail::invoke_member_function<SetType, T>, name, 1); // Stack: co, cl, st, setter
                 detail::add_property_setter(L, name, -3); // Stack: co, cl, st
             }
 
@@ -747,7 +751,7 @@ class Namespace : public detail::Registrar
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); // Stack: co, cl, st, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_const_member_function<GetType, T>, 1); // Stack: co, cl, st, getter
+            lua_pushcclosure_x(L, &detail::invoke_const_member_function<GetType, T>, name, 1); // Stack: co, cl, st, getter
             lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
             detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
             detail::add_property_getter(L, name, -3); // Stack: co, cl, st
@@ -755,7 +759,7 @@ class Namespace : public detail::Registrar
             if (set != nullptr)
             {
                 new (lua_newuserdata_x<SetType>(L, sizeof(SetType))) SetType(set); // Stack: co, cl, st, function ptr
-                lua_pushcclosure_x(L, &detail::invoke_member_function<SetType, T>, 1); // Stack: co, cl, st, setter
+                lua_pushcclosure_x(L, &detail::invoke_member_function<SetType, T>, name, 1); // Stack: co, cl, st, setter
                 detail::add_property_setter(L, name, -3); // Stack: co, cl, st
             }
 
@@ -776,7 +780,7 @@ class Namespace : public detail::Registrar
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); // Stack: co, cl, st, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_const_member_function<GetType, T>, 1); // Stack: co, cl, st, getter
+            lua_pushcclosure_x(L, &detail::invoke_const_member_function<GetType, T>, name, 1); // Stack: co, cl, st, getter
             lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
             detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
             detail::add_property_getter(L, name, -3); // Stack: co, cl, st
@@ -784,7 +788,7 @@ class Namespace : public detail::Registrar
             if (set != nullptr)
             {
                 new (lua_newuserdata_x<SetType>(L, sizeof(SetType))) SetType(set); // Stack: co, cl, st, function ptr
-                lua_pushcclosure_x(L, &detail::invoke_member_function<SetType, T>, 1); // Stack: co, cl, st, setter
+                lua_pushcclosure_x(L, &detail::invoke_member_function<SetType, T>, name, 1); // Stack: co, cl, st, setter
                 detail::add_property_setter(L, name, -3); // Stack: co, cl, st
             }
 
@@ -801,7 +805,7 @@ class Namespace : public detail::Registrar
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); // Stack: co, cl, st, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_const_member_function<GetType, T>, 1); // Stack: co, cl, st, getter
+            lua_pushcclosure_x(L, &detail::invoke_const_member_function<GetType, T>, name, 1); // Stack: co, cl, st, getter
             lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
             detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
             detail::add_property_getter(L, name, -3); // Stack: co, cl, st
@@ -809,7 +813,7 @@ class Namespace : public detail::Registrar
             if (set != nullptr)
             {
                 new (lua_newuserdata_x<SetType>(L, sizeof(SetType))) SetType(set); // Stack: co, cl, st, function ptr
-                lua_pushcclosure_x(L, &detail::invoke_member_function<SetType, T>, 1); // Stack: co, cl, st, setter
+                lua_pushcclosure_x(L, &detail::invoke_member_function<SetType, T>, name, 1); // Stack: co, cl, st, setter
                 detail::add_property_setter(L, name, -3); // Stack: co, cl, st
             }
 
@@ -832,7 +836,7 @@ class Namespace : public detail::Registrar
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); // Stack: co, cl, st, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_proxy_function<TG (*)(const T*)>, 1); // Stack: co, cl, st, getter
+            lua_pushcclosure_x(L, &detail::invoke_proxy_function<TG (*)(const T*)>, name, 1); // Stack: co, cl, st, getter
             lua_pushvalue(L, -1); // Stack: co, cl, st,, getter, getter
             detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
             detail::add_property_getter(L, name, -3); // Stack: co, cl, st
@@ -840,7 +844,7 @@ class Namespace : public detail::Registrar
             if (set != nullptr)
             {
                 lua_pushlightuserdata( L, reinterpret_cast<void*>(set)); // Stack: co, cl, st, function ptr
-                lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(T*, TS)>, 1); // Stack: co, cl, st, setter
+                lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(T*, TS)>, name, 1); // Stack: co, cl, st, setter
                 detail::add_property_setter(L, name, -3); // Stack: co, cl, st
             }
 
@@ -854,7 +858,7 @@ class Namespace : public detail::Registrar
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); // Stack: co, cl, st, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_proxy_function<TG (*)(const T*) noexcept>, 1); // Stack: co, cl, st, getter
+            lua_pushcclosure_x(L, &detail::invoke_proxy_function<TG (*)(const T*) noexcept>, name, 1); // Stack: co, cl, st, getter
             lua_pushvalue(L, -1); // Stack: co, cl, st,, getter, getter
             detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
             detail::add_property_getter(L, name, -3); // Stack: co, cl, st
@@ -862,7 +866,7 @@ class Namespace : public detail::Registrar
             if (set != nullptr)
             {
                 lua_pushlightuserdata( L, reinterpret_cast<void*>(set)); // Stack: co, cl, st, function ptr
-                lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(T*, TS) noexcept>, 1); // Stack: co, cl, st, setter
+                lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(T*, TS) noexcept>, name, 1); // Stack: co, cl, st, setter
                 detail::add_property_setter(L, name, -3); // Stack: co, cl, st
             }
 
@@ -884,14 +888,14 @@ class Namespace : public detail::Registrar
             LUABRIDGE_ASSERT(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            lua_pushcfunction_x(L, get);
+            lua_pushcfunction_x(L, get, name);
             lua_pushvalue(L, -1); // Stack: co, cl, st,, getter, getter
             detail::add_property_getter(L, name, -5); // Stack: co, cl, st,, getter
             detail::add_property_getter(L, name, -3); // Stack: co, cl, st,
 
             if (set != nullptr)
             {
-                lua_pushcfunction_x(L, set);
+                lua_pushcfunction_x(L, set, name);
                 detail::add_property_setter(L, name, -3); // Stack: co, cl, st,
             }
 
@@ -914,7 +918,7 @@ class Namespace : public detail::Registrar
             using GetType = decltype(get);
 
             lua_newuserdata_aligned<GetType>(L, std::move(get)); // Stack: co, cl, st, function userdata (ud)
-            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<GetType>, 1); // Stack: co, cl, st, getter
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<GetType>, name, 1); // Stack: co, cl, st, getter
             lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
             detail::add_property_getter(L, name, -4); // Stack: co, cl, st, getter
             detail::add_property_getter(L, name, -4); // Stack: co, cl, st
@@ -936,7 +940,7 @@ class Namespace : public detail::Registrar
             using SetType = decltype(set);
 
             lua_newuserdata_aligned<SetType>(L, std::move(set)); // Stack: co, cl, st, function userdata (ud)
-            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<SetType>, 1); // Stack: co, cl, st, setter
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<SetType>, name, 1); // Stack: co, cl, st, setter
             detail::add_property_setter(L, name, -3); // Stack: co, cl, st
 
             return *this;
@@ -968,7 +972,7 @@ class Namespace : public detail::Registrar
             {
                 ([&]
                 {
-                    detail::push_member_function<T>(L, std::move(functions));
+                    detail::push_member_function<T>(L, std::move(functions), name);
 
                 } (), ...);
 
@@ -1005,7 +1009,7 @@ class Namespace : public detail::Registrar
                             lua_pushinteger(L, static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>));
                         lua_settable(L, -3);
                         lua_pushinteger(L, 2);
-                        detail::push_member_function<T>(L, std::move(functions));
+                        detail::push_member_function<T>(L, std::move(functions), name);
                         lua_settable(L, -3);
 
                         lua_rawseti(L, -2, idx);
@@ -1015,7 +1019,7 @@ class Namespace : public detail::Registrar
 
                     LUABRIDGE_ASSERT(idx > 1);
 
-                    lua_pushcclosure_x(L, &detail::try_overload_functions<true>, 1);
+                    lua_pushcclosure_x(L, &detail::try_overload_functions<true>, name, 1);
                     lua_pushvalue(L, -1); // Stack: co, cl, st, function, function
                     rawsetfield(L, -4, name); // Stack: co, cl, st, function
                     rawsetfield(L, -4, name); // Stack: co, cl, st
@@ -1041,7 +1045,7 @@ class Namespace : public detail::Registrar
                             lua_pushinteger(L, static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>));
                         lua_settable(L, -3);
                         lua_pushinteger(L, 2);
-                        detail::push_member_function<T>(L, std::move(functions));
+                        detail::push_member_function<T>(L, std::move(functions), name);
                         lua_settable(L, -3);
 
                         lua_rawseti(L, -2, idx);
@@ -1051,7 +1055,7 @@ class Namespace : public detail::Registrar
 
                     LUABRIDGE_ASSERT(idx > 1);
 
-                    lua_pushcclosure_x(L, &detail::try_overload_functions<true>, 1);
+                    lua_pushcclosure_x(L, &detail::try_overload_functions<true>, name, 1);
                     rawsetfield(L, -3, name); // Stack: co, cl, st
                 }
             }
@@ -1078,7 +1082,7 @@ class Namespace : public detail::Registrar
             {
                 ([&]
                 {
-                    lua_pushcclosure_x(L, &detail::constructor_placement_proxy<T, detail::function_arguments_t<Functions>>, 0);
+                    lua_pushcclosure_x(L, &detail::constructor_placement_proxy<T, detail::function_arguments_t<Functions>>, className, 0);
 
                 } (), ...);
             }
@@ -1096,14 +1100,14 @@ class Namespace : public detail::Registrar
                     lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
                     lua_settable(L, -3);
                     lua_pushinteger(L, 2);
-                    lua_pushcclosure_x(L, &detail::constructor_placement_proxy<T, detail::function_arguments_t<Functions>>, 0);
+                    lua_pushcclosure_x(L, &detail::constructor_placement_proxy<T, detail::function_arguments_t<Functions>>, className, 0);
                     lua_settable(L, -3);
                     lua_rawseti(L, -2, idx);
                     ++idx;
 
                 } (), ...);
 
-                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, 1);
+                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, className, 1);
             }
 
             rawsetfield(L, -2, "__call");
@@ -1136,7 +1140,7 @@ class Namespace : public detail::Registrar
                     using F = detail::constructor_forwarder<T, Functions>;
 
                     lua_newuserdata_aligned<F>(L, F(std::move(functions))); // Stack: co, cl, st, upvalue
-                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, 1); // Stack: co, cl, st, function
+                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, className, 1); // Stack: co, cl, st, function
 
                 } (), ...);
             }
@@ -1160,14 +1164,14 @@ class Namespace : public detail::Registrar
                     lua_settable(L, -3);
                     lua_pushinteger(L, 2);
                     lua_newuserdata_aligned<F>(L, F(std::move(functions)));
-                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, 1);
+                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, className, 1);
                     lua_settable(L, -3);
                     lua_rawseti(L, -2, idx);
                     ++idx;
 
                 } (), ...);
 
-                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, 1);
+                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, className, 1);
             }
 
             rawsetfield(L, -2, "__call"); // Stack: co, cl, st
@@ -1189,7 +1193,7 @@ class Namespace : public detail::Registrar
             {
                 ([&]
                 {
-                    lua_pushcclosure_x(L, &detail::constructor_container_proxy<C, detail::function_arguments_t<Functions>>, 0);
+                    lua_pushcclosure_x(L, &detail::constructor_container_proxy<C, detail::function_arguments_t<Functions>>, className, 0);
 
                 } (), ...);
             }
@@ -1207,14 +1211,14 @@ class Namespace : public detail::Registrar
                     lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
                     lua_settable(L, -3);
                     lua_pushinteger(L, 2);
-                    lua_pushcclosure_x(L, &detail::constructor_container_proxy<C, detail::function_arguments_t<Functions>>, 0);
+                    lua_pushcclosure_x(L, &detail::constructor_container_proxy<C, detail::function_arguments_t<Functions>>, className, 0);
                     lua_settable(L, -3);
                     lua_rawseti(L, -2, idx);
                     ++idx;
 
                 } (), ...);
 
-                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, 1);
+                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, className, 1);
             }
 
             rawsetfield(L, -2, "__call");
@@ -1243,7 +1247,7 @@ class Namespace : public detail::Registrar
                     using F = detail::container_forwarder<C, Functions>;
 
                     lua_newuserdata_aligned<F>(L, F(std::move(functions))); // Stack: co, cl, st, upvalue
-                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, 1); // Stack: co, cl, st, function
+                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, className, 1); // Stack: co, cl, st, function
 
                 } (), ...);
             }
@@ -1267,14 +1271,14 @@ class Namespace : public detail::Registrar
                     lua_settable(L, -3);
                     lua_pushinteger(L, 2);
                     lua_newuserdata_aligned<F>(L, F(std::move(functions)));
-                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, 1);
+                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, className, 1);
                     lua_settable(L, -3);
                     lua_rawseti(L, -2, idx);
                     ++idx;
 
                 } (), ...);
 
-                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, 1);
+                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, className, 1);
             }
 
             rawsetfield(L, -2, "__call"); // Stack: co, cl, st
@@ -1299,7 +1303,7 @@ class Namespace : public detail::Registrar
             using F = detail::factory_forwarder<T, Allocator, Deallocator>;
 
             lua_newuserdata_aligned<F>(L, F(std::move(allocator), std::move(deallocator))); // Stack: co, cl, st, upvalue
-            lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, 1); // Stack: co, cl, st, function
+            lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, className, 1); // Stack: co, cl, st, function
             rawsetfield(L, -2, "__call"); // Stack: co, cl, st
 
             return *this;
@@ -1321,7 +1325,7 @@ class Namespace : public detail::Registrar
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: co, cl, st, function userdata (ud)
-            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: co, cl, st, function
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, "__index", 1); // Stack: co, cl, st, function
             lua_rawsetp(L, -3, detail::getIndexFallbackKey());
 
             return *this;
@@ -1334,7 +1338,7 @@ class Namespace : public detail::Registrar
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             lua_pushlightuserdata(L, reinterpret_cast<void*>(idxf)); // Stack: co, cl, st, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_proxy_function<FnType>, 1); // Stack: co, cl, st, function
+            lua_pushcclosure_x(L, &detail::invoke_proxy_function<FnType>, "__index", 1); // Stack: co, cl, st, function
             lua_rawsetp(L, -3, detail::getIndexFallbackKey());
 
             return *this;
@@ -1347,7 +1351,7 @@ class Namespace : public detail::Registrar
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             new (lua_newuserdata_x<MemFnPtr>(L, sizeof(MemFnPtr))) MemFnPtr(idxf);
-            lua_pushcclosure_x(L, &detail::invoke_member_function<MemFnPtr, T>, 1);
+            lua_pushcclosure_x(L, &detail::invoke_member_function<MemFnPtr, T>, "__index", 1);
             lua_rawsetp(L, -3, detail::getIndexFallbackKey());
 
             return *this;
@@ -1369,7 +1373,7 @@ class Namespace : public detail::Registrar
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: co, cl, st, function userdata (ud)
-            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: co, cl, st, function
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, "__newindex", 1); // Stack: co, cl, st, function
             lua_rawsetp(L, -3, detail::getNewIndexFallbackKey());
 
             return *this;
@@ -1382,7 +1386,7 @@ class Namespace : public detail::Registrar
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             lua_pushlightuserdata(L, reinterpret_cast<void*>(idxf)); // Stack: co, cl, st, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_proxy_function<FnType>, 1); // Stack: co, cl, st, function
+            lua_pushcclosure_x(L, &detail::invoke_proxy_function<FnType>, "__newindex", 1); // Stack: co, cl, st, function
             lua_rawsetp(L, -3, detail::getNewIndexFallbackKey());
 
             return *this;
@@ -1395,7 +1399,7 @@ class Namespace : public detail::Registrar
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             new (lua_newuserdata_x<MemFnPtr>(L, sizeof(MemFnPtr))) MemFnPtr(idxf);
-            lua_pushcclosure_x(L, &detail::invoke_member_function<MemFnPtr, T>, 1);
+            lua_pushcclosure_x(L, &detail::invoke_member_function<MemFnPtr, T>, "__newindex", 1);
             lua_rawsetp(L, -3, detail::getNewIndexFallbackKey());
 
             return *this;
@@ -1430,7 +1434,7 @@ class Namespace : public detail::Registrar
             LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
 
             lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: ns, function userdata (ud)
-            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: ns, function
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, name, 1); // Stack: ns, function
             rawsetfield(L, -3, name); // Stack: ns
 
             return *this;
@@ -1445,7 +1449,7 @@ class Namespace : public detail::Registrar
             LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
 
             lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: ns, function userdata (ud)
-            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, 1); // Stack: ns, function
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, name, 1); // Stack: ns, function
             rawsetfield(L, -2, name); // Stack: ns
 
             return *this;
@@ -1496,7 +1500,7 @@ private:
         lua_setmetatable(L, -2); // Stack: ns
 
         // ns.__index = index_static_metamethod
-        lua_pushcfunction_x(L, &detail::index_metamethod<false>);
+        lua_pushcfunction_x(L, &detail::index_metamethod<false>, "__index");
         rawsetfield(L, -2, "__index"); // Stack: ns
 
         lua_newtable(L); // Stack: ns, mt, propget table (pg)
@@ -1544,11 +1548,11 @@ private:
             lua_setmetatable(L, -2); // Stack: pns, ns
 
             // ns.__index = index_static_metamethod
-            lua_pushcfunction_x(L, &detail::index_metamethod<false>);
+            lua_pushcfunction_x(L, &detail::index_metamethod<false>, "__index");
             rawsetfield(L, -2, "__index"); // Stack: pns, ns
 
             // ns.__newindex = newindex_static_metamethod
-            lua_pushcfunction_x(L, &detail::newindex_metamethod<false>);
+            lua_pushcfunction_x(L, &detail::newindex_metamethod<false>, "__newindex");
             rawsetfield(L, -2, "__newindex"); // Stack: pns, ns
 
             lua_newtable(L); // Stack: pns, ns, propget table (pg)
@@ -1684,14 +1688,12 @@ public:
         {
             using U = std::underlying_type_t<T>;
 
-            auto result = Stack<U>::push(L, static_cast<U>(value));
-            if (! result)
+            if (auto result = Stack<U>::push(L, static_cast<U>(value)); ! result)
                 luaL_error(L, "%s", result.message().c_str());
         }
         else
         {
-            auto result = Stack<T>::push(L, value);
-            if (! result)
+            if (auto result = Stack<T>::push(L, value); ! result)
                 luaL_error(L, "%s", result.message().c_str());
         }
 
@@ -1724,18 +1726,18 @@ public:
         LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
 
         lua_pushlightuserdata(L, value); // Stack: ns, pointer
-        lua_pushcclosure_x(L, &detail::property_getter<T>::call, 1); // Stack: ns, getter
+        lua_pushcclosure_x(L, &detail::property_getter<T>::call, name, 1); // Stack: ns, getter
         detail::add_property_getter(L, name, -2); // Stack: ns
 
         if (isWritable)
         {
             lua_pushlightuserdata(L, value); // Stack: ns, pointer
-            lua_pushcclosure_x(L, &detail::property_setter<T>::call, 1); // Stack: ns, setter
+            lua_pushcclosure_x(L, &detail::property_setter<T>::call, name, 1); // Stack: ns, setter
         }
         else
         {
             lua_pushstring(L, name); // Stack: ns, ps, name
-            lua_pushcclosure_x(L, &detail::read_only_error, 1); // Stack: ns, function
+            lua_pushcclosure_x(L, &detail::read_only_error, name, 1); // Stack: ns, function
         }
 
         detail::add_property_setter(L, name, -2); // Stack: ns
@@ -1766,11 +1768,11 @@ public:
         LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
 
         lua_pushlightuserdata(L, const_cast<T*>(value)); // Stack: ns, pointer
-        lua_pushcclosure_x(L, &detail::property_getter<T>::call, 1); // Stack: ns, getter
+        lua_pushcclosure_x(L, &detail::property_getter<T>::call, name, 1); // Stack: ns, getter
         detail::add_property_getter(L, name, -2); // Stack: ns
 
         lua_pushstring(L, name); // Stack: ns, ps, name
-        lua_pushcclosure_x(L, &detail::read_only_error, 1); // Stack: ns, function
+        lua_pushcclosure_x(L, &detail::read_only_error, name, 1); // Stack: ns, function
 
         detail::add_property_setter(L, name, -2); // Stack: ns
 
@@ -1803,18 +1805,18 @@ public:
         LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
 
         lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); // Stack: ns, function ptr
-        lua_pushcclosure_x(L, &detail::invoke_proxy_function<TG (*)()>, 1); // Stack: ns, getter
+        lua_pushcclosure_x(L, &detail::invoke_proxy_function<TG (*)()>, name, 1); // Stack: ns, getter
         detail::add_property_getter(L, name, -2);
 
         if (set != nullptr)
         {
             lua_pushlightuserdata(L, reinterpret_cast<void*>(set)); // Stack: ns, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(TS)>, 1);
+            lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(TS)>, name, 1);
         }
         else
         {
             lua_pushstring(L, name);
-            lua_pushcclosure_x(L, &detail::read_only_error, 1);
+            lua_pushcclosure_x(L, &detail::read_only_error, name, 1);
         }
 
         detail::add_property_setter(L, name, -2);
@@ -1836,18 +1838,18 @@ public:
         LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
 
         lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); // Stack: ns, function ptr
-        lua_pushcclosure_x(L, &detail::invoke_proxy_function<TG (*)() noexcept>, 1); // Stack: ns, getter
+        lua_pushcclosure_x(L, &detail::invoke_proxy_function<TG (*)() noexcept>, name, 1); // Stack: ns, getter
         detail::add_property_getter(L, name, -2);
 
         if (set != nullptr)
         {
             lua_pushlightuserdata(L, reinterpret_cast<void*>(set)); // Stack: ns, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(TS) noexcept>, 1);
+            lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(TS) noexcept>, name, 1);
         }
         else
         {
             lua_pushstring(L, name);
-            lua_pushcclosure_x(L, &detail::read_only_error, 1);
+            lua_pushcclosure_x(L, &detail::read_only_error, name, 1);
         }
 
         detail::add_property_setter(L, name, -2);
@@ -1872,12 +1874,12 @@ public:
 
         using GetType = decltype(get);
         lua_newuserdata_aligned<GetType>(L, std::move(get)); // Stack: ns, function userdata (ud)
-        lua_pushcclosure_x(L, &detail::invoke_proxy_functor<GetType>, 1); // Stack: ns, ud, getter
+        lua_pushcclosure_x(L, &detail::invoke_proxy_functor<GetType>, name, 1); // Stack: ns, ud, getter
 
         detail::add_property_getter(L, name, -2); // Stack: ns, ud, getter
 
         lua_pushstring(L, name); // Stack: ns, name
-        lua_pushcclosure_x(L, &detail::read_only_error, 1); // Stack: ns, name, function
+        lua_pushcclosure_x(L, &detail::read_only_error, name, 1); // Stack: ns, name, function
         detail::add_property_setter(L, name, -2); // Stack: ns
 
         return *this;
@@ -1907,7 +1909,7 @@ public:
         using SetType = decltype(set);
 
         lua_newuserdata_aligned<SetType>(L, std::move(set)); // Stack: ns, function userdata (ud)
-        lua_pushcclosure_x(L, &detail::invoke_proxy_functor<SetType>, 1); // Stack: ns, ud, getter
+        lua_pushcclosure_x(L, &detail::invoke_proxy_functor<SetType>, name, 1); // Stack: ns, ud, getter
         detail::add_property_setter(L, name, -2); // Stack: ns, ud, getter
 
         return *this;
@@ -1930,18 +1932,18 @@ public:
         LUABRIDGE_ASSERT(name != nullptr);
         LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
 
-        lua_pushcfunction_x(L, get); // Stack: ns, getter
+        lua_pushcfunction_x(L, get, name); // Stack: ns, getter
         detail::add_property_getter(L, name, -2); // Stack: ns
 
         if (set != nullptr)
         {
-            lua_pushcfunction_x(L, set); // Stack: ns, setter
+            lua_pushcfunction_x(L, set, name); // Stack: ns, setter
             detail::add_property_setter(L, name, -2); // Stack: ns
         }
         else
         {
             lua_pushstring(L, name); // Stack: ns, name
-            lua_pushcclosure_x(L, &detail::read_only_error, 1); // Stack: ns, name, function
+            lua_pushcclosure_x(L, &detail::read_only_error, name, 1); // Stack: ns, name, function
             detail::add_property_setter(L, name, -2); // Stack: ns
         }
 
@@ -1968,7 +1970,7 @@ public:
         {
             ([&]
             {
-                detail::push_function(L, std::move(functions));
+                detail::push_function(L, std::move(functions), name);
 
             } (), ...);
         }
@@ -1989,7 +1991,7 @@ public:
                     lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
                 lua_settable(L, -3);
                 lua_pushinteger(L, 2);
-                detail::push_function(L, std::move(functions));
+                detail::push_function(L, std::move(functions), name);
                 lua_settable(L, -3);
 
                 lua_rawseti(L, -2, idx);
@@ -1997,7 +1999,7 @@ public:
 
             } (), ...);
 
-            lua_pushcclosure_x(L, &detail::try_overload_functions<false>, 1);
+            lua_pushcclosure_x(L, &detail::try_overload_functions<false>, name, 1);
         }
 
         rawsetfield(L, -2, name);

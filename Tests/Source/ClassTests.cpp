@@ -3265,3 +3265,65 @@ TEST_F(ClassTests, BugWithFactoryConstructor)
 
     SUCCEED();
 }
+
+namespace {
+
+struct ClassWithMethod
+{
+    ClassWithMethod(int)
+    {
+    }
+
+    ClassWithMethod(lua_State* L)
+    {
+        luaL_argerror(L, 1, "test message");
+    }
+
+    int methodWithError(lua_State* L)
+    {
+        luaL_argerror(L, 2, "test message");
+        return 0;
+    }
+};
+
+} // namespace
+
+TEST_F(ClassTests, BugWithLuauNotPrintingClassConstructorNameInErrors)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("foo")
+            .beginClass<ClassWithMethod>("ClassWithMethod")
+                .addConstructor<void (*)(lua_State*)>()
+                .addFunction("methodWithError", &ClassWithMethod::methodWithError)
+            .endClass()
+        .endNamespace();
+
+    auto [result, error] = runLuaCaptureError(R"(
+        local bar = foo.ClassWithMethod()
+        result = bar
+    )");
+
+    EXPECT_FALSE(result);
+    EXPECT_TRUE(error.find("ClassWithMethod") != std::string::npos);
+}
+
+TEST_F(ClassTests, BugWithLuauNotPrintingClassMethodNameInErrors)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("foo")
+            .beginClass<ClassWithMethod>("ClassWithMethod")
+                .addConstructor<void (*)(lua_State*)>()
+                .addFunction("methodWithError", &ClassWithMethod::methodWithError)
+            .endClass()
+        .endNamespace();
+
+    ClassWithMethod x(1);
+    luabridge::setGlobal(L, x, "xyz");
+
+    auto [result, error] = runLuaCaptureError(R"(
+        result = xyz:methodWithError()
+    )");
+
+    EXPECT_FALSE(result);
+    EXPECT_TRUE(error.find("methodWithError") != std::string::npos);
+}

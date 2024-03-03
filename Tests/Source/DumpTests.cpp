@@ -125,7 +125,7 @@ TEST_F(DumpTests, DumpFunction)
     {
         std::stringstream ss;
 
-        luabridge::lua_pushcfunction_x(L, nullptr);
+        luabridge::lua_pushcfunction_x(L, nullptr, "");
 
         luabridge::dumpValue(L, -1, 0, 0, false, ss);
         EXPECT_TRUE(ss.str().find("cfunction@") == 0);
@@ -139,7 +139,7 @@ TEST_F(DumpTests, DumpFunction)
     {
         std::stringstream ss;
 
-        luabridge::lua_pushcfunction_x(L, +[](lua_State*) { return 0; });
+        luabridge::lua_pushcfunction_x(L, +[](lua_State*) { return 0; }, "");
 
         luabridge::dumpValue(L, -1, 0, 0, false, ss);
         EXPECT_TRUE(ss.str().find("cfunction@") == 0);
