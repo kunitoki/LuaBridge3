@@ -716,13 +716,13 @@ class Namespace : public detail::Registrar
         /**
          * @brief Add or replace a property member.
          */
-        template <class TG, class TS = TG>
-        Class<T>& addProperty(const char* name, TG (T::*get)() const, void (T::*set)(TS) = nullptr)
+        template <class TG>
+        Class<T>& addProperty(const char* name, TG (T::*get)() const)
         {
             using GetType = TG (T::*)() const;
-            using SetType = void (T::*)(TS);
 
             LUABRIDGE_ASSERT(name != nullptr);
+            LUABRIDGE_ASSERT(get != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); // Stack: co, cl, st, function ptr
@@ -730,24 +730,36 @@ class Namespace : public detail::Registrar
             lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
             detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
             detail::add_property_getter(L, name, -3); // Stack: co, cl, st
-
-            if (set != nullptr)
-            {
-                new (lua_newuserdata_x<SetType>(L, sizeof(SetType))) SetType(set); // Stack: co, cl, st, function ptr
-                lua_pushcclosure_x(L, &detail::invoke_member_function<SetType, T>, name, 1); // Stack: co, cl, st, setter
-                detail::add_property_setter(L, name, -3); // Stack: co, cl, st
-            }
 
             return *this;
         }
 
         template <class TG, class TS = TG>
-        Class<T>& addProperty(const char* name, TG (T::*get)() const noexcept, void (T::*set)(TS) noexcept = nullptr)
+        Class<T>& addProperty(const char* name, TG (T::*get)() const, void (T::*set)(TS))
         {
-            using GetType = TG (T::*)() const noexcept;
-            using SetType = void (T::*)(TS) noexcept;
+            using SetType = void (T::*)(TS);
 
             LUABRIDGE_ASSERT(name != nullptr);
+            LUABRIDGE_ASSERT(get != nullptr);
+            LUABRIDGE_ASSERT(set != nullptr);
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            addProperty(name, get);
+
+            new (lua_newuserdata_x<SetType>(L, sizeof(SetType))) SetType(set); // Stack: co, cl, st, function ptr
+            lua_pushcclosure_x(L, &detail::invoke_member_function<SetType, T>, name, 1); // Stack: co, cl, st, setter
+            detail::add_property_setter(L, name, -3); // Stack: co, cl, st
+
+            return *this;
+        }
+
+        template <class TG>
+        Class<T>& addProperty(const char* name, TG (T::*get)() const noexcept)
+        {
+            using GetType = TG (T::*)() const noexcept;
+
+            LUABRIDGE_ASSERT(name != nullptr);
+            LUABRIDGE_ASSERT(get != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); // Stack: co, cl, st, function ptr
@@ -756,12 +768,24 @@ class Namespace : public detail::Registrar
             detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
             detail::add_property_getter(L, name, -3); // Stack: co, cl, st
 
-            if (set != nullptr)
-            {
-                new (lua_newuserdata_x<SetType>(L, sizeof(SetType))) SetType(set); // Stack: co, cl, st, function ptr
-                lua_pushcclosure_x(L, &detail::invoke_member_function<SetType, T>, name, 1); // Stack: co, cl, st, setter
-                detail::add_property_setter(L, name, -3); // Stack: co, cl, st
-            }
+            return *this;
+        }
+
+        template <class TG, class TS = TG>
+        Class<T>& addProperty(const char* name, TG (T::*get)() const noexcept, void (T::*set)(TS) noexcept)
+        {
+            using SetType = void (T::*)(TS) noexcept;
+
+            LUABRIDGE_ASSERT(name != nullptr);
+            LUABRIDGE_ASSERT(get != nullptr);
+            LUABRIDGE_ASSERT(set != nullptr);
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            addProperty(name, get);
+
+            new (lua_newuserdata_x<SetType>(L, sizeof(SetType))) SetType(set); // Stack: co, cl, st, function ptr
+            lua_pushcclosure_x(L, &detail::invoke_member_function<SetType, T>, name, 1); // Stack: co, cl, st, setter
+            detail::add_property_setter(L, name, -3); // Stack: co, cl, st
 
             return *this;
         }
@@ -770,13 +794,13 @@ class Namespace : public detail::Registrar
         /**
          * @brief Add or replace a property member.
          */
-        template <class TG, class TS = TG>
-        Class<T>& addProperty(const char* name, TG (T::*get)(lua_State*) const, void (T::*set)(TS, lua_State*) = nullptr)
+        template <class TG>
+        Class<T>& addProperty(const char* name, TG (T::*get)(lua_State*) const)
         {
             using GetType = TG (T::*)(lua_State*) const;
-            using SetType = void (T::*)(TS, lua_State*);
 
             LUABRIDGE_ASSERT(name != nullptr);
+            LUABRIDGE_ASSERT(get != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); // Stack: co, cl, st, function ptr
@@ -784,24 +808,36 @@ class Namespace : public detail::Registrar
             lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
             detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
             detail::add_property_getter(L, name, -3); // Stack: co, cl, st
-
-            if (set != nullptr)
-            {
-                new (lua_newuserdata_x<SetType>(L, sizeof(SetType))) SetType(set); // Stack: co, cl, st, function ptr
-                lua_pushcclosure_x(L, &detail::invoke_member_function<SetType, T>, name, 1); // Stack: co, cl, st, setter
-                detail::add_property_setter(L, name, -3); // Stack: co, cl, st
-            }
 
             return *this;
         }
 
         template <class TG, class TS = TG>
-        Class<T>& addProperty(const char* name, TG (T::*get)(lua_State*) const noexcept, void (T::*set)(TS, lua_State*) noexcept = nullptr)
+        Class<T>& addProperty(const char* name, TG (T::*get)(lua_State*) const, void (T::*set)(TS, lua_State*))
         {
-            using GetType = TG (T::*)(lua_State*) const noexcept;
-            using SetType = void (T::*)(TS, lua_State*) noexcept;
+            using SetType = void (T::*)(TS, lua_State*);
 
             LUABRIDGE_ASSERT(name != nullptr);
+            LUABRIDGE_ASSERT(get != nullptr);
+            LUABRIDGE_ASSERT(set != nullptr);
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            addProperty(name, get);
+
+            new (lua_newuserdata_x<SetType>(L, sizeof(SetType))) SetType(set); // Stack: co, cl, st, function ptr
+            lua_pushcclosure_x(L, &detail::invoke_member_function<SetType, T>, name, 1); // Stack: co, cl, st, setter
+            detail::add_property_setter(L, name, -3); // Stack: co, cl, st
+
+            return *this;
+        }
+
+        template <class TG>
+        Class<T>& addProperty(const char* name, TG (T::*get)(lua_State*) const noexcept)
+        {
+            using GetType = TG (T::*)(lua_State*) const noexcept;
+
+            LUABRIDGE_ASSERT(name != nullptr);
+            LUABRIDGE_ASSERT(get != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); // Stack: co, cl, st, function ptr
@@ -810,12 +846,24 @@ class Namespace : public detail::Registrar
             detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
             detail::add_property_getter(L, name, -3); // Stack: co, cl, st
 
-            if (set != nullptr)
-            {
-                new (lua_newuserdata_x<SetType>(L, sizeof(SetType))) SetType(set); // Stack: co, cl, st, function ptr
-                lua_pushcclosure_x(L, &detail::invoke_member_function<SetType, T>, name, 1); // Stack: co, cl, st, setter
-                detail::add_property_setter(L, name, -3); // Stack: co, cl, st
-            }
+            return *this;
+        }
+
+        template <class TG, class TS = TG>
+        Class<T>& addProperty(const char* name, TG (T::*get)(lua_State*) const noexcept, void (T::*set)(TS, lua_State*) noexcept)
+        {
+            using SetType = void (T::*)(TS, lua_State*) noexcept;
+
+            LUABRIDGE_ASSERT(name != nullptr);
+            LUABRIDGE_ASSERT(get != nullptr);
+            LUABRIDGE_ASSERT(set != nullptr);
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            addProperty(name, get);
+
+            new (lua_newuserdata_x<SetType>(L, sizeof(SetType))) SetType(set); // Stack: co, cl, st, function ptr
+            lua_pushcclosure_x(L, &detail::invoke_member_function<SetType, T>, name, 1); // Stack: co, cl, st, setter
+            detail::add_property_setter(L, name, -3); // Stack: co, cl, st
 
             return *this;
         }
@@ -829,10 +877,11 @@ class Namespace : public detail::Registrar
          *
          * Both the get and the set functions require a T const* and T* in the first argument respectively.
          */
-        template <class TG, class TS = TG>
-        Class<T>& addProperty(const char* name, TG (*get)(const T*), void (*set)(T*, TS) = nullptr)
+        template <class TG>
+        Class<T>& addProperty(const char* name, TG (*get)(const T*))
         {
             LUABRIDGE_ASSERT(name != nullptr);
+            LUABRIDGE_ASSERT(get != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); // Stack: co, cl, st, function ptr
@@ -841,20 +890,31 @@ class Namespace : public detail::Registrar
             detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
             detail::add_property_getter(L, name, -3); // Stack: co, cl, st
 
-            if (set != nullptr)
-            {
-                lua_pushlightuserdata( L, reinterpret_cast<void*>(set)); // Stack: co, cl, st, function ptr
-                lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(T*, TS)>, name, 1); // Stack: co, cl, st, setter
-                detail::add_property_setter(L, name, -3); // Stack: co, cl, st
-            }
-
             return *this;
         }
 
         template <class TG, class TS = TG>
-        Class<T>& addProperty(const char* name, TG (*get)(const T*) noexcept, void (*set)(T*, TS) noexcept = nullptr)
+        Class<T>& addProperty(const char* name, TG (*get)(const T*), void (*set)(T*, TS))
         {
             LUABRIDGE_ASSERT(name != nullptr);
+            LUABRIDGE_ASSERT(get != nullptr);
+            LUABRIDGE_ASSERT(set != nullptr);
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            addProperty(name, get);
+
+            lua_pushlightuserdata( L, reinterpret_cast<void*>(set)); // Stack: co, cl, st, function ptr
+            lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(T*, TS)>, name, 1); // Stack: co, cl, st, setter
+            detail::add_property_setter(L, name, -3); // Stack: co, cl, st
+
+            return *this;
+        }
+
+        template <class TG>
+        Class<T>& addProperty(const char* name, TG (*get)(const T*) noexcept)
+        {
+            LUABRIDGE_ASSERT(name != nullptr);
+            LUABRIDGE_ASSERT(get != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); // Stack: co, cl, st, function ptr
@@ -863,12 +923,22 @@ class Namespace : public detail::Registrar
             detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
             detail::add_property_getter(L, name, -3); // Stack: co, cl, st
 
-            if (set != nullptr)
-            {
-                lua_pushlightuserdata( L, reinterpret_cast<void*>(set)); // Stack: co, cl, st, function ptr
-                lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(T*, TS) noexcept>, name, 1); // Stack: co, cl, st, setter
-                detail::add_property_setter(L, name, -3); // Stack: co, cl, st
-            }
+            return *this;
+        }
+
+        template <class TG, class TS = TG>
+        Class<T>& addProperty(const char* name, TG (*get)(const T*) noexcept, void (*set)(T*, TS) noexcept)
+        {
+            LUABRIDGE_ASSERT(name != nullptr);
+            LUABRIDGE_ASSERT(get != nullptr);
+            LUABRIDGE_ASSERT(set != nullptr);
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            addProperty(name, get);
+
+            lua_pushlightuserdata( L, reinterpret_cast<void*>(set)); // Stack: co, cl, st, function ptr
+            lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(T*, TS) noexcept>, name, 1); // Stack: co, cl, st, setter
+            detail::add_property_setter(L, name, -3); // Stack: co, cl, st
 
             return *this;
         }
@@ -883,21 +953,31 @@ class Namespace : public detail::Registrar
          * The object userdata ('this') value is at the index 1.
          * The new value for set function is at the index 2.
          */
-        Class<T>& addProperty(const char* name, lua_CFunction get, lua_CFunction set = nullptr)
+        Class<T>& addProperty(const char* name, lua_CFunction get)
         {
             LUABRIDGE_ASSERT(name != nullptr);
+            LUABRIDGE_ASSERT(get != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
             lua_pushcfunction_x(L, get, name);
-            lua_pushvalue(L, -1); // Stack: co, cl, st,, getter, getter
-            detail::add_property_getter(L, name, -5); // Stack: co, cl, st,, getter
+            lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
+            detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
             detail::add_property_getter(L, name, -3); // Stack: co, cl, st,
 
-            if (set != nullptr)
-            {
-                lua_pushcfunction_x(L, set, name);
-                detail::add_property_setter(L, name, -3); // Stack: co, cl, st,
-            }
+            return *this;
+        }
+
+        Class<T>& addProperty(const char* name, lua_CFunction get, lua_CFunction set)
+        {
+            LUABRIDGE_ASSERT(name != nullptr);
+            LUABRIDGE_ASSERT(get != nullptr);
+            LUABRIDGE_ASSERT(set != nullptr);
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            addProperty(name, get);
+
+            lua_pushcfunction_x(L, set, name);
+            detail::add_property_setter(L, name, -3); // Stack: co, cl, st
 
             return *this;
         }
