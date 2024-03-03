@@ -6789,7 +6789,7 @@ inline int invoke_safe_cfunction(lua_State* L)
     LUABRIDGE_ASSERT(lua_iscfunction(L, lua_upvalueindex(1)));
 
     auto func = lua_tocfunction(L, lua_upvalueindex(1));
-    
+
     try
     {
         return func(L);
@@ -9863,6 +9863,9 @@ private:
         lua_pushcfunction_x(L, &detail::index_metamethod<false>, "__index");
         rawsetfield(L, -2, "__index"); 
 
+        lua_pushcfunction_x(L, &detail::newindex_metamethod<false>, "__newindex");
+        rawsetfield(L, -2, "__newindex"); 
+
         lua_newtable(L); 
         lua_rawsetp(L, -2, detail::getPropgetKey()); 
 
@@ -9969,13 +9972,6 @@ public:
     template <class T>
     Namespace& addVariable(const char* name, const T& value)
     {
-        if (m_stackSize == 1)
-        {
-            throw_or_assert<std::logic_error>("addVariable() called on global namespace");
-
-            return *this;
-        }
-
         LUABRIDGE_ASSERT(name != nullptr);
         LUABRIDGE_ASSERT(lua_istable(L, -1)); 
 
@@ -10000,15 +9996,15 @@ public:
     template <class T, class = std::enable_if_t<std::is_base_of_v<T, LuaRef> || !std::is_invocable_v<T>>>
     Namespace& addProperty(const char* name, T* value, bool isWritable = true)
     {
-        if (m_stackSize == 1)
+        LUABRIDGE_ASSERT(name != nullptr);
+        LUABRIDGE_ASSERT(lua_istable(L, -1)); 
+
+        if (! checkTableHasPropertyGetter())
         {
             throw_or_assert<std::logic_error>("addProperty() called on global namespace");
 
             return *this;
         }
-
-        LUABRIDGE_ASSERT(name != nullptr);
-        LUABRIDGE_ASSERT(lua_istable(L, -1)); 
 
         lua_pushlightuserdata(L, value); 
         lua_pushcclosure_x(L, &detail::property_getter<T>::call, name, 1); 
@@ -10033,15 +10029,15 @@ public:
     template <class T, class = std::enable_if_t<std::is_base_of_v<T, LuaRef> || !std::is_invocable_v<T>>>
     Namespace& addProperty(const char* name, const T* value)
     {
-        if (m_stackSize == 1)
+        LUABRIDGE_ASSERT(name != nullptr);
+        LUABRIDGE_ASSERT(lua_istable(L, -1)); 
+
+        if (! checkTableHasPropertyGetter())
         {
             throw_or_assert<std::logic_error>("addProperty() called on global namespace");
 
             return *this;
         }
-
-        LUABRIDGE_ASSERT(name != nullptr);
-        LUABRIDGE_ASSERT(lua_istable(L, -1)); 
 
         lua_pushlightuserdata(L, const_cast<T*>(value)); 
         lua_pushcclosure_x(L, &detail::property_getter<T>::call, name, 1); 
@@ -10057,16 +10053,16 @@ public:
     template <class TG>
     Namespace& addProperty(const char* name, TG (*get)())
     {
-        if (m_stackSize == 1)
+        LUABRIDGE_ASSERT(name != nullptr);
+        LUABRIDGE_ASSERT(get != nullptr);
+        LUABRIDGE_ASSERT(lua_istable(L, -1)); 
+
+        if (! checkTableHasPropertyGetter())
         {
             throw_or_assert<std::logic_error>("addProperty() called on global namespace");
 
             return *this;
         }
-
-        LUABRIDGE_ASSERT(name != nullptr);
-        LUABRIDGE_ASSERT(get != nullptr);
-        LUABRIDGE_ASSERT(lua_istable(L, -1)); 
 
         lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); 
         lua_pushcclosure_x(L, &detail::invoke_proxy_function<TG (*)()>, name, 1); 
@@ -10082,17 +10078,17 @@ public:
     template <class TG, class TS = TG>
     Namespace& addProperty(const char* name, TG (*get)(), void (*set)(TS))
     {
-        if (m_stackSize == 1)
+        LUABRIDGE_ASSERT(name != nullptr);
+        LUABRIDGE_ASSERT(get != nullptr);
+        LUABRIDGE_ASSERT(set != nullptr);
+        LUABRIDGE_ASSERT(lua_istable(L, -1)); 
+
+        if (! checkTableHasPropertyGetter())
         {
             throw_or_assert<std::logic_error>("addProperty() called on global namespace");
 
             return *this;
         }
-
-        LUABRIDGE_ASSERT(name != nullptr);
-        LUABRIDGE_ASSERT(get != nullptr);
-        LUABRIDGE_ASSERT(set != nullptr);
-        LUABRIDGE_ASSERT(lua_istable(L, -1)); 
 
         lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); 
         lua_pushcclosure_x(L, &detail::invoke_proxy_function<TG (*)()>, name, 1); 
@@ -10108,16 +10104,16 @@ public:
     template <class TG>
     Namespace& addProperty(const char* name, TG (*get)() noexcept)
     {
-        if (m_stackSize == 1)
+        LUABRIDGE_ASSERT(name != nullptr);
+        LUABRIDGE_ASSERT(get != nullptr);
+        LUABRIDGE_ASSERT(lua_istable(L, -1)); 
+
+        if (! checkTableHasPropertyGetter())
         {
             throw_or_assert<std::logic_error>("addProperty() called on global namespace");
 
             return *this;
         }
-
-        LUABRIDGE_ASSERT(name != nullptr);
-        LUABRIDGE_ASSERT(get != nullptr);
-        LUABRIDGE_ASSERT(lua_istable(L, -1)); 
 
         lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); 
         lua_pushcclosure_x(L, &detail::invoke_proxy_function<TG (*)() noexcept>, name, 1); 
@@ -10133,17 +10129,17 @@ public:
     template <class TG, class TS = TG>
     Namespace& addProperty(const char* name, TG (*get)() noexcept, void (*set)(TS) noexcept)
     {
-        if (m_stackSize == 1)
+        LUABRIDGE_ASSERT(name != nullptr);
+        LUABRIDGE_ASSERT(get != nullptr);
+        LUABRIDGE_ASSERT(set != nullptr);
+        LUABRIDGE_ASSERT(lua_istable(L, -1)); 
+
+        if (! checkTableHasPropertyGetter())
         {
             throw_or_assert<std::logic_error>("addProperty() called on global namespace");
 
             return *this;
         }
-
-        LUABRIDGE_ASSERT(name != nullptr);
-        LUABRIDGE_ASSERT(get != nullptr);
-        LUABRIDGE_ASSERT(set != nullptr);
-        LUABRIDGE_ASSERT(lua_istable(L, -1)); 
 
         lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); 
         lua_pushcclosure_x(L, &detail::invoke_proxy_function<TG (*)() noexcept>, name, 1); 
@@ -10162,10 +10158,17 @@ public:
         LUABRIDGE_ASSERT(name != nullptr);
         LUABRIDGE_ASSERT(lua_istable(L, -1)); 
 
+        if (! checkTableHasPropertyGetter())
+        {
+            throw_or_assert<std::logic_error>("addProperty() called on global namespace");
+
+            return *this;
+        }
+
         using GetType = decltype(get);
+
         lua_newuserdata_aligned<GetType>(L, std::move(get)); 
         lua_pushcclosure_x(L, &detail::invoke_proxy_functor<GetType>, name, 1); 
-
         detail::add_property_getter(L, name, -2); 
 
         lua_pushstring(L, name); 
@@ -10185,6 +10188,13 @@ public:
         LUABRIDGE_ASSERT(name != nullptr);
         LUABRIDGE_ASSERT(lua_istable(L, -1)); 
 
+        if (! checkTableHasPropertyGetter())
+        {
+            throw_or_assert<std::logic_error>("addProperty() called on global namespace");
+
+            return *this;
+        }
+
         addProperty<Getter>(name, std::move(get));
 
         using SetType = decltype(set);
@@ -10202,6 +10212,13 @@ public:
         LUABRIDGE_ASSERT(get != nullptr);
         LUABRIDGE_ASSERT(lua_istable(L, -1)); 
 
+        if (! checkTableHasPropertyGetter())
+        {
+            throw_or_assert<std::logic_error>("addProperty() called on global namespace");
+
+            return *this;
+        }
+
         lua_pushcfunction_x(L, get, name); 
         detail::add_property_getter(L, name, -2); 
 
@@ -10218,6 +10235,13 @@ public:
         LUABRIDGE_ASSERT(get != nullptr);
         LUABRIDGE_ASSERT(set != nullptr);
         LUABRIDGE_ASSERT(lua_istable(L, -1)); 
+
+        if (! checkTableHasPropertyGetter())
+        {
+            throw_or_assert<std::logic_error>("addProperty() called on global namespace");
+
+            return *this;
+        }
 
         lua_pushcfunction_x(L, get, name); 
         detail::add_property_getter(L, name, -2); 
@@ -10294,6 +10318,22 @@ public:
     {
         assertIsActive();
         return Class<Derived>(name, std::move(*this), detail::getStaticRegistryKey<Base>(), options);
+    }
+    
+private:
+    
+    bool checkTableHasPropertyGetter() const
+    {
+        if (m_stackSize == 1 && lua_istable(L, -1))
+        {
+            lua_rawgetp(L, -1, detail::getPropgetKey());
+            const bool propertyGetterTableIsValid = lua_istable(L, -1);
+            lua_pop(L, 1);
+
+            return propertyGetterTableIsValid;
+        }
+        
+        return true;
     }
 };
 
