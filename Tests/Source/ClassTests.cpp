@@ -3341,6 +3341,11 @@ public:
         return std::make_shared<FooClass>();
     }
 };
+
+static std::shared_ptr<FooClass> fooClassGetter()
+{
+    return std::make_shared<FooClass>();
+}
 } // namespace
 
 TEST_F(ClassTests, BugWithSharedPtrPropertyGetterFromClassNotDerivingFromSharedFromThis)
@@ -3352,8 +3357,14 @@ TEST_F(ClassTests, BugWithSharedPtrPropertyGetterFromClassNotDerivingFromSharedF
             .addConstructor<void (*)()>()
             .addFunction("getAsFunction", &BarClass::getter)
             .addProperty("getAsProperty", &BarClass::getter)
-        .endClass();
+        .endClass()
+        .beginNamespace("bar")
+            .addFunction("getAsFunction", &fooClassGetter)
+            .addProperty("getAsProperty", &fooClassGetter)
+        .endNamespace();
 
     EXPECT_TRUE(runLua("result = BarClass():getAsFunction()"));
     EXPECT_TRUE(runLua("result = BarClass().getAsProperty"));
+    EXPECT_TRUE(runLua("result = bar.getAsFunction()"));
+    EXPECT_TRUE(runLua("result = bar.getAsProperty"));
 }
