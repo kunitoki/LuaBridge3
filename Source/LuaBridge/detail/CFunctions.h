@@ -1027,7 +1027,7 @@ inline int invoke_safe_cfunction(lua_State* L)
     LUABRIDGE_ASSERT(lua_iscfunction(L, lua_upvalueindex(1)));
 
     auto func = lua_tocfunction(L, lua_upvalueindex(1));
-    
+
     try
     {
         return func(L);

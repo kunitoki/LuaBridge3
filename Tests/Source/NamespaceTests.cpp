@@ -18,6 +18,7 @@ struct NamespaceTests : TestBase
 
 namespace {
 enum class A { x, y };
+static int fncPointerGetSetValue = 42;
 } // namespace
 
 TEST_F(NamespaceTests, Variables)
@@ -40,9 +41,20 @@ TEST_F(NamespaceTests, Variables)
         .addProperty("any", &any)
         .addProperty("fnc_get", [stored] { return stored; })
         .addProperty("fnc_getset", [stored] { return stored; }, [&stored](int v) { stored = v; })
+        .addProperty("fnc_ptr_get", +[] { return fncPointerGetSetValue; })
+        .addProperty("fnc_ptr_getset", +[] { return fncPointerGetSetValue; }, +[](int v) { fncPointerGetSetValue = v; })
+        .addProperty("fnc_c_get",
+            +[](lua_State* L) { luabridge::getGlobal(L, "xyz").push(); return 1; })
+        .addProperty("fnc_c_getset",
+            +[](lua_State* L) { luabridge::getGlobal(L, "xyz").push(); return 1; },
+            +[](lua_State* L) { luabridge::setGlobal(L, luabridge::LuaRef::fromStack(L, 1).unsafe_cast<int>(), "xyz"); return 0; })
         .addVariable("A_x", A::x)
         .addVariable("A_y", A::y)
         .endNamespace();
+
+    luabridge::setGlobal(L, 666, "xyz");
+
+    runLua("result = int");
 
     ASSERT_EQ(-10, variable<int>("ns.int"));
     ASSERT_EQ(any, variable<luabridge::LuaRef>("ns.any"));
@@ -63,6 +75,24 @@ TEST_F(NamespaceTests, Variables)
 
     runLua("ns.fnc_getset = 1337");
     ASSERT_EQ(1337, stored);
+
+    runLua("result = ns.fnc_ptr_get");
+    ASSERT_EQ(fncPointerGetSetValue, result<int>());
+
+    runLua("result = ns.fnc_ptr_getset");
+    ASSERT_EQ(fncPointerGetSetValue, result<int>());
+
+    runLua("ns.fnc_ptr_getset = 1337");
+    ASSERT_EQ(1337, fncPointerGetSetValue);
+
+    runLua("result = ns.fnc_c_get");
+    ASSERT_EQ(666, result<int>());
+
+    runLua("result = ns.fnc_c_getset");
+    ASSERT_EQ(666, result<int>());
+
+    runLua("ns.fnc_c_getset = 1337");
+    ASSERT_EQ(1337, luabridge::getGlobal(L, "xyz").unsafe_cast<int>());
 
     runLua("result = ns.A_x");
     ASSERT_EQ(A::x, static_cast<A>(result<int>()));
@@ -224,12 +254,12 @@ TEST_F(NamespaceTests, AddVariable)
 
     enum class A { a, b, c, d };
 
-#if LUABRIDGE_HAS_EXCEPTIONS
-    ASSERT_THROW(luabridge::getGlobalNamespace(L).addVariable("int", &int_), std::logic_error);
-#endif
-    
+    luabridge::getGlobalNamespace(L)
+        .addVariable("int", &int_);
+
     runLua("result = int");
-    ASSERT_TRUE(result().isNil());
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(int_, result<int>());
 
     luabridge::getGlobalNamespace(L)
         .beginNamespace("ns")
@@ -336,6 +366,58 @@ TEST_F(NamespaceTests, NamespaceFromStack)
     ASSERT_EQ(42, resultTable["result"].cast<int>());
 }
 
+TEST_F(NamespaceTests, NamespaceFromStackProperties)
+{
+    int x = 0;
+    int wx = 10;
+    const int cx = 100;
+
+    lua_newtable(L);
+    luabridge::getNamespaceFromStack(L)
+        .addProperty("valueX", &x, false)
+        .addProperty("valueWX", &wx, true)
+        .addProperty("valueCX", &cx)
+        .addProperty("value1", +[] { return 1; })
+        .addProperty("value2", +[] { return 2; }, +[](int) {})
+        .addProperty("value_getX", [&x] { return x; })
+        .addProperty("value_getSetX", [&x] { return x; }, [&x](int v) { x = v; })
+    ;
+
+    auto table = luabridge::LuaRef::fromStack(L);
+
+    luabridge::setGlobal(L, table, "tab");
+
+    runLua("result = tab.valueX");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(0, result<int>());
+
+    runLua("result = tab.valueWX");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(10, result<int>());
+
+    runLua("result = tab.valueCX");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(100, result<int>());
+
+    runLua("result = tab.value1");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(1, result<int>());
+
+    runLua("result = tab.value2");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(2, result<int>());
+
+    runLua("result = tab.value_getX");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(0, result<int>());
+
+    runLua("result = tab.value_getSetX");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(0, result<int>());
+
+    runLua("tab.value_getSetX = 111");
+    EXPECT_EQ(111, x);
+}
 
 TEST_F(NamespaceTests, Properties_ProxyCFunctions)
 {
@@ -346,12 +428,12 @@ TEST_F(NamespaceTests, Properties_ProxyCFunctions)
 
     Storage<int>::value = 1;
     runLua("ns.value = 2");
-    ASSERT_EQ(2, Storage<int>::value);
+    EXPECT_EQ(2, Storage<int>::value);
 
     Storage<int>::value = 3;
     runLua("result = ns.value");
     ASSERT_TRUE(result().isNumber());
-    ASSERT_EQ(3, result<int>());
+    EXPECT_EQ(3, result<int>());
 }
 
 TEST_F(NamespaceTests, Properties_ProxyCFunctions_ReadOnly)
