@@ -521,6 +521,17 @@ TEST_F(NamespaceTests, CapturingLambdas)
     ASSERT_EQ(42, result<int>());
 }
 
+TEST_F(NamespaceTests, CapturingMutableLambdas)
+{
+    int x = 30;
+
+    luabridge::getGlobalNamespace(L).addFunction("Function", [x](int v) mutable -> int { x += Function(v); return x; });
+
+    runLua("Function (12); result = Function (12)");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(54, result<int>());
+}
+
 namespace {
 class SystemDestroyer {};
 } // namespacw
