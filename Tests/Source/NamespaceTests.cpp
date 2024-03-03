@@ -552,6 +552,27 @@ TEST_F(NamespaceTests, NamespaceAsRValueReferenceShouldWork)
     EXPECT_TRUE(result().isNil());
 }
 
+TEST_F(NamespaceTests, BugWithLuauNotPrintingMethodNameInErrors)
+{
+    auto strangelyNamedMethod = [](lua_State* L)
+    {
+        luaL_argerror(L, 1, "test message");
+        return 0;
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("foo")
+            .addFunction("strangelyNamedMethod", strangelyNamedMethod)
+        .endNamespace();
+
+    auto [result, error] = runLuaCaptureError(R"(
+        local bar = function() foo.strangelyNamedMethod() end
+        bar()
+    )");
+
+    EXPECT_TRUE(error.find("strangelyNamedMethod") != std::string::npos);
+}
+
 #ifdef _M_IX86 // Windows 32bit only
 
 namespace {
