@@ -18,6 +18,7 @@ struct NamespaceTests : TestBase
 
 namespace {
 enum class A { x, y };
+static int fncPointerGetSetValue = 42;
 } // namespace
 
 TEST_F(NamespaceTests, Variables)
@@ -40,9 +41,20 @@ TEST_F(NamespaceTests, Variables)
         .addProperty("any", &any)
         .addProperty("fnc_get", [stored] { return stored; })
         .addProperty("fnc_getset", [stored] { return stored; }, [&stored](int v) { stored = v; })
+        .addProperty("fnc_ptr_get", +[] { return fncPointerGetSetValue; })
+        .addProperty("fnc_ptr_getset", +[] { return fncPointerGetSetValue; }, +[](int v) { fncPointerGetSetValue = v; })
+        .addProperty("fnc_c_get",
+            +[](lua_State* L) { luabridge::getGlobal(L, "xyz").push(); return 1; })
+        .addProperty("fnc_c_getset",
+            +[](lua_State* L) { luabridge::getGlobal(L, "xyz").push(); return 1; },
+            +[](lua_State* L) { luabridge::setGlobal(L, luabridge::LuaRef::fromStack(L, 1).unsafe_cast<int>(), "xyz"); return 0; })
         .addVariable("A_x", A::x)
         .addVariable("A_y", A::y)
         .endNamespace();
+
+    luabridge::setGlobal(L, 666, "xyz");
+
+    runLua("result = int");
 
     ASSERT_EQ(-10, variable<int>("ns.int"));
     ASSERT_EQ(any, variable<luabridge::LuaRef>("ns.any"));
@@ -63,6 +75,24 @@ TEST_F(NamespaceTests, Variables)
 
     runLua("ns.fnc_getset = 1337");
     ASSERT_EQ(1337, stored);
+
+    runLua("result = ns.fnc_ptr_get");
+    ASSERT_EQ(fncPointerGetSetValue, result<int>());
+
+    runLua("result = ns.fnc_ptr_getset");
+    ASSERT_EQ(fncPointerGetSetValue, result<int>());
+
+    runLua("ns.fnc_ptr_getset = 1337");
+    ASSERT_EQ(1337, fncPointerGetSetValue);
+
+    runLua("result = ns.fnc_c_get");
+    ASSERT_EQ(666, result<int>());
+
+    runLua("result = ns.fnc_c_getset");
+    ASSERT_EQ(666, result<int>());
+
+    runLua("ns.fnc_c_getset = 1337");
+    ASSERT_EQ(1337, luabridge::getGlobal(L, "xyz").unsafe_cast<int>());
 
     runLua("result = ns.A_x");
     ASSERT_EQ(A::x, static_cast<A>(result<int>()));
