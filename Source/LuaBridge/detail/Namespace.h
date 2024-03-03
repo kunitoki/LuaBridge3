@@ -1583,6 +1583,10 @@ private:
         lua_pushcfunction_x(L, &detail::index_metamethod<false>, "__index");
         rawsetfield(L, -2, "__index"); // Stack: ns
 
+        // ns.__newindex = newindex_static_metamethod
+        lua_pushcfunction_x(L, &detail::newindex_metamethod<false>, "__newindex");
+        rawsetfield(L, -2, "__newindex"); // Stack: pns, ns
+
         lua_newtable(L); // Stack: ns, mt, propget table (pg)
         lua_rawsetp(L, -2, detail::getPropgetKey()); // ns [propgetKey] = pg. Stack: ns
 
@@ -1988,6 +1992,7 @@ public:
         }
 
         using GetType = decltype(get);
+
         lua_newuserdata_aligned<GetType>(L, std::move(get)); // Stack: ns, function userdata (ud)
         lua_pushcclosure_x(L, &detail::invoke_proxy_functor<GetType>, name, 1); // Stack: ns, ud, getter
         detail::add_property_getter(L, name, -2); // Stack: ns, ud, getter
@@ -2030,8 +2035,8 @@ public:
         using SetType = decltype(set);
 
         lua_newuserdata_aligned<SetType>(L, std::move(set)); // Stack: ns, function userdata (ud)
-        lua_pushcclosure_x(L, &detail::invoke_proxy_functor<SetType>, name, 1); // Stack: ns, ud, getter
-        detail::add_property_setter(L, name, -2); // Stack: ns, ud, getter
+        lua_pushcclosure_x(L, &detail::invoke_proxy_functor<SetType>, name, 1); // Stack: ns, ud, setter
+        detail::add_property_setter(L, name, -2); // Stack: ns, ud, setter
 
         return *this;
     }
