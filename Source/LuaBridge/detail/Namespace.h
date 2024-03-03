@@ -1846,7 +1846,6 @@ public:
 
         lua_pushstring(L, name); // Stack: ns, ps, name
         lua_pushcclosure_x(L, &detail::read_only_error, name, 1); // Stack: ns, function
-
         detail::add_property_setter(L, name, -2); // Stack: ns
 
         return *this;
@@ -1864,10 +1863,11 @@ public:
      *
      * @returns This namespace registration object.
      */
-    template <class TG, class TS = TG>
-    Namespace& addProperty(const char* name, TG (*get)(), void (*set)(TS) = nullptr)
+    template <class TG>
+    Namespace& addProperty(const char* name, TG (*get)())
     {
         LUABRIDGE_ASSERT(name != nullptr);
+        LUABRIDGE_ASSERT(get != nullptr);
         LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
 
         if (! checkTableHasPropertyGetter())
@@ -1881,26 +1881,44 @@ public:
         lua_pushcclosure_x(L, &detail::invoke_proxy_function<TG (*)()>, name, 1); // Stack: ns, getter
         detail::add_property_getter(L, name, -2);
 
-        if (set != nullptr)
-        {
-            lua_pushlightuserdata(L, reinterpret_cast<void*>(set)); // Stack: ns, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(TS)>, name, 1);
-        }
-        else
-        {
-            lua_pushstring(L, name);
-            lua_pushcclosure_x(L, &detail::read_only_error, name, 1);
-        }
-
+        lua_pushstring(L, name);
+        lua_pushcclosure_x(L, &detail::read_only_error, name, 1);
         detail::add_property_setter(L, name, -2);
 
         return *this;
     }
 
     template <class TG, class TS = TG>
-    Namespace& addProperty(const char* name, TG (*get)() noexcept, void (*set)(TS) noexcept = nullptr)
+    Namespace& addProperty(const char* name, TG (*get)(), void (*set)(TS))
     {
         LUABRIDGE_ASSERT(name != nullptr);
+        LUABRIDGE_ASSERT(get != nullptr);
+        LUABRIDGE_ASSERT(set != nullptr);
+        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
+
+        if (! checkTableHasPropertyGetter())
+        {
+            throw_or_assert<std::logic_error>("addProperty() called on global namespace");
+
+            return *this;
+        }
+
+        lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); // Stack: ns, function ptr
+        lua_pushcclosure_x(L, &detail::invoke_proxy_function<TG (*)()>, name, 1); // Stack: ns, getter
+        detail::add_property_getter(L, name, -2);
+
+        lua_pushlightuserdata(L, reinterpret_cast<void*>(set)); // Stack: ns, function ptr
+        lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(TS)>, name, 1);
+        detail::add_property_setter(L, name, -2);
+
+        return *this;
+    }
+
+    template <class TG>
+    Namespace& addProperty(const char* name, TG (*get)() noexcept)
+    {
+        LUABRIDGE_ASSERT(name != nullptr);
+        LUABRIDGE_ASSERT(get != nullptr);
         LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
 
         if (! checkTableHasPropertyGetter())
@@ -1914,17 +1932,34 @@ public:
         lua_pushcclosure_x(L, &detail::invoke_proxy_function<TG (*)() noexcept>, name, 1); // Stack: ns, getter
         detail::add_property_getter(L, name, -2);
 
-        if (set != nullptr)
+        lua_pushstring(L, name);
+        lua_pushcclosure_x(L, &detail::read_only_error, name, 1);
+        detail::add_property_setter(L, name, -2);
+
+        return *this;
+    }
+
+    template <class TG, class TS = TG>
+    Namespace& addProperty(const char* name, TG (*get)() noexcept, void (*set)(TS) noexcept)
+    {
+        LUABRIDGE_ASSERT(name != nullptr);
+        LUABRIDGE_ASSERT(get != nullptr);
+        LUABRIDGE_ASSERT(set != nullptr);
+        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
+
+        if (! checkTableHasPropertyGetter())
         {
-            lua_pushlightuserdata(L, reinterpret_cast<void*>(set)); // Stack: ns, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(TS) noexcept>, name, 1);
-        }
-        else
-        {
-            lua_pushstring(L, name);
-            lua_pushcclosure_x(L, &detail::read_only_error, name, 1);
+            throw_or_assert<std::logic_error>("addProperty() called on global namespace");
+
+            return *this;
         }
 
+        lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); // Stack: ns, function ptr
+        lua_pushcclosure_x(L, &detail::invoke_proxy_function<TG (*)() noexcept>, name, 1); // Stack: ns, getter
+        detail::add_property_getter(L, name, -2);
+
+        lua_pushlightuserdata(L, reinterpret_cast<void*>(set)); // Stack: ns, function ptr
+        lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(TS) noexcept>, name, 1);
         detail::add_property_setter(L, name, -2);
 
         return *this;
@@ -1955,7 +1990,6 @@ public:
         using GetType = decltype(get);
         lua_newuserdata_aligned<GetType>(L, std::move(get)); // Stack: ns, function userdata (ud)
         lua_pushcclosure_x(L, &detail::invoke_proxy_functor<GetType>, name, 1); // Stack: ns, ud, getter
-
         detail::add_property_getter(L, name, -2); // Stack: ns, ud, getter
 
         lua_pushstring(L, name); // Stack: ns, name
@@ -2014,9 +2048,10 @@ public:
      *
      * @returns This namespace registration object.
      */
-    Namespace& addProperty(const char* name, lua_CFunction get, lua_CFunction set = nullptr)
+    Namespace& addProperty(const char* name, lua_CFunction get)
     {
         LUABRIDGE_ASSERT(name != nullptr);
+        LUABRIDGE_ASSERT(get != nullptr);
         LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
 
         if (! checkTableHasPropertyGetter())
@@ -2029,17 +2064,32 @@ public:
         lua_pushcfunction_x(L, get, name); // Stack: ns, getter
         detail::add_property_getter(L, name, -2); // Stack: ns
 
-        if (set != nullptr)
+        lua_pushstring(L, name); // Stack: ns, name
+        lua_pushcclosure_x(L, &detail::read_only_error, name, 1); // Stack: ns, name, function
+        detail::add_property_setter(L, name, -2); // Stack: ns
+
+        return *this;
+    }
+
+    Namespace& addProperty(const char* name, lua_CFunction get, lua_CFunction set)
+    {
+        LUABRIDGE_ASSERT(name != nullptr);
+        LUABRIDGE_ASSERT(get != nullptr);
+        LUABRIDGE_ASSERT(set != nullptr);
+        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
+
+        if (! checkTableHasPropertyGetter())
         {
-            lua_pushcfunction_x(L, set, name); // Stack: ns, setter
-            detail::add_property_setter(L, name, -2); // Stack: ns
+            throw_or_assert<std::logic_error>("addProperty() called on global namespace");
+
+            return *this;
         }
-        else
-        {
-            lua_pushstring(L, name); // Stack: ns, name
-            lua_pushcclosure_x(L, &detail::read_only_error, name, 1); // Stack: ns, name, function
-            detail::add_property_setter(L, name, -2); // Stack: ns
-        }
+
+        lua_pushcfunction_x(L, get, name); // Stack: ns, getter
+        detail::add_property_getter(L, name, -2); // Stack: ns
+
+        lua_pushcfunction_x(L, set, name); // Stack: ns, setter
+        detail::add_property_setter(L, name, -2); // Stack: ns
 
         return *this;
     }
@@ -2103,7 +2153,11 @@ public:
 
     //=============================================================================================
     /**
-     * @brief
+     * @brief Open a new or existing table as namespace for registrations.
+	 *
+     * @param name The table name.
+     *
+     * @returns A table registration object.
      */
     Table beginTable(const char* name)
     {
