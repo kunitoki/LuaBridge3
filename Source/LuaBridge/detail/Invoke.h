@@ -105,7 +105,7 @@ public:
 
 private:
     template <class... Args>
-    friend LuaResult call(const LuaRef&, Args&&...);
+    friend LuaResult callWithHandler(const LuaRef&, int, Args&&...);
 
     static LuaResult errorFromStack(lua_State* L, std::error_code ec)
     {
@@ -169,7 +169,7 @@ private:
  * @return A result object.
 */
 template <class... Args>
-LuaResult call(const LuaRef& object, Args&&... args)
+LuaResult callWithHandler(const LuaRef& object, int errorHandler, Args&&... args)
 {
     lua_State* L = object.state();
     const int stackTop = lua_gettop(L);
@@ -185,7 +185,7 @@ LuaResult call(const LuaRef& object, Args&&... args)
         }
     }
 
-    const int code = lua_pcall(L, sizeof...(Args), LUA_MULTRET, 0);
+    const int code = lua_pcall(L, sizeof...(Args), LUA_MULTRET, errorHandler);
     if (code != LUABRIDGE_LUA_OK)
     {
         auto ec = makeErrorCode(ErrorCode::LuaFunctionCallFailed);
@@ -199,6 +199,12 @@ LuaResult call(const LuaRef& object, Args&&... args)
     }
 
     return LuaResult::valuesFromStack(L, stackTop);
+}
+
+template <class... Args>
+LuaResult call(const LuaRef& object, Args&&... args)
+{
+    return callWithHandler(object, 0, std::forward<Args>(args)...);
 }
 
 //=============================================================================================
@@ -223,6 +229,13 @@ template <class... Args>
 LuaResult LuaRefBase<Impl, LuaRef>::operator()(Args&&... args) const
 {
     return call(*this, std::forward<Args>(args)...);
+}
+
+template <class Impl, class LuaRef>
+template <class... Args>
+LuaResult LuaRefBase<Impl, LuaRef>::operator()(ErrorHandlerType errorTag, int errorHandler, Args&&... args) const
+{
+    return callWithHandler(*this, errorHandler, std::forward<Args>(args)...);
 }
 
 } // namespace luabridge
