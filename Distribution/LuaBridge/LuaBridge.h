@@ -1,5 +1,5 @@
 // https://github.com/kunitoki/LuaBridge3
-// Copyright 2023, Lucio Asnaghi
+// Copyright 2024, Lucio Asnaghi
 // SPDX-License-Identifier: MIT
 
 // clang-format off
@@ -6568,7 +6568,7 @@ template <class ReturnType, class ArgsPack, std::size_t Start = 1u>
 struct function
 {
     template <class F>
-    static int call(lua_State* L, F func)
+    static int call(lua_State* L, F&& func)
     {
         Result result;
 
@@ -6576,7 +6576,7 @@ struct function
         try
         {
 #endif
-            result = Stack<ReturnType>::push(L, std::apply(func, make_arguments_list<ArgsPack, Start>(L)));
+            result = Stack<ReturnType>::push(L, std::apply(std::forward<F>(func), make_arguments_list<ArgsPack, Start>(L)));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
@@ -6593,7 +6593,7 @@ struct function
     }
 
     template <class T, class F>
-    static int call(lua_State* L, T* ptr, F func)
+    static int call(lua_State* L, T* ptr, F&& func)
     {
         Result result;
 
@@ -6601,7 +6601,7 @@ struct function
         try
         {
 #endif
-            auto f = [ptr, func](auto&&... args) -> ReturnType { return (ptr->*func)(std::forward<decltype(args)>(args)...); };
+            auto f = [ptr, func = std::forward<F>(func)](auto&&... args) -> ReturnType { return (ptr->*func)(std::forward<decltype(args)>(args)...); };
 
             result = Stack<ReturnType>::push(L, std::apply(f, make_arguments_list<ArgsPack, Start>(L)));
 
@@ -6624,13 +6624,13 @@ template <class ArgsPack, std::size_t Start>
 struct function<void, ArgsPack, Start>
 {
     template <class F>
-    static int call(lua_State* L, F func)
+    static int call(lua_State* L, F&& func)
     {
 #if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
 #endif
-            std::apply(func, make_arguments_list<ArgsPack, Start>(L));
+            std::apply(std::forward<F>(func), make_arguments_list<ArgsPack, Start>(L));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
@@ -6644,13 +6644,13 @@ struct function<void, ArgsPack, Start>
     }
 
     template <class T, class F>
-    static int call(lua_State* L, T* ptr, F func)
+    static int call(lua_State* L, T* ptr, F&& func)
     {
 #if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
 #endif
-            auto f = [ptr, func](auto&&... args) { (ptr->*func)(std::forward<decltype(args)>(args)...); };
+            auto f = [ptr, func = std::forward<F>(func)](auto&&... args) { (ptr->*func)(std::forward<decltype(args)>(args)...); };
 
             std::apply(f, make_arguments_list<ArgsPack, Start>(L));
 
@@ -7072,9 +7072,9 @@ template <class T>
 struct placement_constructor
 {
     template <class F, class Args>
-    static T* construct(void* ptr, const F& func, const Args& args)
+    static T* construct(void* ptr, F&& func, const Args& args)
     {
-        auto alloc = [ptr, &func](auto&&... args) { return func(ptr, std::forward<decltype(args)>(args)...); };
+        auto alloc = [ptr, func = std::forward<F>(func)](auto&&... args) { return func(ptr, std::forward<decltype(args)>(args)...); };
 
         return std::apply(alloc, args);
     }
@@ -7084,9 +7084,9 @@ template <class C>
 struct container_constructor
 {
     template <class F, class Args>
-    static C construct(const F& func, const Args& args)
+    static C construct(F&& func, const Args& args)
     {
-        auto alloc = [&func](auto&&... args) { return func(std::forward<decltype(args)>(args)...); };
+        auto alloc = [func = std::forward<F>(func)](auto&&... args) { return func(std::forward<decltype(args)>(args)...); };
 
         return std::apply(alloc, args);
     }
@@ -7096,9 +7096,9 @@ template <class T>
 struct external_constructor
 {
     template <class F, class Args>
-    static T* construct(const F& func, const Args& args)
+    static T* construct(F&& func, const Args& args)
     {
-        auto alloc = [&func](auto&&... args) { return func(std::forward<decltype(args)>(args)...); };
+        auto alloc = [func = std::forward<F>(func)](auto&&... args) { return func(std::forward<decltype(args)>(args)...); };
 
         return std::apply(alloc, args);
     }
