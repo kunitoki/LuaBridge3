@@ -925,7 +925,7 @@ int invoke_const_member_function(lua_State* L)
 template <class T>
 int invoke_member_cfunction(lua_State* L)
 {
-    using F = int (T::*)(lua_State * L);
+    using F = int (T::*)(lua_State* L);
 
     LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 

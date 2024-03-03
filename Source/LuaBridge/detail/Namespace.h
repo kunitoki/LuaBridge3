@@ -150,8 +150,9 @@ class Namespace : public detail::Registrar
     class ClassBase : public detail::Registrar
     {
     public:
-        explicit ClassBase(Namespace parent)
+        explicit ClassBase(const char* name, Namespace parent)
             : Registrar(std::move(parent))
+            , className(name == nullptr ? "" : name)
         {
         }
 
@@ -274,6 +275,9 @@ class Namespace : public detail::Registrar
             LUABRIDGE_ASSERT(lua_istable(L, -2));
             LUABRIDGE_ASSERT(lua_istable(L, -1));
         }
+
+        //=========================================================================================
+        const char* className = "";
     };
 
     //=============================================================================================
@@ -300,7 +304,7 @@ class Namespace : public detail::Registrar
          * @param options Class options.
          */
         Class(const char* name, Namespace parent, Options options)
-            : ClassBase(std::move(parent))
+            : ClassBase(name, std::move(parent))
         {
             LUABRIDGE_ASSERT(name != nullptr);
             LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
@@ -375,7 +379,7 @@ class Namespace : public detail::Registrar
          * @param staticKey Key where the class is stored.
         */
         Class(const char* name, Namespace parent, const void* const staticKey, Options options)
-            : ClassBase(std::move(parent))
+            : ClassBase(name, std::move(parent))
         {
             LUABRIDGE_ASSERT(name != nullptr);
             LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
@@ -1078,7 +1082,7 @@ class Namespace : public detail::Registrar
             {
                 ([&]
                 {
-                    lua_pushcclosure_x(L, &detail::constructor_placement_proxy<T, detail::function_arguments_t<Functions>>, "", 0);  // TODO
+                    lua_pushcclosure_x(L, &detail::constructor_placement_proxy<T, detail::function_arguments_t<Functions>>, className, 0);
 
                 } (), ...);
             }
@@ -1096,14 +1100,14 @@ class Namespace : public detail::Registrar
                     lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
                     lua_settable(L, -3);
                     lua_pushinteger(L, 2);
-                    lua_pushcclosure_x(L, &detail::constructor_placement_proxy<T, detail::function_arguments_t<Functions>>, "", 0); // TODO
+                    lua_pushcclosure_x(L, &detail::constructor_placement_proxy<T, detail::function_arguments_t<Functions>>, className, 0);
                     lua_settable(L, -3);
                     lua_rawseti(L, -2, idx);
                     ++idx;
 
                 } (), ...);
 
-                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, "", 1); // TODO
+                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, className, 1);
             }
 
             rawsetfield(L, -2, "__call");
@@ -1136,7 +1140,7 @@ class Namespace : public detail::Registrar
                     using F = detail::constructor_forwarder<T, Functions>;
 
                     lua_newuserdata_aligned<F>(L, F(std::move(functions))); // Stack: co, cl, st, upvalue
-                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, "", 1); // Stack: co, cl, st, function  // TODO
+                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, className, 1); // Stack: co, cl, st, function
 
                 } (), ...);
             }
@@ -1160,14 +1164,14 @@ class Namespace : public detail::Registrar
                     lua_settable(L, -3);
                     lua_pushinteger(L, 2);
                     lua_newuserdata_aligned<F>(L, F(std::move(functions)));
-                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, "", 1); // TODO
+                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, className, 1);
                     lua_settable(L, -3);
                     lua_rawseti(L, -2, idx);
                     ++idx;
 
                 } (), ...);
 
-                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, "", 1); // TODO
+                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, className, 1);
             }
 
             rawsetfield(L, -2, "__call"); // Stack: co, cl, st
@@ -1189,7 +1193,7 @@ class Namespace : public detail::Registrar
             {
                 ([&]
                 {
-                    lua_pushcclosure_x(L, &detail::constructor_container_proxy<C, detail::function_arguments_t<Functions>>, "", 0); // TODO
+                    lua_pushcclosure_x(L, &detail::constructor_container_proxy<C, detail::function_arguments_t<Functions>>, className, 0);
 
                 } (), ...);
             }
@@ -1207,14 +1211,14 @@ class Namespace : public detail::Registrar
                     lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
                     lua_settable(L, -3);
                     lua_pushinteger(L, 2);
-                    lua_pushcclosure_x(L, &detail::constructor_container_proxy<C, detail::function_arguments_t<Functions>>, "", 0); // TODO
+                    lua_pushcclosure_x(L, &detail::constructor_container_proxy<C, detail::function_arguments_t<Functions>>, className, 0);
                     lua_settable(L, -3);
                     lua_rawseti(L, -2, idx);
                     ++idx;
 
                 } (), ...);
 
-                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, "", 1); // TODO
+                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, className, 1);
             }
 
             rawsetfield(L, -2, "__call");
@@ -1243,7 +1247,7 @@ class Namespace : public detail::Registrar
                     using F = detail::container_forwarder<C, Functions>;
 
                     lua_newuserdata_aligned<F>(L, F(std::move(functions))); // Stack: co, cl, st, upvalue
-                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, "", 1); // Stack: co, cl, st, function  // TODO
+                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, className, 1); // Stack: co, cl, st, function
 
                 } (), ...);
             }
@@ -1267,14 +1271,14 @@ class Namespace : public detail::Registrar
                     lua_settable(L, -3);
                     lua_pushinteger(L, 2);
                     lua_newuserdata_aligned<F>(L, F(std::move(functions)));
-                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, "", 1); // TODO
+                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, className, 1);
                     lua_settable(L, -3);
                     lua_rawseti(L, -2, idx);
                     ++idx;
 
                 } (), ...);
 
-                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, "", 1); // TODO
+                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, className, 1);
             }
 
             rawsetfield(L, -2, "__call"); // Stack: co, cl, st
@@ -1299,7 +1303,7 @@ class Namespace : public detail::Registrar
             using F = detail::factory_forwarder<T, Allocator, Deallocator>;
 
             lua_newuserdata_aligned<F>(L, F(std::move(allocator), std::move(deallocator))); // Stack: co, cl, st, upvalue
-            lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, "", 1); // Stack: co, cl, st, function  // TODO
+            lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, className, 1); // Stack: co, cl, st, function
             rawsetfield(L, -2, "__call"); // Stack: co, cl, st
 
             return *this;
@@ -1684,14 +1688,12 @@ public:
         {
             using U = std::underlying_type_t<T>;
 
-            auto result = Stack<U>::push(L, static_cast<U>(value));
-            if (! result)
+            if (auto result = Stack<U>::push(L, static_cast<U>(value)); ! result)
                 luaL_error(L, "%s", result.message().c_str());
         }
         else
         {
-            auto result = Stack<T>::push(L, value);
-            if (! result)
+            if (auto result = Stack<T>::push(L, value); ! result)
                 luaL_error(L, "%s", result.message().c_str());
         }
 

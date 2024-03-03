@@ -91,7 +91,7 @@ inline void* lua_newuserdata_x(lua_State* L, size_t sz)
     return lua_newuserdata(L, sz);
 }
 
-inline void lua_pushcfunction_x(lua_State *L, lua_CFunction fn, const char* debugname = "")
+inline void lua_pushcfunction_x(lua_State *L, lua_CFunction fn, const char* debugname)
 {
     unused(debugname);
 
@@ -505,7 +505,7 @@ void* lua_newuserdata_aligned(lua_State* L, Args&&... args)
     void* pointer = lua_newuserdata_x<T>(L, maximum_space_needed_to_align<T>());
 
     lua_newtable(L);
-    lua_pushcfunction_x(L, &lua_deleteuserdata_aligned<T>);
+    lua_pushcfunction_x(L, &lua_deleteuserdata_aligned<T>, "");
     rawsetfield(L, -2, "__gc");
     lua_setmetatable(L, -2);
 #endif
