@@ -528,10 +528,7 @@ TEST_F(LuaRefTests, CallableWithHandler)
         return 0;
     };
 
-    auto luaHandler = luabridge::newFunction(L, handler);
-    luaHandler.push();
-
-    f(luabridge::ErrorHandler, -2, "badly");
+    f.callWithHandler(handler, "badly");
 
     EXPECT_TRUE(calledHandler);
     EXPECT_TRUE(errorMessage.find("we failed badly") != std::string::npos);

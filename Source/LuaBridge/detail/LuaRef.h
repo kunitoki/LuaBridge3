@@ -67,18 +67,6 @@ struct Stack<LuaNil>
 
 //=================================================================================================
 /**
- * @brief Tag dispatch for the `LuaRef::operator()` to allow passing an error handler.
- *
- * @code
- *     LuaRef method;
- *     method(ErrorHandler, -2, ...);
- * @endcode
- */
-struct ErrorHandlerType {};
-inline static constexpr auto ErrorHandler = ErrorHandlerType();
-
-//=================================================================================================
-/**
  * @brief Base class for Lua variables and table item reference classes.
  */
 template <class Impl, class LuaRef>
@@ -610,7 +598,10 @@ public:
     LuaResult operator()(Args&&... args) const;
 
     template <class... Args>
-    LuaResult operator()(ErrorHandlerType, int errorHandler, Args&&... args) const;
+    LuaResult call(Args&&... args) const;
+
+    template <class F, class... Args>
+    LuaResult callWithHandler(F&& errorHandler, Args&&... args) const;
 
 protected:
     lua_State* m_L = nullptr;
