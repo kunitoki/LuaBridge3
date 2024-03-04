@@ -516,6 +516,12 @@ TEST_F(LuaRefTests, CallableWithHandler)
     auto f = luabridge::getGlobal(L, "f");
     EXPECT_TRUE(f.isCallable());
 
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_ANY_THROW(f.call("badly"));
+#else
+    EXPECT_FALSE(f.call("badly"));
+#endif
+
     bool calledHandler = false;
     std::string errorMessage;
     auto handler = [&](lua_State*) -> int
@@ -528,8 +534,8 @@ TEST_F(LuaRefTests, CallableWithHandler)
         return 0;
     };
 
-    f.callWithHandler(handler, "badly");
-
+    auto result = f.callWithHandler(handler, "badly");
+    EXPECT_FALSE(result);
     EXPECT_TRUE(calledHandler);
     EXPECT_TRUE(errorMessage.find("we failed badly") != std::string::npos);
 }
