@@ -9863,9 +9863,6 @@ private:
         lua_pushcfunction_x(L, &detail::index_metamethod<false>, "__index");
         rawsetfield(L, -2, "__index"); 
 
-        lua_pushcfunction_x(L, &detail::newindex_metamethod<false>, "__newindex");
-        rawsetfield(L, -2, "__newindex"); 
-
         lua_newtable(L); 
         lua_rawsetp(L, -2, detail::getPropgetKey()); 
 

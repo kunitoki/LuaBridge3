@@ -1584,8 +1584,8 @@ private:
         rawsetfield(L, -2, "__index"); // Stack: ns
 
         // ns.__newindex = newindex_static_metamethod
-        lua_pushcfunction_x(L, &detail::newindex_metamethod<false>, "__newindex");
-        rawsetfield(L, -2, "__newindex"); // Stack: pns, ns
+        //lua_pushcfunction_x(L, &detail::newindex_metamethod<false>, "__newindex");
+        //rawsetfield(L, -2, "__newindex"); // Stack: pns, ns
 
         lua_newtable(L); // Stack: ns, mt, propget table (pg)
         lua_rawsetp(L, -2, detail::getPropgetKey()); // ns [propgetKey] = pg. Stack: ns
