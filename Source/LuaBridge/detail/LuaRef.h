@@ -597,6 +597,12 @@ public:
     template <class... Args>
     LuaResult operator()(Args&&... args) const;
 
+    template <class... Args>
+    LuaResult call(Args&&... args) const;
+
+    template <class F, class... Args>
+    LuaResult callWithHandler(F&& errorHandler, Args&&... args) const;
+
 protected:
     lua_State* m_L = nullptr;
 

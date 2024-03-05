@@ -510,6 +510,36 @@ TEST_F(LuaRefTests, Callable)
     EXPECT_EQ(200, obj["i"].unsafe_cast<int>());
 }
 
+TEST_F(LuaRefTests, CallableWithHandler)
+{
+    runLua("function f(x) error('we failed ' .. x) end");
+    auto f = luabridge::getGlobal(L, "f");
+    EXPECT_TRUE(f.isCallable());
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_ANY_THROW(f.call("badly"));
+#else
+    EXPECT_FALSE(f.call("badly"));
+#endif
+
+    bool calledHandler = false;
+    std::string errorMessage;
+    auto handler = [&](lua_State*) -> int
+    {
+        calledHandler = true;
+
+        if (auto msg = lua_tostring(L, 1))
+            errorMessage = msg;
+
+        return 0;
+    };
+
+    auto result = f.callWithHandler(handler, "badly");
+    EXPECT_FALSE(result);
+    EXPECT_TRUE(calledHandler);
+    EXPECT_TRUE(errorMessage.find("we failed badly") != std::string::npos);
+}
+
 TEST_F(LuaRefTests, Pop)
 {
     lua_pushstring(L, "hello");
