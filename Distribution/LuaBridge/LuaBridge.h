@@ -532,24 +532,26 @@ int lua_deleteuserdata_aligned(lua_State* L)
 template <class T, class... Args>
 void* lua_newuserdata_aligned(lua_State* L, Args&&... args)
 {
+    using U = std::remove_reference_t<T>;
+
 #if LUABRIDGE_ON_LUAU
-    void* pointer = lua_newuserdatadtor(L, maximum_space_needed_to_align<T>(), [](void* x)
+    void* pointer = lua_newuserdatadtor(L, maximum_space_needed_to_align<U>(), [](void* x)
     {
-        T* aligned = align<T>(x);
-        aligned->~T();
+        U* aligned = align<U>(x);
+        aligned->~U();
     });
 #else
-    void* pointer = lua_newuserdata_x<T>(L, maximum_space_needed_to_align<T>());
+    void* pointer = lua_newuserdata_x<U>(L, maximum_space_needed_to_align<U>());
 
     lua_newtable(L);
-    lua_pushcfunction_x(L, &lua_deleteuserdata_aligned<T>, "");
+    lua_pushcfunction_x(L, &lua_deleteuserdata_aligned<U>, "");
     rawsetfield(L, -2, "__gc");
     lua_setmetatable(L, -2);
 #endif
 
-    T* aligned = align<T>(pointer);
+    U* aligned = align<U>(pointer);
 
-    new (aligned) T(std::forward<Args>(args)...);
+    new (aligned) U(std::forward<Args>(args)...);
 
     return pointer;
 }
@@ -6774,11 +6776,11 @@ int invoke_proxy_function(lua_State* L)
 template <class F>
 int invoke_proxy_functor(lua_State* L)
 {
-    using FnTraits = function_traits<F>;
+    using FnTraits = function_traits<std::remove_reference_t<F>>;
 
     LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
-    auto& func = *align<F>(lua_touserdata(L, lua_upvalueindex(1)));
+    auto& func = *align<std::remove_reference_t<F>>(lua_touserdata(L, lua_upvalueindex(1)));
 
     return function<typename FnTraits::result_type, typename FnTraits::argument_types, 1>::call(L, func);
 }
@@ -7724,6 +7726,12 @@ public:
     template <class... Args>
     LuaResult operator()(Args&&... args) const;
 
+    template <class... Args>
+    LuaResult call(Args&&... args) const;
+
+    template <class F, class... Args>
+    LuaResult callWithHandler(F&& errorHandler, Args&&... args) const;
+
 protected:
     lua_State* m_L = nullptr;
 
@@ -8298,6 +8306,9 @@ private:
     template <class... Args>
     friend LuaResult call(const LuaRef&, Args&&...);
 
+    template <class F, class... Args>
+    friend LuaResult callWithHandler(const LuaRef&, F&&, Args&&...);
+
     static LuaResult errorFromStack(lua_State* L, std::error_code ec)
     {
         auto errorString = lua_tostring(L, -1);
@@ -8342,16 +8353,21 @@ private:
     std::variant<std::vector<LuaRef>, std::string> m_data;
 };
 
-template <class... Args>
-LuaResult call(const LuaRef& object, Args&&... args)
+template <class F, class... Args>
+LuaResult callWithHandler(const LuaRef& object, F&& errorHandler, Args&&... args)
 {
+    static constexpr bool isValidHandler = !std::is_same_v<detail::remove_cvref_t<F>, detail::remove_cvref_t<decltype(std::ignore)>>;
+
     lua_State* L = object.state();
     const int stackTop = lua_gettop(L);
 
-    object.push();
+    if constexpr (isValidHandler)
+        detail::push_function(L, std::forward<F>(errorHandler), ""); 
+
+    object.push(); 
 
     {
-        const auto [result, index] = detail::push_arguments(L, std::forward_as_tuple(args...));
+        const auto [result, index] = detail::push_arguments(L, std::forward_as_tuple(args...)); 
         if (! result)
         {
             lua_pop(L, static_cast<int>(index) + 1);
@@ -8359,20 +8375,29 @@ LuaResult call(const LuaRef& object, Args&&... args)
         }
     }
 
-    const int code = lua_pcall(L, sizeof...(Args), LUA_MULTRET, 0);
+    const int code = lua_pcall(L, sizeof...(Args), LUA_MULTRET, isValidHandler ? (-sizeof...(Args) - 2) : 0);
     if (code != LUABRIDGE_LUA_OK)
     {
         auto ec = makeErrorCode(ErrorCode::LuaFunctionCallFailed);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
-        if (LuaException::areExceptionsEnabled(L))
-            LuaException::raise(L, ec);
+        if constexpr (! isValidHandler)
+        {
+            if (LuaException::areExceptionsEnabled(L))
+                LuaException::raise(L, ec);
+        }
 #endif
 
         return LuaResult::errorFromStack(L, ec);
     }
 
     return LuaResult::valuesFromStack(L, stackTop);
+}
+
+template <class... Args>
+LuaResult call(const LuaRef& object, Args&&... args)
+{
+    return callWithHandler(object, std::ignore, std::forward<Args>(args)...);
 }
 
 inline int pcall(lua_State* L, int nargs = 0, int nresults = 0, int msgh = 0)
@@ -8391,7 +8416,21 @@ template <class Impl, class LuaRef>
 template <class... Args>
 LuaResult LuaRefBase<Impl, LuaRef>::operator()(Args&&... args) const
 {
-    return call(*this, std::forward<Args>(args)...);
+    return luabridge::call(*this, std::forward<Args>(args)...);
+}
+
+template <class Impl, class LuaRef>
+template <class... Args>
+LuaResult LuaRefBase<Impl, LuaRef>::call(Args&&... args) const
+{
+    return luabridge::call(*this, std::forward<Args>(args)...);
+}
+
+template <class Impl, class LuaRef>
+template <class F, class... Args>
+LuaResult LuaRefBase<Impl, LuaRef>::callWithHandler(F&& errorHandler, Args&&... args) const
+{
+    return luabridge::callWithHandler(*this, std::forward<F>(errorHandler), std::forward<Args>(args)...);
 }
 
 } 
