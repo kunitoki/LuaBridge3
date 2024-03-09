@@ -193,7 +193,7 @@ LuaResult callWithHandler(const LuaRef& object, F&& errorHandler, Args&&... args
         }
     }
 
-    const int code = lua_pcall(L, sizeof...(Args), LUA_MULTRET, isValidHandler ? (-sizeof...(Args) - 2) : 0);
+    const int code = lua_pcall(L, sizeof...(Args), LUA_MULTRET, isValidHandler ? (-static_cast<int>(sizeof...(Args)) - 2) : 0);
     if (code != LUABRIDGE_LUA_OK)
     {
         auto ec = makeErrorCode(ErrorCode::LuaFunctionCallFailed);
