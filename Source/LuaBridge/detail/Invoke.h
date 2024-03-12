@@ -181,8 +181,8 @@ LuaResult callWithHandler(const LuaRef& object, F&& errorHandler, Args&&... args
 
     if constexpr (isValidHandler)
     {
-       if (errorHandler)
-          detail::push_function(L, std::forward<F>(errorHandler), ""); // Stack: error handler (eh)
+        if (errorHandler)
+            detail::push_function(L, std::forward<F>(errorHandler), ""); // Stack: error handler (eh)
     }
 
     object.push(); // Stack: eh, ref
@@ -196,7 +196,11 @@ LuaResult callWithHandler(const LuaRef& object, F&& errorHandler, Args&&... args
         }
     }
 
-    const int code = lua_pcall(L, sizeof...(Args), LUA_MULTRET, isValidHandler ? (-static_cast<int>(sizeof...(Args)) - 2) : 0);
+    int errorFunction = 0;
+    if constexpr (isValidHandler)
+        errorFunction = errorHandler ? (-static_cast<int>(sizeof...(Args)) - 2) : 0;
+
+    const int code = lua_pcall(L, sizeof...(Args), LUA_MULTRET, errorFunction);
     if (code != LUABRIDGE_LUA_OK)
     {
         auto ec = makeErrorCode(ErrorCode::LuaFunctionCallFailed);
