@@ -180,7 +180,10 @@ LuaResult callWithHandler(const LuaRef& object, F&& errorHandler, Args&&... args
     const int stackTop = lua_gettop(L);
 
     if constexpr (isValidHandler)
-        detail::push_function(L, std::forward<F>(errorHandler), ""); // Stack: error handler (eh)
+    {
+       if (errorHandler)
+          detail::push_function(L, std::forward<F>(errorHandler), ""); // Stack: error handler (eh)
+    }
 
     object.push(); // Stack: eh, ref
 
@@ -199,11 +202,8 @@ LuaResult callWithHandler(const LuaRef& object, F&& errorHandler, Args&&... args
         auto ec = makeErrorCode(ErrorCode::LuaFunctionCallFailed);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
-        if constexpr (! isValidHandler)
-        {
-            if (LuaException::areExceptionsEnabled(L))
-                LuaException::raise(L, ec);
-        }
+        if (LuaException::areExceptionsEnabled(L))
+            LuaException::raise(L, ec);
 #endif
 
         return LuaResult::errorFromStack(L, ec);
