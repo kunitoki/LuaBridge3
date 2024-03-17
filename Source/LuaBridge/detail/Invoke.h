@@ -199,14 +199,7 @@ LuaResult callWithHandler(const LuaRef& object, F&& errorHandler, Args&&... args
         }
     }
 
-    int errorFunction = 0;
-    if constexpr (isValidHandler)
-    {
-       if (isNonNullHandler)
-          errorFunction = (-static_cast<int>(sizeof...(Args)) - 2);
-    }
-
-    const int code = lua_pcall(L, sizeof...(Args), LUA_MULTRET, errorFunction);
+    const int code = lua_pcall(L, sizeof...(Args), LUA_MULTRET, isNonNullHandler ? (-static_cast<int>(sizeof...(Args)) - 2) : 0);
     if (code != LUABRIDGE_LUA_OK)
     {
         auto ec = makeErrorCode(ErrorCode::LuaFunctionCallFailed);
