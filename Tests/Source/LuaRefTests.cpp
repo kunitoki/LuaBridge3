@@ -8,6 +8,7 @@
 #include "TestBase.h"
 
 #include <sstream>
+#include <functional>
 
 struct LuaRefTests : TestBase
 {
@@ -534,10 +535,66 @@ TEST_F(LuaRefTests, CallableWithHandler)
         return 0;
     };
 
-    auto result = f.callWithHandler(handler, "badly");
-    EXPECT_FALSE(result);
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_ANY_THROW(f.callWithHandler(handler, "badly"));
+#else
+    EXPECT_FALSE(f.callWithHandler(handler, "badly"));
+#endif
     EXPECT_TRUE(calledHandler);
     EXPECT_TRUE(errorMessage.find("we failed badly") != std::string::npos);
+}
+
+TEST_F(LuaRefTests, CallableWithStdFunction)
+{
+    runLua("function f(x) error('we failed ' .. x) end");
+    auto f = luabridge::getGlobal(L, "f");
+    EXPECT_TRUE(f.isCallable());
+
+    bool calledHandler = false;
+    std::string errorMessage;
+    auto handler = [&](lua_State*) -> int
+    {
+        calledHandler = true;
+
+        if (auto msg = lua_tostring(L, 1))
+            errorMessage = msg;
+
+        return 0;
+    };
+    std::function<int(lua_State*)> pHandler = handler;
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_ANY_THROW(f.callWithHandler(pHandler, "badly"));
+#else
+    EXPECT_FALSE(f.callWithHandler(pHandler, "badly"));
+#endif
+    EXPECT_TRUE(calledHandler);
+    EXPECT_TRUE(errorMessage.find("we failed badly") != std::string::npos);
+
+    calledHandler = false;
+    errorMessage = "";
+    pHandler = nullptr;
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_ANY_THROW(f.callWithHandler(pHandler, "badly"));
+#else
+    EXPECT_FALSE(f.callWithHandler(pHandler, "badly"));
+#endif
+    EXPECT_FALSE(calledHandler);
+    EXPECT_FALSE(errorMessage.find("we failed badly") != std::string::npos);
+}
+
+TEST_F(LuaRefTests, CallableWithNullCFunction)
+{
+    runLua("function f(x) error('we failed ' .. x) end");
+    auto f = luabridge::getGlobal(L, "f");
+    EXPECT_TRUE(f.isCallable());
+
+    lua_CFunction pHandler = nullptr;
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_ANY_THROW(f.callWithHandler(pHandler, "badly"));
+#else
+    EXPECT_FALSE(f.callWithHandler(pHandler, "badly"));
+#endif
 }
 
 TEST_F(LuaRefTests, Pop)

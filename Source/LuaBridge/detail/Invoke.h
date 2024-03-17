@@ -179,9 +179,12 @@ LuaResult callWithHandler(const LuaRef& object, F&& errorHandler, Args&&... args
     lua_State* L = object.state();
     const int stackTop = lua_gettop(L);
 
+    bool isNonNullHandler = isValidHandler;
     if constexpr (isValidHandler)
     {
-        if (errorHandler)
+        if constexpr (std::is_pointer_v<std::remove_reference_t<F>> || std::is_same_v<std::decay_t<F>, std::function<int(lua_State*)>>)
+            isNonNullHandler = errorHandler != nullptr;
+        if (isNonNullHandler)
             detail::push_function(L, std::forward<F>(errorHandler), ""); // Stack: error handler (eh)
     }
 
@@ -198,7 +201,10 @@ LuaResult callWithHandler(const LuaRef& object, F&& errorHandler, Args&&... args
 
     int errorFunction = 0;
     if constexpr (isValidHandler)
-        errorFunction = errorHandler ? (-static_cast<int>(sizeof...(Args)) - 2) : 0;
+    {
+       if (isNonNullHandler)
+          errorFunction = (-static_cast<int>(sizeof...(Args)) - 2);
+    }
 
     const int code = lua_pcall(L, sizeof...(Args), LUA_MULTRET, errorFunction);
     if (code != LUABRIDGE_LUA_OK)
