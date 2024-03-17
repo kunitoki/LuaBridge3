@@ -102,6 +102,11 @@ public:
 
         return LuaRef(m_L);
     }
+    
+    /**
+     * @brief Get the Lua state for this result.
+     */
+    lua_State * state() const { return m_L; }
 
 #if LUABRIDGE_HAS_EXCEPTIONS
     /**
@@ -176,6 +181,13 @@ private:
     std::error_code m_ec;
     std::variant<std::vector<LuaRef>, std::string> m_data;
 };
+
+inline LuaException::LuaException(const LuaResult& result)
+    : m_L(result.state())
+    , m_code(result.errorCode())
+    , m_what(result.errorMessage())
+{
+}
 
 //=================================================================================================
 /**

@@ -17,6 +17,8 @@
 
 namespace luabridge {
 
+class LuaResult;
+
 //================================================================================================
 class LuaException : public std::exception
 {
@@ -32,6 +34,11 @@ public:
         , m_code(code)
     {
     }
+    
+    /**
+     * @brief Construct a LuaException from a LuaResult.
+     */
+    LuaException(const LuaResult& result);
 
     ~LuaException() noexcept override
     {
