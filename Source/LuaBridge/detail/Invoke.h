@@ -103,6 +103,29 @@ public:
         return LuaRef(m_L);
     }
 
+#if LUABRIDGE_HAS_EXCEPTIONS
+    /**
+     * @brief
+     */
+    void raiseException() const
+    {
+        if (wasOk())
+            return;
+
+        if (std::holds_alternative<std::string>(m_data))
+        {
+            const auto& message = std::get<std::string>(m_data);
+            lua_pushlstring(m_L, message.c_str(), message.size());
+        }
+        else
+        {
+            lua_pushlstring(m_L, m_ec.message().c_str(), m_ec.message().size());
+        }
+
+        throw LuaException::fromStack(m_L, m_ec);
+    }
+#endif
+
 private:
     template <class... Args>
     friend LuaResult call(const LuaRef&, Args&&...);

@@ -510,6 +510,25 @@ TEST_F(LuaRefTests, Callable)
     EXPECT_EQ(200, obj["i"].unsafe_cast<int>());
 }
 
+#if LUABRIDGE_HAS_EXCEPTIONS
+TEST_F(LuaRefTests, CallableWithThrowingHandler)
+{
+    runLua("function f(x) error('we failed ' .. x) end");
+    auto f = luabridge::getGlobal(L, "f");
+    EXPECT_TRUE(f.isCallable());
+
+    bool calledHandler = false;
+    auto handler = [&](lua_State*) -> int
+    {
+        calledHandler = true;
+        return 0;
+    };
+
+    EXPECT_ANY_THROW(f.callWithHandler(handler, "badly").raiseException());
+    EXPECT_TRUE(calledHandler);
+}
+#endif
+
 TEST_F(LuaRefTests, CallableWithAndWithoutHandler)
 {
     runLua("function f(x) error('we failed ' .. x) end");
