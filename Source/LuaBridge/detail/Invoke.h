@@ -253,7 +253,17 @@ template <class Impl, class LuaRef>
 template <class F, class... Args>
 LuaResult LuaRefBase<Impl, LuaRef>::callWithHandler(F&& errorHandler, Args&&... args) const
 {
-    return luabridge::callWithHandler(*this, std::forward<F>(errorHandler), std::forward<Args>(args)...);
+    if constexpr (! std::is_convertible_v<F, bool>)
+    {
+        return luabridge::callWithHandler(*this, std::forward<F>(errorHandler), std::forward<Args>(args)...);
+    }
+    else
+    {
+        if (errorHandler)
+            return luabridge::callWithHandler(*this, std::forward<F>(errorHandler), std::forward<Args>(args)...);
+    }
+
+    return luabridge::call(*this, std::forward<Args>(args)...);
 }
 
 } // namespace luabridge
