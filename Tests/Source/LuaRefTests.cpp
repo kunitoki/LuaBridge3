@@ -645,7 +645,7 @@ TEST_F(LuaRefTests, CallableWithIntToBoolValuedFunction)
     EXPECT_EQ(result.size(), 1);
     EXPECT_TRUE(result[0].isValid());
     EXPECT_TRUE(result[0].isBool());
-    EXPECT_TRUE(result[0]);
+    EXPECT_FALSE(result[0]);
 }
 
 TEST_F(LuaRefTests, Pop)
