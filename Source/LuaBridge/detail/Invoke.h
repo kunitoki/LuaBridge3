@@ -216,7 +216,8 @@ LuaResult callWithHandler(const LuaRef& object, F&& errorHandler, Args&&... args
         }
     }
 
-    const int code = lua_pcall(L, sizeof...(Args), LUA_MULTRET, isValidHandler ? (-static_cast<int>(sizeof...(Args)) - 2) : 0);
+    const int errorFunctionIndex = isValidHandler ? (-static_cast<int>(sizeof...(Args)) - 2) : 0;
+    const int code = lua_pcall(L, sizeof...(Args), LUA_MULTRET, errorFunctionIndex);
     if (code != LUABRIDGE_LUA_OK)
     {
         auto ec = makeErrorCode(ErrorCode::LuaFunctionCallFailed);
@@ -231,6 +232,9 @@ LuaResult callWithHandler(const LuaRef& object, F&& errorHandler, Args&&... args
 
         return LuaResult::errorFromStack(L, ec);
     }
+    
+    if constexpr (isValidHandler)
+        if (errorFunctionIndex) lua_remove(L, errorFunctionIndex);
 
     return LuaResult::valuesFromStack(L, stackTop);
 }

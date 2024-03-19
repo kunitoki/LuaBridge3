@@ -621,6 +621,33 @@ TEST_F(LuaRefTests, CallableWithNullCFunction)
 #endif
 }
 
+TEST_F(LuaRefTests, CallableWithIntToBoolValuedFunction)
+{
+    runLua("function f(x) return x <= 1 end");
+    auto f = luabridge::getGlobal(L, "f");
+    EXPECT_TRUE(f.isCallable());
+    
+    bool calledHandler = false;
+    std::string errorMessage;
+    auto handler = [&](lua_State*) -> int
+    {
+        calledHandler = true;
+
+        if (auto msg = lua_tostring(L, 1))
+            errorMessage = msg;
+
+        return 0;
+    };
+
+    auto result = f.callWithHandler(handler, 2);
+    EXPECT_TRUE(result);
+    EXPECT_FALSE(calledHandler);
+    EXPECT_EQ(result.size(), 1);
+    EXPECT_TRUE(result[0].isValid());
+    EXPECT_TRUE(result[0].isBool());
+    EXPECT_FALSE(result[0]);
+}
+
 TEST_F(LuaRefTests, Pop)
 {
     lua_pushstring(L, "hello");
