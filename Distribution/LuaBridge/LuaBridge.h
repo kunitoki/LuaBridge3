@@ -5937,7 +5937,7 @@ auto unwrap_argument_or_error(lua_State* L, std::size_t index, std::size_t start
 }
 
 template <class ArgsPack, std::size_t Start, std::size_t... Indices>
-auto make_arguments_list_impl(lua_State* L, std::index_sequence<Indices...>)
+auto make_arguments_list_impl([[maybe_unused]] lua_State* L, std::index_sequence<Indices...>)
 {
     return tupleize(unwrap_argument_or_error<std::tuple_element_t<Indices, ArgsPack>>(L, Indices, Start)...);
 }
