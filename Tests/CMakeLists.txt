@@ -6,8 +6,18 @@ set (LUABRIDGE_LUAJIT_LOCATION "${CMAKE_CURRENT_LIST_DIR}/Lua/LuaJIT.2.1")
 set (LUABRIDGE_LUAU_LOCATION "${CMAKE_CURRENT_LIST_DIR}/../ThirdParty/luau")
 set (LUABRIDGE_RAVI_LOCATION "${CMAKE_CURRENT_LIST_DIR}/../ThirdParty/ravi")
 
-add_subdirectory(${LUABRIDGE_LUAJIT_LOCATION})
-add_subdirectory(${LUABRIDGE_RAVI_LOCATION} ravi)
+add_subdirectory (${LUABRIDGE_LUAJIT_LOCATION})
+add_subdirectory (${LUABRIDGE_RAVI_LOCATION} ravi)
+
+# ====================================================== Locations
+if (APPLE OR UNIX)
+  include (FetchContent)
+  FetchContent_Declare (backward
+    GIT_REPOSITORY https://github.com/bombela/backward-cpp
+    GIT_TAG master
+    SYSTEM)
+  FetchContent_MakeAvailable (backward)
+endif()
 
 # ====================================================== Unit Tests Files
 
@@ -143,7 +153,7 @@ function (setup_target_for_coverage TARGET_NAME SOURCE_LOCATION SOURCE_PACKAGE)
     target_link_options (${TARGET_NAME} PRIVATE -fprofile-arcs)
   endif ()
 
-  add_custom_command(TARGET ${TARGET_NAME} PRE_BUILD
+  add_custom_command (TARGET ${TARGET_NAME} PRE_BUILD
   COMMAND ${FIND_EXECUTABLE} . -path "*/Tests/*/${TARGET_NAME}.*/*/*.gcda" -delete
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     VERBATIM)
@@ -237,7 +247,7 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
   endif ()
 
   # Dynamic library test
-  set(LUABRIDGE_TESTLIB_NAME ${LUABRIDGE_TEST_NAME}_DynamicLibrary)
+  set (LUABRIDGE_TESTLIB_NAME ${LUABRIDGE_TEST_NAME}_DynamicLibrary)
   add_library (${LUABRIDGE_TESTLIB_NAME} SHARED
     ${LUABRIDGE_TEST_SHARED_LIBRARY_FILES}
     ${LUABRIDGE_TEST_LUA_LIBRARY_FILES})
@@ -251,7 +261,7 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
     ${SOURCE_LOCATION}
     Source)
 
-  list(APPEND LUABRIDGE_TEST_SOURCE_FILES Source/DynamicLibraryTests.cpp)
+  list (APPEND LUABRIDGE_TEST_SOURCE_FILES Source/DynamicLibraryTests.cpp)
 
   # Main binary test
   add_executable (${LUABRIDGE_TEST_NAME}
@@ -295,14 +305,14 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
   endif ()
 
   if (WIN32)
-    set(LUABRIDGEDEMO_SHARED_LIBRARY "${LUABRIDGE_TESTLIB_NAME}.dll")
+    set (LUABRIDGE_TEST_SHARED_LIBRARY "${LUABRIDGE_TESTLIB_NAME}.dll")
   elseif (APPLE)
-    set(LUABRIDGEDEMO_SHARED_LIBRARY "lib${LUABRIDGE_TESTLIB_NAME}.dylib")
+    set (LUABRIDGE_TEST_SHARED_LIBRARY "lib${LUABRIDGE_TESTLIB_NAME}.dylib")
   else ()
-    set(LUABRIDGEDEMO_SHARED_LIBRARY "lib${LUABRIDGE_TESTLIB_NAME}.so")
+    set (LUABRIDGE_TEST_SHARED_LIBRARY "lib${LUABRIDGE_TESTLIB_NAME}.so")
   endif ()
   target_compile_definitions (${LUABRIDGE_TEST_NAME} PRIVATE
-    LUABRIDGEDEMO_SHARED_LIBRARY="${LUABRIDGEDEMO_SHARED_LIBRARY}"
+    LUABRIDGEDEMO_SHARED_LIBRARY="${LUABRIDGE_TEST_SHARED_LIBRARY}"
     LUABRIDGEDEMO_SHARED_EXPORT=0)
 
   if (NOT ${LUABRIDGE_EXCEPTIONS})
@@ -318,7 +328,13 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
     endif ()
   endif ()
 
-  target_link_libraries (${LUABRIDGE_TEST_NAME} PRIVATE LuaBridge gtest ${CMAKE_DL_LIBS})
+  if (APPLE OR UNIX)
+    set (LUABRIDGE_TEST_ADDITIONAL_LIBS Backward::Backward)
+  else()
+    set (LUABRIDGE_TEST_ADDITIONAL_LIBS "")
+  endif()
+
+  target_link_libraries (${LUABRIDGE_TEST_NAME} PRIVATE LuaBridge gtest ${LUABRIDGE_TEST_ADDITIONAL_LIBS} ${CMAKE_DL_LIBS})
   add_dependencies (${LUABRIDGE_TEST_NAME} ${LUABRIDGE_TESTLIB_NAME})
 
   if ("${LUABRIDGE_LIBS}" STREQUAL "")
