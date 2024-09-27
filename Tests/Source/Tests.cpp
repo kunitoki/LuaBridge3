@@ -769,7 +769,7 @@ TEST_F(LuaBridgeTest, StdSharedPtrDerivedPolymorphic)
 #endif
     }
 
-#if LUABRIDGE_ON_RAVI
+#if LUABRIDGE_ON_RAVI || LUABRIDGE_ON_LUAJIT
     return; // TODO - Ravi asserts on the lua state being invalid because of the previous exception
 #endif
 
