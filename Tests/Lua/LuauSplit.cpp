@@ -29,7 +29,7 @@
 #define LUALIBRARY_SOURCE
 #include "Lua/LuaLibrary.h"
 
-#if LUABRIDGEDEMO_LUAU
+#if LUABRIDGE_TEST_LUAU
 
 #if _MSC_VER
 #pragma push_macro("_CRT_SECURE_NO_WARNINGS")
@@ -65,4 +65,4 @@
 #else
 void dummy_symbol_luau2() {}
 
-#endif // LUABRIDGEDEMO_LUAU
+#endif // LUABRIDGE_TEST_LUAU

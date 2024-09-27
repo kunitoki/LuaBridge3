@@ -32,24 +32,24 @@
 // This determines which version of Lua to use.
 // The value is the same as LUA_VERSION_NUM in lua.h
 
-#ifndef LUABRIDGEDEMO_LUA_VERSION
-#define LUABRIDGEDEMO_LUA_VERSION 504 // By default use 5.4
+#ifndef LUABRIDGE_TEST_LUA_VERSION
+#define LUABRIDGE_TEST_LUA_VERSION 504 // By default use 5.4
 #endif
 
 #if !defined(LUALIBRARY_SOURCE)
 
-#if LUABRIDGEDEMO_LUAU
+#if LUABRIDGE_TEST_LUAU
 #include "../../ThirdParty/luau/VM/include/lua.h"
 #include "../../ThirdParty/luau/VM/include/luaconf.h"
 #include "../../ThirdParty/luau/VM/include/lualib.h"
 
-#elif LUABRIDGEDEMO_RAVI
+#elif LUABRIDGE_TEST_RAVI
 #include "../../ThirdParty/ravi/include/lua.hpp"
 
-#elif LUABRIDGEDEMO_LUAJIT
+#elif LUABRIDGE_TEST_LUAJIT
 #include "LuaJIT.2.1/src/lua.hpp"
 
-#elif LUABRIDGEDEMO_LUA_VERSION >= 504
+#elif LUABRIDGE_TEST_LUA_VERSION >= 504
 #ifdef __cplusplus
 #include "Lua.5.4.6/src/lua.hpp"
 #else
@@ -58,7 +58,7 @@
 #include "Lua.5.4.6/src/lauxlib.h"
 #endif
 
-#elif LUABRIDGEDEMO_LUA_VERSION >= 503
+#elif LUABRIDGE_TEST_LUA_VERSION >= 503
 #ifdef __cplusplus
 #include "Lua.5.3.6/src/lua.hpp"
 #else
@@ -67,7 +67,7 @@
 #include "Lua.5.3.6/src/lauxlib.h"
 #endif
 
-#elif LUABRIDGEDEMO_LUA_VERSION >= 502
+#elif LUABRIDGE_TEST_LUA_VERSION >= 502
 #ifdef __cplusplus
 #include "Lua.5.2.4/src/lua.hpp"
 #else
@@ -76,7 +76,7 @@
 #include "Lua.5.2.4/src/lauxlib.h"
 #endif
 
-#elif LUABRIDGEDEMO_LUA_VERSION >= 501
+#elif LUABRIDGE_TEST_LUA_VERSION >= 501
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -90,6 +90,6 @@ extern "C" {
 #else
 #error "Unknown LUA_VERSION_NUM"
 
-#endif // LUABRIDGEDEMO_*
+#endif // LUABRIDGE_TEST_*
 
 #endif // LUALIBRARY_SOURCE

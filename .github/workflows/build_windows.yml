@@ -185,8 +185,9 @@ jobs:
     - name: Test LuaJIT
       working-directory: ${{runner.workspace}}/build/Tests/Release
       shell: bash
-      # run: ./LuaBridgeTestsLuaJIT.exe
-      run: ./LuaBridgeTestsLuaJITNoexcept.exe
+      run: |
+        ./LuaBridgeTestsLuaJIT.exe
+        ./LuaBridgeTestsLuaJITNoexcept.exe
 
   luau:
     runs-on: windows-latest

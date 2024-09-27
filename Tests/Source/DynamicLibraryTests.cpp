@@ -106,7 +106,7 @@ struct DynamicLibraryTests : TestBase
         if (! executablePath.has_value())
             return nullptr;
 
-        auto libraryPath = executablePath->remove_filename() / LUABRIDGEDEMO_SHARED_LIBRARY;
+        auto libraryPath = executablePath->remove_filename() / LUABRIDGE_TEST_SHARED_LIBRARY;
         if (! std::filesystem::exists(libraryPath))
             return nullptr;
 

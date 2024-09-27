@@ -7,9 +7,9 @@
 namespace {
 int lua_resume_x(lua_State* L, int nargs)
 {
-#if LUABRIDGEDEMO_LUAJIT || LUA_VERSION_NUM == 501
+#if LUABRIDGE_TEST_LUAJIT || LUA_VERSION_NUM == 501
     return lua_resume(L, nargs);
-#elif LUABRIDGEDEMO_LUAU || LUABRIDGEDEMO_RAVI || LUA_VERSION_NUM < 504
+#elif LUABRIDGE_TEST_LUAU || LUABRIDGE_TEST_RAVI || LUA_VERSION_NUM < 504
     return lua_resume(L, nullptr, nargs);
 #else
     [[maybe_unused]] int nresults = 0;
@@ -163,7 +163,7 @@ TEST_F(CoroutineTests, ThreadedRegistration)
     auto env = luaL_ref(thread1, LUA_REGISTRYINDEX);
     lua_rawgeti(thread1, LUA_REGISTRYINDEX, env);
 
-#if LUABRIDGEDEMO_LUAU || LUABRIDGEDEMO_LUAJIT || LUABRIDGEDEMO_LUA_VERSION == 501
+#if LUABRIDGE_TEST_LUAU || LUABRIDGE_TEST_LUAJIT || LUABRIDGE_TEST_LUA_VERSION == 501
     lua_setfenv(thread1, 1);
 #else
     auto upvalue = lua_setupvalue(thread1, -2, 1);

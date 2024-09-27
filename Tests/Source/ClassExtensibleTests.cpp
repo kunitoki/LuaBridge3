@@ -778,7 +778,7 @@ TEST_F(ClassExtensibleTests, MetatableSecurity)
     }
 }
 
-#if ! LUABRIDGEDEMO_LUAU && LUABRIDGEDEMO_LUA_VERSION >= 502
+#if ! LUABRIDGE_TEST_LUAU && LUABRIDGE_TEST_LUA_VERSION >= 502
 TEST_F(ClassExtensibleTests, MetatablePrinting)
 {
     luabridge::getGlobalNamespace(L)

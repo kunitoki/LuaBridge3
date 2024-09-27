@@ -337,13 +337,13 @@ TEST_F(LuaRefTests, Comparison)
     EXPECT_TRUE(t2 == t2);
     EXPECT_FALSE(t2 == t3);
 
-#if LUABRIDGEDEMO_LUA_VERSION >= 503 && !LUABRIDGE_ON_LUAU && !LUABRIDGE_ON_LUAJIT
+#if LUABRIDGE_TEST_LUA_VERSION >= 503 && !LUABRIDGE_ON_LUAU && !LUABRIDGE_ON_LUAJIT
     // This has changed in lua 5.3 and is quite a behaviour change
     EXPECT_TRUE(t2 == t4);
 #else
     EXPECT_FALSE(t2 == t4);
 #endif
-    
+
     EXPECT_TRUE(t3 == t3);
     EXPECT_FALSE(t3 == t4);
 
@@ -440,7 +440,7 @@ TEST_F(LuaRefTests, Assignment)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wself-assign-overloaded"
 #endif
-    
+
     value = value;
 
 #if __clang__
@@ -497,7 +497,7 @@ TEST_F(LuaRefTests, Callable)
     runLua("x = 1");
     auto x = luabridge::getGlobal(L, "x");
     EXPECT_FALSE(x.isCallable());
-    
+
     runLua("meta1 = { __call = function(self) return 5 end }");
     auto meta1 = luabridge::getGlobal(L, "meta1");
     EXPECT_FALSE(meta1.isCallable());
@@ -701,7 +701,7 @@ TEST_F(LuaRefTests, RegisterLambdaInTable)
             .addFunction("GetLocalHero", [&]() {
                 auto table = luabridge::newTable(L);
                 table.push(L);
-                
+
                 luabridge::getNamespaceFromStack(L)
                     .addProperty("index", [] { return 150; })
                     .addFunction("Health", [&] { return 500; });
@@ -710,7 +710,7 @@ TEST_F(LuaRefTests, RegisterLambdaInTable)
                 return table;
             })
         .endNamespace();
-    
+
     runLua("result = Entities.GetLocalHero().Health()");
     ASSERT_EQ(500, result<int>());
 }
@@ -735,7 +735,7 @@ TEST_F(LuaRefTests, RegisterLambdaInFunction)
 
     luabridge::setGlobal(L, luabridge::newFunction(L, [](const Class* obj, int x) { return obj->test() + x; }), "takeClass");
     luabridge::setGlobal(L, luabridge::newFunction(L, [](Class* obj, int x, int y, lua_State* L) { return obj->test() + x + y + lua_gettop(L); }), "takeClassState");
-    
+
     runLua("obj = Class(); result = takeClass (obj, 10)");
     ASSERT_EQ(1 + 10, result<int>());
 
@@ -753,7 +753,7 @@ TEST_F(LuaRefTests, HookTesting)
 
     luabridge::getGlobalNamespace(L)
         .addFunction("Hook", hook);
-    
+
     runLua(R"(
         function hook1(type, packet)
             print("lol")

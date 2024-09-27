@@ -21,7 +21,7 @@ private:
     int value = 42;
 };
 
-class LUABRIDGEDEMO_SHARED_API AnotherClass
+class LUABRIDGE_TEST_SHARED_API AnotherClass
 {
 public:
     AnotherClass() = default;
@@ -42,17 +42,17 @@ public:
 } // namespace xyz
 
 extern "C" {
-LUABRIDGEDEMO_SHARED_API xyz::ISharedClass* allocator()
+LUABRIDGE_TEST_SHARED_API xyz::ISharedClass* allocator()
 {
     return new xyz::SharedClass();
 }
 
-LUABRIDGEDEMO_SHARED_API void deallocator(xyz::ISharedClass* ptr)
+LUABRIDGE_TEST_SHARED_API void deallocator(xyz::ISharedClass* ptr)
 {
     delete ptr;
 }
 
-LUABRIDGEDEMO_SHARED_API void registerAnotherClass(lua_State* L)
+LUABRIDGE_TEST_SHARED_API void registerAnotherClass(lua_State* L)
 {
     luabridge::getGlobalNamespace(L)
         .beginNamespace("dll")

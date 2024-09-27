@@ -30,7 +30,7 @@
 #define LUALIBRARY_SOURCE
 #include "LuaLibrary.h"
 
-#if LUABRIDGEDEMO_LUA_VERSION == 501
+#if LUABRIDGE_TEST_LUA_VERSION == 501
 
 #if _MSC_VER
 #pragma push_macro("_CRT_SECURE_NO_WARNINGS")
