@@ -8853,10 +8853,12 @@ class Namespace : public detail::Registrar
                 lua_pop(L, 1); 
 
                 lua_rawgetp(L, LUA_REGISTRYINDEX, detail::getConstRegistryKey<T>()); 
+                LUABRIDGE_ASSERT(lua_istable(L, -1)); 
                 lua_insert(L, -2); 
                 ++m_stackSize;
 
                 lua_rawgetp(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>()); 
+                LUABRIDGE_ASSERT(lua_istable(L, -1)); 
                 lua_insert(L, -2); 
                 ++m_stackSize;
             }
