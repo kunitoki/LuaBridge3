@@ -712,6 +712,7 @@ TEST_F(LuaBridgeTest, StdSharedPtrDerived)
     }
 }
 
+#if !(_WIN32 && LUABRIDGE_ON_LUAJIT && LUABRIDGE_HAS_EXCEPTIONS)
 TEST_F(LuaBridgeTest, StdSharedPtrDerivedPolymorphic)
 {
     luabridge::getGlobalNamespace(L)
@@ -769,7 +770,7 @@ TEST_F(LuaBridgeTest, StdSharedPtrDerivedPolymorphic)
 #endif
     }
 
-#if LUABRIDGE_ON_RAVI || LUABRIDGE_ON_LUAJIT
+#if LUABRIDGE_ON_RAVI
     return; // TODO - Ravi asserts on the lua state being invalid because of the previous exception
 #endif
 
@@ -785,6 +786,7 @@ TEST_F(LuaBridgeTest, StdSharedPtrDerivedPolymorphic)
     auto x3 = result<std::string>();
     EXPECT_EQ("VirtualC", x3);
 }
+#endif
 
 namespace {
 class TestClassInner : public std::enable_shared_from_this<TestClassInner>
