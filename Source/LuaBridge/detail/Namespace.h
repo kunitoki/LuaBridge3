@@ -361,10 +361,12 @@ class Namespace : public detail::Registrar
 
                 // Map T back from its stored tables
                 lua_rawgetp(L, LUA_REGISTRYINDEX, detail::getConstRegistryKey<T>()); // Stack: ns, st, co
+                LUABRIDGE_ASSERT(lua_istable(L, -1)); // Class was previously registered as table or namespace ?
                 lua_insert(L, -2); // Stack: ns, co, st
                 ++m_stackSize;
 
                 lua_rawgetp(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>()); // Stack: ns, co, st, cl
+                LUABRIDGE_ASSERT(lua_istable(L, -1)); // Class was previously registered as table or namespace ?
                 lua_insert(L, -2); // Stack: ns, co, cl, st
                 ++m_stackSize;
             }
