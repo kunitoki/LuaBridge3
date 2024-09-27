@@ -1980,7 +1980,9 @@ public:
      *
      * @returns This namespace registration object.
      */
-    template <class Getter, class = std::enable_if_t<!std::is_pointer_v<Getter> && std::is_invocable_v<Getter>>>
+    template <class Getter, class = std::enable_if_t<
+		!std::is_pointer_v<Getter>
+            && (std::is_invocable_v<Getter> || std::is_invocable_v<Getter, lua_State*>)>>
     Namespace& addProperty(const char* name, Getter get)
     {
         LUABRIDGE_ASSERT(name != nullptr);
@@ -2017,9 +2019,9 @@ public:
      */
     template <class Getter, class Setter, class = std::enable_if_t<
         !std::is_pointer_v<Getter>
-            && std::is_invocable_v<Getter>
+            && (std::is_invocable_v<Getter> || std::is_invocable_v<Getter, lua_State*>)
             && !std::is_pointer_v<Setter>
-            && std::is_invocable_v<Setter, std::invoke_result_t<Getter>>>>
+            && (std::is_invocable_v<Setter, std::invoke_result_t<Getter>> || std::is_invocable_v<Setter, std::invoke_result_t<Getter>, lua_State*>)>>
     Namespace& addProperty(const char* name, Getter get, Setter set)
     {
         LUABRIDGE_ASSERT(name != nullptr);
