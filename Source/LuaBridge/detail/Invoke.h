@@ -103,6 +103,29 @@ public:
         return LuaRef(m_L);
     }
 
+#if LUABRIDGE_HAS_EXCEPTIONS
+    /**
+     * @brief
+     */
+    void raiseException() const
+    {
+        if (wasOk())
+            return;
+
+        if (std::holds_alternative<std::string>(m_data))
+        {
+            const auto& message = std::get<std::string>(m_data);
+            lua_pushlstring(m_L, message.c_str(), message.size());
+        }
+        else
+        {
+            lua_pushlstring(m_L, m_ec.message().c_str(), m_ec.message().size());
+        }
+
+        throw LuaException::fromStack(m_L, m_ec);
+    }
+#endif
+
 private:
     template <class... Args>
     friend LuaResult call(const LuaRef&, Args&&...);
@@ -253,7 +276,17 @@ template <class Impl, class LuaRef>
 template <class F, class... Args>
 LuaResult LuaRefBase<Impl, LuaRef>::callWithHandler(F&& errorHandler, Args&&... args) const
 {
-    return luabridge::callWithHandler(*this, std::forward<F>(errorHandler), std::forward<Args>(args)...);
+    if constexpr (! std::is_convertible_v<F, bool>)
+    {
+        return luabridge::callWithHandler(*this, std::forward<F>(errorHandler), std::forward<Args>(args)...);
+    }
+    else
+    {
+        if (errorHandler)
+            return luabridge::callWithHandler(*this, std::forward<F>(errorHandler), std::forward<Args>(args)...);
+    }
+
+    return luabridge::call(*this, std::forward<Args>(args)...);
 }
 
 } // namespace luabridge

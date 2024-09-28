@@ -55,7 +55,7 @@ public:
         LUABRIDGE_ASSERT(areExceptionsEnabled(L));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
-        throw LuaException(L, code, FromLua{});
+        throw LuaException::fromStack(L, code);
 #else
         unused(L, code);
 
@@ -105,6 +105,19 @@ public:
 
     //=============================================================================================
     /**
+     * @brief Construct a LuaException from stack.
+     *
+     * @return A Lua exception from stack.
+     */
+    static LuaException fromStack(lua_State* L, std::error_code code = makeErrorCode(ErrorCode::LuaFunctionCallFailed))
+    {
+        auto exception = LuaException(L, code);
+        exception.whatFromStack();
+        return exception;
+    }
+
+    //=============================================================================================
+    /**
      * @brief Retrieve the lua_State associated with the exception.
      *
      * @return A Lua state.
@@ -112,15 +125,6 @@ public:
     lua_State* state() const { return m_L; }
 
 private:
-    struct FromLua {};
-
-    LuaException(lua_State* L, std::error_code code, FromLua)
-        : m_L(L)
-        , m_code(code)
-    {
-        whatFromStack();
-    }
-
     void whatFromStack()
     {
         std::stringstream ss;
@@ -141,7 +145,7 @@ private:
     static int panicHandlerCallback(lua_State* L)
     {
 #if LUABRIDGE_HAS_EXCEPTIONS
-        throw LuaException(L, makeErrorCode(ErrorCode::LuaFunctionCallFailed), FromLua{});
+        throw LuaException::fromStack(L);
 #else
         unused(L);
 
