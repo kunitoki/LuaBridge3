@@ -1215,7 +1215,25 @@ void push_member_function(lua_State* L, ReturnType (*fp)(T*, Params...), const c
 }
 
 template <class T, class ReturnType, class... Params>
+void push_member_function(lua_State* L, ReturnType (*fp)(T&, Params...), const char* debugname)
+{
+    using FnType = decltype(fp);
+
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType>, debugname, 1);
+}
+
+template <class T, class ReturnType, class... Params>
 void push_member_function(lua_State* L, ReturnType (*fp)(T*, Params...) noexcept, const char* debugname)
+{
+    using FnType = decltype(fp);
+
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType>, debugname, 1);
+}
+
+template <class T, class ReturnType, class... Params>
+void push_member_function(lua_State* L, ReturnType (*fp)(T&, Params...) noexcept, const char* debugname)
 {
     using FnType = decltype(fp);
 
@@ -1233,7 +1251,25 @@ void push_member_function(lua_State* L, ReturnType (*fp)(const T*, Params...), c
 }
 
 template <class T, class ReturnType, class... Params>
+void push_member_function(lua_State* L, ReturnType (*fp)(const T&, Params...), const char* debugname)
+{
+    using FnType = decltype(fp);
+
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType>, debugname, 1);
+}
+
+template <class T, class ReturnType, class... Params>
 void push_member_function(lua_State* L, ReturnType (*fp)(const T*, Params...) noexcept, const char* debugname)
+{
+    using FnType = decltype(fp);
+
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType>, debugname, 1);
+}
+
+template <class T, class ReturnType, class... Params>
+void push_member_function(lua_State* L, ReturnType (*fp)(const T&, Params...) noexcept, const char* debugname)
 {
     using FnType = decltype(fp);
 

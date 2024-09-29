@@ -777,7 +777,19 @@ T proxyConstFunction(const Class<T, Base>* object, T value)
 }
 
 template<class T, class Base>
+T proxyConstFunctionRef(const Class<T, Base>& object, T value)
+{
+    return value;
+}
+
+template<class T, class Base>
 T proxyConstFunctionNoexcept(const Class<T, Base>* object, T value) noexcept
+{
+    return value;
+}
+
+template<class T, class Base>
+T proxyConstFunctionRefNoexcept(const Class<T, Base>& object, T value) noexcept
 {
     return value;
 }
@@ -911,7 +923,9 @@ TEST_F(ClassFunctions, ConstProxyFunctions)
     luabridge::getGlobalNamespace(L)
         .beginClass<Int>("Int")
         .addFunction("constMethod", &proxyConstFunction<int, EmptyBase>)
+        .addFunction("constMethodRef", &proxyConstFunctionRef<int, EmptyBase>)
         .addFunction("constMethodNoexcept", &proxyConstFunctionNoexcept<int, EmptyBase>)
+        .addFunction("constMethodRefNoexcept", &proxyConstFunctionRefNoexcept<int, EmptyBase>)
         .endClass();
 
     addHelperFunctions(L);
