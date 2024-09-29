@@ -6410,7 +6410,7 @@ inline int read_only_error(lua_State* L)
 }
 
 template <class C>
-static int tostring_metamethod(lua_State* L)
+int tostring_metamethod(lua_State* L)
 {
     const void* ptr = lua_topointer(L, 1);
 
@@ -6427,8 +6427,37 @@ static int tostring_metamethod(lua_State* L)
 }
 
 template <class C>
-static int gc_metamethod(lua_State* L)
+int destruct_metamethod(lua_State* L)
 {
+    LUABRIDGE_ASSERT(lua_isuserdata(L, 1)); 
+    const auto top = lua_gettop(L);
+
+    const int result = lua_getmetatable(L, 1); 
+    if (result == 0)
+        return 0;
+
+    LUABRIDGE_ASSERT(lua_istable(L, -1)); 
+
+    lua_rawgetp(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<C>()); 
+    if (lua_istable(L, -1)) 
+    {
+        rawgetfield(L, -1, "__destruct"); 
+        if (lua_isfunction(L, -1))
+        {
+            lua_pushvalue(L, 1); 
+            lua_pcall(L, 1, 0, 0); 
+        }
+    }
+
+    lua_settop(L, top); 
+    return 0;
+}
+
+template <class C>
+int gc_metamethod(lua_State* L)
+{
+    destruct_metamethod<C>(L);
+
     Userdata* ud = Userdata::getExact<C>(L, 1);
     LUABRIDGE_ASSERT(ud);
 
@@ -6813,6 +6842,20 @@ inline int invoke_safe_cfunction(lua_State* L)
 
 template <class F>
 int invoke_proxy_constructor(lua_State* L)
+{
+    using FnTraits = function_traits<F>;
+
+    LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
+
+    auto& func = *align<F>(lua_touserdata(L, lua_upvalueindex(1)));
+
+    function<void, typename FnTraits::argument_types, 1>::call(L, func);
+
+    return 1;
+}
+
+template <class F>
+int invoke_proxy_destructor(lua_State* L)
 {
     using FnTraits = function_traits<F>;
 
@@ -7565,6 +7608,27 @@ struct constructor_forwarder
         value->commit();
 
         return object;
+    }
+
+private:
+    F m_func;
+};
+
+template <class T, class F>
+struct destructor_forwarder
+{
+    explicit destructor_forwarder(F f)
+        : m_func(std::move(f))
+    {
+    }
+
+    void operator()(lua_State* L)
+    {
+        auto* value = Userdata::get<T>(L, -1, false);
+        if (value == nullptr)
+            raise_lua_error(L, "invalid object destruction");
+
+        std::invoke(m_func, value);
     }
 
 private:
@@ -9706,6 +9770,25 @@ class Namespace : public detail::Registrar
             }
 
             rawsetfield(L, -2, "__call"); 
+
+            return *this;
+        }
+
+        template <class Function>
+        auto addDestructor(Function function)
+            -> std::enable_if_t<detail::is_callable_v<Function>, Class<T>&>
+        {
+            static_assert(detail::function_arity_excluding_v<Function, lua_State*> == 1);
+            static_assert(std::is_same_v<detail::function_argument_t<0, Function>, T*>);
+
+            assertStackState(); 
+
+            using F = detail::destructor_forwarder<T, Function>;
+
+            lua_newuserdata_aligned<F>(L, F(std::move(function))); 
+            lua_pushcclosure_x(L, &detail::invoke_proxy_destructor<F>, className, 1); 
+
+            rawsetfield(L, -3, "__destruct"); 
 
             return *this;
         }
