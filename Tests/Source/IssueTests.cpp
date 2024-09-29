@@ -127,7 +127,7 @@ TEST_F(IssueTests, Issue178)
     luabridge::getGlobalNamespace(L)
         .beginClass<WideVector>("WideVector")
         .addConstructor<void (*)(float, float, float, float)>()
-        .addProperty("x", &Vector::x, true)
+        .addProperty("x", &Vector::x, &Vector::x)
         .endClass();
 
     runLua("result = WideVector (0, 1, 2, 3).x");

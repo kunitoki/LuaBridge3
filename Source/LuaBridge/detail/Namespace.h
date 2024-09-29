@@ -460,168 +460,35 @@ class Namespace : public detail::Registrar
         //=========================================================================================
         /**
          * @brief Add or replace a static property.
-         *
-         * @tparam U The type of the property.
-         *
-         * @param name The property name.
-         * @param value A property value pointer.
-         * @param isWritable True for a read-write, false for read-only property.
-         *
-         * @returns This class registration object.
          */
-        template <class U, class = std::enable_if_t<std::is_base_of_v<U, LuaRef> || !std::is_invocable_v<U>>>
-        Class<T>& addStaticProperty(const char* name, const U* value)
-        {
-            LUABRIDGE_ASSERT(name != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+        template <class Getter>
+        Class<T>& addStaticProperty(const char* name, Getter get, bool) = delete;
 
-            lua_pushlightuserdata(L, const_cast<U*>(value)); // Stack: co, cl, st, pointer
-            lua_pushcclosure_x(L, &detail::property_getter<U>::call, name, 1); // Stack: co, cl, st, getter
-            detail::add_property_getter(L, name, -2); // Stack: co, cl, st
-
-            lua_pushstring(L, name); // Stack: co, cl, st, name
-            lua_pushcclosure_x(L, &detail::read_only_error, name, 1); // Stack: co, cl, st, function
-
-            detail::add_property_setter(L, name, -2); // Stack: co, cl, st
-
-            return *this;
-        }
-
-        /**
-         * @brief Add or replace a static property.
-         *
-         * @tparam U The type of the property.
-         *
-         * @param name The property name.
-         * @param value A property value pointer.
-         * @param isWritable True for a read-write, false for read-only property.
-         *
-         * @returns This class registration object.
-         */
-        template <class U, class = std::enable_if_t<std::is_base_of_v<U, LuaRef> || !std::is_invocable_v<U>>>
-        Class<T>& addStaticProperty(const char* name, U* value, bool isWritable = true)
-        {
-            LUABRIDGE_ASSERT(name != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            lua_pushlightuserdata(L, value); // Stack: co, cl, st, pointer
-            lua_pushcclosure_x(L, &detail::property_getter<U>::call, name, 1); // Stack: co, cl, st, getter
-            detail::add_property_getter(L, name, -2); // Stack: co, cl, st
-
-            if (isWritable)
-            {
-                lua_pushlightuserdata(L, value); // Stack: co, cl, st, ps, pointer
-                lua_pushcclosure_x(L, &detail::property_setter<U>::call, name, 1); // Stack: co, cl, st, ps, setter
-            }
-            else
-            {
-                lua_pushstring(L, name); // Stack: co, cl, st, name
-                lua_pushcclosure_x(L, &detail::read_only_error, name, 1); // Stack: co, cl, st, function
-            }
-
-            detail::add_property_setter(L, name, -2); // Stack: co, cl, st
-
-            return *this;
-        }
-
-        //=========================================================================================
-        /**
-         * @brief Add or replace a static property member.
-         *
-         * @tparam U The type of the property.
-         *
-         * @param name The property name.
-         * @param get A property getter function pointer.
-         * @param set A property setter function pointer, optional, nullable. Omit or pass nullptr for a read-only property.
-         *
-         * @returns This class registration object.
-         */
-        template <class U>
-        Class<T>& addStaticProperty(const char* name, U (*get)(), void (*set)(U) = nullptr)
-        {
-            LUABRIDGE_ASSERT(name != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); // Stack: co, cl, st, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_proxy_function<U (*)()>, name, 1); // Stack: co, cl, st, getter
-            detail::add_property_getter(L, name, -2); // Stack: co, cl, st
-
-            if (set != nullptr)
-            {
-                lua_pushlightuserdata(L, reinterpret_cast<void*>(set)); // Stack: co, cl, st, function ptr
-                lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(U)>, name, 1); // Stack: co, cl, st, setter
-            }
-            else
-            {
-                lua_pushstring(L, name); // Stack: co, cl, st, ps, name
-                lua_pushcclosure_x(L, &detail::read_only_error, name, 1); // Stack: co, cl, st, function
-            }
-
-            detail::add_property_setter(L, name, -2); // Stack: co, cl, st
-
-            return *this;
-        }
-
-        template <class U>
-        Class<T>& addStaticProperty(const char* name, U (*get)() noexcept, void (*set)(U) noexcept = nullptr)
-        {
-            LUABRIDGE_ASSERT(name != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); // Stack: co, cl, st, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_proxy_function<U (*)() noexcept>, name, 1); // Stack: co, cl, st, getter
-            detail::add_property_getter(L, name, -2); // Stack: co, cl, st
-
-            if (set != nullptr)
-            {
-                lua_pushlightuserdata(L, reinterpret_cast<void*>(set)); // Stack: co, cl, st, function ptr
-                lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(U) noexcept>, name, 1); // Stack: co, cl, st, setter
-            }
-            else
-            {
-                lua_pushstring(L, name); // Stack: co, cl, st, ps, name
-                lua_pushcclosure_x(L, &detail::read_only_error, name, 1); // Stack: co, cl, st, function
-            }
-
-            detail::add_property_setter(L, name, -2); // Stack: co, cl, st
-
-            return *this;
-        }
-
-        //=========================================================================================
-        /**
-         * @brief Add or replace a static property, by constructible by std::function.
-         */
-        template <class Getter, class = std::enable_if_t<!std::is_pointer_v<Getter>>>
+        template <class Getter>
         Class<T>& addStaticProperty(const char* name, Getter get)
         {
             LUABRIDGE_ASSERT(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            using GetType = decltype(get);
-
-            lua_newuserdata_aligned<GetType>(L, std::move(get)); // Stack: co, cl, st, function userdata (ud)
-            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<GetType>, name, 1); // Stack: co, cl, st, function
+            detail::push_property_getter(L, std::move(get), name); // Stack: co, cl, st, function
             detail::add_property_getter(L, name, -2); // Stack: co, cl, st
+
+            detail::push_property_readonly(L, name); // Stack: co, cl, st, function
+            detail::add_property_setter(L, name, -2); // Stack: co, cl, st
 
             return *this;
         }
 
-        template <class Getter, class Setter, class = std::enable_if_t<!std::is_pointer_v<Getter> && !std::is_pointer_v<Setter>>>
+        template <class Getter, class Setter>
         Class<T>& addStaticProperty(const char* name, Getter get, Setter set)
         {
             LUABRIDGE_ASSERT(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            using GetType = decltype(get);
-            using SetType = decltype(set);
-
-            lua_newuserdata_aligned<GetType>(L, std::move(get)); // Stack: co, cl, st, function userdata (ud)
-            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<GetType>, name, 1); // Stack: co, cl, st, function
+            detail::push_property_getter(L, std::move(get), name); // Stack: co, cl, st, function
             detail::add_property_getter(L, name, -2); // Stack: co, cl, st
 
-            lua_newuserdata_aligned<SetType>(L, std::move(set)); // Stack: co, cl, st, function userdata (ud)
-            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<SetType>, name, 1); // Stack: co, cl, st, function
+            detail::push_property_setter(L, std::move(set), name); // Stack: co, cl, st, function
             detail::add_property_setter(L, name, -2); // Stack: co, cl, st
 
             return *this;
@@ -686,343 +553,40 @@ class Namespace : public detail::Registrar
 
         //=========================================================================================
         /**
-         * @brief Add or replace a property member.
-         */
-        template <class U, class V>
-        Class<T>& addProperty(const char* name, U V::*mp, bool isWritable = true)
-        {
-            static_assert(std::is_base_of_v<V, T>);
-
-            using MemberPtrType = decltype(mp);
-
-            LUABRIDGE_ASSERT(name != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            new (lua_newuserdata_x<MemberPtrType>(L, sizeof(MemberPtrType))) MemberPtrType(mp); // Stack: co, cl, st, field ptr
-            lua_pushcclosure_x(L, &detail::property_getter<U, T>::call, name, 1); // Stack: co, cl, st, getter
-            lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
-            detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
-            detail::add_property_getter(L, name, -3); // Stack: co, cl, st
-
-            if (isWritable)
-            {
-                new (lua_newuserdata_x<MemberPtrType>(L, sizeof(MemberPtrType))) MemberPtrType(mp); // Stack: co, cl, st, field ptr
-                lua_pushcclosure_x(L, &detail::property_setter<U, T>::call, name, 1); // Stack: co, cl, st, setter
-                detail::add_property_setter(L, name, -3); // Stack: co, cl, st
-            }
-
-            return *this;
-        }
-
-        //=========================================================================================
-        /**
-         * @brief Add or replace a property member.
-         */
-        template <class TG>
-        Class<T>& addProperty(const char* name, TG (T::*get)() const)
-        {
-            using GetType = TG (T::*)() const;
-
-            LUABRIDGE_ASSERT(name != nullptr);
-            LUABRIDGE_ASSERT(get != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); // Stack: co, cl, st, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_const_member_function<GetType, T>, name, 1); // Stack: co, cl, st, getter
-            lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
-            detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
-            detail::add_property_getter(L, name, -3); // Stack: co, cl, st
-
-            return *this;
-        }
-
-        template <class TG, class TS = TG>
-        Class<T>& addProperty(const char* name, TG (T::*get)() const, void (T::*set)(TS))
-        {
-            using SetType = void (T::*)(TS);
-
-            LUABRIDGE_ASSERT(name != nullptr);
-            LUABRIDGE_ASSERT(get != nullptr);
-            LUABRIDGE_ASSERT(set != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            addProperty(name, get);
-
-            new (lua_newuserdata_x<SetType>(L, sizeof(SetType))) SetType(set); // Stack: co, cl, st, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_member_function<SetType, T>, name, 1); // Stack: co, cl, st, setter
-            detail::add_property_setter(L, name, -3); // Stack: co, cl, st
-
-            return *this;
-        }
-
-        template <class TG>
-        Class<T>& addProperty(const char* name, TG (T::*get)() const noexcept)
-        {
-            using GetType = TG (T::*)() const noexcept;
-
-            LUABRIDGE_ASSERT(name != nullptr);
-            LUABRIDGE_ASSERT(get != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); // Stack: co, cl, st, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_const_member_function<GetType, T>, name, 1); // Stack: co, cl, st, getter
-            lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
-            detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
-            detail::add_property_getter(L, name, -3); // Stack: co, cl, st
-
-            return *this;
-        }
-
-        template <class TG, class TS = TG>
-        Class<T>& addProperty(const char* name, TG (T::*get)() const noexcept, void (T::*set)(TS) noexcept)
-        {
-            using SetType = void (T::*)(TS) noexcept;
-
-            LUABRIDGE_ASSERT(name != nullptr);
-            LUABRIDGE_ASSERT(get != nullptr);
-            LUABRIDGE_ASSERT(set != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            addProperty(name, get);
-
-            new (lua_newuserdata_x<SetType>(L, sizeof(SetType))) SetType(set); // Stack: co, cl, st, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_member_function<SetType, T>, name, 1); // Stack: co, cl, st, setter
-            detail::add_property_setter(L, name, -3); // Stack: co, cl, st
-
-            return *this;
-        }
-
-        //=========================================================================================
-        /**
-         * @brief Add or replace a property member.
-         */
-        template <class TG>
-        Class<T>& addProperty(const char* name, TG (T::*get)(lua_State*) const)
-        {
-            using GetType = TG (T::*)(lua_State*) const;
-
-            LUABRIDGE_ASSERT(name != nullptr);
-            LUABRIDGE_ASSERT(get != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); // Stack: co, cl, st, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_const_member_function<GetType, T>, name, 1); // Stack: co, cl, st, getter
-            lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
-            detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
-            detail::add_property_getter(L, name, -3); // Stack: co, cl, st
-
-            return *this;
-        }
-
-        template <class TG, class TS = TG>
-        Class<T>& addProperty(const char* name, TG (T::*get)(lua_State*) const, void (T::*set)(TS, lua_State*))
-        {
-            using SetType = void (T::*)(TS, lua_State*);
-
-            LUABRIDGE_ASSERT(name != nullptr);
-            LUABRIDGE_ASSERT(get != nullptr);
-            LUABRIDGE_ASSERT(set != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            addProperty(name, get);
-
-            new (lua_newuserdata_x<SetType>(L, sizeof(SetType))) SetType(set); // Stack: co, cl, st, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_member_function<SetType, T>, name, 1); // Stack: co, cl, st, setter
-            detail::add_property_setter(L, name, -3); // Stack: co, cl, st
-
-            return *this;
-        }
-
-        template <class TG>
-        Class<T>& addProperty(const char* name, TG (T::*get)(lua_State*) const noexcept)
-        {
-            using GetType = TG (T::*)(lua_State*) const noexcept;
-
-            LUABRIDGE_ASSERT(name != nullptr);
-            LUABRIDGE_ASSERT(get != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(get); // Stack: co, cl, st, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_const_member_function<GetType, T>, name, 1); // Stack: co, cl, st, getter
-            lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
-            detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
-            detail::add_property_getter(L, name, -3); // Stack: co, cl, st
-
-            return *this;
-        }
-
-        template <class TG, class TS = TG>
-        Class<T>& addProperty(const char* name, TG (T::*get)(lua_State*) const noexcept, void (T::*set)(TS, lua_State*) noexcept)
-        {
-            using SetType = void (T::*)(TS, lua_State*) noexcept;
-
-            LUABRIDGE_ASSERT(name != nullptr);
-            LUABRIDGE_ASSERT(get != nullptr);
-            LUABRIDGE_ASSERT(set != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            addProperty(name, get);
-
-            new (lua_newuserdata_x<SetType>(L, sizeof(SetType))) SetType(set); // Stack: co, cl, st, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_member_function<SetType, T>, name, 1); // Stack: co, cl, st, setter
-            detail::add_property_setter(L, name, -3); // Stack: co, cl, st
-
-            return *this;
-        }
-
-        //=========================================================================================
-        /**
-         * @brief Add or replace a property member, by proxy.
-         *
-         * When a class is closed for modification and does not provide (or cannot provide) the function signatures necessary to implement
-         * get or set for a property, this will allow non-member functions act as proxies.
-         *
-         * Both the get and the set functions require a T const* and T* in the first argument respectively.
-         */
-        template <class TG>
-        Class<T>& addProperty(const char* name, TG (*get)(const T*))
-        {
-            LUABRIDGE_ASSERT(name != nullptr);
-            LUABRIDGE_ASSERT(get != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); // Stack: co, cl, st, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_proxy_function<TG (*)(const T*)>, name, 1); // Stack: co, cl, st, getter
-            lua_pushvalue(L, -1); // Stack: co, cl, st,, getter, getter
-            detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
-            detail::add_property_getter(L, name, -3); // Stack: co, cl, st
-
-            return *this;
-        }
-
-        template <class TG, class TS = TG>
-        Class<T>& addProperty(const char* name, TG (*get)(const T*), void (*set)(T*, TS))
-        {
-            LUABRIDGE_ASSERT(name != nullptr);
-            LUABRIDGE_ASSERT(get != nullptr);
-            LUABRIDGE_ASSERT(set != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            addProperty(name, get);
-
-            lua_pushlightuserdata( L, reinterpret_cast<void*>(set)); // Stack: co, cl, st, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(T*, TS)>, name, 1); // Stack: co, cl, st, setter
-            detail::add_property_setter(L, name, -3); // Stack: co, cl, st
-
-            return *this;
-        }
-
-        template <class TG>
-        Class<T>& addProperty(const char* name, TG (*get)(const T*) noexcept)
-        {
-            LUABRIDGE_ASSERT(name != nullptr);
-            LUABRIDGE_ASSERT(get != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); // Stack: co, cl, st, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_proxy_function<TG (*)(const T*) noexcept>, name, 1); // Stack: co, cl, st, getter
-            lua_pushvalue(L, -1); // Stack: co, cl, st,, getter, getter
-            detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
-            detail::add_property_getter(L, name, -3); // Stack: co, cl, st
-
-            return *this;
-        }
-
-        template <class TG, class TS = TG>
-        Class<T>& addProperty(const char* name, TG (*get)(const T*) noexcept, void (*set)(T*, TS) noexcept)
-        {
-            LUABRIDGE_ASSERT(name != nullptr);
-            LUABRIDGE_ASSERT(get != nullptr);
-            LUABRIDGE_ASSERT(set != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            addProperty(name, get);
-
-            lua_pushlightuserdata( L, reinterpret_cast<void*>(set)); // Stack: co, cl, st, function ptr
-            lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(T*, TS) noexcept>, name, 1); // Stack: co, cl, st, setter
-            detail::add_property_setter(L, name, -3); // Stack: co, cl, st
-
-            return *this;
-        }
-
-        //=========================================================================================
-        /**
-         * @brief Add or replace a property member, by proxy C-function.
-         *
-         * When a class is closed for modification and does not provide (or cannot provide) the function signatures necessary to implement
-         * get or set for a property, this will allow non-member functions act as proxies.
-         *
-         * The object userdata ('this') value is at the index 1.
-         * The new value for set function is at the index 2.
-         */
-        Class<T>& addProperty(const char* name, lua_CFunction get)
-        {
-            LUABRIDGE_ASSERT(name != nullptr);
-            LUABRIDGE_ASSERT(get != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            lua_pushcfunction_x(L, get, name);
-            lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
-            detail::add_property_getter(L, name, -5); // Stack: co, cl, st, getter
-            detail::add_property_getter(L, name, -3); // Stack: co, cl, st,
-
-            return *this;
-        }
-
-        Class<T>& addProperty(const char* name, lua_CFunction get, lua_CFunction set)
-        {
-            LUABRIDGE_ASSERT(name != nullptr);
-            LUABRIDGE_ASSERT(get != nullptr);
-            LUABRIDGE_ASSERT(set != nullptr);
-            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
-
-            addProperty(name, get);
-
-            lua_pushcfunction_x(L, set, name);
-            detail::add_property_setter(L, name, -3); // Stack: co, cl, st
-
-            return *this;
-        }
-
-        //=========================================================================================
-        /**
          * @brief Add or replace a property member, by constructible by std::function.
          */
-        template <class Getter, class = std::enable_if_t<!std::is_pointer_v<Getter>>>
-        Class<T>& addProperty(const char* name, Getter get)
-        {
-            using FirstArg = detail::function_argument_t<0, Getter>;
-            static_assert(std::is_same_v<std::decay_t<std::remove_pointer_t<FirstArg>>, T>);
+        template <class Getter>
+        Class<T>& addProperty(const char* name, Getter getter, bool) = delete;
 
+        template <class Getter>
+        Class<T>& addProperty(const char* name, Getter getter)
+        {
             LUABRIDGE_ASSERT(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            using GetType = decltype(get);
-
-            lua_newuserdata_aligned<GetType>(L, std::move(get)); // Stack: co, cl, st, function userdata (ud)
-            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<GetType>, name, 1); // Stack: co, cl, st, getter
+            detail::push_class_property_getter<T>(L, std::move(getter), name); // Stack: co, cl, st, getter
             lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
             detail::add_property_getter(L, name, -4); // Stack: co, cl, st, getter
             detail::add_property_getter(L, name, -4); // Stack: co, cl, st
 
+            detail::push_property_readonly(L, name); // Stack: co, cl, st, function
+            detail::add_property_setter(L, name, -3); // Stack: co, cl, st
+
             return *this;
         }
 
-        template <class Getter, class Setter, class = std::enable_if_t<!std::is_pointer_v<Getter> && !std::is_pointer_v<Setter>>>
-        Class<T>& addProperty(const char* name, Getter get, Setter set)
+        template <class Getter, class Setter>
+        Class<T>& addProperty(const char* name, Getter getter, Setter setter)
         {
-            addProperty<Getter>(name, std::move(get));
-
-            using FirstArg = detail::function_argument_t<0, Setter>;
-            static_assert(std::is_same_v<std::decay_t<std::remove_pointer_t<FirstArg>>, T>);
-
             LUABRIDGE_ASSERT(name != nullptr);
             assertStackState(); // Stack: const table (co), class table (cl), static table (st)
 
-            using SetType = decltype(set);
+            detail::push_class_property_getter<T>(L, std::move(getter), name); // Stack: co, cl, st, getter
+            lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
+            detail::add_property_getter(L, name, -4); // Stack: co, cl, st, getter
+            detail::add_property_getter(L, name, -4); // Stack: co, cl, st
 
-            lua_newuserdata_aligned<SetType>(L, std::move(set)); // Stack: co, cl, st, function userdata (ud)
-            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<SetType>, name, 1); // Stack: co, cl, st, setter
+            detail::push_class_property_setter<T>(L, std::move(setter), name); // Stack: co, cl, st, setter
             detail::add_property_setter(L, name, -3); // Stack: co, cl, st
 
             return *this;
@@ -1768,205 +1332,15 @@ public:
             using U = std::underlying_type_t<T>;
 
             if (auto result = Stack<U>::push(L, static_cast<U>(value)); ! result)
-                luaL_error(L, "%s", result.message().c_str());
+                throw_or_assert<std::logic_error>(result.message().c_str());
         }
         else
         {
             if (auto result = Stack<T>::push(L, value); ! result)
-                luaL_error(L, "%s", result.message().c_str());
+                throw_or_assert<std::logic_error>(result.message().c_str());
         }
 
         rawsetfield(L, -2, name); // Stack: ns
-
-        return *this;
-    }
-
-    //=============================================================================================
-    /**
-     * @brief Add or replace a property.
-     *
-     * @param name The property name.
-     * @param value A value pointer.
-     * @param isWritable True for a read-write, false for read-only property.
-     *
-     * @returns This namespace registration object.
-     */
-    template <class T, class = std::enable_if_t<std::is_base_of_v<T, LuaRef> || !std::is_invocable_v<T>>>
-    Namespace& addProperty(const char* name, T* value, bool isWritable = true)
-    {
-        LUABRIDGE_ASSERT(name != nullptr);
-        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
-
-        if (! checkTableHasPropertyGetter())
-        {
-            throw_or_assert<std::logic_error>("addProperty() called on global namespace");
-
-            return *this;
-        }
-
-        lua_pushlightuserdata(L, value); // Stack: ns, pointer
-        lua_pushcclosure_x(L, &detail::property_getter<T>::call, name, 1); // Stack: ns, getter
-        detail::add_property_getter(L, name, -2); // Stack: ns
-
-        if (isWritable)
-        {
-            lua_pushlightuserdata(L, value); // Stack: ns, pointer
-            lua_pushcclosure_x(L, &detail::property_setter<T>::call, name, 1); // Stack: ns, setter
-        }
-        else
-        {
-            lua_pushstring(L, name); // Stack: ns, ps, name
-            lua_pushcclosure_x(L, &detail::read_only_error, name, 1); // Stack: ns, function
-        }
-
-        detail::add_property_setter(L, name, -2); // Stack: ns
-
-        return *this;
-    }
-
-    //=============================================================================================
-    /**
-     * @brief Add or replace a property.
-     *
-     * @param name The property name.
-     * @param value A value pointer.
-     *
-     * @returns This namespace registration object.
-     */
-    template <class T, class = std::enable_if_t<std::is_base_of_v<T, LuaRef> || !std::is_invocable_v<T>>>
-    Namespace& addProperty(const char* name, const T* value)
-    {
-        LUABRIDGE_ASSERT(name != nullptr);
-        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
-
-        if (! checkTableHasPropertyGetter())
-        {
-            throw_or_assert<std::logic_error>("addProperty() called on global namespace");
-
-            return *this;
-        }
-
-        lua_pushlightuserdata(L, const_cast<T*>(value)); // Stack: ns, pointer
-        lua_pushcclosure_x(L, &detail::property_getter<T>::call, name, 1); // Stack: ns, getter
-        detail::add_property_getter(L, name, -2); // Stack: ns
-
-        lua_pushstring(L, name); // Stack: ns, ps, name
-        lua_pushcclosure_x(L, &detail::read_only_error, name, 1); // Stack: ns, function
-        detail::add_property_setter(L, name, -2); // Stack: ns
-
-        return *this;
-    }
-
-    //=============================================================================================
-    /**
-     * @brief Add or replace a property.
-     *
-     * If the set function is omitted or null, the property is read-only.
-     *
-     * @param name The property name.
-     * @param get  A pointer to a property getter function.
-     * @param set  A pointer to a property setter function, optional.
-     *
-     * @returns This namespace registration object.
-     */
-    template <class TG>
-    Namespace& addProperty(const char* name, TG (*get)())
-    {
-        LUABRIDGE_ASSERT(name != nullptr);
-        LUABRIDGE_ASSERT(get != nullptr);
-        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
-
-        if (! checkTableHasPropertyGetter())
-        {
-            throw_or_assert<std::logic_error>("addProperty() called on global namespace");
-
-            return *this;
-        }
-
-        lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); // Stack: ns, function ptr
-        lua_pushcclosure_x(L, &detail::invoke_proxy_function<TG (*)()>, name, 1); // Stack: ns, getter
-        detail::add_property_getter(L, name, -2);
-
-        lua_pushstring(L, name);
-        lua_pushcclosure_x(L, &detail::read_only_error, name, 1);
-        detail::add_property_setter(L, name, -2);
-
-        return *this;
-    }
-
-    template <class TG, class TS = TG>
-    Namespace& addProperty(const char* name, TG (*get)(), void (*set)(TS))
-    {
-        LUABRIDGE_ASSERT(name != nullptr);
-        LUABRIDGE_ASSERT(get != nullptr);
-        LUABRIDGE_ASSERT(set != nullptr);
-        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
-
-        if (! checkTableHasPropertyGetter())
-        {
-            throw_or_assert<std::logic_error>("addProperty() called on global namespace");
-
-            return *this;
-        }
-
-        lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); // Stack: ns, function ptr
-        lua_pushcclosure_x(L, &detail::invoke_proxy_function<TG (*)()>, name, 1); // Stack: ns, getter
-        detail::add_property_getter(L, name, -2);
-
-        lua_pushlightuserdata(L, reinterpret_cast<void*>(set)); // Stack: ns, function ptr
-        lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(TS)>, name, 1);
-        detail::add_property_setter(L, name, -2);
-
-        return *this;
-    }
-
-    template <class TG>
-    Namespace& addProperty(const char* name, TG (*get)() noexcept)
-    {
-        LUABRIDGE_ASSERT(name != nullptr);
-        LUABRIDGE_ASSERT(get != nullptr);
-        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
-
-        if (! checkTableHasPropertyGetter())
-        {
-            throw_or_assert<std::logic_error>("addProperty() called on global namespace");
-
-            return *this;
-        }
-
-        lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); // Stack: ns, function ptr
-        lua_pushcclosure_x(L, &detail::invoke_proxy_function<TG (*)() noexcept>, name, 1); // Stack: ns, getter
-        detail::add_property_getter(L, name, -2);
-
-        lua_pushstring(L, name);
-        lua_pushcclosure_x(L, &detail::read_only_error, name, 1);
-        detail::add_property_setter(L, name, -2);
-
-        return *this;
-    }
-
-    template <class TG, class TS = TG>
-    Namespace& addProperty(const char* name, TG (*get)() noexcept, void (*set)(TS) noexcept)
-    {
-        LUABRIDGE_ASSERT(name != nullptr);
-        LUABRIDGE_ASSERT(get != nullptr);
-        LUABRIDGE_ASSERT(set != nullptr);
-        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
-
-        if (! checkTableHasPropertyGetter())
-        {
-            throw_or_assert<std::logic_error>("addProperty() called on global namespace");
-
-            return *this;
-        }
-
-        lua_pushlightuserdata(L, reinterpret_cast<void*>(get)); // Stack: ns, function ptr
-        lua_pushcclosure_x(L, &detail::invoke_proxy_function<TG (*)() noexcept>, name, 1); // Stack: ns, getter
-        detail::add_property_getter(L, name, -2);
-
-        lua_pushlightuserdata(L, reinterpret_cast<void*>(set)); // Stack: ns, function ptr
-        lua_pushcclosure_x(L, &detail::invoke_proxy_function<void (*)(TS) noexcept>, name, 1);
-        detail::add_property_setter(L, name, -2);
 
         return *this;
     }
@@ -1980,10 +1354,8 @@ public:
      *
      * @returns This namespace registration object.
      */
-    template <class Getter, class = std::enable_if_t<
-		!std::is_pointer_v<Getter>
-            && (std::is_invocable_v<Getter> || std::is_invocable_v<Getter, lua_State*>)>>
-    Namespace& addProperty(const char* name, Getter get)
+    template <class Getter>
+    Namespace& addProperty(const char* name, Getter getter)
     {
         LUABRIDGE_ASSERT(name != nullptr);
         LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
@@ -1995,14 +1367,10 @@ public:
             return *this;
         }
 
-        using GetType = decltype(get);
+        detail::push_property_getter(L, std::move(getter), name); // Stack: ns, getter
+        detail::add_property_getter(L, name, -2); // Stack: ns, getter
 
-        lua_newuserdata_aligned<GetType>(L, std::move(get)); // Stack: ns, function userdata (ud)
-        lua_pushcclosure_x(L, &detail::invoke_proxy_functor<GetType>, name, 1); // Stack: ns, ud, getter
-        detail::add_property_getter(L, name, -2); // Stack: ns, ud, getter
-
-        lua_pushstring(L, name); // Stack: ns, name
-        lua_pushcclosure_x(L, &detail::read_only_error, name, 1); // Stack: ns, name, function
+        detail::push_property_readonly(L, name); // Stack: ns, function
         detail::add_property_setter(L, name, -2); // Stack: ns
 
         return *this;
@@ -2017,12 +1385,8 @@ public:
      *
      * @returns This namespace registration object.
      */
-    template <class Getter, class Setter, class = std::enable_if_t<
-        !std::is_pointer_v<Getter>
-            && (std::is_invocable_v<Getter> || std::is_invocable_v<Getter, lua_State*>)
-            && !std::is_pointer_v<Setter>
-            && (std::is_invocable_v<Setter, std::invoke_result_t<Getter>> || std::is_invocable_v<Setter, std::invoke_result_t<Getter>, lua_State*>)>>
-    Namespace& addProperty(const char* name, Getter get, Setter set)
+    template <class Getter, class Setter>
+    Namespace& addProperty(const char* name, Getter getter, Setter setter)
     {
         LUABRIDGE_ASSERT(name != nullptr);
         LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
@@ -2034,70 +1398,10 @@ public:
             return *this;
         }
 
-        addProperty<Getter>(name, std::move(get));
-
-        using SetType = decltype(set);
-
-        lua_newuserdata_aligned<SetType>(L, std::move(set)); // Stack: ns, function userdata (ud)
-        lua_pushcclosure_x(L, &detail::invoke_proxy_functor<SetType>, name, 1); // Stack: ns, ud, setter
-        detail::add_property_setter(L, name, -2); // Stack: ns, ud, setter
-
-        return *this;
-    }
-
-    //=============================================================================================
-    /**
-     * @brief Add or replace a property.
-     *
-     * If the set function is omitted or null, the property is read-only.
-     *
-     * @param name The property name.
-     * @param get  A pointer to a property getter function.
-     * @param set  A pointer to a property setter function, optional.
-     *
-     * @returns This namespace registration object.
-     */
-    Namespace& addProperty(const char* name, lua_CFunction get)
-    {
-        LUABRIDGE_ASSERT(name != nullptr);
-        LUABRIDGE_ASSERT(get != nullptr);
-        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
-
-        if (! checkTableHasPropertyGetter())
-        {
-            throw_or_assert<std::logic_error>("addProperty() called on global namespace");
-
-            return *this;
-        }
-
-        lua_pushcfunction_x(L, get, name); // Stack: ns, getter
+        detail::push_property_getter(L, std::move(getter), name); // Stack: ns, getter
         detail::add_property_getter(L, name, -2); // Stack: ns
 
-        lua_pushstring(L, name); // Stack: ns, name
-        lua_pushcclosure_x(L, &detail::read_only_error, name, 1); // Stack: ns, name, function
-        detail::add_property_setter(L, name, -2); // Stack: ns
-
-        return *this;
-    }
-
-    Namespace& addProperty(const char* name, lua_CFunction get, lua_CFunction set)
-    {
-        LUABRIDGE_ASSERT(name != nullptr);
-        LUABRIDGE_ASSERT(get != nullptr);
-        LUABRIDGE_ASSERT(set != nullptr);
-        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
-
-        if (! checkTableHasPropertyGetter())
-        {
-            throw_or_assert<std::logic_error>("addProperty() called on global namespace");
-
-            return *this;
-        }
-
-        lua_pushcfunction_x(L, get, name); // Stack: ns, getter
-        detail::add_property_getter(L, name, -2); // Stack: ns
-
-        lua_pushcfunction_x(L, set, name); // Stack: ns, setter
+        detail::push_property_setter(L, std::move(setter), name); // Stack: ns, setter
         detail::add_property_setter(L, name, -2); // Stack: ns
 
         return *this;

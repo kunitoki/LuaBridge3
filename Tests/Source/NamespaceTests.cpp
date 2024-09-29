@@ -37,8 +37,8 @@ TEST_F(NamespaceTests, Variables)
 
     luabridge::getGlobalNamespace(L)
         .beginNamespace("ns")
-        .addProperty("int", &int_)
-        .addProperty("any", &any)
+        .addProperty("int", &int_, &int_)
+        .addProperty("any", &any, &any)
         .addProperty("fnc_get", [stored] { return stored; })
         .addProperty("fnc_getset", [stored] { return stored; }, [&stored](int v) { stored = v; })
         .addProperty("fnc_ptr_get", +[] { return fncPointerGetSetValue; })
@@ -117,9 +117,9 @@ TEST_F(NamespaceTests, ReadOnlyVariables)
 
     luabridge::getGlobalNamespace(L)
         .beginNamespace("ns")
-        .addProperty("int", &int_, false)
+        .addProperty("int", &int_)
         .addProperty("const_int", &const_int_)
-        .addProperty("any", &any, false)
+        .addProperty("any", &any)
         .endNamespace();
 
     ASSERT_EQ(-10, variable<int>("ns.int"));
@@ -373,8 +373,8 @@ TEST_F(NamespaceTests, NamespaceFromStackProperties)
 
     lua_newtable(L);
     luabridge::getNamespaceFromStack(L)
-        .addProperty("valueX", &x, false)
-        .addProperty("valueWX", &wx, true)
+        .addProperty("valueX", &x)
+        .addProperty("valueWX", &wx, &wx)
         .addProperty("valueCX", &cx)
         .addProperty("value1", +[] { return 1; })
         .addProperty("value2", +[] { return 2; }, +[](int) {})

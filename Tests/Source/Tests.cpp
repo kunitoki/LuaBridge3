@@ -233,7 +233,7 @@ TEST_F(LuaBridgeTest, Tuple)
     
     luabridge::getGlobalNamespace(L)
         .beginNamespace("tuple")
-            .addProperty("t", &t)
+            .addProperty("t", &t, &t)
         .endNamespace();
 
     {
@@ -309,7 +309,7 @@ TEST_F(LuaBridgeTest, ClassFunction)
     luabridge::getGlobalNamespace(L)
         .beginClass<Inner>("Inner")
         .addConstructor<void (*)(int)>()
-        .addProperty("data", &Inner::data)
+        .addProperty("data", &Inner::data, &Inner::data)
         .endClass()
         .beginClass<Outer>("Outer")
         .addConstructor<void (*)(Inner)>()
