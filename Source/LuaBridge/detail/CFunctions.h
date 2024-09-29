@@ -7,6 +7,7 @@
 #pragma once
 
 #include "Config.h"
+#include "ClassInfo.h"
 #include "Errors.h"
 #include "FuncTraits.h"
 #include "LuaHelpers.h"
@@ -577,7 +578,7 @@ inline int read_only_error(lua_State* L)
  * @brief __tostring metamethod for a class.
  */
 template <class C>
-static int tostring_metamethod(lua_State* L)
+int tostring_metamethod(lua_State* L)
 {
     const void* ptr = lua_topointer(L, 1);
 
@@ -595,11 +596,44 @@ static int tostring_metamethod(lua_State* L)
 
 //=================================================================================================
 /**
+ * @brief __destruct metamethod for a class.
+ */
+template <class C>
+int destruct_metamethod(lua_State* L)
+{
+    LUABRIDGE_ASSERT(lua_isuserdata(L, 1)); // Stack: userdata (ud)
+    const auto top = lua_gettop(L);
+
+    const int result = lua_getmetatable(L, 1); // Stack: ud, object metatable (ot) | nothing
+    if (result == 0)
+        return 0;
+
+    LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: ud, ot
+
+    lua_rawgetp(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<C>()); // Stack: ud, ot, registry metatable (rt) | nil
+    if (lua_istable(L, -1)) // Stack: ud, ot, rt
+    {
+        rawgetfield(L, -1, "__destruct"); // Stack: ud, ot, rt, ud, function | nil
+        if (lua_isfunction(L, -1))
+        {
+            lua_pushvalue(L, 1); // Stack: ud, ot, rt, function, ud
+            lua_pcall(L, 1, 0, 0); // Stack: ud, ot, rt
+        }
+    }
+
+    lua_settop(L, top); // Stack: ud
+    return 0;
+}
+
+//=================================================================================================
+/**
  * @brief __gc metamethod for a class.
  */
 template <class C>
-static int gc_metamethod(lua_State* L)
+int gc_metamethod(lua_State* L)
 {
+    destruct_metamethod<C>(L);
+
     Userdata* ud = Userdata::getExact<C>(L, 1);
     LUABRIDGE_ASSERT(ud);
 
@@ -1052,6 +1086,26 @@ inline int invoke_safe_cfunction(lua_State* L)
  */
 template <class F>
 int invoke_proxy_constructor(lua_State* L)
+{
+    using FnTraits = function_traits<F>;
+
+    LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
+
+    auto& func = *align<F>(lua_touserdata(L, lua_upvalueindex(1)));
+
+    function<void, typename FnTraits::argument_types, 1>::call(L, func);
+
+    return 1;
+}
+
+//=================================================================================================
+/**
+ * @brief lua_CFunction to call on a object constructor via functor (lambda wrapped in a std::function).
+ *
+ * The proxy std::function (lightuserdata) is in the first upvalue. The class userdata object will be pushed at the top of the Lua stack.
+ */
+template <class F>
+int invoke_proxy_destructor(lua_State* L)
 {
     using FnTraits = function_traits<F>;
 
@@ -1881,6 +1935,31 @@ struct constructor_forwarder
         value->commit();
 
         return object;
+    }
+
+private:
+    F m_func;
+};
+
+//=================================================================================================
+/**
+ * @brief Constructor forwarder.
+ */
+template <class T, class F>
+struct destructor_forwarder
+{
+    explicit destructor_forwarder(F f)
+        : m_func(std::move(f))
+    {
+    }
+
+    void operator()(lua_State* L)
+    {
+        auto* value = Userdata::get<T>(L, -1, false);
+        if (value == nullptr)
+            raise_lua_error(L, "invalid object destruction");
+
+        std::invoke(m_func, value);
     }
 
 private:

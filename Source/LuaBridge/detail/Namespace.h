@@ -933,6 +933,26 @@ class Namespace : public detail::Registrar
         }
 
         //=========================================================================================
+        template <class Function>
+        auto addDestructor(Function function)
+            -> std::enable_if_t<detail::is_callable_v<Function>, Class<T>&>
+        {
+            static_assert(detail::function_arity_excluding_v<Function, lua_State*> == 1);
+            static_assert(std::is_same_v<detail::function_argument_t<0, Function>, T*>);
+
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            using F = detail::destructor_forwarder<T, Function>;
+
+            lua_newuserdata_aligned<F>(L, F(std::move(function))); // Stack: co, cl, st, upvalue
+            lua_pushcclosure_x(L, &detail::invoke_proxy_destructor<F>, className, 1); // Stack: co, cl, st, function
+
+            rawsetfield(L, -3, "__destruct"); // Stack: co, cl, st
+
+            return *this;
+        }
+
+        //=========================================================================================
         /**
          * @brief Add or replace a factory.
          *

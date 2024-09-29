@@ -1005,8 +1005,8 @@ TEST_F(LuaBridgeTest, Exception)
 
     luabridge::getGlobalNamespace(L)
         .beginNamespace("ns")
-            .addProperty("cb1", &cb1)
-            .addProperty("cb2", &cb2)
+            .addProperty("cb1", &cb1, &cb1)
+            .addProperty("cb2", &cb2, &cb2)
         .endNamespace();
 
     auto text = R"(

@@ -645,6 +645,34 @@ struct ClassFunctions : ClassTests
 {
 };
 
+#if !LUABRIDGE_ON_LUAU
+TEST_F(ClassFunctions, Destructor)
+{
+    using Int = Class<int, EmptyBase>;
+
+    bool called = false;
+    int data = 0;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+            .addConstructor<void(int)>()
+            .addDestructor([&](Int* obj)
+            {
+                called = true;
+                data = obj->data;
+            })
+        .endClass();
+
+    runLua("local x = Int(42)");
+    ASSERT_TRUE(result().isNil());
+
+    closeLuaState();
+
+    EXPECT_TRUE(called);
+    EXPECT_EQ(42, data);
+}
+#endif
+
 TEST_F(ClassFunctions, MemberFunctions)
 {
     using Int = Class<int, EmptyBase>;

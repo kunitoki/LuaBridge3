@@ -223,7 +223,7 @@ TEST_F(IssueTests, IssueMainThread)
         .beginClass<SomeClass>("SomeClass")
         .addConstructor<void (*)(lua_State*)>()
         .addFunction("SomeMember", &SomeClass::SomeMember)
-        .addProperty("SomeMemberOverride", &SomeClass::override_)
+        .addProperty("SomeMemberOverride", &SomeClass::override_, &SomeClass::override_)
         .endClass();
 
     const char* source = R"(
