@@ -314,7 +314,7 @@ jobs:
         submodules: true
 
     - name: Install lcov
-      run: sudo apt-get install -y lcov ninja-build
+      run: sudo apt-get install -y lcov libreadline-dev ninja-build
 
     - name: Create Build Environment
       run: |
