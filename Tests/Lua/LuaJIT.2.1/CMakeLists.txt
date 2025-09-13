@@ -6,7 +6,7 @@
 # Upgrade to luajit-2.1 by 9chu
 # Modified 2022 by kunitoki
 
-CMAKE_MINIMUM_REQUIRED(VERSION 3.6 FATAL_ERROR)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.10 FATAL_ERROR)
 
 project(Lua C ASM)
 

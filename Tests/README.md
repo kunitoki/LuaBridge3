@@ -2,7 +2,7 @@
 
 ## Linux and MacOS
 
-Have CMake 3.5+ and a compiler supporting C++17 installed.
+Have CMake 3.10+ and a compiler supporting C++17 installed.
 
 Run cmake to generate Makefiles:
 
@@ -33,7 +33,7 @@ Run tests from the `build` directory:
 
 ## macOS
 
-Have CMake 3.5+ and Xcode 11+ installed.
+Have CMake 3.10+ and Xcode 11+ installed.
 
 Run cmake to generate Makefiles:
 
@@ -64,7 +64,7 @@ Run tests from the `build` directory:
 
 # Windows
 
-Have CMake 3.5+ and MSVC 2019 installed.
+Have CMake 3.10+ and MSVC 2019 installed.
 
 Run cmake to generate MSVC solution and project files (run `cmake -G` to see all variants):
 
