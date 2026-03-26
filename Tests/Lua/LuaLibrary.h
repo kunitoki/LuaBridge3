@@ -33,7 +33,7 @@
 // The value is the same as LUA_VERSION_NUM in lua.h
 
 #ifndef LUABRIDGE_TEST_LUA_VERSION
-#define LUABRIDGE_TEST_LUA_VERSION 504 // By default use 5.4
+#define LUABRIDGE_TEST_LUA_VERSION 505 // By default use 5.5
 #endif
 
 #if !defined(LUALIBRARY_SOURCE)
@@ -49,13 +49,22 @@
 #elif LUABRIDGE_TEST_LUAJIT
 #include "LuaJIT.2.1/src/lua.hpp"
 
+#elif LUABRIDGE_TEST_LUA_VERSION >= 505
+#ifdef __cplusplus
+#include "Lua.5.5.0/src/lua.hpp"
+#else
+#include "Lua.5.5.0/src/lua.h"
+#include "Lua.5.5.0/src/lualib.h"
+#include "Lua.5.5.0/src/lauxlib.h"
+#endif
+
 #elif LUABRIDGE_TEST_LUA_VERSION >= 504
 #ifdef __cplusplus
-#include "Lua.5.4.6/src/lua.hpp"
+#include "Lua.5.4.8/src/lua.hpp"
 #else
-#include "Lua.5.4.6/src/lua.h"
-#include "Lua.5.4.6/src/lualib.h"
-#include "Lua.5.4.6/src/lauxlib.h"
+#include "Lua.5.4.8/src/lua.h"
+#include "Lua.5.4.8/src/lualib.h"
+#include "Lua.5.4.8/src/lauxlib.h"
 #endif
 
 #elif LUABRIDGE_TEST_LUA_VERSION >= 503

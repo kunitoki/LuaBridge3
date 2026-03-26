@@ -123,6 +123,19 @@ inline int lua_getstack_info_x(lua_State* L, int level, const char* what, lua_De
 
 #endif // LUABRIDGE_ON_LUAU
 
+// These are for Lua versions prior to 5.5.0.
+#if LUA_VERSION_NUM < 505
+inline lua_State* lua_newstate_x(lua_Alloc f, void* ud, [[maybe_unused]] unsigned seed)
+{
+    return lua_newstate(f, ud);
+}
+#else
+inline lua_State* lua_newstate_x(lua_Alloc f, void* ud, unsigned seed)
+{
+    return lua_newstate(f, ud, seed);
+}
+#endif
+
 // These are for Lua versions prior to 5.3.0.
 #if LUA_VERSION_NUM < 503
 inline lua_Number to_numberx(lua_State* L, int idx, int* isnum)
