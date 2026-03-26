@@ -253,7 +253,7 @@ inline int lua_rawgetp_x(lua_State* L, int idx, void* p)
 
 inline void lua_rawsetp_x(lua_State* L, int idx, void* p)
 {
-    return lua_rawsetp(L, idx, p);
+    lua_rawsetp(L, idx, p);
 }
 
 #else
@@ -298,7 +298,7 @@ inline int lua_getstack_info_x(lua_State* L, int level, const char* what, lua_De
 
 inline int lua_rawgetp_x(lua_State* L, int idx, void* p)
 {
-#if LUA_VERSION_NUM < 502
+#if LUA_VERSION_NUM < 503
     idx = lua_absindex(L, idx);
     luaL_checkstack(L, 1, "not enough stack slots");
     lua_pushlightuserdata(L, p);
@@ -318,21 +318,11 @@ inline void lua_rawsetp_x(lua_State* L, int idx, void* p)
     lua_insert(L, -2);
     lua_rawset(L, idx);
 #else
-    return lua_rawsetp(L, idx, p);
+    lua_rawsetp(L, idx, p);
 #endif
 }
 
 #endif 
-
-inline int lua_rawgetp_x(lua_State* L, int idx, const void* p)
-{
-    return lua_rawgetp_x(L, idx, const_cast<void*>(p));
-}
-
-inline void lua_rawsetp_x(lua_State* L, int idx, const void* p)
-{
-    return lua_rawsetp_x(L, idx, const_cast<void*>(p));
-}
 
 #if LUA_VERSION_NUM < 505
 inline lua_State* lua_newstate_x(lua_Alloc f, void* ud, [[maybe_unused]] unsigned seed)
@@ -380,6 +370,16 @@ inline lua_Integer to_integerx(lua_State* L, int idx, int* isnum)
     return 0;
 }
 #endif 
+
+inline int lua_rawgetp_x(lua_State* L, int idx, const void* p)
+{
+    return lua_rawgetp_x(L, idx, const_cast<void*>(p));
+}
+
+inline void lua_rawsetp_x(lua_State* L, int idx, const void* p)
+{
+    lua_rawsetp_x(L, idx, const_cast<void*>(p));
+}
 
 #ifndef LUA_OK
 #define LUABRIDGE_LUA_OK 0
