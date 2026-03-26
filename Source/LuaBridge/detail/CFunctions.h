@@ -564,11 +564,7 @@ inline int newindex_metamethod(lua_State* L)
  */
 inline int read_only_error(lua_State* L)
 {
-    std::stringstream ss;
-
-    ss << "'" << lua_tostring(L, lua_upvalueindex(1)) << "' is read-only";
-
-    raise_lua_error(L, "%s", ss.str().c_str());
+    raise_lua_error(L, "'%s' is read-only", lua_tostring(L, lua_upvalueindex(1)));
 
     return 0;
 }
