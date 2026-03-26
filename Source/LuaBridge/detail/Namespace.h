@@ -176,10 +176,10 @@ class Namespace : public detail::Registrar
             lua_setmetatable(L, -2); // co.__metatable = co. Stack: ns, co
 
             pushunsigned(L, options.toUnderlying()); // Stack: ns, co, options
-            lua_rawsetp(L, -2, detail::getClassOptionsKey()); // co [classOptionsKey] = options. Stack: ns, co
+            lua_rawsetp_x(L, -2, detail::getClassOptionsKey()); // co [classOptionsKey] = options. Stack: ns, co
 
             lua_pushstring(L, type_name.c_str()); // Stack: ns, co, name
-            lua_rawsetp(L, -2, detail::getTypeKey()); // co [typeKey] = name. Stack: ns, co
+            lua_rawsetp_x(L, -2, detail::getTypeKey()); // co [typeKey] = name. Stack: ns, co
 
             lua_pushcfunction_x(L, &detail::index_metamethod<true>, "__index"); // Stack: ns, co, im
             rawsetfield(L, -2, "__index"); // Stack: ns, co
@@ -188,7 +188,7 @@ class Namespace : public detail::Registrar
             rawsetfield(L, -2, "__newindex"); // Stack: ns, co
 
             lua_newtable(L); // Stack: ns, co, tb
-            lua_rawsetp(L, -2, detail::getPropgetKey()); // Stack: ns, co
+            lua_rawsetp_x(L, -2, detail::getPropgetKey()); // Stack: ns, co
 
             if (! options.test(visibleMetatables))
             {
@@ -213,13 +213,13 @@ class Namespace : public detail::Registrar
             createConstTable(name, false, options); // Stack: ns, co, cl
 
             lua_newtable(L); // Stack: ns, co, cl, propset table (ps)
-            lua_rawsetp(L, -2, detail::getPropsetKey()); // cl [propsetKey] = ps. Stack: ns, co, cl
+            lua_rawsetp_x(L, -2, detail::getPropsetKey()); // cl [propsetKey] = ps. Stack: ns, co, cl
 
             lua_pushvalue(L, -2); // Stack: ns, co, cl, co
-            lua_rawsetp(L, -2, detail::getConstKey()); // cl [constKey] = co. Stack: ns, co, cl
+            lua_rawsetp_x(L, -2, detail::getConstKey()); // cl [constKey] = co. Stack: ns, co, cl
 
             lua_pushvalue(L, -1); // Stack: ns, co, cl, cl
-            lua_rawsetp(L, -3, detail::getClassKey()); // co [classKey] = cl. Stack: ns, co, cl
+            lua_rawsetp_x(L, -3, detail::getClassKey()); // co [classKey] = cl. Stack: ns, co, cl
         }
 
         //=========================================================================================
@@ -240,7 +240,7 @@ class Namespace : public detail::Registrar
             rawsetfield(L, -5, name); // ns [name] = st. Stack: ns, co, cl, st, mt
 
             pushunsigned(L, options.toUnderlying()); // Stack: ns, co, cl, st, mt, options
-            lua_rawsetp(L, -2, detail::getClassOptionsKey()); // st [classOptionsKey] = options. Stack: ns, co, cl, st, mt
+            lua_rawsetp_x(L, -2, detail::getClassOptionsKey()); // st [classOptionsKey] = options. Stack: ns, co, cl, st, mt
 
             lua_pushcfunction_x(L, &detail::index_metamethod<false>, "__index");
             rawsetfield(L, -2, "__index");
@@ -249,13 +249,13 @@ class Namespace : public detail::Registrar
             rawsetfield(L, -2, "__newindex");
 
             lua_newtable(L); // Stack: ns, co, cl, st, proget table (pg)
-            lua_rawsetp(L, -2, detail::getPropgetKey()); // st [propgetKey] = pg. Stack: ns, co, cl, st
+            lua_rawsetp_x(L, -2, detail::getPropgetKey()); // st [propgetKey] = pg. Stack: ns, co, cl, st
 
             lua_newtable(L); // Stack: ns, co, cl, st, propset table (ps)
-            lua_rawsetp(L, -2, detail::getPropsetKey()); // st [propsetKey] = pg. Stack: ns, co, cl, st
+            lua_rawsetp_x(L, -2, detail::getPropsetKey()); // st [propsetKey] = pg. Stack: ns, co, cl, st
 
             lua_pushvalue(L, -2); // Stack: ns, co, cl, st, cl
-            lua_rawsetp(L, -2, detail::getClassKey()); // st [classKey] = cl. Stack: ns, co, cl, st
+            lua_rawsetp_x(L, -2, detail::getClassKey()); // st [classKey] = cl. Stack: ns, co, cl, st
 
             if (! options.test(visibleMetatables))
             {
@@ -338,17 +338,17 @@ class Namespace : public detail::Registrar
                 ++m_stackSize;
 
                 lua_pushvalue(L, -1); // Stack: ns, co, cl, st, st
-                lua_rawsetp(L, -2, detail::getStaticKey()); // cl [staticKey] = st. Stack: ns, co, cl, st
+                lua_rawsetp_x(L, -2, detail::getStaticKey()); // cl [staticKey] = st. Stack: ns, co, cl, st
                 lua_pushvalue(L, -1); // Stack: ns, co, cl, st, st
-                lua_rawsetp(L, -3, detail::getStaticKey()); // co [staticKey] = st. Stack: ns, co, cl, st
+                lua_rawsetp_x(L, -3, detail::getStaticKey()); // co [staticKey] = st. Stack: ns, co, cl, st
 
                 // Map T back to its tables.
                 lua_pushvalue(L, -1); // Stack: ns, co, cl, st, st
-                lua_rawsetp(L, LUA_REGISTRYINDEX, detail::getStaticRegistryKey<T>()); // Stack: ns, co, cl, st
+                lua_rawsetp_x(L, LUA_REGISTRYINDEX, detail::getStaticRegistryKey<T>()); // Stack: ns, co, cl, st
                 lua_pushvalue(L, -2); // Stack: ns, co, cl, st, cl
-                lua_rawsetp(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>()); // Stack: ns, co, cl, st
+                lua_rawsetp_x(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>()); // Stack: ns, co, cl, st
                 lua_pushvalue(L, -3); // Stack: ns, co, cl, st, co
-                lua_rawsetp(L, LUA_REGISTRYINDEX, detail::getConstRegistryKey<T>()); // Stack: ns, co, cl, st
+                lua_rawsetp_x(L, LUA_REGISTRYINDEX, detail::getConstRegistryKey<T>()); // Stack: ns, co, cl, st
             }
             else
             {
@@ -360,12 +360,12 @@ class Namespace : public detail::Registrar
                 lua_pop(L, 1); // Stack: ns, st
 
                 // Map T back from its stored tables
-                lua_rawgetp(L, LUA_REGISTRYINDEX, detail::getConstRegistryKey<T>()); // Stack: ns, st, co
+                lua_rawgetp_x(L, LUA_REGISTRYINDEX, detail::getConstRegistryKey<T>()); // Stack: ns, st, co
                 LUABRIDGE_ASSERT(lua_istable(L, -1)); // Class was previously registered as table or namespace ?
                 lua_insert(L, -2); // Stack: ns, co, st
                 ++m_stackSize;
 
-                lua_rawgetp(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>()); // Stack: ns, co, st, cl
+                lua_rawgetp_x(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>()); // Stack: ns, co, st, cl
                 LUABRIDGE_ASSERT(lua_istable(L, -1)); // Class was previously registered as table or namespace ?
                 lua_insert(L, -2); // Stack: ns, co, cl, st
                 ++m_stackSize;
@@ -408,11 +408,11 @@ class Namespace : public detail::Registrar
             ++m_stackSize;
 
             lua_pushvalue(L, -1); // Stack: ns, co, cl, st, st
-            lua_rawsetp(L, -2, detail::getStaticKey()); // cl [staticKey] = st. Stack: ns, co, cl, st
+            lua_rawsetp_x(L, -2, detail::getStaticKey()); // cl [staticKey] = st. Stack: ns, co, cl, st
             lua_pushvalue(L, -1); // Stack: ns, co, cl, st, st
-            lua_rawsetp(L, -3, detail::getStaticKey()); // co [staticKey] = st. Stack: ns, co, cl, st
+            lua_rawsetp_x(L, -3, detail::getStaticKey()); // co [staticKey] = st. Stack: ns, co, cl, st
 
-            lua_rawgetp(L, LUA_REGISTRYINDEX, staticKey); // Stack: ns, co, cl, st, parent st (pst) | nil
+            lua_rawgetp_x(L, LUA_REGISTRYINDEX, staticKey); // Stack: ns, co, cl, st, parent st (pst) | nil
             if (lua_isnil(L, -1)) // Stack: ns, co, cl, st, nil
             {
                 lua_pop(L, 1);
@@ -423,22 +423,22 @@ class Namespace : public detail::Registrar
 
             LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: ns, co, cl, st, pst
 
-            lua_rawgetp(L, -1, detail::getClassKey()); // Stack: ns, co, cl, st, pst, parent cl (pcl)
+            lua_rawgetp_x(L, -1, detail::getClassKey()); // Stack: ns, co, cl, st, pst, parent cl (pcl)
             LUABRIDGE_ASSERT(lua_istable(L, -1));
 
-            lua_rawgetp(L, -1, detail::getConstKey()); // Stack: ns, co, cl, st, pst, pcl, parent co (pco)
+            lua_rawgetp_x(L, -1, detail::getConstKey()); // Stack: ns, co, cl, st, pst, pcl, parent co (pco)
             LUABRIDGE_ASSERT(lua_istable(L, -1));
 
-            lua_rawsetp(L, -6, detail::getParentKey()); // co [parentKey] = pco. Stack: ns, co, cl, st, pst, pcl
-            lua_rawsetp(L, -4, detail::getParentKey()); // cl [parentKey] = pcl. Stack: ns, co, cl, st, pst
-            lua_rawsetp(L, -2, detail::getParentKey()); // st [parentKey] = pst. Stack: ns, co, cl, st
+            lua_rawsetp_x(L, -6, detail::getParentKey()); // co [parentKey] = pco. Stack: ns, co, cl, st, pst, pcl
+            lua_rawsetp_x(L, -4, detail::getParentKey()); // cl [parentKey] = pcl. Stack: ns, co, cl, st, pst
+            lua_rawsetp_x(L, -2, detail::getParentKey()); // st [parentKey] = pst. Stack: ns, co, cl, st
 
             lua_pushvalue(L, -1); // Stack: ns, co, cl, st, st
-            lua_rawsetp(L, LUA_REGISTRYINDEX, detail::getStaticRegistryKey<T>()); // Stack: ns, co, cl, st
+            lua_rawsetp_x(L, LUA_REGISTRYINDEX, detail::getStaticRegistryKey<T>()); // Stack: ns, co, cl, st
             lua_pushvalue(L, -2); // Stack: ns, co, cl, st, cl
-            lua_rawsetp(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>()); // Stack: ns, co, cl, st
+            lua_rawsetp_x(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>()); // Stack: ns, co, cl, st
             lua_pushvalue(L, -3); // Stack: ns, co, cl, st, co
-            lua_rawsetp(L, LUA_REGISTRYINDEX, detail::getConstRegistryKey<T>()); // Stack: ns, co, cl, st
+            lua_rawsetp_x(L, LUA_REGISTRYINDEX, detail::getConstRegistryKey<T>()); // Stack: ns, co, cl, st
         }
 
         //=========================================================================================
@@ -992,7 +992,7 @@ class Namespace : public detail::Registrar
 
             lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: co, cl, st, function userdata (ud)
             lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, "__index", 1); // Stack: co, cl, st, function
-            lua_rawsetp(L, -3, detail::getIndexFallbackKey());
+            lua_rawsetp_x(L, -3, detail::getIndexFallbackKey());
 
             return *this;
         }
@@ -1005,7 +1005,7 @@ class Namespace : public detail::Registrar
 
             lua_pushlightuserdata(L, reinterpret_cast<void*>(idxf)); // Stack: co, cl, st, function ptr
             lua_pushcclosure_x(L, &detail::invoke_proxy_function<FnType>, "__index", 1); // Stack: co, cl, st, function
-            lua_rawsetp(L, -3, detail::getIndexFallbackKey());
+            lua_rawsetp_x(L, -3, detail::getIndexFallbackKey());
 
             return *this;
         }
@@ -1018,7 +1018,7 @@ class Namespace : public detail::Registrar
 
             new (lua_newuserdata_x<MemFnPtr>(L, sizeof(MemFnPtr))) MemFnPtr(idxf);
             lua_pushcclosure_x(L, &detail::invoke_member_function<MemFnPtr, T>, "__index", 1);
-            lua_rawsetp(L, -3, detail::getIndexFallbackKey());
+            lua_rawsetp_x(L, -3, detail::getIndexFallbackKey());
 
             return *this;
         }
@@ -1040,7 +1040,7 @@ class Namespace : public detail::Registrar
 
             lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: co, cl, st, function userdata (ud)
             lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, "__newindex", 1); // Stack: co, cl, st, function
-            lua_rawsetp(L, -3, detail::getNewIndexFallbackKey());
+            lua_rawsetp_x(L, -3, detail::getNewIndexFallbackKey());
 
             return *this;
         }
@@ -1053,7 +1053,7 @@ class Namespace : public detail::Registrar
 
             lua_pushlightuserdata(L, reinterpret_cast<void*>(idxf)); // Stack: co, cl, st, function ptr
             lua_pushcclosure_x(L, &detail::invoke_proxy_function<FnType>, "__newindex", 1); // Stack: co, cl, st, function
-            lua_rawsetp(L, -3, detail::getNewIndexFallbackKey());
+            lua_rawsetp_x(L, -3, detail::getNewIndexFallbackKey());
 
             return *this;
         }
@@ -1066,7 +1066,7 @@ class Namespace : public detail::Registrar
 
             new (lua_newuserdata_x<MemFnPtr>(L, sizeof(MemFnPtr))) MemFnPtr(idxf);
             lua_pushcclosure_x(L, &detail::invoke_member_function<MemFnPtr, T>, "__newindex", 1);
-            lua_rawsetp(L, -3, detail::getNewIndexFallbackKey());
+            lua_rawsetp_x(L, -3, detail::getNewIndexFallbackKey());
 
             return *this;
         }
@@ -1174,10 +1174,10 @@ private:
         //rawsetfield(L, -2, "__newindex"); // Stack: pns, ns
 
         lua_newtable(L); // Stack: ns, mt, propget table (pg)
-        lua_rawsetp(L, -2, detail::getPropgetKey()); // ns [propgetKey] = pg. Stack: ns
+        lua_rawsetp_x(L, -2, detail::getPropgetKey()); // ns [propgetKey] = pg. Stack: ns
 
         lua_newtable(L); // Stack: ns, mt, propset table (ps)
-        lua_rawsetp(L, -2, detail::getPropsetKey()); // ns [propsetKey] = ps. Stack: ns
+        lua_rawsetp_x(L, -2, detail::getPropsetKey()); // ns [propsetKey] = ps. Stack: ns
 
         if (! options.test(visibleMetatables))
         {
@@ -1226,10 +1226,10 @@ private:
             rawsetfield(L, -2, "__newindex"); // Stack: pns, ns
 
             lua_newtable(L); // Stack: pns, ns, propget table (pg)
-            lua_rawsetp(L, -2, detail::getPropgetKey()); // ns [propgetKey] = pg. Stack: pns, ns
+            lua_rawsetp_x(L, -2, detail::getPropgetKey()); // ns [propgetKey] = pg. Stack: pns, ns
 
             lua_newtable(L); // Stack: pns, ns, propset table (ps)
-            lua_rawsetp(L, -2, detail::getPropsetKey()); // ns [propsetKey] = ps. Stack: pns, ns
+            lua_rawsetp_x(L, -2, detail::getPropsetKey()); // ns [propsetKey] = ps. Stack: pns, ns
 
             if (! options.test(visibleMetatables))
             {
@@ -1540,7 +1540,7 @@ private:
     {
         if (m_stackSize == 1 && lua_istable(L, -1))
         {
-            lua_rawgetp(L, -1, detail::getPropgetKey());
+            lua_rawgetp_x(L, -1, detail::getPropgetKey());
             const bool propertyGetterTableIsValid = lua_istable(L, -1);
             lua_pop(L, 1);
 

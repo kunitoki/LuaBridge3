@@ -309,7 +309,7 @@ public:
         if (! lua_getmetatable(m_L, -1))
             return std::nullopt;
 
-        lua_rawgetp(m_L, -1, detail::getTypeKey());
+        lua_rawgetp_x(m_L, -1, detail::getTypeKey());
         if (lua_isstring(m_L, -1))
             return lua_tostring(m_L, -1);
 

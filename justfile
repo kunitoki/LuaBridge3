@@ -6,3 +6,6 @@ generate:
 
 clean:
     rm -rf Build
+
+amalgamate:
+    python3 amalgamate.py

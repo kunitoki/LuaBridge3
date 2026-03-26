@@ -81,6 +81,16 @@ inline int lua_getstack_info_x(lua_State* L, int level, const char* what, lua_De
     return lua_getinfo(L, level, what, ar);
 }
 
+inline int lua_rawgetp_x(lua_State* L, int idx, void* p)
+{
+    return lua_rawgetp(L, idx, p);
+}
+
+inline void lua_rawsetp_x(lua_State* L, int idx, void* p)
+{
+    return lua_rawsetp(L, idx, p);
+}
+
 #else
 using ::luaL_ref;
 using ::luaL_unref;
@@ -121,7 +131,43 @@ inline int lua_getstack_info_x(lua_State* L, int level, const char* what, lua_De
     return lua_getinfo(L, what, ar);
 }
 
+inline int lua_rawgetp_x(lua_State* L, int idx, void* p)
+{
+#if LUA_VERSION_NUM < 502
+    idx = lua_absindex(L, idx);
+    luaL_checkstack(L, 1, "not enough stack slots");
+    lua_pushlightuserdata(L, p);
+    lua_rawget(L, idx);
+    return lua_type(L, -1);
+#else
+    return lua_rawgetp(L, idx, p);
+#endif
+}
+
+inline void lua_rawsetp_x(lua_State* L, int idx, void* p)
+{
+#if LUA_VERSION_NUM < 502
+    idx = lua_absindex(L, idx);
+    luaL_checkstack(L, 1, "not enough stack slots");
+    lua_pushlightuserdata(L, p);
+    lua_insert(L, -2);
+    lua_rawset(L, idx);
+#else
+    return lua_rawsetp(L, idx, p);
+#endif
+}
+
 #endif // LUABRIDGE_ON_LUAU
+
+inline int lua_rawgetp_x(lua_State* L, int idx, const void* p)
+{
+    return lua_rawgetp_x(L, idx, const_cast<void*>(p));
+}
+
+inline void lua_rawsetp_x(lua_State* L, int idx, const void* p)
+{
+    return lua_rawsetp_x(L, idx, const_cast<void*>(p));
+}
 
 // These are for Lua versions prior to 5.5.0.
 #if LUA_VERSION_NUM < 505
@@ -186,24 +232,6 @@ inline int lua_absindex(lua_State* L, int idx)
         return idx;
 }
 #endif
-
-inline int lua_rawgetp(lua_State* L, int idx, const void* p)
-{
-    idx = lua_absindex(L, idx);
-    luaL_checkstack(L, 1, "not enough stack slots");
-    lua_pushlightuserdata(L, const_cast<void*>(p));
-    lua_rawget(L, idx);
-    return lua_type(L, -1);
-}
-
-inline void lua_rawsetp(lua_State* L, int idx, const void* p)
-{
-    idx = lua_absindex(L, idx);
-    luaL_checkstack(L, 1, "not enough stack slots");
-    lua_pushlightuserdata(L, const_cast<void*>(p));
-    lua_insert(L, -2);
-    lua_rawset(L, idx);
-}
 
 #define LUA_OPEQ 1
 #define LUA_OPLT 2
