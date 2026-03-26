@@ -261,7 +261,7 @@ jobs:
         submodules: true
 
     - name: Install Dependencies
-      run: sudo apt-get -y install ninja-build
+      run: sudo apt-get -y install libreadline-dev ninja-build
 
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
