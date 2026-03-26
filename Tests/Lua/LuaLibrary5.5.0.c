@@ -73,6 +73,7 @@ extern "C"
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #pragma GCC diagnostic ignored "-Wempty-body"
 #pragma GCC diagnostic ignored "-Wstring-plus-int"
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 #endif
 
 /* Include this early to prevent the conflict with luai_hashnum
