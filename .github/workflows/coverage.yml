@@ -388,7 +388,7 @@ jobs:
 
     - name: Test Ravi
       working-directory: ${{runner.workspace}}/build/Tests
-      run: ./LuaBridgeTestsRavi
+      run: LD_PRELOAD=$(gcc -print-file-name=libasan.so) ./LuaBridgeTestsRavi
 
     - name: Coverage Ravi
       working-directory: ${{runner.workspace}}/build
