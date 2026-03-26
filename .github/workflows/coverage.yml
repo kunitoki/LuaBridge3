@@ -58,7 +58,8 @@ jobs:
     - name: Coverage Lua 5.1
       working-directory: ${{runner.workspace}}/build
       run: |
-        lcov -c -d "${{runner.workspace}}/build" --rc lcov_branch_coverage=1 \
+        lcov -c -d "${{runner.workspace}}/build" --rc branch_coverage=1 --rc geninfo_unexecuted_blocks=1 \
+          --ignore-errors mismatch \
           --include "*/LuaBridge/*" --exclude "*/Tests/*" --exclude "*/Distribution/*" --exclude "*/coverage_html/*" \
           -o "coverage/lua51.info"
 
@@ -108,7 +109,8 @@ jobs:
     - name: Coverage Lua 5.2
       working-directory: ${{runner.workspace}}/build
       run: |
-        lcov -c -d "${{runner.workspace}}/build" --rc lcov_branch_coverage=1 \
+        lcov -c -d "${{runner.workspace}}/build" --rc branch_coverage=1 --rc geninfo_unexecuted_blocks=1 \
+          --ignore-errors mismatch \
           --include "*/LuaBridge/*" --exclude "*/Tests/*" --exclude "*/Distribution/*" --exclude "*/coverage_html/*" \
           -o "coverage/lua52.info"
 
@@ -158,7 +160,8 @@ jobs:
     - name: Coverage Lua 5.3
       working-directory: ${{runner.workspace}}/build
       run: |
-        lcov -c -d "${{runner.workspace}}/build" --rc lcov_branch_coverage=1 \
+        lcov -c -d "${{runner.workspace}}/build" --rc branch_coverage=1 --rc geninfo_unexecuted_blocks=1 \
+          --ignore-errors mismatch \
           --include "*/LuaBridge/*" --exclude "*/Tests/*" --exclude "*/Distribution/*" --exclude "*/coverage_html/*" \
           -o "coverage/lua53.info"
 
@@ -208,7 +211,8 @@ jobs:
     - name: Coverage Lua 5.4
       working-directory: ${{runner.workspace}}/build
       run: |
-        lcov -c -d "${{runner.workspace}}/build" --rc lcov_branch_coverage=1 \
+        lcov -c -d "${{runner.workspace}}/build" --rc branch_coverage=1 --rc geninfo_unexecuted_blocks=1 \
+          --ignore-errors mismatch \
           --include "*/LuaBridge/*" --exclude "*/Tests/*" --exclude "*/Distribution/*" --exclude "*/coverage_html/*" \
           -o "coverage/lua54.info"
 
@@ -258,7 +262,8 @@ jobs:
     - name: Coverage Lua 5.5
       working-directory: ${{runner.workspace}}/build
       run: |
-        lcov -c -d "${{runner.workspace}}/build" --rc lcov_branch_coverage=1 \
+        lcov -c -d "${{runner.workspace}}/build" --rc branch_coverage=1 --rc geninfo_unexecuted_blocks=1 \
+          --ignore-errors mismatch \
           --include "*/LuaBridge/*" --exclude "*/Tests/*" --exclude "*/Distribution/*" --exclude "*/coverage_html/*" \
           -o "coverage/lua55.info"
 
@@ -304,7 +309,8 @@ jobs:
     - name: Coverage LuaJIT
       working-directory: ${{runner.workspace}}/build
       run: |
-        lcov -c -d "${{runner.workspace}}/build" --rc lcov_branch_coverage=1 \
+        lcov -c -d "${{runner.workspace}}/build" --rc branch_coverage=1 --rc geninfo_unexecuted_blocks=1 \
+          --ignore-errors mismatch \
           --include "*/LuaBridge/*" --exclude "*/Tests/*" --exclude "*/Distribution/*" --exclude "*/coverage_html/*" \
           -o "coverage/luajit.info"
 
@@ -345,7 +351,8 @@ jobs:
     - name: Coverage Luau
       working-directory: ${{runner.workspace}}/build
       run: |
-        lcov -c -d "${{runner.workspace}}/build" --rc lcov_branch_coverage=1 \
+        lcov -c -d "${{runner.workspace}}/build" --rc branch_coverage=1 --rc geninfo_unexecuted_blocks=1 \
+          --ignore-errors mismatch \
           --include "*/LuaBridge/*" --exclude "*/Tests/*" --exclude "*/Distribution/*" --exclude "*/coverage_html/*" \
           -o "coverage/luau.info"
 
@@ -386,7 +393,8 @@ jobs:
     - name: Coverage Ravi
       working-directory: ${{runner.workspace}}/build
       run: |
-        lcov -c -d "${{runner.workspace}}/build" --rc lcov_branch_coverage=1 \
+        lcov -c -d "${{runner.workspace}}/build" --rc branch_coverage=1 --rc geninfo_unexecuted_blocks=1 \
+          --ignore-errors mismatch \
           --include "*/LuaBridge/*" --exclude "*/Tests/*" --exclude "*/Distribution/*" --exclude "*/coverage_html/*" \
           -o "coverage/ravi.info"
 

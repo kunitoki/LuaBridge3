@@ -182,7 +182,7 @@ function (setup_target_for_coverage TARGET_NAME SOURCE_LOCATION SOURCE_PACKAGE)
       --exclude "*/Tests/*"
       --exclude "*/Distribution/*"
       --exclude "*/coverage_html/*"
-      --rc lcov_branch_coverage=1
+      --rc branch_coverage=1
       -o "coverage/${TARGET_NAME}.info"
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     VERBATIM)
@@ -223,8 +223,7 @@ function (setup_coverage_single_target)
       -a "coverage/LuaBridgeTestsRavi.info"
       -o "coverage/Merged.info"
     COMMAND ${GENHTML_EXECUTABLE}
-      --rc lcov_branch_coverage=1
-      "coverage/Merged.info" -o "coverage_html"
+      --rc branch_coverage=1 "coverage/Merged.info" -o "coverage_html"
     DEPENDS
       "coverage/LuaBridgeTests51.info"
       "coverage/LuaBridgeTests51LuaC.info"
