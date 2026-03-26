@@ -123,6 +123,74 @@ constexpr void unused(Args&&...)
 {
 }
 
+#if LUA_VERSION_NUM < 502
+using lua_Unsigned = std::make_unsigned_t<lua_Integer>;
+
+#if ! LUABRIDGE_ON_LUAU
+inline int lua_absindex(lua_State* L, int idx)
+{
+    if (idx > LUA_REGISTRYINDEX && idx < 0)
+        return lua_gettop(L) + idx + 1;
+    else
+        return idx;
+}
+#endif
+
+#define LUA_OPEQ 1
+#define LUA_OPLT 2
+#define LUA_OPLE 3
+
+inline int lua_compare(lua_State* L, int idx1, int idx2, int op)
+{
+    switch (op)
+    {
+    case LUA_OPEQ:
+        return lua_equal(L, idx1, idx2);
+
+    case LUA_OPLT:
+        return lua_lessthan(L, idx1, idx2);
+
+    case LUA_OPLE:
+        return lua_equal(L, idx1, idx2) || lua_lessthan(L, idx1, idx2);
+
+    default:
+        return 0;
+    }
+}
+
+#if ! LUABRIDGE_ON_LUAJIT
+inline void* luaL_testudata(lua_State* L, int ud, const char* tname)
+{
+    void* p = lua_touserdata(L, ud);
+    if (p == nullptr)
+        return nullptr;
+
+    if (! lua_getmetatable(L, ud))
+        return nullptr;
+
+    luaL_getmetatable(L, tname);
+    if (! lua_rawequal(L, -1, -2))
+        p = nullptr;
+
+    lua_pop(L, 2);
+    return p;
+}
+#endif
+
+inline int get_length(lua_State* L, int idx)
+{
+    return static_cast<int>(lua_objlen(L, idx));
+}
+#else 
+inline int get_length(lua_State* L, int idx)
+{
+    lua_len(L, idx);
+    const int len = static_cast<int>(luaL_checknumber(L, -1));
+    lua_pop(L, 1);
+    return len;
+}
+#endif 
+
 #if LUABRIDGE_ON_LUAU
 inline int luaL_ref(lua_State* L, int idx)
 {
@@ -311,77 +379,6 @@ inline lua_Integer to_integerx(lua_State* L, int idx, int* isnum)
 
     return 0;
 }
-
-#endif 
-
-#if LUA_VERSION_NUM < 502
-using lua_Unsigned = std::make_unsigned_t<lua_Integer>;
-
-#if ! LUABRIDGE_ON_LUAU
-inline int lua_absindex(lua_State* L, int idx)
-{
-    if (idx > LUA_REGISTRYINDEX && idx < 0)
-        return lua_gettop(L) + idx + 1;
-    else
-        return idx;
-}
-#endif
-
-#define LUA_OPEQ 1
-#define LUA_OPLT 2
-#define LUA_OPLE 3
-
-inline int lua_compare(lua_State* L, int idx1, int idx2, int op)
-{
-    switch (op)
-    {
-    case LUA_OPEQ:
-        return lua_equal(L, idx1, idx2);
-
-    case LUA_OPLT:
-        return lua_lessthan(L, idx1, idx2);
-
-    case LUA_OPLE:
-        return lua_equal(L, idx1, idx2) || lua_lessthan(L, idx1, idx2);
-
-    default:
-        return 0;
-    }
-}
-
-#if ! LUABRIDGE_ON_LUAJIT
-inline void* luaL_testudata(lua_State* L, int ud, const char* tname)
-{
-    void* p = lua_touserdata(L, ud);
-    if (p == nullptr)
-        return nullptr;
-
-    if (! lua_getmetatable(L, ud))
-        return nullptr;
-
-    luaL_getmetatable(L, tname);
-    if (! lua_rawequal(L, -1, -2))
-        p = nullptr;
-
-    lua_pop(L, 2);
-    return p;
-}
-#endif
-
-inline int get_length(lua_State* L, int idx)
-{
-    return static_cast<int>(lua_objlen(L, idx));
-}
-
-#else 
-inline int get_length(lua_State* L, int idx)
-{
-    lua_len(L, idx);
-    const int len = static_cast<int>(luaL_checknumber(L, -1));
-    lua_pop(L, 1);
-    return len;
-}
-
 #endif 
 
 #ifndef LUA_OK
