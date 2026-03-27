@@ -45,7 +45,7 @@ jobs:
       uses: github/codeql-action/init@v3
       with:
         languages: ${{ matrix.language }}
-        config-file: ./.github/codeql/codeql-config.yml
+        config-file: ./.codeql.yml
 
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
