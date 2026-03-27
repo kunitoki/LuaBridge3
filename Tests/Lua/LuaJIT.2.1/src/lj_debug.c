@@ -1,6 +1,6 @@
 /*
 ** Debugging and introspection.
-** Copyright (C) 2005-2022 Mike Pall. See Copyright Notice in luajit.h
+** Copyright (C) 2005-2026 Mike Pall. See Copyright Notice in luajit.h
 */
 
 #define lj_debug_c
@@ -64,6 +64,7 @@ static BCPos debug_framepc(lua_State *L, GCfunc *fn, cTValue *nextframe)
     if (cf == NULL || (char *)cframe_pc(cf) == (char *)cframe_L(cf))
       return NO_BCPOS;
     ins = cframe_pc(cf);  /* Only happens during error/hook handling. */
+    if (!ins) return NO_BCPOS;
   } else {
     if (frame_islua(nextframe)) {
       ins = frame_pc(nextframe);
@@ -100,6 +101,7 @@ static BCPos debug_framepc(lua_State *L, GCfunc *fn, cTValue *nextframe)
   pt = funcproto(fn);
   pos = proto_bcpos(pt, ins) - 1;
 #if LJ_HASJIT
+  if (pos == NO_BCPOS) return 1;  /* Pretend it's the first bytecode. */
   if (pos > pt->sizebc) {  /* Undo the effects of lj_trace_exit for JLOOP. */
     if (bc_isret(bc_op(ins[-1]))) {
       GCtrace *T = (GCtrace *)((char *)(ins-1) - offsetof(GCtrace, startins));

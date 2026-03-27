@@ -260,6 +260,14 @@ inline lua_Integer to_integerx(lua_State* L, int idx, int* isnum)
 
     if (ok)
     {
+        if (n < static_cast<lua_Number>(std::numeric_limits<lua_Integer>::min()) ||
+            n > static_cast<lua_Number>(std::numeric_limits<lua_Integer>::max()))
+        {
+            if (isnum)
+                *isnum = 0;
+            return 0;
+        }
+
         const auto int_n = static_cast<lua_Integer>(n);
         if (n == static_cast<lua_Number>(int_n))
         {
