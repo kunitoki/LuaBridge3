@@ -553,6 +553,76 @@ class Namespace : public detail::Registrar
 
         //=========================================================================================
         /**
+         * @brief Add a static index metamethod function fallback that is triggered when no result is found in static functions, properties or any other static members.
+         *
+         * Let the user define a fallback index (__index) metamethod for the static class table.
+         */
+        template <class Function>
+        auto addStaticIndexMetaMethod(Function function)
+            -> std::enable_if_t<!std::is_pointer_v<Function>
+                && std::is_invocable_v<Function, const LuaRef&, lua_State*>, Class<T>&>
+        {
+            using FnType = decltype(function);
+
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: co, cl, st, function userdata (ud)
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, "__index", 1); // Stack: co, cl, st, function
+            lua_rawsetp_x(L, -2, detail::getStaticIndexFallbackKey());
+
+            return *this;
+        }
+
+        Class<T>& addStaticIndexMetaMethod(LuaRef (*idxf)(const LuaRef&, lua_State*))
+        {
+            using FnType = decltype(idxf);
+
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            lua_pushlightuserdata(L, reinterpret_cast<void*>(idxf)); // Stack: co, cl, st, function ptr
+            lua_pushcclosure_x(L, &detail::invoke_proxy_function<FnType>, "__index", 1); // Stack: co, cl, st, function
+            lua_rawsetp_x(L, -2, detail::getStaticIndexFallbackKey());
+
+            return *this;
+        }
+
+        //=========================================================================================
+        /**
+         * @brief Add a static new index metamethod function fallback that is triggered when no result is found in static functions, properties or any other static members.
+         *
+         * Let the user define a fallback new index (__newindex) metamethod for the static class table.
+         */
+        template <class Function>
+        auto addStaticNewIndexMetaMethod(Function function)
+            -> std::enable_if_t<!std::is_pointer_v<Function>
+                && std::is_invocable_v<Function, const LuaRef&, const LuaRef&, lua_State*>, Class<T>&>
+        {
+            using FnType = decltype(function);
+
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: co, cl, st, function userdata (ud)
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, "__newindex", 1); // Stack: co, cl, st, function
+            lua_rawsetp_x(L, -2, detail::getStaticNewIndexFallbackKey());
+
+            return *this;
+        }
+
+        Class<T>& addStaticNewIndexMetaMethod(LuaRef (*idxf)(const LuaRef&, const LuaRef&, lua_State*))
+        {
+            using FnType = decltype(idxf);
+
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            lua_pushlightuserdata(L, reinterpret_cast<void*>(idxf)); // Stack: co, cl, st, function ptr
+            lua_pushcclosure_x(L, &detail::invoke_proxy_function<FnType>, "__newindex", 1); // Stack: co, cl, st, function
+            lua_rawsetp_x(L, -2, detail::getStaticNewIndexFallbackKey());
+
+            return *this;
+        }
+
+        //=========================================================================================
+        /**
          * @brief Add or replace a property member, by constructible by std::function.
          */
         template <class Getter>

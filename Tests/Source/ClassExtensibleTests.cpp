@@ -883,3 +883,142 @@ TEST_F(ClassExtensibleTests, MetatablePrinting)
     EXPECT_FALSE(res.unsafe_cast<std::string>().empty());
 }
 #endif
+
+namespace {
+struct StaticMetamethodClass
+{
+    StaticMetamethodClass() = default;
+};
+
+luabridge::LuaRef staticIndexFallbackFunction(const luabridge::LuaRef& key, lua_State* L)
+{
+    if (key.tostring() == "xyz")
+    {
+        if (!luabridge::push(L, 42))
+            lua_pushnil(L);
+
+        return luabridge::LuaRef::fromStack(L);
+    }
+
+    return luabridge::LuaRef(L);
+}
+
+luabridge::LuaRef staticNewIndexFallbackFunction(const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State* L)
+{
+    return value;
+}
+} // namespace
+
+TEST_F(ClassExtensibleTests, StaticIndexFallbackMetaMethodFunctionPtr)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<StaticMetamethodClass>("X")
+            .addStaticIndexMetaMethod(&staticIndexFallbackFunction)
+        .endClass();
+
+    runLua("result = X.xyz");
+    ASSERT_EQ(42, result<int>());
+}
+
+TEST_F(ClassExtensibleTests, StaticIndexFallbackMetaMethodFreeFunctor)
+{
+    std::string capture = "hello";
+
+    auto indexMetaMethod = [&capture](const luabridge::LuaRef& key, lua_State* L) -> luabridge::LuaRef
+    {
+        if (key.tostring() == "greeting")
+        {
+            if (!luabridge::push(L, capture))
+                lua_pushnil(L);
+            return luabridge::LuaRef::fromStack(L);
+        }
+
+        return luabridge::LuaRef(L);
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<StaticMetamethodClass>("X")
+            .addStaticIndexMetaMethod(indexMetaMethod)
+        .endClass();
+
+    runLua("result = X.greeting");
+    ASSERT_EQ("hello", result<std::string_view>());
+}
+
+TEST_F(ClassExtensibleTests, StaticNewIndexFallbackMetaMethodFunctionPtr)
+{
+    // Verify that assigning to an unknown static key invokes the newindex fallback
+    // (staticNewIndexFallbackFunction is a plain function pointer that accepts the assignment).
+    // Without the fallback, assigning to an unknown key would raise a Lua error.
+    // We also confirm reading the key still goes through the index fallback.
+    luabridge::getGlobalNamespace(L)
+        .beginClass<StaticMetamethodClass>("X")
+            .addStaticIndexMetaMethod(&staticIndexFallbackFunction)
+            .addStaticNewIndexMetaMethod(&staticNewIndexFallbackFunction)
+        .endClass();
+
+    // staticIndexFallbackFunction always returns 42 for "xyz"
+    ASSERT_TRUE(runLua("X.xyz = 100")); // must not error: newindex fallback handles it
+    runLua("result = X.xyz");
+    ASSERT_EQ(42, result<int>()); // index fallback still returns 42 regardless of assignment
+}
+
+TEST_F(ClassExtensibleTests, StaticNewIndexFallbackMetaMethodFreeFunctor)
+{
+    std::unordered_map<std::string, int> data;
+
+    auto indexMetaMethod = [&data](const luabridge::LuaRef& key, lua_State* L) -> luabridge::LuaRef
+    {
+        auto it = data.find(key.tostring());
+        if (it != data.end())
+        {
+            if (!luabridge::push(L, it->second))
+                lua_pushnil(L);
+            return luabridge::LuaRef::fromStack(L);
+        }
+
+        return luabridge::LuaRef(L);
+    };
+
+    auto newIndexMetaMethod = [&data](const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State*) -> luabridge::LuaRef
+    {
+        if (value.isNumber())
+            data.emplace(key.tostring(), value.unsafe_cast<int>());
+        return value;
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<StaticMetamethodClass>("X")
+            .addStaticIndexMetaMethod(indexMetaMethod)
+            .addStaticNewIndexMetaMethod(newIndexMetaMethod)
+        .endClass();
+
+    runLua("X.foo = 111; X.bar = 222; result = X.foo + X.bar");
+    ASSERT_EQ(333, result<int>());
+}
+
+TEST_F(ClassExtensibleTests, StaticIndexFallbackReturnsNilForUnknownKey)
+{
+    auto indexMetaMethod = [](const luabridge::LuaRef& key, lua_State* L) -> luabridge::LuaRef
+    {
+        if (key.tostring() == "known")
+        {
+            if (!luabridge::push(L, 77))
+                lua_pushnil(L);
+            return luabridge::LuaRef::fromStack(L);
+        }
+
+        return luabridge::LuaRef(L);
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<StaticMetamethodClass>("X")
+            .addStaticIndexMetaMethod(indexMetaMethod)
+        .endClass();
+
+    runLua("result = X.known");
+    ASSERT_EQ(77, result<int>());
+
+    runLua("result = X.unknown");
+    ASSERT_TRUE(result().isNil());
+}
