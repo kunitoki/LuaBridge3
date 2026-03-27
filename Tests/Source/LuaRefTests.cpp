@@ -766,3 +766,57 @@ TEST_F(LuaRefTests, HookTesting)
         func.second(0, "x");
     }
 }
+
+TEST_F(LuaRefTests, AppendSingleValue)
+{
+    runLua("result = {}");
+
+    EXPECT_TRUE(result().append(1));
+    EXPECT_TRUE(result().append(2));
+    EXPECT_TRUE(result().append(3));
+
+    ASSERT_EQ(3, result().length());
+    ASSERT_EQ(1, result()[1].unsafe_cast<int>());
+    ASSERT_EQ(2, result()[2].unsafe_cast<int>());
+    ASSERT_EQ(3, result()[3].unsafe_cast<int>());
+}
+
+TEST_F(LuaRefTests, AppendMultipleValues)
+{
+    runLua("result = {}");
+
+    EXPECT_TRUE(result().append(10, 20, 30));
+
+    ASSERT_EQ(3, result().length());
+    ASSERT_EQ(10, result()[1].unsafe_cast<int>());
+    ASSERT_EQ(20, result()[2].unsafe_cast<int>());
+    ASSERT_EQ(30, result()[3].unsafe_cast<int>());
+}
+
+TEST_F(LuaRefTests, AppendMixedTypes)
+{
+    runLua("result = {}");
+
+    EXPECT_TRUE(result().append(42, std::string("hello"), true, 3.14));
+
+    ASSERT_EQ(4, result().length());
+    ASSERT_EQ(42, result()[1].unsafe_cast<int>());
+    ASSERT_EQ("hello", result()[2].unsafe_cast<std::string>());
+    ASSERT_TRUE(result()[3].unsafe_cast<bool>());
+    ASSERT_DOUBLE_EQ(3.14, result()[4].unsafe_cast<double>());
+}
+
+TEST_F(LuaRefTests, AppendToExistingSequence)
+{
+    runLua("result = {10, 20}");
+
+    ASSERT_EQ(2, result().length());
+
+    EXPECT_TRUE(result().append(30, 40));
+
+    ASSERT_EQ(4, result().length());
+    ASSERT_EQ(10, result()[1].unsafe_cast<int>());
+    ASSERT_EQ(20, result()[2].unsafe_cast<int>());
+    ASSERT_EQ(30, result()[3].unsafe_cast<int>());
+    ASSERT_EQ(40, result()[4].unsafe_cast<int>());
+}
