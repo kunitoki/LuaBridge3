@@ -10,6 +10,7 @@ on:
       - "**/ThirdParty/**"
       - "**/CMakeLists.txt"
       - "**/.gitmodules"
+      - "**/.codeql.yml"
       - "!**/*.md"
       - "!**/*.txt"
 
