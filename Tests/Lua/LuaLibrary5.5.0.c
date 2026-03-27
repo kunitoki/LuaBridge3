@@ -64,6 +64,7 @@ extern "C"
 #pragma warning (disable: 4297) /* Function assumed not to throw an exception but does */
 #pragma warning (disable: 4310) /* Cast truncates constant value */
 #pragma warning (disable: 4334) /* Result of 32-bit shift implicitly converted to 64 bits */
+#pragma warning (disable: 4551) /* Function call missing argument list */
 #pragma warning (disable: 4701) /* Potentially uninitialized local variable */
 #pragma warning (disable: 4702) /* Unreachable code */
 #elif __GNUC__
