@@ -311,7 +311,7 @@ inline int lua_rawgetp_x(lua_State* L, int idx, void* p)
 
 inline void lua_rawsetp_x(lua_State* L, int idx, void* p)
 {
-#if LUA_VERSION_NUM < 502
+#if LUA_VERSION_NUM < 503
     idx = lua_absindex(L, idx);
     luaL_checkstack(L, 1, "not enough stack slots");
     lua_pushlightuserdata(L, p);
@@ -354,6 +354,14 @@ inline lua_Integer to_integerx(lua_State* L, int idx, int* isnum)
 
     if (ok)
     {
+        if (n < static_cast<lua_Number>(std::numeric_limits<lua_Integer>::min()) ||
+            n > static_cast<lua_Number>(std::numeric_limits<lua_Integer>::max()))
+        {
+            if (isnum)
+                *isnum = 0;
+            return 0;
+        }
+
         const auto int_n = static_cast<lua_Integer>(n);
         if (n == static_cast<lua_Number>(int_n))
         {
@@ -745,6 +753,11 @@ struct ErrorCategory : std::error_category
     }
 
     std::string message(int ev) const override
+    {
+        return errorString(ev);
+    }
+
+    static const char* errorString(int ev) noexcept
     {
         switch (static_cast<ErrorCode>(ev))
         {
@@ -1835,6 +1848,18 @@ private:
 };
 #endif
 
+namespace detail {
+template <class E>
+inline void throw_bad_expected_access_or_abort(E e)
+{
+#if LUABRIDGE_HAS_EXCEPTIONS
+    throw BadExpectedAccess<E>(std::move(e));
+#else
+    std::abort();
+#endif
+}
+} 
+
 template <class T>
 struct is_expected : std::false_type
 {
@@ -2086,40 +2111,33 @@ public:
 
     constexpr const T& value() const& LUABRIDGE_IF_NO_EXCEPTIONS(noexcept)
     {
-#if LUABRIDGE_HAS_EXCEPTIONS
         if (!hasValue())
-            throw BadExpectedAccess<E>(error());
-#endif
+            detail::throw_bad_expected_access_or_abort(std::move(error()));
 
         return base_type::value();
     }
 
     constexpr T& value() & LUABRIDGE_IF_NO_EXCEPTIONS(noexcept)
     {
-#if LUABRIDGE_HAS_EXCEPTIONS
         if (!hasValue())
-            throw BadExpectedAccess<E>(error());
-#endif
+            detail::throw_bad_expected_access_or_abort(std::move(error()));
 
         return base_type::value();
     }
 
     constexpr const T&& value() const&& LUABRIDGE_IF_NO_EXCEPTIONS(noexcept)
     {
-#if LUABRIDGE_HAS_EXCEPTIONS
         if (!hasValue())
-            throw BadExpectedAccess<E>(error());
-#endif
+            detail::throw_bad_expected_access_or_abort(std::move(error()));
 
         return std::move(base_type::value());
     }
 
     constexpr T&& value() && LUABRIDGE_IF_NO_EXCEPTIONS(noexcept)
     {
-#if LUABRIDGE_HAS_EXCEPTIONS
         if (!hasValue())
-            throw BadExpectedAccess<E>(error());
-#endif
+            detail::throw_bad_expected_access_or_abort(std::move(error()));
+
         return std::move(base_type::value());
     }
 
@@ -2447,6 +2465,11 @@ struct Result
         return m_ec;
     }
 
+    const char* error_cstr() const noexcept
+    {
+        return detail::ErrorCategory::errorString(m_ec.value());
+    }
+
     operator std::error_code() const noexcept
     {
         return m_ec;
@@ -2535,6 +2558,11 @@ struct TypeResult
     std::error_code error() const
     {
         return m_value.error();
+    }
+
+    const char* error_cstr() const noexcept
+    {
+        return detail::ErrorCategory::errorString(m_value.error().value());
     }
 
     operator std::error_code() const
@@ -5971,7 +5999,7 @@ auto unwrap_argument_or_error(lua_State* L, std::size_t index, std::size_t start
 {
     auto result = Stack<T>::get(L, static_cast<int>(index + start));
     if (! result)
-        raise_lua_error(L, "Error decoding argument #%d: %s", static_cast<int>(index + 1), result.message().c_str());
+        raise_lua_error(L, "Error decoding argument #%d: %s", static_cast<int>(index + 1), result.error_cstr());
 
     return std::move(*result);
 }
@@ -6437,11 +6465,7 @@ inline int newindex_metamethod(lua_State* L)
 
 inline int read_only_error(lua_State* L)
 {
-    std::stringstream ss;
-
-    ss << "'" << lua_tostring(L, lua_upvalueindex(1)) << "' is read-only";
-
-    raise_lua_error(L, "%s", ss.str().c_str());
+    raise_lua_error(L, "'%s' is read-only", lua_tostring(L, lua_upvalueindex(1)));
 
     return 0;
 }
@@ -6518,7 +6542,7 @@ struct property_getter<T, void>
 
         auto result = Stack<T&>::push(L, *ptr);
         if (! result)
-            raise_lua_error(L, "%s", result.message().c_str());
+            raise_lua_error(L, "%s", result.error_cstr());
 
         return 1;
     }
@@ -6550,7 +6574,7 @@ struct property_getter
 #endif
 
         if (! result)
-            raise_lua_error(L, "%s", result.message().c_str());
+            raise_lua_error(L, "%s", result.error_cstr());
 
         return 1;
     }
@@ -6587,7 +6611,7 @@ struct property_setter<T, void>
 
         auto result = Stack<T>::get(L, 1);
         if (! result)
-            raise_lua_error(L, "%s", result.error().message().c_str());
+            raise_lua_error(L, "%s", result.error_cstr());
 
         *ptr = std::move(*result);
 
@@ -6610,7 +6634,7 @@ struct property_setter
 #endif
             auto result = Stack<T>::get(L, 2);
             if (! result)
-                raise_lua_error(L, "%s", result.error().message().c_str());
+                raise_lua_error(L, "%s", result.error_cstr());
 
             c->** mp = std::move(*result);
 
@@ -6665,7 +6689,7 @@ struct function
 #endif
 
         if (! result)
-            raise_lua_error(L, "%s", result.message().c_str());
+            raise_lua_error(L, "%s", result.error_cstr());
 
         return 1;
     }
@@ -6692,7 +6716,7 @@ struct function
 #endif
 
         if (! result)
-            raise_lua_error(L, "%s", result.message().c_str());
+            raise_lua_error(L, "%s", result.error_cstr());
 
         return 1;
     }
@@ -7571,7 +7595,7 @@ int constructor_container_proxy(lua_State* L)
 
     auto result = UserdataSharedHelper<C, false>::push(L, object);
     if (! result)
-        raise_lua_error(L, "%s", result.message().c_str());
+        raise_lua_error(L, "%s", result.error_cstr());
 
     return 1;
 }
@@ -7584,7 +7608,7 @@ int constructor_placement_proxy(lua_State* L)
     std::error_code ec;
     auto* value = UserdataValue<T>::place(L, ec);
     if (! value)
-        raise_lua_error(L, "%s", ec.message().c_str());
+        raise_lua_error(L, "%s", detail::ErrorCategory::errorString(ec.value()));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
     try
@@ -7624,7 +7648,7 @@ struct constructor_forwarder
         std::error_code ec;
         auto* value = UserdataValue<T>::place(L, ec);
         if (! value)
-            raise_lua_error(L, "%s", ec.message().c_str());
+            raise_lua_error(L, "%s", detail::ErrorCategory::errorString(ec.value()));
 
         T* object = nullptr;
         
@@ -7705,7 +7729,7 @@ struct factory_forwarder
         std::error_code ec;
         auto* value = UserdataValueExternal<T>::place(L, object, m_dealloc, ec);
         if (! value)
-            raise_lua_error(L, "%s", ec.message().c_str());
+            raise_lua_error(L, "%s", detail::ErrorCategory::errorString(ec.value()));
 
         return object;
     }
@@ -7746,7 +7770,7 @@ struct container_forwarder
 
         auto result = UserdataSharedHelper<C, false>::push(L, object);
         if (! result)
-            raise_lua_error(L, "%s", result.message().c_str());
+            raise_lua_error(L, "%s", result.error_cstr());
 
         return object;
     }
