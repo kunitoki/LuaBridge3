@@ -2,7 +2,7 @@
 /*
   https://github.com/kunitoki/LuaBridge3
 
-  Copyright (C) 2021, Lucio Asnaghi <kunitoki@gmail.com>
+  Copyright (C) 2021, kunitoki <kunitoki@gmail.com>
 
   License: The MIT License (http://www.opensource.org/licenses/mit-license.php)
 

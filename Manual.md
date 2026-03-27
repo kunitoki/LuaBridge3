@@ -158,9 +158,9 @@ SOFTWARE.
 
 The original version of LuaBridge was written by Nathan Reed. The project has been taken over by Vinnie Falco, who added new functionality and wrote the new documentation. Vinnie also incorporated `LuaRef` and other Lua to C++ binding contributions from Nigel Atkinson.
 
-For questions, comments, or bug reports feel free to open a Github issue or contact Lucio Asnaghi directly at the email address indicated below.
+For questions, comments, or bug reports feel free to open a Github issue or contact kunitoki directly at the email address indicated below.
 
-*   Copyright 2020, Lucio Asnaghi [<kunitoki@gmail.com>](mailto:kunitoki@gmail.com)
+*   Copyright 2020, kunitoki [<kunitoki@gmail.com>](mailto:kunitoki@gmail.com)
 *   Copyright 2019, Dmitry Tarakanov
 *   Copyright 2012, Vinnie Falco [<vinnie.falco@gmail.com>](mailto:vinnie.falco@gmail.com)
 *   Copyright 2008, Nigel Atkinson [<suprapilot+LuaCode@gmail.com>](mailto:suprapilot+LuaCode@gmail.com)

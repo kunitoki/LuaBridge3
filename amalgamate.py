@@ -189,7 +189,7 @@ class SourceInfo:
 		with open (headerPath , 'w') as headerAmalgamation:
 			current_year = datetime.date.today().year
 			headerAmalgamation.write(f"// https://github.com/kunitoki/LuaBridge3\n")
-			headerAmalgamation.write(f"// Copyright {current_year}, Lucio Asnaghi\n")
+			headerAmalgamation.write(f"// Copyright {current_year}, kunitoki\n")
 			headerAmalgamation.write(f"// SPDX-License-Identifier: MIT\n\n")
 			headerAmalgamation.write(f"// clang-format off\n\n")
 			headerAmalgamation.write(f"#pragma once\n\n")

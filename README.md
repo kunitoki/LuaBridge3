@@ -172,12 +172,12 @@ The original version of LuaBridge3 was written by Nathan Reed. The project has
 been taken over by Vinnie Falco, who added new functionality, wrote the new
 documentation, and incorporated contributions from Nigel Atkinson. Then it has
 been forked from the original https://github.com/vinniefalco/LuaBridge into its
-own LuaBridge3 repository by Lucio Asnaghi, and development continued there.
+own LuaBridge3 repository by kunitoki, and development continued there.
 
 For questions, comments, or bug reports feel free to open a Github issue
-or contact Lucio Asnaghi directly at the email address indicated below.
+or contact kunitoki directly at the email address indicated below.
 
-Copyright 2020, Lucio Asnaghi (<kunitoki@gmail.com>)<br>
+Copyright 2020, kunitoki (<kunitoki@gmail.com>)<br>
 Copyright 2019, Dmitry Tarakanov<br>
 Copyright 2012, Vinnie Falco (<vinnie.falco@gmail.com>)<br>
 Copyright 2008, Nigel Atkinson<br>
