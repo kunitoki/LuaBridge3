@@ -396,6 +396,89 @@ TEST_F(ClassExtensibleTests, ExtensibleDerivedClassAndBaseCascading)
     EXPECT_EQ(1, result<int>());
 }
 
+TEST_F(ClassExtensibleTests, ExtensibleDerivedDoesNotPollutBaseMethod)
+{
+    // Regression test: defining a Lua method on a derived class must NOT overwrite the
+    // same-named method on the base class (the originally reported inheritance bug).
+    luabridge::getGlobalNamespace(L)
+        .beginClass<ExtensibleBase>("ExtensibleBase", luabridge::extensibleClass)
+            .addConstructor<void(*)()>()
+        .endClass()
+        .deriveClass<ExtensibleDerived, ExtensibleBase>("ExtensibleDerived", luabridge::extensibleClass)
+            .addConstructor<void(*)()>()
+        .endClass()
+    ;
+
+    runLua(R"(
+        function ExtensibleBase:init() return 100 end
+        function ExtensibleDerived:init() return 200 end
+
+        local base = ExtensibleBase()
+        local derived = ExtensibleDerived()
+        result = base:init()
+    )");
+
+    // base:init() must return 100 (the Base version), not 200 (the Derived version)
+    EXPECT_EQ(100, result<int>());
+}
+
+TEST_F(ClassExtensibleTests, ExtensibleDerivedMethodIsolatedFromBase)
+{
+    // Verify both sides independently after same-name Lua methods are defined on each class.
+    luabridge::getGlobalNamespace(L)
+        .beginClass<ExtensibleBase>("ExtensibleBase", luabridge::extensibleClass)
+            .addConstructor<void(*)()>()
+        .endClass()
+        .deriveClass<ExtensibleDerived, ExtensibleBase>("ExtensibleDerived", luabridge::extensibleClass)
+            .addConstructor<void(*)()>()
+        .endClass()
+    ;
+
+    runLua(R"(
+        function ExtensibleBase:getValue() return 10 end
+        function ExtensibleDerived:getValue() return 20 end
+
+        local base = ExtensibleBase()
+        local derived = ExtensibleDerived()
+        result = derived:getValue() * 100 + base:getValue()
+    )");
+
+    // derived:getValue() == 20, base:getValue() == 10  =>  20*100 + 10 == 2010
+    EXPECT_EQ(2010, result<int>());
+}
+
+TEST_F(ClassExtensibleTests, ExtensibleDerivedOverridePreservesCppBaseMethod)
+{
+    // When allowOverridingMethods is set and a derived class overrides a C++ method,
+    // the base class should still call the original C++ implementation.
+    constexpr auto options = luabridge::extensibleClass | luabridge::allowOverridingMethods;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<ExtensibleBase>("ExtensibleBase", options)
+            .addConstructor<void(*)()>()
+            .addFunction("baseClass", &ExtensibleBase::baseClass)
+        .endClass()
+        .deriveClass<ExtensibleDerived, ExtensibleBase>("ExtensibleDerived", options)
+            .addConstructor<void(*)()>()
+        .endClass()
+    ;
+
+    runLua(R"(
+        -- Override baseClass only on ExtensibleDerived; base must remain unaffected
+        function ExtensibleDerived:baseClass()
+            return 100 + self:super_baseClass()
+        end
+
+        local base = ExtensibleBase()
+        local derived = ExtensibleDerived()
+        result = derived:baseClass() * 1000 + base:baseClass()
+    )");
+
+    // derived:baseClass() == 100 + 1 == 101, base:baseClass() == 1 (original C++)
+    // => 101 * 1000 + 1 == 101001
+    EXPECT_EQ(101001, result<int>());
+}
+
 TEST_F(ClassExtensibleTests, ExtensibleDerivedClassAndBaseSameMethod)
 {
     luabridge::getGlobalNamespace(L)

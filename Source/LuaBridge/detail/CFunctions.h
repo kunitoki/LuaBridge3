@@ -429,55 +429,78 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
     LUABRIDGE_ASSERT(key != nullptr);
     LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt
 
-    lua_pushvalue(L, -1); // Stack: mt, mt
+    lua_pushvalue(L, -1); // Stack: mt, mt_iter (initially a copy of mt)
 
     for (;;)
     {
-        push_class_or_const_table(L, -1); // Stack: mt, mt, class table (ct) | nil
-        if (! lua_istable(L, -1)) // Stack: mt, mt, nil
+        push_class_or_const_table(L, -1); // Stack: mt, mt_iter, class table (ct) | nil
+        if (! lua_istable(L, -1)) // Stack: mt, mt_iter, nil
         {
             lua_pop(L, 2); // Stack: mt
             return std::nullopt;
         }
 
-        lua_pushvalue(L, 2); // Stack: mt, mt, ct | co, field name
-        lua_rawget(L, -2); // Stack: mt, mt, ct | co, field | nil
+        lua_pushvalue(L, 2); // Stack: mt, mt_iter, ct | co, field name
+        lua_rawget(L, -2); // Stack: mt, mt_iter, ct | co, field | nil
 
-        if (! lua_isnil(L, -1)) // Stack: mt, mt, ct | co, field
+        if (! lua_isnil(L, -1)) // Stack: mt, mt_iter, ct | co, field
         {
             if (! lua_iscfunction(L, -1))
             {
-                lua_pop(L, 1);
+                lua_pop(L, 1); // Stack: mt, mt_iter, ct | co
                 break;
             }
 
             // Obtain class options
-            const Options options = get_class_options(L, -2); // Stack: mt, mt, ct | co, field
+            const Options options = get_class_options(L, -2); // Stack: mt, mt_iter, ct | co, field
             if (! options.test(allowOverridingMethods))
                 luaL_error(L, "immutable member '%s'", key);
 
-            rawsetfield(L, -2, make_super_method_name(key).c_str()); // Stack: mt, mt, ct | co
+            // Copy the original cfunction as "super_<name>" into the ORIGINAL (target/derived)
+            // class table, not into the parent class table where it was found.  This ensures
+            // that base-class instances continue to find and call the original cfunction via
+            // their own class table, while derived-class instances gain a "super_<name>" alias.
+            const int cfunction_idx = lua_gettop(L); // absolute stack index of the cfunction to copy
+            lua_getmetatable(L, 1); // Stack: mt, mt_iter, ct | co, field, orig_mt
+            push_class_or_const_table(L, -1); // Stack: mt, mt_iter, ct | co, field, orig_mt, orig_ct
+            lua_remove(L, -2); // Stack: mt, mt_iter, ct | co, field, orig_ct
+            lua_getmetatable(L, -1); // Stack: mt, mt_iter, ct | co, field, orig_ct, orig_ct_meta
+            lua_pushvalue(L, cfunction_idx); // push copy of the cfunction
+            rawsetfield(L, -2, make_super_method_name(key).c_str()); // Stack: mt, mt_iter, ct | co, field, orig_ct, orig_ct_meta
+            lua_pop(L, 3); // pop orig_ct_meta, orig_ct, field -> Stack: mt, mt_iter, ct | co
             break;
         }
 
-        lua_pop(L, 1); // Stack: mt, mt, ct | co
+        lua_pop(L, 1); // Stack: mt, mt_iter, ct | co
 
-        lua_rawgetp_x(L, -2, getParentKey()); // Stack: mt, mt, ct | co, parent mt (pmt) | nil
-        if (lua_isnil(L, -1)) // Stack: mt, mt, ct | co, nil
+        lua_rawgetp_x(L, -2, getParentKey()); // Stack: mt, mt_iter, ct | co, parent mt (pmt) | nil
+        if (lua_isnil(L, -1)) // Stack: mt, mt_iter, ct | co, nil
         {
-            lua_pop(L, 1); // Stack: mt, mt, ct | co
+            lua_pop(L, 1); // Stack: mt, mt_iter, ct | co
             break;
         }
 
-        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt, mt, ct | co, pmt
-        lua_remove(L, -2); // Stack: mt, mt, pmt
+        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt, mt_iter, ct | co, pmt
+        lua_remove(L, -2); // Stack: mt, mt_iter, pmt
         lua_remove(L, -2); // Stack: mt, pmt
     }
 
-    lua_remove(L, -2); // Stack: mt, ct | co
-    lua_getmetatable(L, -1); // Stack: mt, ct | co, mt2
-    lua_pushvalue(L, 3); // Stack: mt, ct | co, mt2, arg3
-    rawsetfield(L, -2, key); // Stack: mt, ct | co, mt2
+    // Stack: mt, mt_iter, ct | co at every break point.
+    // Discard the search context and store the new value in the ORIGINAL (target/derived) class
+    // table obtained from arg1's metatable.  This fixes the inheritance bug where a method
+    // defined on a derived class was written into the base class, making it visible to
+    // base-class instances as well.
+    lua_pop(L, 2); // Stack: mt
+
+    lua_getmetatable(L, 1); // Stack: mt, orig_mt (metatable of the original static table, arg1)
+    push_class_or_const_table(L, -1); // Stack: mt, orig_mt, orig_ct
+    lua_remove(L, -2); // Stack: mt, orig_ct
+    // In LuaBridge, each class/const table is set as its own metatable (see createConstTable),
+    // so getmetatable(orig_ct) == orig_ct.  rawsetfield on the metatable therefore writes
+    // directly into orig_ct, matching the storage convention used throughout this file.
+    lua_getmetatable(L, -1); // Stack: mt, orig_ct, orig_ct_meta (== orig_ct; class tables are own-metatables)
+    lua_pushvalue(L, 3); // Stack: mt, orig_ct, orig_ct_meta, arg3
+    rawsetfield(L, -2, key); // Stack: mt, orig_ct, orig_ct_meta
 
     lua_pop(L, 2); // Stack: mt
 
