@@ -1,8 +1,0 @@
-#ifndef _REDUKTI_RAVI_CONFIG_H_IN_H
-#define _REDUKTI_RAVI_CONFIG_H_IN_H
-
-/* #undef NO_LUA_DEBUG */
-#define USE_MIRJIT 1
-#define USE_RAVICOMP 1
-
-#endif  //_REDUKTI_RAVI_CONFIG_H_IN_H
