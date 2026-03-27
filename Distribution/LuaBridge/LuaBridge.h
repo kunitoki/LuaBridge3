@@ -6359,6 +6359,70 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
     LUABRIDGE_ASSERT(key != nullptr);
     LUABRIDGE_ASSERT(lua_istable(L, -1)); 
 
+    const bool value_is_function = lua_isfunction(L, 3);
+
+    if (value_is_function)
+    {
+        
+        push_class_or_const_table(L, -1); 
+        if (! lua_istable(L, -1)) 
+        {
+            lua_pop(L, 1); 
+            return std::nullopt;
+        }
+        
+        lua_pushvalue(L, -2); 
+
+        for (;;)
+        {
+            push_class_or_const_table(L, -1); 
+            if (! lua_istable(L, -1)) 
+            {
+                lua_pop(L, 2); 
+                break;
+            }
+
+            lua_pushvalue(L, 2); 
+            lua_rawget(L, -2); 
+
+            if (! lua_isnil(L, -1)) 
+            {
+                if (! lua_iscfunction(L, -1))
+                {
+                    lua_pop(L, 3); 
+                    break;
+                }
+
+                const Options options = get_class_options(L, -2); 
+                if (! options.test(allowOverridingMethods))
+                    luaL_error(L, "immutable member '%s'", key);
+
+                rawsetfield(L, -4, make_super_method_name(key).c_str()); 
+                lua_pop(L, 2); 
+                break;
+            }
+
+            lua_pop(L, 1); 
+
+            lua_rawgetp_x(L, -2, getParentKey()); 
+            if (lua_isnil(L, -1)) 
+            {
+                lua_pop(L, 3); 
+                break;
+            }
+
+            LUABRIDGE_ASSERT(lua_istable(L, -1)); 
+            lua_remove(L, -2); 
+            lua_remove(L, -2); 
+        }
+
+        lua_getmetatable(L, -1); 
+        lua_pushvalue(L, 3); 
+        rawsetfield(L, -2, key); 
+        lua_pop(L, 2); 
+        return 0;
+    }
+
     lua_pushvalue(L, -1); 
 
     for (;;)
@@ -6407,9 +6471,7 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
     lua_getmetatable(L, -1); 
     lua_pushvalue(L, 3); 
     rawsetfield(L, -2, key); 
-
     lua_pop(L, 2); 
-
     return 0;
 }
 
