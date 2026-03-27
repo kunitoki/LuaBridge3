@@ -1488,6 +1488,18 @@ v [3] = v [2];                       // v[2] and v[3] reference the same table
 v [2] = luabridge::LuaNil ();        // Removes the value with key = 2. The table is still referenced by v[3].
 ```
 
+To append one or more values to a sequence table, use `append`. It is equivalent to assigning to `#t + 1`, `#t + 2`, etc., and uses `lua_rawseti` internally:
+
+```cpp
+luabridge::LuaRef t = luabridge::newTable (L);
+
+t.append (1);              // t = {1}
+t.append (2, 3);           // t = {1, 2, 3}
+t.append ("hello", true);  // t = {1, 2, 3, "hello", true}
+```
+
+`append` returns `true` if all values were successfully pushed and stored, and stops early (returning `false`) if any value fails to push onto the Lua stack.
+
 4.3 - Calling Lua
 -----------------
 
@@ -1903,9 +1915,10 @@ bool operator>= (T rhs) const;
 template <class T>
 bool rawequal (T v) const;
 
-/// Append a value to a referred table. If the table is a sequence this will add another element to it.
-template <class T>
-void append (T v) const;
+/// Append one or more values to a referred table. If the table is a sequence this will add more elements to it.
+/// Uses lua_rawseti internally. Returns true if all values were successfully appended.
+template <class... Ts>
+bool append (const Ts&... vs) const;
 
 /// Return the length of a referred array. This is identical to applying the Lua # operator.
 int length () const;

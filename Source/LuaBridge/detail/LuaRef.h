@@ -586,6 +586,39 @@ public:
 
     //=============================================================================================
     /**
+     * @brief Append one or more values to a referred table.
+     *
+     * If the table is a sequence this will add more elements to it.
+     *
+     * @param vs Values to append.
+     *
+     * @returns True if all values were successfully appended.
+     */
+    template <class... Ts>
+    bool append(const Ts&... vs) const
+    {
+        static_assert(sizeof...(vs) > 0);
+
+        const StackRestore stackRestore(m_L);
+
+        impl().push(m_L);
+
+        int index = get_length(m_L, -1) + 1;
+
+        auto appendOne = [&](const auto& v) -> bool
+        {
+            if (! Stack<std::decay_t<decltype(v)>>::push(m_L, v))
+                return false;
+
+            lua_rawseti(m_L, -2, index++);
+            return true;
+        };
+
+        return (appendOne(vs) && ...);
+    }
+
+    //=============================================================================================
+    /**
      * @brief Call Lua code.
      *
      * The return value is provided as a LuaRef (which may be LUA_REFNIL).
