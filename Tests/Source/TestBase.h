@@ -97,7 +97,7 @@ struct TestBase : public ::testing::Test
         lua_State* l;
 
         if (alloc)
-            l = lua_newstate(alloc, nullptr);
+            l = luabridge::lua_newstate_x(alloc, nullptr, 0);
         else
             l = luaL_newstate();
 

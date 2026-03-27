@@ -1,6 +1,6 @@
 |// Low-level VM code for x86 CPUs.
 |// Bytecode interpreter, fast functions and helper functions.
-|// Copyright (C) 2005-2022 Mike Pall. See Copyright Notice in luajit.h
+|// Copyright (C) 2005-2026 Mike Pall. See Copyright Notice in luajit.h
 |
 |.if P64
 |.arch x64
@@ -1369,7 +1369,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  mov LFUNC:RB, [RA-8]
   |  add NARGS:RD, 1
   |  // This is fragile. L->base must not move, KBASE must always be defined.
-  |.if x64
+  |.if X64
   |  cmp KBASEa, rdx			// Continue with CALLT if flag set.
   |.else
   |  cmp KBASE, BASE			// Continue with CALLT if flag set.
@@ -1793,6 +1793,9 @@ static void build_subroutines(BuildCtx *ctx)
   |//-- Base library: catch errors ----------------------------------------
   |
   |.ffunc_1 pcall
+  |  mov L:RB, SAVE_L
+  |  lea RA, [BASE+NARGS:RD*8]
+  |  cmp RA, L:RB->maxstack; ja ->fff_fallback
   |  lea RA, [BASE+8]
   |  sub NARGS:RD, 1
   |  mov PC, 8+FRAME_PCALL
@@ -1804,6 +1807,9 @@ static void build_subroutines(BuildCtx *ctx)
   |  jmp ->vm_call_dispatch
   |
   |.ffunc_2 xpcall
+  |  mov L:RB, SAVE_L
+  |  lea RA, [BASE+NARGS:RD*8]
+  |  cmp RA, L:RB->maxstack; ja ->fff_fallback
   |  cmp dword [BASE+12], LJ_TFUNC;  jne ->fff_fallback
   |  mov RB, [BASE+4]			// Swap function and traceback.
   |  mov [BASE+12], RB
@@ -2902,7 +2908,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  mov r13, TMPa
   |  mov r12, TMPQ
   |.endif
-  |  test RD, RD; js >9			// Check for error from exit.
+  |  cmp RD, -LUA_ERRERR; jae >9	// Check for error from exit.
   |  mov L:RB, SAVE_L
   |  mov MULTRES, RD
   |  mov LFUNC:KBASE, [BASE-8]
@@ -2917,6 +2923,8 @@ static void build_subroutines(BuildCtx *ctx)
   |  movzx OP, RCL
   |  add PC, 4
   |  shr RC, 16
+  |  cmp MULTRES, -17			// Static dispatch?
+  |  je >5
   |  cmp OP, BC_FUNCF			// Function header?
   |  jb >3
   |  cmp OP, BC_FUNCC+2			// Fast function?
@@ -2941,6 +2949,19 @@ static void build_subroutines(BuildCtx *ctx)
   |  mov KBASE, LFUNC:KBASE->pc
   |  mov KBASE, [KBASE+PC2PROTO(k)]
   |  jmp <2
+  |
+  |5:  // Dispatch to static entry of original ins replaced by BC_JLOOP.
+  |  mov RA, [DISPATCH+DISPATCH_J(trace)]
+  |  mov TRACE:RA, [RA+RD*4]
+  |  mov RC, TRACE:RA->startins
+  |  movzx RA, RCH
+  |  movzx OP, RCL
+  |  shr RC, 16
+  |.if X64
+  |  jmp aword [DISPATCH+OP*8+GG_DISP2STATIC]
+  |.else
+  |  jmp aword [DISPATCH+OP*4+GG_DISP2STATIC]
+  |.endif
   |
   |9:  // Rethrow error from the right C frame.
   |  mov FCARG2, RD
@@ -3035,6 +3056,98 @@ static void build_subroutines(BuildCtx *ctx)
   |  mulsd xmm1, xmm0
   |  movaps xmm0, xmm5
   |  subsd xmm0, xmm1
+  |  ret
+  |
+  |//-----------------------------------------------------------------------
+  |//-- Number conversion functions ----------------------------------------
+  |//-----------------------------------------------------------------------
+  |
+  |// int64_t lj_vm_num2int_check(double x)
+  |->vm_num2int_check:
+  |.if not X64
+  |  movsd xmm0, qword [esp+4]
+  |.endif
+  |  cvttsd2si eax, xmm0
+  |  xorps xmm1, xmm1
+  |  cvtsi2sd xmm1, eax
+  |  ucomisd xmm1, xmm0
+  |  jp >1
+  |  jne >1
+  |.if not X64
+  |  xor edx, edx
+  |.endif
+  |  ret
+  |1:
+  |.if X64
+  |  mov64 rax, U64x(80000000,80000000)
+  |.else
+  |  mov eax, 0x80000000
+  |  mov edx, eax
+  |.endif
+  |  ret
+  |
+  |// int64_t lj_vm_num2i64(double x)
+  |->vm_num2i64:
+  |.if X64
+  |  cvttsd2si rax, xmm0
+  |  ret
+  |.else
+  |  sub esp, 12
+  |  fld qword [esp+16]
+  |  fisttp qword [esp]
+  |  mov eax, dword [esp]
+  |  mov edx, dword [esp+4]
+  |  add esp, 12
+  |  ret
+  |.endif
+  |
+  |// uint64_t lj_vm_num2u64(double x)
+  |->vm_num2u64:
+  |.if X64
+  |  cvttsd2si rax, xmm0		// Convert [-2^63..2^63) range.
+  |  cmp rax, 1	// Indefinite result -0x8000000000000000LL - 1 sets overflow.
+  |  jo >1
+  |  ret
+  |1:
+  |  mov64 rdx, U64x(c3f00000,00000000)	// -0x1p64 (double).
+  |  movd xmm1, rdx
+  |  addsd xmm0,  xmm1
+  |  cvttsd2si rax, xmm0		// Convert [2^63..2^64+2^63) range.
+  |  // Note that -0x1p63 converts to -0x8000000000000000LL either way.
+  |  ret
+  |.else
+  |  sub esp, 12
+  |  fld qword [esp+16]
+  |  fld st0
+  |  fisttp qword [esp]
+  |  mov edx, dword [esp+4]
+  |  mov eax, dword [esp]
+  |  cmp edx, 1
+  |  jo >2
+  |1:
+  |  fpop
+  |  add esp, 12
+  |  ret
+  |2:
+  |  cmp eax, 0
+  |  jne <1
+  |  mov dword [esp+8], 0xdf800000	// -0x1p64 (float).
+  |  fadd dword [esp+8]
+  |  fisttp qword [esp]
+  |  mov eax, dword [esp]
+  |  mov edx, dword [esp+4]
+  |  add esp, 12
+  |  ret
+  |.endif
+  |
+  |// int32_t lj_vm_tobit(double x)
+  |->vm_tobit:
+  |.if not X64
+  |  movsd xmm0, qword [esp+4]
+  |.endif
+  |  sseconst_tobit xmm1, RCa
+  |  addsd xmm0, xmm1
+  |  movd eax, xmm0
   |  ret
   |
   |//-----------------------------------------------------------------------
@@ -3299,19 +3412,25 @@ static void build_subroutines(BuildCtx *ctx)
   |
   |  // Copy stack slots.
   |  movzx ecx, byte CCSTATE->nsp
-  |  sub ecx, 1
+  |.if X64
+  |  sub ecx, 8
   |  js >2
   |1:
-  |.if X64
-  |  mov rax, [CCSTATE+rcx*8+offsetof(CCallState, stack)]
-  |  mov [rsp+rcx*8+CCALL_SPS_EXTRA*8], rax
-  |.else
-  |  mov eax, [CCSTATE+ecx*4+offsetof(CCallState, stack)]
-  |  mov [esp+ecx*4], eax
-  |.endif
-  |  sub ecx, 1
+  |  mov rax, [CCSTATE+rcx+offsetof(CCallState, stack)]
+  |  mov [rsp+rcx+CCALL_SPS_EXTRA*8], rax
+  |  sub ecx, 8
   |  jns <1
   |2:
+  |.else
+  |  sub ecx, 4
+  |  js >2
+  |1:
+  |  mov eax, [CCSTATE+ecx+offsetof(CCallState, stack)]
+  |  mov [esp+ecx], eax
+  |  sub ecx, 4
+  |  jns <1
+  |2:
+  |.endif
   |
   |.if X64
   |  movzx eax, byte CCSTATE->nfpr
@@ -3737,11 +3856,16 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  checkint RD, >5
     |  mov RB, [BASE+RD*8]
     |  neg RB
+    |  jz >3
     |  jo >4
     |  mov dword [BASE+RA*8+4], LJ_TISNUM
+    |8:
     |  mov dword [BASE+RA*8], RB
     |9:
     |  ins_next
+    |3:
+    |  mov dword [BASE+RA*8+4], 0x80000000  // -0.
+    |  jmp <8
     |4:
     |  mov dword [BASE+RA*8+4], 0x41e00000  // 2^31.
     |  mov dword [BASE+RA*8], 0
@@ -5814,7 +5938,6 @@ static void emit_asm_debug(BuildCtx *ctx)
 	  fprintf(ctx->fp, "L_%s$stub:\n\t.indirect_symbol _%s\n\t.ascii \"\\364\\364\\364\\364\\364\"\n", *xn, *xn);
     }
 #endif
-    fprintf(ctx->fp, ".subsections_via_symbols\n");
     }
     break;
 #endif

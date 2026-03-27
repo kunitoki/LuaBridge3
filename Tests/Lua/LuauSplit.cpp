@@ -50,13 +50,16 @@
 #include "../../ThirdParty/luau/Compiler/src/Types.cpp"
 #include "../../ThirdParty/luau/Compiler/src/ValueTracking.cpp"
 
+// Common
+#include "../../ThirdParty/luau/Common/src/StringUtils.cpp"
+
 // Ast
+#include "../../ThirdParty/luau/Ast/src/Allocator.cpp"
 #include "../../ThirdParty/luau/Ast/src/Ast.cpp"
 #include "../../ThirdParty/luau/Ast/src/Confusables.cpp"
-#include "../../ThirdParty/luau/Ast/src/StringUtils.cpp"
+#include "../../ThirdParty/luau/Ast/src/Cst.cpp"
 #include "../../ThirdParty/luau/Ast/src/Location.cpp"
 #include "../../ThirdParty/luau/Ast/src/Lexer.cpp"
-#include "../../ThirdParty/luau/Ast/src/TimeTrace.cpp"
 
 #if _MSC_VER
 #pragma pop_macro("_CRT_SECURE_NO_WARNINGS")

@@ -106,12 +106,24 @@ file (GLOB_RECURSE LUABRIDGE_TEST_LUA53_C_FILES
 
 file (GLOB_RECURSE LUABRIDGE_TEST_LUA54_FILES
   Lua/LuaLibrary.h
-  Lua/LuaLibrary5.4.6.cpp
+  Lua/LuaLibrary5.4.8.cpp
 )
 
 file (GLOB_RECURSE LUABRIDGE_TEST_LUA54_C_FILES
   Lua/LuaLibrary.h
-  Lua/LuaLibrary5.4.6.c
+  Lua/LuaLibrary5.4.8.c
+)
+
+# ====================================================== Lua 5.5
+
+file (GLOB_RECURSE LUABRIDGE_TEST_LUA55_FILES
+  Lua/LuaLibrary.h
+  Lua/LuaLibrary5.5.0.cpp
+)
+
+file (GLOB_RECURSE LUABRIDGE_TEST_LUA55_C_FILES
+  Lua/LuaLibrary.h
+  Lua/LuaLibrary5.5.0.c
 )
 
 # ====================================================== Luau
@@ -170,7 +182,7 @@ function (setup_target_for_coverage TARGET_NAME SOURCE_LOCATION SOURCE_PACKAGE)
       --exclude "*/Tests/*"
       --exclude "*/Distribution/*"
       --exclude "*/coverage_html/*"
-      --rc lcov_branch_coverage=1
+      --rc branch_coverage=1
       -o "coverage/${TARGET_NAME}.info"
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     VERBATIM)
@@ -201,14 +213,17 @@ function (setup_coverage_single_target)
       -a "coverage/LuaBridgeTests54LuaC.info"
       -a "coverage/LuaBridgeTests54Noexcept.info"
       -a "coverage/LuaBridgeTests54LuaCNoexcept.info"
+      -a "coverage/LuaBridgeTests55.info"
+      -a "coverage/LuaBridgeTests55LuaC.info"
+      -a "coverage/LuaBridgeTests55Noexcept.info"
+      -a "coverage/LuaBridgeTests55LuaCNoexcept.info"
       -a "coverage/LuaBridgeTestsLuaJIT.info"
       -a "coverage/LuaBridgeTestsLuaJITNoexcept.info"
       -a "coverage/LuaBridgeTestsLuau.info"
       -a "coverage/LuaBridgeTestsRavi.info"
       -o "coverage/Merged.info"
     COMMAND ${GENHTML_EXECUTABLE}
-      --rc lcov_branch_coverage=1
-      "coverage/Merged.info" -o "coverage_html"
+      --rc branch_coverage=1 "coverage/Merged.info" -o "coverage_html"
     DEPENDS
       "coverage/LuaBridgeTests51.info"
       "coverage/LuaBridgeTests51LuaC.info"
@@ -226,6 +241,10 @@ function (setup_coverage_single_target)
       "coverage/LuaBridgeTests54LuaC.info"
       "coverage/LuaBridgeTests54Noexcept.info"
       "coverage/LuaBridgeTests54LuaCNoexcept.info"
+      "coverage/LuaBridgeTests55.info"
+      "coverage/LuaBridgeTests55LuaC.info"
+      "coverage/LuaBridgeTests55Noexcept.info"
+      "coverage/LuaBridgeTests55LuaCNoexcept.info"
       "coverage/LuaBridgeTestsLuaJIT.info"
       "coverage/LuaBridgeTestsLuaJITNoexcept.info"
       "coverage/LuaBridgeTestsLuau.info"
@@ -287,7 +306,6 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
     target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/Compiler/include")
     target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/Common/include")
     target_compile_definitions (${LUABRIDGE_TEST_NAME} PRIVATE LUABRIDGE_TEST_LUAU=1)
-
     target_include_directories (${LUABRIDGE_TESTLIB_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/VM/include")
     target_include_directories (${LUABRIDGE_TESTLIB_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/Ast/include")
     target_include_directories (${LUABRIDGE_TESTLIB_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/Compiler/include")
@@ -368,6 +386,11 @@ add_test_app (LuaBridgeTests54 504 "${LUABRIDGE_TEST_LUA54_FILES}" 1 "" "")
 add_test_app (LuaBridgeTests54LuaC 504 "${LUABRIDGE_TEST_LUA54_C_FILES}" 1 "${LUABRIDGE_LUA_C_DEFINES}" "")
 add_test_app (LuaBridgeTests54Noexcept 504 "${LUABRIDGE_TEST_LUA54_FILES}" 0 "" "")
 add_test_app (LuaBridgeTests54LuaCNoexcept 504 "${LUABRIDGE_TEST_LUA54_C_FILES}" 0 "${LUABRIDGE_LUA_C_DEFINES}" "")
+
+add_test_app (LuaBridgeTests55 505 "${LUABRIDGE_TEST_LUA55_FILES}" 1 "" "")
+add_test_app (LuaBridgeTests55LuaC 505 "${LUABRIDGE_TEST_LUA55_C_FILES}" 1 "${LUABRIDGE_LUA_C_DEFINES}" "")
+add_test_app (LuaBridgeTests55Noexcept 505 "${LUABRIDGE_TEST_LUA55_FILES}" 0 "" "")
+add_test_app (LuaBridgeTests55LuaCNoexcept 505 "${LUABRIDGE_TEST_LUA55_C_FILES}" 0 "${LUABRIDGE_LUA_C_DEFINES}" "")
 
 add_test_app (LuaBridgeTestsLuaJIT "LUAJIT" "${LUABRIDGE_TEST_LUAJIT_FILES}" 1 "" "liblua-static")
 add_test_app (LuaBridgeTestsLuaJITNoexcept "LUAJIT" "${LUABRIDGE_TEST_LUAJIT_FILES}" 0 "" "liblua-static")

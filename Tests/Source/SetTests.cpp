@@ -133,7 +133,7 @@ TEST_F(SetTests, CastToSet)
 #if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_ANY_THROW((result<IntSet>()));
 #else
-    ASSERT_DEATH((result<IntSet>()), "");
+    ASSERT_DEATH_IF_SUPPORTED((result<IntSet>()), "");
 #endif
 }
 

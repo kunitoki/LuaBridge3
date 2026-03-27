@@ -9,6 +9,8 @@ on:
       - "**/ThirdParty/**"
       - "**/CMakeLists.txt"
       - "**/.gitmodules"
+      - "!**/*.md"
+      - "!**/*.txt"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -22,7 +24,7 @@ jobs:
     runs-on: windows-latest
     steps:
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: true
 
@@ -57,7 +59,7 @@ jobs:
     runs-on: windows-latest
     steps:
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: true
 
@@ -92,7 +94,7 @@ jobs:
     runs-on: windows-latest
     steps:
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: true
 
@@ -127,7 +129,7 @@ jobs:
     runs-on: windows-latest
     steps:
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: true
 
@@ -158,11 +160,46 @@ jobs:
         ./LuaBridgeTests54Noexcept.exe
         ./LuaBridgeTests54LuaCNoexcept.exe
 
+  lua55:
+    runs-on: windows-latest
+    steps:
+
+    - uses: actions/checkout@v6
+      with:
+        submodules: true
+
+    - name: Create Build Environment
+      run: cmake -E make_directory ${{runner.workspace}}/build
+
+    - name: Configure
+      shell: bash
+      working-directory: ${{runner.workspace}}/build
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+
+    - name: Build Lua 5.5
+      working-directory: ${{runner.workspace}}/build
+      shell: bash
+      run: |
+        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
+          LuaBridgeTests55 \
+          LuaBridgeTests55LuaC \
+          LuaBridgeTests55Noexcept \
+          LuaBridgeTests55LuaCNoexcept
+
+    - name: Test Lua 5.5
+      working-directory: ${{runner.workspace}}/build/Tests/Release
+      shell: bash
+      run: |
+        ./LuaBridgeTests55.exe
+        ./LuaBridgeTests55LuaC.exe
+        ./LuaBridgeTests55Noexcept.exe
+        ./LuaBridgeTests55LuaCNoexcept.exe
+
   luajit:
     runs-on: windows-latest
     steps:
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: true
 
@@ -193,7 +230,7 @@ jobs:
     runs-on: windows-latest
     steps:
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: true
 
@@ -219,7 +256,7 @@ jobs:
     runs-on: windows-latest
     steps:
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: true
 

@@ -1,6 +1,6 @@
 /*
 ** Pseudo-random number generation.
-** Copyright (C) 2005-2022 Mike Pall. See Copyright Notice in luajit.h
+** Copyright (C) 2005-2026 Mike Pall. See Copyright Notice in luajit.h
 */
 
 #define lj_prng_c
@@ -125,7 +125,7 @@ static PRGR libfunc_rgr;
 #if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101200
 #define LJ_TARGET_HAS_GETENTROPY	1
 #endif
-#elif (LJ_TARGET_BSD && !defined(__NetBSD__)) || LJ_TARGET_SOLARIS || LJ_TARGET_CYGWIN || LJ_TARGET_QNX
+#elif (LJ_TARGET_BSD && !defined(__NetBSD__)) || LJ_TARGET_SOLARIS || LJ_TARGET_CYGWIN || LJ_TARGET_QNX || LJ_TARGET_HURD
 #define LJ_TARGET_HAS_GETENTROPY	1
 #endif
 

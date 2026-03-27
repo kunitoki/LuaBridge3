@@ -1,6 +1,6 @@
 /*
 ** Common definitions for the JIT compiler.
-** Copyright (C) 2005-2022 Mike Pall. See Copyright Notice in luajit.h
+** Copyright (C) 2005-2026 Mike Pall. See Copyright Notice in luajit.h
 */
 
 #ifndef _LJ_JIT_H
@@ -104,14 +104,6 @@
 
 /* -- JIT engine parameters ----------------------------------------------- */
 
-#if LJ_TARGET_WINDOWS || LJ_64
-/* See: http://blogs.msdn.com/oldnewthing/archive/2003/10/08/55239.aspx */
-#define JIT_P_sizemcode_DEFAULT		64
-#else
-/* Could go as low as 4K, but the mmap() overhead would be rather high. */
-#define JIT_P_sizemcode_DEFAULT		32
-#endif
-
 /* Optimization parameters and their defaults. Length is a char in octal! */
 #define JIT_PARAMDEF(_) \
   _(\010, maxtrace,	1000)	/* Max. # of traces in cache. */ \
@@ -131,9 +123,9 @@
   _(\011, recunroll,	2)	/* Min. unroll for true recursion. */ \
   \
   /* Size of each machine code area (in KBytes). */ \
-  _(\011, sizemcode,	JIT_P_sizemcode_DEFAULT) \
+  _(\011, sizemcode,	64) \
   /* Max. total size of all machine code areas (in KBytes). */ \
-  _(\010, maxmcode,	512) \
+  _(\010, maxmcode,	2048) \
   /* End of list. */
 
 enum {
@@ -273,6 +265,9 @@ typedef struct GCtrace {
   BCIns startins;	/* Original bytecode of starting instruction. */
   MSize szmcode;	/* Size of machine code. */
   MCode *mcode;		/* Start of machine code. */
+#if LJ_ABI_PAUTH
+  ASMFunction mcauth;	/* Start of machine code, with ptr auth applied. */
+#endif
   MSize mcloop;		/* Offset of loop start in machine code. */
   uint16_t nchild;	/* Number of child traces (root trace only). */
   uint16_t spadjust;	/* Stack pointer adjustment (offset in bytes). */
@@ -355,41 +350,44 @@ enum {
 };
 
 enum {
+#if LJ_TARGET_X64 || LJ_TARGET_MIPS64
+  LJ_K64_M2P64,		/* -2^64 */
+#endif
 #if LJ_TARGET_X86ORX64
   LJ_K64_TOBIT,		/* 2^52 + 2^51 */
   LJ_K64_2P64,		/* 2^64 */
-  LJ_K64_M2P64,		/* -2^64 */
-#if LJ_32
-  LJ_K64_M2P64_31,	/* -2^64 or -2^31 */
-#else
-  LJ_K64_M2P64_31 = LJ_K64_M2P64,
 #endif
+#if LJ_TARGET_MIPS64
+  LJ_K64_2P63,		/* 2^63 */
 #endif
 #if LJ_TARGET_MIPS
   LJ_K64_2P31,		/* 2^31 */
-#if LJ_64
-  LJ_K64_2P63,		/* 2^63 */
-  LJ_K64_M2P64,		/* -2^64 */
 #endif
+#if LJ_TARGET_ARM64 || LJ_TARGET_MIPS64
+  LJ_K64_VM_EXIT_HANDLER,
+  LJ_K64_VM_EXIT_INTERP,
 #endif
   LJ_K64__MAX,
 };
-#define LJ_K64__USED	(LJ_TARGET_X86ORX64 || LJ_TARGET_MIPS)
+#define LJ_K64__USED	(LJ_TARGET_X86ORX64 || LJ_TARGET_ARM64 || LJ_TARGET_MIPS)
 
 enum {
-#if LJ_TARGET_X86ORX64
-  LJ_K32_M2P64_31,	/* -2^64 or -2^31 */
+#if LJ_TARGET_X86ORX64 || LJ_TARGET_MIPS64
+  LJ_K32_M2P64,		/* -2^64 */
+#endif
+#if LJ_TARGET_MIPS64
+  LJ_K32_2P63,		/* 2^63 */
 #endif
 #if LJ_TARGET_PPC
   LJ_K32_2P52_2P31,	/* 2^52 + 2^31 */
   LJ_K32_2P52,		/* 2^52 */
 #endif
-#if LJ_TARGET_PPC || LJ_TARGET_MIPS
+#if LJ_TARGET_PPC
   LJ_K32_2P31,		/* 2^31 */
 #endif
-#if LJ_TARGET_MIPS64
-  LJ_K32_2P63,		/* 2^63 */
-  LJ_K32_M2P64,		/* -2^64 */
+#if LJ_TARGET_PPC || LJ_TARGET_MIPS32
+  LJ_K32_VM_EXIT_HANDLER,
+  LJ_K32_VM_EXIT_INTERP,
 #endif
   LJ_K32__MAX
 };
@@ -457,8 +455,8 @@ typedef struct jit_State {
 #endif
 
   IRIns *irbuf;		/* Temp. IR instruction buffer. Biased with REF_BIAS. */
-  IRRef irtoplim;	/* Upper limit of instuction buffer (biased). */
-  IRRef irbotlim;	/* Lower limit of instuction buffer (biased). */
+  IRRef irtoplim;	/* Upper limit of instruction buffer (biased). */
+  IRRef irbotlim;	/* Lower limit of instruction buffer (biased). */
   IRRef loopref;	/* Last loop reference or ref of final LOOP (or 0). */
 
   MSize sizesnap;	/* Size of temp. snapshot buffer. */
@@ -510,6 +508,7 @@ typedef struct jit_State {
   MCode *mcbot;		/* Bottom of current mcode area. */
   size_t szmcarea;	/* Size of current mcode area. */
   size_t szallmcarea;	/* Total size of all allocated mcode areas. */
+  uintptr_t mcmin, mcmax;	/* Mcode allocation range. */
 
   TValue errinfo;	/* Additional info element for trace errors. */
 

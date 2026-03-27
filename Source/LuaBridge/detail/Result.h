@@ -38,6 +38,11 @@ struct Result
         return m_ec;
     }
 
+    const char* error_cstr() const noexcept
+    {
+        return detail::ErrorCategory::errorString(m_ec.value());
+    }
+
     operator std::error_code() const noexcept
     {
         return m_ec;
@@ -130,6 +135,11 @@ struct TypeResult
     std::error_code error() const
     {
         return m_value.error();
+    }
+
+    const char* error_cstr() const noexcept
+    {
+        return detail::ErrorCategory::errorString(m_value.error().value());
     }
 
     operator std::error_code() const

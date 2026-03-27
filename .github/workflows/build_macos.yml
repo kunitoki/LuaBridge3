@@ -9,6 +9,8 @@ on:
       - "**/ThirdParty/**"
       - "**/CMakeLists.txt"
       - "**/.gitmodules"
+      - "!**/*.md"
+      - "!**/*.txt"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -22,11 +24,9 @@ jobs:
     runs-on: macos-latest
     steps:
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: true
-
-    - uses: seanmiddleditch/gha-setup-ninja@master
 
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
@@ -56,11 +56,9 @@ jobs:
     runs-on: macos-latest
     steps:
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: true
-
-    - uses: seanmiddleditch/gha-setup-ninja@master
 
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
@@ -90,11 +88,9 @@ jobs:
     runs-on: macos-latest
     steps:
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: true
-
-    - uses: seanmiddleditch/gha-setup-ninja@master
 
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
@@ -124,11 +120,9 @@ jobs:
     runs-on: macos-latest
     steps:
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: true
-
-    - uses: seanmiddleditch/gha-setup-ninja@master
 
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
@@ -154,15 +148,45 @@ jobs:
         ./LuaBridgeTests54Noexcept
         ./LuaBridgeTests54LuaCNoexcept
 
+  lua55:
+    runs-on: macos-latest
+    steps:
+
+    - uses: actions/checkout@v6
+      with:
+        submodules: true
+
+    - name: Create Build Environment
+      run: cmake -E make_directory ${{runner.workspace}}/build
+
+    - name: Configure
+      working-directory: ${{runner.workspace}}/build
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -G Ninja
+
+    - name: Build Lua 5.5
+      working-directory: ${{runner.workspace}}/build
+      run: |
+        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
+          LuaBridgeTests55 \
+          LuaBridgeTests55LuaC \
+          LuaBridgeTests55Noexcept \
+          LuaBridgeTests55LuaCNoexcept
+
+    - name: Test Lua 5.5
+      working-directory: ${{runner.workspace}}/build/Tests
+      run: |
+        ./LuaBridgeTests55
+        ./LuaBridgeTests55LuaC
+        ./LuaBridgeTests55Noexcept
+        ./LuaBridgeTests55LuaCNoexcept
+
   luajit:
     runs-on: macos-latest
     steps:
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: true
-
-    - uses: seanmiddleditch/gha-setup-ninja@master
 
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
@@ -180,18 +204,17 @@ jobs:
 
     - name: Test LuaJIT
       working-directory: ${{runner.workspace}}/build/Tests
-      run: ./LuaBridgeTestsLuaJIT
-      # run: ./LuaBridgeTestsLuaJITNoexcept
+      run: |
+        ./LuaBridgeTestsLuaJIT
+        ./LuaBridgeTestsLuaJITNoexcept
 
   luau:
     runs-on: macos-latest
     steps:
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: true
-
-    - uses: seanmiddleditch/gha-setup-ninja@master
 
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
@@ -212,11 +235,9 @@ jobs:
     runs-on: macos-latest
     steps:
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: true
-
-    - uses: seanmiddleditch/gha-setup-ninja@master
 
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build

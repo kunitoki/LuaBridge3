@@ -1045,6 +1045,18 @@ private:
 };
 #endif
 
+namespace detail {
+template <class E>
+inline void throw_bad_expected_access_or_abort(E e)
+{
+#if LUABRIDGE_HAS_EXCEPTIONS
+    throw BadExpectedAccess<E>(std::move(e));
+#else
+    std::abort();
+#endif
+}
+} // namespace detail
+
 template <class T>
 struct is_expected : std::false_type
 {
@@ -1296,40 +1308,33 @@ public:
 
     constexpr const T& value() const& LUABRIDGE_IF_NO_EXCEPTIONS(noexcept)
     {
-#if LUABRIDGE_HAS_EXCEPTIONS
         if (!hasValue())
-            throw BadExpectedAccess<E>(error());
-#endif
+            detail::throw_bad_expected_access_or_abort(std::move(error()));
 
         return base_type::value();
     }
 
     constexpr T& value() & LUABRIDGE_IF_NO_EXCEPTIONS(noexcept)
     {
-#if LUABRIDGE_HAS_EXCEPTIONS
         if (!hasValue())
-            throw BadExpectedAccess<E>(error());
-#endif
+            detail::throw_bad_expected_access_or_abort(std::move(error()));
 
         return base_type::value();
     }
 
     constexpr const T&& value() const&& LUABRIDGE_IF_NO_EXCEPTIONS(noexcept)
     {
-#if LUABRIDGE_HAS_EXCEPTIONS
         if (!hasValue())
-            throw BadExpectedAccess<E>(error());
-#endif
+            detail::throw_bad_expected_access_or_abort(std::move(error()));
 
         return std::move(base_type::value());
     }
 
     constexpr T&& value() && LUABRIDGE_IF_NO_EXCEPTIONS(noexcept)
     {
-#if LUABRIDGE_HAS_EXCEPTIONS
         if (!hasValue())
-            throw BadExpectedAccess<E>(error());
-#endif
+            detail::throw_bad_expected_access_or_abort(std::move(error()));
+
         return std::move(base_type::value());
     }
 

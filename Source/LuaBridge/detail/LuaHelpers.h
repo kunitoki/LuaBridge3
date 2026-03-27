@@ -25,6 +25,75 @@ constexpr void unused(Args&&...)
 {
 }
 
+// These are for Lua versions prior to 5.2.0.
+#if LUA_VERSION_NUM < 502
+using lua_Unsigned = std::make_unsigned_t<lua_Integer>;
+
+#if ! LUABRIDGE_ON_LUAU
+inline int lua_absindex(lua_State* L, int idx)
+{
+    if (idx > LUA_REGISTRYINDEX && idx < 0)
+        return lua_gettop(L) + idx + 1;
+    else
+        return idx;
+}
+#endif
+
+#define LUA_OPEQ 1
+#define LUA_OPLT 2
+#define LUA_OPLE 3
+
+inline int lua_compare(lua_State* L, int idx1, int idx2, int op)
+{
+    switch (op)
+    {
+    case LUA_OPEQ:
+        return lua_equal(L, idx1, idx2);
+
+    case LUA_OPLT:
+        return lua_lessthan(L, idx1, idx2);
+
+    case LUA_OPLE:
+        return lua_equal(L, idx1, idx2) || lua_lessthan(L, idx1, idx2);
+
+    default:
+        return 0;
+    }
+}
+
+#if ! LUABRIDGE_ON_LUAJIT
+inline void* luaL_testudata(lua_State* L, int ud, const char* tname)
+{
+    void* p = lua_touserdata(L, ud);
+    if (p == nullptr)
+        return nullptr;
+
+    if (! lua_getmetatable(L, ud))
+        return nullptr;
+
+    luaL_getmetatable(L, tname);
+    if (! lua_rawequal(L, -1, -2))
+        p = nullptr;
+
+    lua_pop(L, 2);
+    return p;
+}
+#endif
+
+inline int get_length(lua_State* L, int idx)
+{
+    return static_cast<int>(lua_objlen(L, idx));
+}
+#else // LUA_VERSION_NUM >= 502
+inline int get_length(lua_State* L, int idx)
+{
+    lua_len(L, idx);
+    const int len = static_cast<int>(luaL_checknumber(L, -1));
+    lua_pop(L, 1);
+    return len;
+}
+#endif // LUA_VERSION_NUM < 502
+
 // These functions and defines are for Luau.
 #if LUABRIDGE_ON_LUAU
 inline int luaL_ref(lua_State* L, int idx)
@@ -81,6 +150,16 @@ inline int lua_getstack_info_x(lua_State* L, int level, const char* what, lua_De
     return lua_getinfo(L, level, what, ar);
 }
 
+inline int lua_rawgetp_x(lua_State* L, int idx, void* p)
+{
+    return lua_rawgetp(L, idx, p);
+}
+
+inline void lua_rawsetp_x(lua_State* L, int idx, void* p)
+{
+    lua_rawsetp(L, idx, p);
+}
+
 #else
 using ::luaL_ref;
 using ::luaL_unref;
@@ -121,7 +200,46 @@ inline int lua_getstack_info_x(lua_State* L, int level, const char* what, lua_De
     return lua_getinfo(L, what, ar);
 }
 
+inline int lua_rawgetp_x(lua_State* L, int idx, void* p)
+{
+#if LUA_VERSION_NUM < 503
+    idx = lua_absindex(L, idx);
+    luaL_checkstack(L, 1, "not enough stack slots");
+    lua_pushlightuserdata(L, p);
+    lua_rawget(L, idx);
+    return lua_type(L, -1);
+#else
+    return lua_rawgetp(L, idx, p);
+#endif
+}
+
+inline void lua_rawsetp_x(lua_State* L, int idx, void* p)
+{
+#if LUA_VERSION_NUM < 503
+    idx = lua_absindex(L, idx);
+    luaL_checkstack(L, 1, "not enough stack slots");
+    lua_pushlightuserdata(L, p);
+    lua_insert(L, -2);
+    lua_rawset(L, idx);
+#else
+    lua_rawsetp(L, idx, p);
+#endif
+}
+
 #endif // LUABRIDGE_ON_LUAU
+
+// These are for Lua versions prior to 5.5.0.
+#if LUA_VERSION_NUM < 505
+inline lua_State* lua_newstate_x(lua_Alloc f, void* ud, [[maybe_unused]] unsigned seed)
+{
+    return lua_newstate(f, ud);
+}
+#else
+inline lua_State* lua_newstate_x(lua_Alloc f, void* ud, unsigned seed)
+{
+    return lua_newstate(f, ud, seed);
+}
+#endif
 
 // These are for Lua versions prior to 5.3.0.
 #if LUA_VERSION_NUM < 503
@@ -142,6 +260,14 @@ inline lua_Integer to_integerx(lua_State* L, int idx, int* isnum)
 
     if (ok)
     {
+        if (n < static_cast<lua_Number>(std::numeric_limits<lua_Integer>::min()) ||
+            n > static_cast<lua_Number>(std::numeric_limits<lua_Integer>::max()))
+        {
+            if (isnum)
+                *isnum = 0;
+            return 0;
+        }
+
         const auto int_n = static_cast<lua_Integer>(n);
         if (n == static_cast<lua_Number>(int_n))
         {
@@ -157,97 +283,17 @@ inline lua_Integer to_integerx(lua_State* L, int idx, int* isnum)
 
     return 0;
 }
-
 #endif // LUA_VERSION_NUM < 503
 
-// These are for Lua versions prior to 5.2.0.
-#if LUA_VERSION_NUM < 502
-using lua_Unsigned = std::make_unsigned_t<lua_Integer>;
-
-#if ! LUABRIDGE_ON_LUAU
-inline int lua_absindex(lua_State* L, int idx)
+inline int lua_rawgetp_x(lua_State* L, int idx, const void* p)
 {
-    if (idx > LUA_REGISTRYINDEX && idx < 0)
-        return lua_gettop(L) + idx + 1;
-    else
-        return idx;
-}
-#endif
-
-inline int lua_rawgetp(lua_State* L, int idx, const void* p)
-{
-    idx = lua_absindex(L, idx);
-    luaL_checkstack(L, 1, "not enough stack slots");
-    lua_pushlightuserdata(L, const_cast<void*>(p));
-    lua_rawget(L, idx);
-    return lua_type(L, -1);
+    return lua_rawgetp_x(L, idx, const_cast<void*>(p));
 }
 
-inline void lua_rawsetp(lua_State* L, int idx, const void* p)
+inline void lua_rawsetp_x(lua_State* L, int idx, const void* p)
 {
-    idx = lua_absindex(L, idx);
-    luaL_checkstack(L, 1, "not enough stack slots");
-    lua_pushlightuserdata(L, const_cast<void*>(p));
-    lua_insert(L, -2);
-    lua_rawset(L, idx);
+    lua_rawsetp_x(L, idx, const_cast<void*>(p));
 }
-
-#define LUA_OPEQ 1
-#define LUA_OPLT 2
-#define LUA_OPLE 3
-
-inline int lua_compare(lua_State* L, int idx1, int idx2, int op)
-{
-    switch (op)
-    {
-    case LUA_OPEQ:
-        return lua_equal(L, idx1, idx2);
-
-    case LUA_OPLT:
-        return lua_lessthan(L, idx1, idx2);
-
-    case LUA_OPLE:
-        return lua_equal(L, idx1, idx2) || lua_lessthan(L, idx1, idx2);
-
-    default:
-        return 0;
-    }
-}
-
-#if ! LUABRIDGE_ON_LUAJIT
-inline void* luaL_testudata(lua_State* L, int ud, const char* tname)
-{
-    void* p = lua_touserdata(L, ud);
-    if (p == nullptr)
-        return nullptr;
-
-    if (! lua_getmetatable(L, ud))
-        return nullptr;
-
-    luaL_getmetatable(L, tname);
-    if (! lua_rawequal(L, -1, -2))
-        p = nullptr;
-
-    lua_pop(L, 2);
-    return p;
-}
-#endif
-
-inline int get_length(lua_State* L, int idx)
-{
-    return static_cast<int>(lua_objlen(L, idx));
-}
-
-#else // LUA_VERSION_NUM >= 502
-inline int get_length(lua_State* L, int idx)
-{
-    lua_len(L, idx);
-    const int len = static_cast<int>(luaL_checknumber(L, -1));
-    lua_pop(L, 1);
-    return len;
-}
-
-#endif // LUA_VERSION_NUM < 502
 
 #ifndef LUA_OK
 #define LUABRIDGE_LUA_OK 0

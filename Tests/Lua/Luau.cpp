@@ -46,6 +46,11 @@
 #include "../../ThirdParty/luau/VM/src/lvmexecute.cpp"
 #include "../../ThirdParty/luau/VM/src/lfunc.cpp"
 #include "../../ThirdParty/luau/VM/src/lbitlib.cpp"
+#include "../../ThirdParty/luau/VM/src/lbuffer.cpp"
+#include "../../ThirdParty/luau/VM/src/lbuflib.cpp"
+#define createmetatable createmetatable_vec
+#include "../../ThirdParty/luau/VM/src/lveclib.cpp"
+#undef createmetatable
 #include "../../ThirdParty/luau/VM/src/lvmload.cpp"
 #include "../../ThirdParty/luau/VM/src/lapi.cpp"
 #include "../../ThirdParty/luau/VM/src/ldebug.cpp"
