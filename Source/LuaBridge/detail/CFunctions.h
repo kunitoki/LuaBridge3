@@ -40,7 +40,7 @@ auto unwrap_argument_or_error(lua_State* L, std::size_t index, std::size_t start
 {
     auto result = Stack<T>::get(L, static_cast<int>(index + start));
     if (! result)
-        raise_lua_error(L, "Error decoding argument #%d: %s", static_cast<int>(index + 1), result.message().c_str());
+        raise_lua_error(L, "Error decoding argument #%d: %s", static_cast<int>(index + 1), result.error_cstr());
 
     return std::move(*result);
 }
@@ -660,7 +660,7 @@ struct property_getter<T, void>
 
         auto result = Stack<T&>::push(L, *ptr);
         if (! result)
-            raise_lua_error(L, "%s", result.message().c_str());
+            raise_lua_error(L, "%s", result.error_cstr());
 
         return 1;
     }
@@ -697,7 +697,7 @@ struct property_getter
 #endif
 
         if (! result)
-            raise_lua_error(L, "%s", result.message().c_str());
+            raise_lua_error(L, "%s", result.error_cstr());
 
         return 1;
     }
@@ -744,7 +744,7 @@ struct property_setter<T, void>
 
         auto result = Stack<T>::get(L, 1);
         if (! result)
-            raise_lua_error(L, "%s", result.error().message().c_str());
+            raise_lua_error(L, "%s", result.error_cstr());
 
         *ptr = std::move(*result);
 
@@ -772,7 +772,7 @@ struct property_setter
 #endif
             auto result = Stack<T>::get(L, 2);
             if (! result)
-                raise_lua_error(L, "%s", result.error().message().c_str());
+                raise_lua_error(L, "%s", result.error_cstr());
 
             c->** mp = std::move(*result);
 
@@ -834,7 +834,7 @@ struct function
 #endif
 
         if (! result)
-            raise_lua_error(L, "%s", result.message().c_str());
+            raise_lua_error(L, "%s", result.error_cstr());
 
         return 1;
     }
@@ -861,7 +861,7 @@ struct function
 #endif
 
         if (! result)
-            raise_lua_error(L, "%s", result.message().c_str());
+            raise_lua_error(L, "%s", result.error_cstr());
 
         return 1;
     }
@@ -1850,7 +1850,7 @@ int constructor_container_proxy(lua_State* L)
 
     auto result = UserdataSharedHelper<C, false>::push(L, object);
     if (! result)
-        raise_lua_error(L, "%s", result.message().c_str());
+        raise_lua_error(L, "%s", result.error_cstr());
 
     return 1;
 }
@@ -1866,7 +1866,7 @@ int constructor_placement_proxy(lua_State* L)
     std::error_code ec;
     auto* value = UserdataValue<T>::place(L, ec);
     if (! value)
-        raise_lua_error(L, "%s", ec.message().c_str());
+        raise_lua_error(L, "%s", detail::ErrorCategory::errorString(ec.value()));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
     try
@@ -1910,7 +1910,7 @@ struct constructor_forwarder
         std::error_code ec;
         auto* value = UserdataValue<T>::place(L, ec);
         if (! value)
-            raise_lua_error(L, "%s", ec.message().c_str());
+            raise_lua_error(L, "%s", detail::ErrorCategory::errorString(ec.value()));
 
         T* object = nullptr;
         
@@ -1999,7 +1999,7 @@ struct factory_forwarder
         std::error_code ec;
         auto* value = UserdataValueExternal<T>::place(L, object, m_dealloc, ec);
         if (! value)
-            raise_lua_error(L, "%s", ec.message().c_str());
+            raise_lua_error(L, "%s", detail::ErrorCategory::errorString(ec.value()));
 
         return object;
     }
@@ -2044,7 +2044,7 @@ struct container_forwarder
 
         auto result = UserdataSharedHelper<C, false>::push(L, object);
         if (! result)
-            raise_lua_error(L, "%s", result.message().c_str());
+            raise_lua_error(L, "%s", result.error_cstr());
 
         return object;
     }

@@ -49,6 +49,11 @@ struct ErrorCategory : std::error_category
 
     std::string message(int ev) const override
     {
+        return errorString(ev);
+    }
+
+    static const char* errorString(int ev) noexcept
+    {
         switch (static_cast<ErrorCode>(ev))
         {
         case ErrorCode::ClassNotRegistered:
