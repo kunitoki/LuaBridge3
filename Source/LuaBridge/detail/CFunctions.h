@@ -429,21 +429,100 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
     LUABRIDGE_ASSERT(key != nullptr);
     LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt
 
+    // For Lua function values (instance methods added from Lua), capture the originating class
+    // table so the method is stored there rather than in a traversed-to parent class table.
+    // This prevents e.g. `function Derived:init()` from polluting `Base`'s method table.
+    //
+    // For non-function values (static properties like `Class.prop = val`), the original
+    // traversal-end behaviour is preserved: storing them in the nearest class table that
+    // already has a matching key (or the topmost base if none exists).  This keeps static
+    // properties out of the derived class table, which is also used for instance extensible
+    // method lookup, avoiding unintended shadowing of per-instance properties accessed via an
+    // index-fallback metamethod registered on a non-extensible base class.
+    const bool value_is_function = lua_isfunction(L, 3);
+
+    if (value_is_function)
+    {
+        // Capture the original (most-derived) class table — always write here.
+        push_class_or_const_table(L, -1); // Stack: mt, orig_ct | nil
+        if (! lua_istable(L, -1)) // Stack: mt, nil
+        {
+            lua_pop(L, 1); // Stack: mt
+            return std::nullopt;
+        }
+        // Stack: mt, orig_ct
+
+        lua_pushvalue(L, -2); // Stack: mt, orig_ct, cur_mt (traversal copy)
+
+        for (;;)
+        {
+            push_class_or_const_table(L, -1); // Stack: mt, orig_ct, cur_mt, cur_ct | nil
+            if (! lua_istable(L, -1)) // Stack: mt, orig_ct, cur_mt, nil
+            {
+                lua_pop(L, 2); // Stack: mt, orig_ct
+                break;
+            }
+
+            lua_pushvalue(L, 2); // Stack: mt, orig_ct, cur_mt, cur_ct, field name
+            lua_rawget(L, -2); // Stack: mt, orig_ct, cur_mt, cur_ct, field | nil
+
+            if (! lua_isnil(L, -1)) // Stack: mt, orig_ct, cur_mt, cur_ct, field
+            {
+                if (! lua_iscfunction(L, -1))
+                {
+                    lua_pop(L, 3); // Stack: mt, orig_ct
+                    break;
+                }
+
+                const Options options = get_class_options(L, -2); // Stack: mt, orig_ct, cur_mt, cur_ct, field
+                if (! options.test(allowOverridingMethods))
+                    luaL_error(L, "immutable member '%s'", key);
+
+                // Store super_ alias in the ORIGINAL (derived) class table so only derived
+                // instances can call it; the base class table is left completely untouched.
+                rawsetfield(L, -4, make_super_method_name(key).c_str()); // Stack: mt, orig_ct, cur_mt, cur_ct
+                lua_pop(L, 2); // Stack: mt, orig_ct
+                break;
+            }
+
+            lua_pop(L, 1); // Stack: mt, orig_ct, cur_mt, cur_ct
+
+            lua_rawgetp_x(L, -2, getParentKey()); // Stack: mt, orig_ct, cur_mt, cur_ct, pmt | nil
+            if (lua_isnil(L, -1)) // Stack: mt, orig_ct, cur_mt, cur_ct, nil
+            {
+                lua_pop(L, 3); // Stack: mt, orig_ct
+                break;
+            }
+
+            LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt, orig_ct, cur_mt, cur_ct, pmt
+            lua_remove(L, -2); // Stack: mt, orig_ct, cur_mt, pmt
+            lua_remove(L, -2); // Stack: mt, orig_ct, pmt
+        }
+
+        // Stack: mt, orig_ct — write to the original (most-derived) class table.
+        lua_getmetatable(L, -1); // Stack: mt, orig_ct, orig_ct_mt
+        lua_pushvalue(L, 3); // Stack: mt, orig_ct, orig_ct_mt, arg3
+        rawsetfield(L, -2, key); // Stack: mt, orig_ct, orig_ct_mt
+        lua_pop(L, 2); // Stack: mt
+        return 0;
+    }
+
+    // Non-function value (static property): use original traversal-end write location.
     lua_pushvalue(L, -1); // Stack: mt, mt
 
     for (;;)
     {
-        push_class_or_const_table(L, -1); // Stack: mt, mt, class table (ct) | nil
+        push_class_or_const_table(L, -1); // Stack: mt, mt, ct | nil
         if (! lua_istable(L, -1)) // Stack: mt, mt, nil
         {
             lua_pop(L, 2); // Stack: mt
             return std::nullopt;
         }
 
-        lua_pushvalue(L, 2); // Stack: mt, mt, ct | co, field name
-        lua_rawget(L, -2); // Stack: mt, mt, ct | co, field | nil
+        lua_pushvalue(L, 2); // Stack: mt, mt, ct, field name
+        lua_rawget(L, -2); // Stack: mt, mt, ct, field | nil
 
-        if (! lua_isnil(L, -1)) // Stack: mt, mt, ct | co, field
+        if (! lua_isnil(L, -1)) // Stack: mt, mt, ct, field
         {
             if (! lua_iscfunction(L, -1))
             {
@@ -451,36 +530,33 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
                 break;
             }
 
-            // Obtain class options
-            const Options options = get_class_options(L, -2); // Stack: mt, mt, ct | co, field
+            const Options options = get_class_options(L, -2); // Stack: mt, mt, ct, field
             if (! options.test(allowOverridingMethods))
                 luaL_error(L, "immutable member '%s'", key);
 
-            rawsetfield(L, -2, make_super_method_name(key).c_str()); // Stack: mt, mt, ct | co
+            rawsetfield(L, -2, make_super_method_name(key).c_str()); // Stack: mt, mt, ct
             break;
         }
 
-        lua_pop(L, 1); // Stack: mt, mt, ct | co
+        lua_pop(L, 1); // Stack: mt, mt, ct
 
-        lua_rawgetp_x(L, -2, getParentKey()); // Stack: mt, mt, ct | co, parent mt (pmt) | nil
-        if (lua_isnil(L, -1)) // Stack: mt, mt, ct | co, nil
+        lua_rawgetp_x(L, -2, getParentKey()); // Stack: mt, mt, ct, pmt | nil
+        if (lua_isnil(L, -1)) // Stack: mt, mt, ct, nil
         {
-            lua_pop(L, 1); // Stack: mt, mt, ct | co
+            lua_pop(L, 1); // Stack: mt, mt, ct
             break;
         }
 
-        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt, mt, ct | co, pmt
+        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt, mt, ct, pmt
         lua_remove(L, -2); // Stack: mt, mt, pmt
         lua_remove(L, -2); // Stack: mt, pmt
     }
 
-    lua_remove(L, -2); // Stack: mt, ct | co
-    lua_getmetatable(L, -1); // Stack: mt, ct | co, mt2
-    lua_pushvalue(L, 3); // Stack: mt, ct | co, mt2, arg3
-    rawsetfield(L, -2, key); // Stack: mt, ct | co, mt2
-
+    lua_remove(L, -2); // Stack: mt, ct
+    lua_getmetatable(L, -1); // Stack: mt, ct, ct_mt
+    lua_pushvalue(L, 3); // Stack: mt, ct, ct_mt, arg3
+    rawsetfield(L, -2, key); // Stack: mt, ct, ct_mt
     lua_pop(L, 2); // Stack: mt
-
     return 0;
 }
 

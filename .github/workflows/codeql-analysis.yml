@@ -10,6 +10,7 @@ on:
       - "**/ThirdParty/**"
       - "**/CMakeLists.txt"
       - "**/.gitmodules"
+      - "**/.codeql.yml"
       - "!**/*.md"
       - "!**/*.txt"
 
@@ -45,6 +46,7 @@ jobs:
       uses: github/codeql-action/init@v3
       with:
         languages: ${{ matrix.language }}
+        config-file: ./.codeql.yml
 
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
