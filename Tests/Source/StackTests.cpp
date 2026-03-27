@@ -1404,6 +1404,108 @@ TEST_F(StackTests, FloatTypeNotFittingIsInstance)
     EXPECT_TRUE(luabridge::isInstance<long double>(L, 1));
 }
 
+TEST_F(StackTests, FloatNaNAndInfPush)
+{
+    {
+        const luabridge::StackRestore sr(L);
+        EXPECT_TRUE(luabridge::push(L, std::numeric_limits<float>::quiet_NaN()));
+        EXPECT_TRUE(luabridge::isInstance<float>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<double>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<long double>(L, -1));
+        auto result = luabridge::get<float>(L, -1);
+        ASSERT_TRUE(result);
+        EXPECT_TRUE(std::isnan(*result));
+    }
+
+    {
+        const luabridge::StackRestore sr(L);
+        EXPECT_TRUE(luabridge::push(L, std::numeric_limits<float>::infinity()));
+        EXPECT_TRUE(luabridge::isInstance<float>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<double>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<long double>(L, -1));
+        auto result = luabridge::get<float>(L, -1);
+        ASSERT_TRUE(result);
+        EXPECT_TRUE(std::isinf(*result));
+    }
+
+    {
+        const luabridge::StackRestore sr(L);
+        EXPECT_TRUE(luabridge::push(L, -std::numeric_limits<float>::infinity()));
+        auto result = luabridge::get<float>(L, -1);
+        ASSERT_TRUE(result);
+        EXPECT_TRUE(std::isinf(*result));
+        EXPECT_LT(*result, 0.0f);
+    }
+}
+
+TEST_F(StackTests, DoubleNaNAndInfPush)
+{
+    {
+        const luabridge::StackRestore sr(L);
+        EXPECT_TRUE(luabridge::push(L, std::numeric_limits<double>::quiet_NaN()));
+        EXPECT_TRUE(luabridge::isInstance<float>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<double>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<long double>(L, -1));
+        auto result = luabridge::get<double>(L, -1);
+        ASSERT_TRUE(result);
+        EXPECT_TRUE(std::isnan(*result));
+    }
+
+    {
+        const luabridge::StackRestore sr(L);
+        EXPECT_TRUE(luabridge::push(L, std::numeric_limits<double>::infinity()));
+        EXPECT_TRUE(luabridge::isInstance<float>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<double>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<long double>(L, -1));
+        auto result = luabridge::get<double>(L, -1);
+        ASSERT_TRUE(result);
+        EXPECT_TRUE(std::isinf(*result));
+    }
+
+    {
+        const luabridge::StackRestore sr(L);
+        EXPECT_TRUE(luabridge::push(L, -std::numeric_limits<double>::infinity()));
+        auto result = luabridge::get<double>(L, -1);
+        ASSERT_TRUE(result);
+        EXPECT_TRUE(std::isinf(*result));
+        EXPECT_LT(*result, 0.0);
+    }
+}
+
+TEST_F(StackTests, LongDoubleNaNAndInfPush)
+{
+    {
+        const luabridge::StackRestore sr(L);
+        EXPECT_TRUE(luabridge::push(L, std::numeric_limits<long double>::quiet_NaN()));
+        EXPECT_TRUE(luabridge::isInstance<float>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<double>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<long double>(L, -1));
+        auto result = luabridge::get<long double>(L, -1);
+        ASSERT_TRUE(result);
+        EXPECT_TRUE(std::isnan(*result));
+    }
+
+    {
+        const luabridge::StackRestore sr(L);
+        EXPECT_TRUE(luabridge::push(L, std::numeric_limits<long double>::infinity()));
+        EXPECT_TRUE(luabridge::isInstance<float>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<double>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<long double>(L, -1));
+        auto result = luabridge::get<long double>(L, -1);
+        ASSERT_TRUE(result);
+        EXPECT_TRUE(std::isinf(*result));
+    }
+
+    {
+        const luabridge::StackRestore sr(L);
+        EXPECT_TRUE(luabridge::push(L, -std::numeric_limits<long double>::infinity()));
+        auto result = luabridge::get<long double>(L, -1);
+        ASSERT_TRUE(result);
+        EXPECT_TRUE(std::isinf(*result));
+        EXPECT_LT(*result, 0.0l);
+    }
+}
+
 TEST_F(StackTests, CharArrayType)
 {
     char value[] = "xyz";

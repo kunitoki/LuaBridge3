@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -689,8 +690,11 @@ bool is_integral_representable_by(lua_State* L, int index)
 }
 
 template <class U = lua_Number, class T>
-constexpr bool is_floating_point_representable_by(T value)
+bool is_floating_point_representable_by(T value)
 {
+    if (std::isnan(value) || std::isinf(value))
+        return true;
+
     if constexpr (sizeof(T) == sizeof(U))
         return true;
 
