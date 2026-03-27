@@ -109,7 +109,7 @@ Commit the changed files and create a Pull Request for vcpkg.
 
 Unit test build requires a CMake and C++17 compliant compiler.
 
-There are 11 unit test flavors:
+There are 14 unit test flavors:
 * `LuaBridgeTests51` - uses Lua 5.1
 * `LuaBridgeTests51Noexcept` - uses Lua 5.1 without exceptions enabled
 * `LuaBridgeTests52` - uses Lua 5.2
@@ -118,6 +118,8 @@ There are 11 unit test flavors:
 * `LuaBridgeTests53Noexcept` - uses Lua 5.3 without exceptions enabled
 * `LuaBridgeTests54` - uses Lua 5.4
 * `LuaBridgeTests54Noexcept` - uses Lua 5.4 without exceptions enabled
+* `LuaBridgeTests55` - uses Lua 5.5
+* `LuaBridgeTests55Noexcept` - uses Lua 5.5 without exceptions enabled
 * `LuaBridgeTestsLuaJIT` - uses LuaJIT 2.1
 * `LuaBridgeTestsLuaJITNoexcept` - uses LuaJIT 2.1 without exceptions enabled
 * `LuaBridgeTestsLuau` - uses Luau
