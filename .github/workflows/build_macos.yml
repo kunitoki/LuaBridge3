@@ -26,8 +26,6 @@ jobs:
       with:
         submodules: true
 
-    - uses: seanmiddleditch/gha-setup-ninja@master
-
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
 
@@ -59,8 +57,6 @@ jobs:
     - uses: actions/checkout@v6
       with:
         submodules: true
-
-    - uses: seanmiddleditch/gha-setup-ninja@master
 
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
@@ -94,8 +90,6 @@ jobs:
       with:
         submodules: true
 
-    - uses: seanmiddleditch/gha-setup-ninja@master
-
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
 
@@ -127,8 +121,6 @@ jobs:
     - uses: actions/checkout@v6
       with:
         submodules: true
-
-    - uses: seanmiddleditch/gha-setup-ninja@master
 
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
@@ -162,8 +154,6 @@ jobs:
       with:
         submodules: true
 
-    - uses: seanmiddleditch/gha-setup-ninja@master
-
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
 
@@ -196,8 +186,6 @@ jobs:
       with:
         submodules: true
 
-    - uses: seanmiddleditch/gha-setup-ninja@master
-
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
 
@@ -225,8 +213,6 @@ jobs:
       with:
         submodules: true
 
-    - uses: seanmiddleditch/gha-setup-ninja@master
-
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
 
@@ -249,8 +235,6 @@ jobs:
     - uses: actions/checkout@v6
       with:
         submodules: true
-
-    - uses: seanmiddleditch/gha-setup-ninja@master
 
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build

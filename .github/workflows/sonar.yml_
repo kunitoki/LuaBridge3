@@ -31,8 +31,6 @@ jobs:
           fetch-depth: 0
           submodules: true
 
-      - uses: seanmiddleditch/gha-setup-ninja@master
-
       - name: Install sonar-scanner and build-wrapper
         uses: SonarSource/sonarcloud-github-c-cpp@v2
 
