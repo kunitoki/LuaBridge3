@@ -10,6 +10,8 @@ on:
       - "**/ThirdParty/**"
       - "**/CMakeLists.txt"
       - "**/.gitmodules"
+      - "!**/*.md"
+      - "!**/*.txt"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -37,7 +39,7 @@ jobs:
     - name: Install Ninja
       run: |
         sudo apt-get update
-        sudo apt-get -y install ninja-build
+        sudo apt-get -y install ninja-build libreadline-dev
 
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v3
