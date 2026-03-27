@@ -246,14 +246,14 @@ inline std::optional<int> try_call_index_extensible(lua_State* L, const char* ke
     LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt
 
     if constexpr (IsObject)
-        push_class_or_const_table(L, -1); // Stack: mt, cl | co
+        push_class_or_const_table(L, -1); // Stack: mt, cl | co
     else
         lua_rawgetp_x(L, -1, getStaticKey()); // Stack: mt, st
 
-    LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt, cl | co | st
+    LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt, cl | co | st
     rawgetfield(L, -1, key); // Stack: mt, st, ifbresult | nil
 
-    if (! lua_isnoneornil(L, -1)) // Stack: mt, cl | co | st, ifbresult
+    if (! lua_isnoneornil(L, -1)) // Stack: mt, cl | co | st, ifbresult
     {
         lua_remove(L, -2); // Stack: mt, ifbresult
         lua_remove(L, -2); // Stack: ifbresult
@@ -443,7 +443,7 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
         lua_pushvalue(L, 2); // Stack: mt, mt, ct | co, field name
         lua_rawget(L, -2); // Stack: mt, mt, ct | co, field | nil
 
-        if (! lua_isnil(L, -1)) // Stack: mt, mt, ct | co, field
+        if (! lua_isnil(L, -1)) // Stack: mt, mt, ct | co, field
         {
             if (! lua_iscfunction(L, -1))
             {
@@ -452,7 +452,7 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
             }
 
             // Obtain class options
-            const Options options = get_class_options(L, -2); // Stack: mt, mt, ct | co, field
+            const Options options = get_class_options(L, -2); // Stack: mt, mt, ct | co, field
             if (! options.test(allowOverridingMethods))
                 luaL_error(L, "immutable member '%s'", key);
 
@@ -460,7 +460,7 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
             break;
         }
 
-        lua_pop(L, 1); // Stack: mt, mt, ct | co
+        lua_pop(L, 1); // Stack: mt, mt, ct | co
 
         lua_rawgetp_x(L, -2, getParentKey()); // Stack: mt, mt, ct | co, parent mt (pmt) | nil
         if (lua_isnil(L, -1)) // Stack: mt, mt, ct | co, nil
@@ -469,7 +469,7 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
             break;
         }
 
-        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt, mt, ct | co, pmt
+        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt, mt, ct | co, pmt
         lua_remove(L, -2); // Stack: mt, mt, pmt
         lua_remove(L, -2); // Stack: mt, pmt
     }

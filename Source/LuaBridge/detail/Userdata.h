@@ -86,7 +86,7 @@ private:
         const bool isConst = lua_isnil(L, -1); // Stack: ot | nil, nil, rt
         lua_rawgetp_x(L, LUA_REGISTRYINDEX, (isConst && canBeConst)
             ? registryConstKey
-            : registryClassKey); // Stack: ot, co | nil, rt
+            : registryClassKey); // Stack: ot, co | nil, rt
 
         lua_insert(L, -3); // Stack: rt, ot, co | nil
         lua_pop(L, 1); // Stack: rt, ot
