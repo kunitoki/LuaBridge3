@@ -8,7 +8,7 @@ LuaBridge 3.0 Reference Manual
 LuaBridge3 repository is located at [https://github.com/kunitoki/LuaBridge3](https://github.com/kunitoki/LuaBridge3).
 Official LuaBridge (up to version 2) repository is located at [https://github.com/vinniefalco/LuaBridge](https://github.com/vinniefalco/LuaBridge).
 
-*   Copyright © 2020 Asnaghi Lucio.
+*   Copyright © 2020 kunitoki.
 *   Copyright © 2019 Dmitry Tarakanov.
 *   Copyright © 2012 Vinnie Falco.
 *   Copyright © 2007 Nathan Reed.
