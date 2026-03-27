@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -656,26 +657,33 @@ constexpr bool is_integral_representable_by(T value)
     if constexpr (sizeof(T) == sizeof(U))
     {
         if constexpr (same_signedness)
+        {
             return true;
-
-        if constexpr (std::is_unsigned_v<T>)
+        }
+        else if constexpr (std::is_unsigned_v<T>)
+        {
             return value <= static_cast<T>((std::numeric_limits<U>::max)());
-
-        return value >= static_cast<T>((std::numeric_limits<U>::min)())
-            && static_cast<U>(value) <= (std::numeric_limits<U>::max)();
+        }
+        else
+        {
+            return value >= static_cast<T>((std::numeric_limits<U>::min)())
+                && static_cast<U>(value) <= (std::numeric_limits<U>::max)();
+        }
     }
-
-    if constexpr (sizeof(T) < sizeof(U))
+    else if constexpr (sizeof(T) < sizeof(U))
     {
         return static_cast<U>(value) >= (std::numeric_limits<U>::min)()
             && static_cast<U>(value) <= (std::numeric_limits<U>::max)();
     }
-
-    if constexpr (std::is_unsigned_v<T>)
+    else if constexpr (std::is_unsigned_v<T>)
+    {
         return value <= static_cast<T>((std::numeric_limits<U>::max)());
-
-    return value >= static_cast<T>((std::numeric_limits<U>::min)())
-        && value <= static_cast<T>((std::numeric_limits<U>::max)());
+    }
+    else
+    {
+        return value >= static_cast<T>((std::numeric_limits<U>::min)())
+            && value <= static_cast<T>((std::numeric_limits<U>::max)());
+    }
 }
 
 template <class U = lua_Integer>
@@ -689,17 +697,28 @@ bool is_integral_representable_by(lua_State* L, int index)
 }
 
 template <class U = lua_Number, class T>
-constexpr bool is_floating_point_representable_by(T value)
+bool is_floating_point_representable_by(T value)
 {
     if constexpr (sizeof(T) == sizeof(U))
+    {
         return true;
+    }
+    else if constexpr (sizeof(T) < sizeof(U))
+    {
+        if (std::isnan(value) || std::isinf(value))
+            return true;
 
-    if constexpr (sizeof(T) < sizeof(U))
         return static_cast<U>(value) >= -(std::numeric_limits<U>::max)()
             && static_cast<U>(value) <= (std::numeric_limits<U>::max)();
+    }
+    else
+    {
+        if (std::isnan(value) || std::isinf(value))
+            return true;
 
-    return value >= static_cast<T>(-(std::numeric_limits<U>::max)())
-        && value <= static_cast<T>((std::numeric_limits<U>::max)());
+        return value >= static_cast<T>(-(std::numeric_limits<U>::max)())
+            && value <= static_cast<T>((std::numeric_limits<U>::max)());
+    }
 }
 
 template <class U = lua_Number>
