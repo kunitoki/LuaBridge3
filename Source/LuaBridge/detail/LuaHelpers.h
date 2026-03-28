@@ -88,10 +88,7 @@ inline int get_length(lua_State* L, int idx)
 #else // LUA_VERSION_NUM >= 502
 inline int get_length(lua_State* L, int idx)
 {
-    lua_len(L, idx);
-    const int len = static_cast<int>(luaL_checknumber(L, -1));
-    lua_pop(L, 1);
-    return len;
+    return static_cast<int>(lua_rawlen(L, idx));
 }
 #endif // LUA_VERSION_NUM < 502
 

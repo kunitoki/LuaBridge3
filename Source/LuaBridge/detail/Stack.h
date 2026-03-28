@@ -261,8 +261,8 @@ struct Stack<char>
     {
         if (lua_type(L, index) == LUA_TSTRING)
         {
-            std::size_t len;
-            luaL_checklstring(L, index, &len);
+            std::size_t len = 0;
+            lua_tolstring(L, index, &len);
             return len == 1;
         }
 
