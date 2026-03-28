@@ -477,6 +477,19 @@ jobs:
             -a "coverage/ravi.info" \
             -o "coverage/merged.info"
 
+      - name: Install lcov2xml
+        run: cargo install lcov2xml
+
+      - name: Convert to Cobertura XML
+        working-directory: ${{runner.workspace}}/build
+        run: lcov2xml coverage/merged.info -o coverage/cobertura.xml
+
+      - name: Upload Cobertura XML
+        uses: actions/upload-artifact@v4
+        with:
+          name: cobertura-coverage
+          path: ${{runner.workspace}}/build/coverage/cobertura.xml
+
       - name: Coveralls
         uses: coverallsapp/github-action@master
         with:
