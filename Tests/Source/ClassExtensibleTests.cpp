@@ -1022,3 +1022,137 @@ TEST_F(ClassExtensibleTests, StaticIndexFallbackReturnsNilForUnknownKey)
     runLua("result = X.unknown");
     ASSERT_TRUE(result().isNil());
 }
+
+TEST_F(ClassExtensibleTests, StaticIndexFallbackFallsThroughToExistingStaticProperty)
+{
+    // When the fallback returns nil for a key, the real static property must still be found.
+    int staticValue = 99;
+
+    auto indexMetaMethod = [](const luabridge::LuaRef& /*key*/, lua_State* L) -> luabridge::LuaRef
+    {
+        // Always return nil so normal lookup proceeds
+        return luabridge::LuaRef(L);
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<StaticMetamethodClass>("X")
+            .addStaticProperty("answer", [&staticValue] { return staticValue; })
+            .addStaticIndexMetaMethod(indexMetaMethod)
+        .endClass();
+
+    runLua("result = X.answer");
+    ASSERT_EQ(99, result<int>());
+}
+
+TEST_F(ClassExtensibleTests, StaticIndexFallbackFallsThroughToExistingStaticFunction)
+{
+    // When the fallback returns nil for a key, an existing static function must still be callable.
+    auto indexMetaMethod = [](const luabridge::LuaRef& /*key*/, lua_State* L) -> luabridge::LuaRef
+    {
+        return luabridge::LuaRef(L);
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<StaticMetamethodClass>("X")
+            .addStaticFunction("compute", []() { return 7; })
+            .addStaticIndexMetaMethod(indexMetaMethod)
+        .endClass();
+
+    runLua("result = X.compute()");
+    ASSERT_EQ(7, result<int>());
+}
+
+TEST_F(ClassExtensibleTests, StaticIndexFallbackCanShadowExistingStaticProperty)
+{
+    // When the fallback returns a non-nil value for a key that also exists as a static
+    // property, the fallback result takes priority.
+    int staticValue = 10;
+
+    auto indexMetaMethod = [](const luabridge::LuaRef& key, lua_State* L) -> luabridge::LuaRef
+    {
+        if (key.tostring() == "answer")
+        {
+            if (!luabridge::push(L, 999))
+                lua_pushnil(L);
+            return luabridge::LuaRef::fromStack(L);
+        }
+        return luabridge::LuaRef(L);
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<StaticMetamethodClass>("X")
+            .addStaticProperty("answer", [&staticValue] { return staticValue; })
+            .addStaticIndexMetaMethod(indexMetaMethod)
+        .endClass();
+
+    // Fallback returns 999 for "answer", not the registered property value (10)
+    runLua("result = X.answer");
+    ASSERT_EQ(999, result<int>());
+}
+
+TEST_F(ClassExtensibleTests, StaticNewIndexFallbackStandaloneWithoutIndexFallback)
+{
+    // newindex fallback should work even when no index fallback is registered.
+    // Assigning to an unknown key must not raise an error.
+    bool callbackInvoked = false;
+
+    auto newIndexMetaMethod = [&callbackInvoked](const luabridge::LuaRef& /*key*/, const luabridge::LuaRef& value, lua_State*) -> luabridge::LuaRef
+    {
+        callbackInvoked = true;
+        return value;
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<StaticMetamethodClass>("X")
+            .addStaticNewIndexMetaMethod(newIndexMetaMethod)
+        .endClass();
+
+    ASSERT_TRUE(runLua("X.whatever = 42"));
+    ASSERT_TRUE(callbackInvoked);
+}
+
+TEST_F(ClassExtensibleTests, StaticIndexAndNewIndexFallbackCoexistWithStaticProperty)
+{
+    // Register both fallbacks alongside a real static property.
+    // The fallback store handles unknown keys; the real property is unaffected.
+    std::unordered_map<std::string, int> store;
+    int staticValue = 55;
+
+    auto indexMetaMethod = [&store](const luabridge::LuaRef& key, lua_State* L) -> luabridge::LuaRef
+    {
+        auto it = store.find(key.tostring());
+        if (it != store.end())
+        {
+            if (!luabridge::push(L, it->second))
+                lua_pushnil(L);
+            return luabridge::LuaRef::fromStack(L);
+        }
+        return luabridge::LuaRef(L);
+    };
+
+    auto newIndexMetaMethod = [&store](const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State*) -> luabridge::LuaRef
+    {
+        if (value.isNumber())
+            store[key.tostring()] = value.unsafe_cast<int>();
+        return value;
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<StaticMetamethodClass>("X")
+            .addStaticProperty("base", [&staticValue] { return staticValue; })
+            .addStaticIndexMetaMethod(indexMetaMethod)
+            .addStaticNewIndexMetaMethod(newIndexMetaMethod)
+        .endClass();
+
+    // Real static property is accessible
+    runLua("result = X.base");
+    ASSERT_EQ(55, result<int>());
+
+    // Unknown key goes through the fallback store
+    runLua("X.extra = 100; result = X.extra");
+    ASSERT_EQ(100, result<int>());
+
+    // Real property is still accessible after fallback store mutations
+    runLua("result = X.base");
+    ASSERT_EQ(55, result<int>());
+}
