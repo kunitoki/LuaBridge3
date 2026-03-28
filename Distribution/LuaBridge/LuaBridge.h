@@ -2746,6 +2746,16 @@ template <class T, auto = typeName<T>().find_first_of('.')>
     return reinterpret_cast<void*>(0x8108);
 }
 
+[[nodiscard]] inline const void* getStaticIndexFallbackKey()
+{
+    return reinterpret_cast<void*>(0x81cc);
+}
+
+[[nodiscard]] inline const void* getStaticNewIndexFallbackKey()
+{
+    return reinterpret_cast<void*>(0x8109);
+}
+
 template <class T>
 [[nodiscard]] const void* getStaticRegistryKey() noexcept
 {
@@ -6188,6 +6198,30 @@ inline std::optional<int> try_call_index_fallback(lua_State* L)
     return std::nullopt;
 }
 
+inline std::optional<int> try_call_static_index_fallback(lua_State* L)
+{
+    LUABRIDGE_ASSERT(lua_istable(L, -1)); 
+
+    lua_rawgetp_x(L, -1, getStaticIndexFallbackKey()); 
+    if (! lua_iscfunction(L, -1))
+    {
+        lua_pop(L, 1); 
+        return std::nullopt;
+    }
+
+    lua_pushvalue(L, 2); 
+    lua_call(L, 1, 1); 
+
+    if (! lua_isnoneornil(L, -1))
+    {
+        lua_remove(L, -2); 
+        return 1;
+    }
+
+    lua_pop(L, 1); 
+    return std::nullopt;
+}
+
 template <bool IsObject>
 inline std::optional<int> try_call_index_extensible(lua_State* L, const char* key)
 {
@@ -6237,6 +6271,12 @@ inline int index_metamethod(lua_State* L)
         {
             
             if (auto result = try_call_index_fallback(L))
+                return *result;
+        }
+        else
+        {
+            
+            if (auto result = try_call_static_index_fallback(L))
                 return *result;
         }
 
@@ -6350,6 +6390,24 @@ inline std::optional<int> try_call_newindex_fallback(lua_State* L)
     lua_pushvalue(L, 2); 
     lua_pushvalue(L, 3); 
     lua_call(L, 3, 0); 
+
+    return 0;
+}
+
+inline std::optional<int> try_call_static_newindex_fallback(lua_State* L)
+{
+    LUABRIDGE_ASSERT(lua_istable(L, -1)); 
+
+    lua_rawgetp_x(L, -1, getStaticNewIndexFallbackKey()); 
+    if (! lua_iscfunction(L, -1))
+    {
+        lua_pop(L, 1); 
+        return std::nullopt;
+    }
+
+    lua_pushvalue(L, 2); 
+    lua_pushvalue(L, 3); 
+    lua_call(L, 2, 0); 
 
     return 0;
 }
@@ -6525,6 +6583,9 @@ inline int newindex_metamethod(lua_State* L)
         else
         {
             
+            if (auto result = try_call_static_newindex_fallback(L))
+                return *result;
+
             if (options.test(extensibleClass))
             {
                 if (auto result = try_call_newindex_extensible(L, key))
@@ -9596,6 +9657,64 @@ class Namespace : public detail::Registrar
             }
 
             rawsetfield(L, -2, name);
+
+            return *this;
+        }
+
+        template <class Function>
+        auto addStaticIndexMetaMethod(Function function)
+            -> std::enable_if_t<!std::is_pointer_v<Function>
+                && std::is_invocable_v<Function, const LuaRef&, lua_State*>, Class<T>&>
+        {
+            using FnType = decltype(function);
+
+            assertStackState(); 
+
+            lua_newuserdata_aligned<FnType>(L, std::move(function)); 
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, "__index", 1); 
+            lua_rawsetp_x(L, -2, detail::getStaticIndexFallbackKey());
+
+            return *this;
+        }
+
+        Class<T>& addStaticIndexMetaMethod(LuaRef (*idxf)(const LuaRef&, lua_State*))
+        {
+            using FnType = decltype(idxf);
+
+            assertStackState(); 
+
+            lua_pushlightuserdata(L, reinterpret_cast<void*>(idxf)); 
+            lua_pushcclosure_x(L, &detail::invoke_proxy_function<FnType>, "__index", 1); 
+            lua_rawsetp_x(L, -2, detail::getStaticIndexFallbackKey());
+
+            return *this;
+        }
+
+        template <class Function>
+        auto addStaticNewIndexMetaMethod(Function function)
+            -> std::enable_if_t<!std::is_pointer_v<Function>
+                && std::is_invocable_v<Function, const LuaRef&, const LuaRef&, lua_State*>, Class<T>&>
+        {
+            using FnType = decltype(function);
+
+            assertStackState(); 
+
+            lua_newuserdata_aligned<FnType>(L, std::move(function)); 
+            lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, "__newindex", 1); 
+            lua_rawsetp_x(L, -2, detail::getStaticNewIndexFallbackKey());
+
+            return *this;
+        }
+
+        Class<T>& addStaticNewIndexMetaMethod(LuaRef (*idxf)(const LuaRef&, const LuaRef&, lua_State*))
+        {
+            using FnType = decltype(idxf);
+
+            assertStackState(); 
+
+            lua_pushlightuserdata(L, reinterpret_cast<void*>(idxf)); 
+            lua_pushcclosure_x(L, &detail::invoke_proxy_function<FnType>, "__newindex", 1); 
+            lua_rawsetp_x(L, -2, detail::getStaticNewIndexFallbackKey());
 
             return *this;
         }

@@ -167,6 +167,24 @@ template <class T, auto = typeName<T>().find_first_of('.')>
 
 //=================================================================================================
 /**
+ * The key of the static index fall back in another metatable.
+ */
+[[nodiscard]] inline const void* getStaticIndexFallbackKey()
+{
+    return reinterpret_cast<void*>(0x81cc);
+}
+
+//=================================================================================================
+/**
+ * The key of the static new index fall back in another metatable.
+ */
+[[nodiscard]] inline const void* getStaticNewIndexFallbackKey()
+{
+    return reinterpret_cast<void*>(0x8109);
+}
+
+//=================================================================================================
+/**
  * @brief Get the key for the static table in the Lua registry.
  *
  * The static table holds the static data members, static properties, and static member functions for a class.

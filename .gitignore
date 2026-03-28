@@ -4,6 +4,7 @@ Makefile
 CMakeCache.txt
 CMakeFiles/
 build/
+Build/
 *.dir/
 *.sln
 *.vcxproj

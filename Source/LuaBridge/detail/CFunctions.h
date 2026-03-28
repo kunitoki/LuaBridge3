@@ -240,6 +240,30 @@ inline std::optional<int> try_call_index_fallback(lua_State* L)
     return std::nullopt;
 }
 
+inline std::optional<int> try_call_static_index_fallback(lua_State* L)
+{
+    LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt
+
+    lua_rawgetp_x(L, -1, getStaticIndexFallbackKey()); // Stack: mt, ifb (may be nil)
+    if (! lua_iscfunction(L, -1))
+    {
+        lua_pop(L, 1); // Stack: mt
+        return std::nullopt;
+    }
+
+    lua_pushvalue(L, 2); // Stack: mt, ifb, arg1 (key only, no self for static)
+    lua_call(L, 1, 1); // Stack: mt, ifbresult
+
+    if (! lua_isnoneornil(L, -1))
+    {
+        lua_remove(L, -2); // Stack: ifbresult
+        return 1;
+    }
+
+    lua_pop(L, 1); // Stack: mt
+    return std::nullopt;
+}
+
 template <bool IsObject>
 inline std::optional<int> try_call_index_extensible(lua_State* L, const char* key)
 {
@@ -290,6 +314,12 @@ inline int index_metamethod(lua_State* L)
         {
             // Repeat the lookup in the index fallback
             if (auto result = try_call_index_fallback(L))
+                return *result;
+        }
+        else
+        {
+            // Repeat the lookup in the static index fallback
+            if (auto result = try_call_static_index_fallback(L))
                 return *result;
         }
 
@@ -420,6 +450,24 @@ inline std::optional<int> try_call_newindex_fallback(lua_State* L)
     lua_pushvalue(L, 2); // stack: mt, nifb, arg1, arg2
     lua_pushvalue(L, 3); // stack: mt, nifb, arg1, arg2, arg3
     lua_call(L, 3, 0); // stack: mt
+
+    return 0;
+}
+
+inline std::optional<int> try_call_static_newindex_fallback(lua_State* L)
+{
+    LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt
+
+    lua_rawgetp_x(L, -1, getStaticNewIndexFallbackKey()); // Stack: mt, nifb (may be nil)
+    if (! lua_iscfunction(L, -1))
+    {
+        lua_pop(L, 1); // Stack: mt
+        return std::nullopt;
+    }
+
+    lua_pushvalue(L, 2); // stack: mt, nifb, arg1 (key only, no self for static)
+    lua_pushvalue(L, 3); // stack: mt, nifb, arg1, arg2 (value)
+    lua_call(L, 2, 0); // stack: mt
 
     return 0;
 }
@@ -610,6 +658,10 @@ inline int newindex_metamethod(lua_State* L)
         }
         else
         {
+            // Try in the static new index fallback
+            if (auto result = try_call_static_newindex_fallback(L))
+                return *result;
+
             // Try in the new index extensible
             if (options.test(extensibleClass))
             {

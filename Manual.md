@@ -38,6 +38,7 @@ Contents
     *   [2.7 - Extending Classes](#27---extending-classes)
         *   [2.7.1 - Extensible Classes](#271---extensible-classes)
         *   [2.7.2 - Index and New Index Metamethods Fallback](#272---index-and-new-index-metamethods-fallback)
+        *   [2.7.3 - Static Index and New Index Metamethods Fallback](#273---static-index-and-new-index-metamethods-fallback)
     *   [2.8 - Lua Stack](#28---lua-stack)
         *   [2.8.1 - Enums](#281---enums)
         *   [2.8.2 - lua_State](#282---lua_state)
@@ -879,6 +880,73 @@ flexi.propertyOne = 1337
 
 propertyOne = flexi.propertyOne
 assert (propertyOne == 1337, "Value is now present !")
+```
+
+### 2.7.3 - Static Index and New Index Metamethods Fallback
+
+The same fallback mechanism is available for the *static class table* — i.e. for key lookups performed on the class name itself (e.g. `MyClass.someKey`) rather than on an instance.  Use `addStaticIndexMetaMethod` and `addStaticNewIndexMetaMethod` to register the callbacks.  Unlike their instance counterparts, the static callbacks receive only the key (and optionally `lua_State*`) — there is no `self` parameter.
+
+```cpp
+struct MyClass {};
+
+std::unordered_map<std::string, int> store;
+
+luabridge::getGlobalNamespace (L)
+  .beginClass<MyClass> ("MyClass")
+    .addStaticIndexMetaMethod ([] (const luabridge::LuaRef& key, lua_State* L) -> luabridge::LuaRef
+    {
+      auto it = store.find (key.tostring ());
+      if (it != store.end ())
+        return luabridge::LuaRef (L, it->second);
+
+      return luabridge::LuaRef (L, luabridge::LuaNil ());
+    })
+    .addStaticNewIndexMetaMethod ([] (const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State* L) -> luabridge::LuaRef
+    {
+      if (value.isNumber ())
+        store[key.tostring ()] = value.unsafe_cast<int> ();
+      return value;
+    })
+  .endClass ();
+```
+
+Then in lua:
+
+```lua
+MyClass.dynamicProp = 42
+
+value = MyClass.dynamicProp
+assert (value == 42, "Value stored via static __newindex fallback and retrieved via static __index fallback")
+
+missing = MyClass.nonExistingKey
+assert (missing == nil, "Unknown key returns nil through the static __index fallback")
+```
+
+Existing static properties and functions registered with `addStaticProperty` / `addStaticFunction` are found *after* the fallback is consulted.  If the fallback callback returns `nil` (or a nil `LuaRef`) for a given key, normal lookup continues and the real property or function is returned.  Conversely, if the callback returns a non-nil value the fallback result takes priority over any registered static property with the same name.
+
+```cpp
+struct MyClass
+{
+  static int answer () { return 42; }
+};
+
+luabridge::getGlobalNamespace (L)
+  .beginClass<MyClass> ("MyClass")
+    .addStaticFunction ("answer", &MyClass::answer)
+    .addStaticIndexMetaMethod ([] (const luabridge::LuaRef& /*key*/, lua_State* L) -> luabridge::LuaRef
+    {
+      // Returning nil lets the registered static function be found normally
+      return luabridge::LuaRef (L, luabridge::LuaNil ());
+    })
+  .endClass ();
+```
+
+Then in lua:
+
+```lua
+-- The registered static function is still callable because the fallback returned nil
+result = MyClass.answer ()
+assert (result == 42)
 ```
 
 2.8 - Lua Stack
