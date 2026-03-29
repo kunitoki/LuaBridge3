@@ -26,6 +26,21 @@ T identityCFunction(T value)
     return value;
 }
 
+struct UnregisteredDecodeType
+{
+};
+
+int returnTupleWithUnregisteredValue(lua_State* L)
+{
+    lua_pushinteger(L, 17);
+
+    lua_newuserdata(L, sizeof(UnregisteredDecodeType));
+    luaL_newmetatable(L, "UnregisteredDecodeType");
+    lua_setmetatable(L, -2);
+
+    return 2;
+}
+
 int testGetter777(lua_State* L)
 {
     lua_pushinteger(L, 777);
@@ -535,6 +550,22 @@ TEST_F(LuaBridgeTest, CallWithHandlerTypedReturnAndStackRestore)
         EXPECT_EQ(1, handlerCalls);
         EXPECT_EQ(stackTop, lua_gettop(L));
     }
+}
+
+TEST_F(LuaBridgeTest, CallTupleDecodeFailsOnUnregisteredClassResult)
+{
+    luabridge::setGlobal(L, static_cast<lua_CFunction>(&returnTupleWithUnregisteredValue), "retTupleWithUnregistered");
+
+    auto f = luabridge::getGlobal(L, "retTupleWithUnregistered");
+    using TupleWithUnregistered = std::tuple<int, UnregisteredDecodeType>;
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    ASSERT_ANY_THROW((void)f.call<TupleWithUnregistered>());
+#else
+    auto result = f.call<TupleWithUnregistered>();
+    EXPECT_FALSE(result);
+    EXPECT_EQ(luabridge::makeErrorCode(luabridge::ErrorCode::ClassNotRegistered), result.error());
+#endif
 }
 
 TEST_F(LuaBridgeTest, IndexMetamethodSimple_ObjectFallbackBranches)

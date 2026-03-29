@@ -1078,7 +1078,9 @@ struct property_getter
 {
     static int call(lua_State* L)
     {
-        C* c = Userdata::get<C>(L, 1, true);
+        auto c = Userdata::get<C>(L, 1, true);
+        if (! c)
+            raise_lua_error(L, "%s", c.error_cstr());
 
         T C::** mp = static_cast<T C::**>(lua_touserdata(L, lua_upvalueindex(1)));
 
@@ -1088,7 +1090,7 @@ struct property_getter
         try
         {
 #endif
-            result = Stack<T&>::push(L, c->**mp);
+            result = Stack<T&>::push(L, (*c)->**mp);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
@@ -1164,7 +1166,9 @@ struct property_setter
 {
     static int call(lua_State* L)
     {
-        C* c = Userdata::get<C>(L, 1, false);
+        auto c = Userdata::get<C>(L, 1, false);
+        if (! c)
+            raise_lua_error(L, "%s", c.error_cstr());
 
         T C::** mp = static_cast<T C::**>(lua_touserdata(L, lua_upvalueindex(1)));
 
@@ -1176,7 +1180,7 @@ struct property_setter
             if (! result)
                 raise_lua_error(L, "%s", result.error_cstr());
 
-            c->** mp = std::move(*result);
+            (*c)->** mp = std::move(*result);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
@@ -1360,12 +1364,14 @@ int invoke_member_function(lua_State* L)
 
     LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
-    T* ptr = Userdata::get<T>(L, 1, false);
+    auto ptr = Userdata::get<T>(L, 1, false);
+    if (! ptr)
+        raise_lua_error(L, "%s", ptr.error_cstr());
 
     const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
     LUABRIDGE_ASSERT(func != nullptr);
 
-    return function<typename FnTraits::result_type, typename FnTraits::argument_types, 2>::call(L, ptr, func);
+    return function<typename FnTraits::result_type, typename FnTraits::argument_types, 2>::call(L, *ptr, func);
 }
 
 template <class F, class T>
@@ -1375,12 +1381,14 @@ int invoke_const_member_function(lua_State* L)
 
     LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
-    const T* ptr = Userdata::get<T>(L, 1, true);
+    auto ptr = Userdata::get<T>(L, 1, true);
+    if (! ptr)
+        raise_lua_error(L, "%s", ptr.error_cstr());
 
     const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
     LUABRIDGE_ASSERT(func != nullptr);
 
-    return function<typename FnTraits::result_type, typename FnTraits::argument_types, 2>::call(L, ptr, func);
+    return function<typename FnTraits::result_type, typename FnTraits::argument_types, 2>::call(L, *ptr, func);
 }
 
 //=================================================================================================
@@ -1396,7 +1404,9 @@ int invoke_member_cfunction(lua_State* L)
 
     LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
-    T* t = Userdata::get<T>(L, 1, false);
+    auto t = Userdata::get<T>(L, 1, false);
+    if (! t)
+        raise_lua_error(L, "%s", t.error_cstr());
 
     const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
     LUABRIDGE_ASSERT(func != nullptr);
@@ -1405,7 +1415,7 @@ int invoke_member_cfunction(lua_State* L)
     try
     {
 #endif
-        return (t->*func)(L);
+        return ((*t)->*func)(L);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
     }
@@ -1425,7 +1435,9 @@ int invoke_const_member_cfunction(lua_State* L)
 
     LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
-    const T* t = Userdata::get<T>(L, 1, true);
+    auto t = Userdata::get<T>(L, 1, true);
+    if (! t)
+        raise_lua_error(L, "%s", t.error_cstr());
 
     const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
     LUABRIDGE_ASSERT(func != nullptr);
@@ -1434,7 +1446,7 @@ int invoke_const_member_cfunction(lua_State* L)
     try
     {
 #endif
-        return (t->*func)(L);
+        return ((*t)->*func)(L);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
     }
@@ -2385,11 +2397,11 @@ struct destructor_forwarder
 
     void operator()(lua_State* L)
     {
-        auto* value = Userdata::get<T>(L, -1, false);
-        if (value == nullptr)
-            raise_lua_error(L, "invalid object destruction");
+        auto value = Userdata::get<T>(L, -1, false);
+        if (! value)
+            raise_lua_error(L, "%s", value.error_cstr());
 
-        std::invoke(m_func, value);
+        std::invoke(m_func, *value);
     }
 
 private:

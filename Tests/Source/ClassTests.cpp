@@ -3157,34 +3157,40 @@ TEST_F(ClassTests, WrongThrowBadArgObjectDescription)
 #endif
 
 #else
+    auto expectBadArgOrInvalidCast = [](const std::string& errorMessage, const char* gotToken)
+    {
+        EXPECT_TRUE(errorMessage.find(gotToken) != std::string::npos
+            || errorMessage.find("can't be cast") != std::string::npos);
+    };
+
     {
         auto [result, errorMessage] = runLuaCaptureError("textSingleXYZ()");
         ASSERT_FALSE(result);
-        EXPECT_NE(std::string::npos, errorMessage.find("got no value"));
+        expectBadArgOrInvalidCast(errorMessage, "got no value");
     }
 
     {
         auto [result, errorMessage] = runLuaCaptureError("textXYZ(1, 1.0)");
         ASSERT_FALSE(result);
-        EXPECT_NE(std::string::npos, errorMessage.find("got no value"));
+        expectBadArgOrInvalidCast(errorMessage, "got no value");
     }
 
     {
         auto [result, errorMessage] = runLuaCaptureError("textXYZ(1, 1.0, 1)");
         ASSERT_FALSE(result);
-        EXPECT_NE(std::string::npos, errorMessage.find("got number"));
+        expectBadArgOrInvalidCast(errorMessage, "got number");
     }
 
     {
         auto [result, errorMessage] = runLuaCaptureError("textXYZ(1, 1.0, '1')");
         ASSERT_FALSE(result);
-        EXPECT_NE(std::string::npos, errorMessage.find("got string"));
+        expectBadArgOrInvalidCast(errorMessage, "got string");
     }
 
     {
         auto [result, errorMessage] = runLuaCaptureError("textXYZ(1, 1.0, ABC())");
         ASSERT_FALSE(result);
-        EXPECT_NE(std::string::npos, errorMessage.find("got ABC"));
+        expectBadArgOrInvalidCast(errorMessage, "got ABC");
     }
 #endif
 }
