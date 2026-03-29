@@ -436,6 +436,87 @@ TEST_F(LuaBridgeTest, CallReturnTypeResult)
 #endif
 }
 
+TEST_F(LuaBridgeTest, CallReturnTypeResultErrorPaths)
+{
+    runLua("function ret0() end");
+    runLua("function ret1() return 11 end");
+    runLua("function ret2bad() return 10, 'bad' end");
+
+    {
+        auto f = luabridge::getGlobal(L, "ret0");
+        const int stackTop = lua_gettop(L);
+
+        auto result = f.call<int>();
+        EXPECT_FALSE(result);
+        EXPECT_EQ(luabridge::makeErrorCode(luabridge::ErrorCode::InvalidTypeCast), result.error());
+        EXPECT_EQ(stackTop, lua_gettop(L));
+    }
+
+    {
+        auto f = luabridge::getGlobal(L, "ret1");
+        const int stackTop = lua_gettop(L);
+
+        auto result = f.call<void>();
+        EXPECT_FALSE(result);
+        EXPECT_EQ(luabridge::makeErrorCode(luabridge::ErrorCode::InvalidTableSizeInCast), result.error());
+        EXPECT_EQ(stackTop, lua_gettop(L));
+    }
+
+    {
+        auto f = luabridge::getGlobal(L, "ret1");
+        const int stackTop = lua_gettop(L);
+
+        auto result = f.call<std::tuple<int, int>>();
+        EXPECT_FALSE(result);
+        EXPECT_EQ(luabridge::makeErrorCode(luabridge::ErrorCode::InvalidTableSizeInCast), result.error());
+        EXPECT_EQ(stackTop, lua_gettop(L));
+    }
+
+    {
+        auto f = luabridge::getGlobal(L, "ret2bad");
+        const int stackTop = lua_gettop(L);
+
+        auto result = f.call<std::tuple<int, int>>();
+        EXPECT_FALSE(result);
+        EXPECT_EQ(luabridge::makeErrorCode(luabridge::ErrorCode::InvalidTypeCast), result.error());
+        EXPECT_EQ(stackTop, lua_gettop(L));
+    }
+}
+
+TEST_F(LuaBridgeTest, CallWithHandlerTypedReturnAndStackRestore)
+{
+    runLua("function fOk(x) return x + 1 end");
+    runLua("function fFail() error('boom') end");
+
+    auto fOk = luabridge::getGlobal(L, "fOk");
+    auto fFail = luabridge::getGlobal(L, "fFail");
+
+    int handlerCalls = 0;
+    auto handler = [&handlerCalls](lua_State*) -> int
+    {
+        ++handlerCalls;
+        return 0;
+    };
+
+    {
+        const int stackTop = lua_gettop(L);
+        auto result = fOk.callWithHandler<int>(handler, 41);
+        ASSERT_TRUE(result);
+        EXPECT_EQ(42, *result);
+        EXPECT_EQ(0, handlerCalls);
+        EXPECT_EQ(stackTop, lua_gettop(L));
+    }
+
+    {
+        const int stackTop = lua_gettop(L);
+        auto result = fFail.callWithHandler<int>(handler);
+        EXPECT_FALSE(result);
+        EXPECT_EQ(luabridge::makeErrorCode(luabridge::ErrorCode::LuaFunctionCallFailed), result.error());
+        EXPECT_EQ(1, handlerCalls);
+        EXPECT_EQ(stackTop, lua_gettop(L));
+    }
+}
+
 TEST_F(LuaBridgeTest, InvokePassingUnregisteredClassShouldThrowAndRestoreStack)
 {
     class Unregistered {} unregistered;

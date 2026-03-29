@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.10)
 
 include(FetchContent)
 
+set(LUABRIDGE_BENCHMARK_WITH_SOL2 OFF CACHE BOOL "Whether to benchmark against sol2")
+set(LUABRIDGE_SOL2_GIT_REPOSITORY "https://github.com/ThePhD/sol2.git" CACHE STRING "sol2 repository URL")
+set(LUABRIDGE_SOL2_GIT_TAG "v3.3.0" CACHE STRING "sol2 git tag or commit")
+
 set(LUABRIDGE_BENCHMARK_SOURCES
     Benchmark.cpp
     ../Tests/Lua/LuaLibrary5.4.8.cpp)
@@ -18,19 +22,18 @@ target_compile_definitions(LuaBridgeBenchmarks PRIVATE
     LUABRIDGE_BENCHMARK_LUA54=1
     LUABRIDGE_TEST_LUA_VERSION=504)
 
-set(LUABRIDGE_SOL2_GIT_REPOSITORY "https://github.com/ThePhD/sol2.git" CACHE STRING "sol2 repository URL")
-set(LUABRIDGE_SOL2_GIT_TAG "v3.3.0" CACHE STRING "sol2 git tag or commit")
+if (LUABRIDGE_BENCHMARK_WITH_SOL2)
+    FetchContent_Declare(
+        sol2
+        GIT_REPOSITORY ${LUABRIDGE_SOL2_GIT_REPOSITORY}
+        GIT_TAG ${LUABRIDGE_SOL2_GIT_TAG})
+    FetchContent_MakeAvailable(sol2)
 
-FetchContent_Declare(
-    sol2
-    GIT_REPOSITORY ${LUABRIDGE_SOL2_GIT_REPOSITORY}
-    GIT_TAG ${LUABRIDGE_SOL2_GIT_TAG})
-FetchContent_MakeAvailable(sol2)
+    target_include_directories(LuaBridgeBenchmarks PRIVATE
+        ${sol2_SOURCE_DIR}/include)
 
-target_include_directories(LuaBridgeBenchmarks PRIVATE
-    ${sol2_SOURCE_DIR}/include)
-
-target_compile_definitions(LuaBridgeBenchmarks PRIVATE
-    LUABRIDGE_BENCHMARK_WITH_SOL2=1
-    SOL_ALL_SAFETIES_ON=1
-    SOL_LUA_VERSION=504)
+    target_compile_definitions(LuaBridgeBenchmarks PRIVATE
+        LUABRIDGE_BENCHMARK_WITH_SOL2=1
+        SOL_ALL_SAFETIES_ON=1
+        SOL_LUA_VERSION=504)
+endif()
