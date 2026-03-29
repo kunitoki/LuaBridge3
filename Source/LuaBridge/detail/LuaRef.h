@@ -676,6 +676,10 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
     {
         friend class LuaRef;
 
+        struct AdoptTableRef
+        {
+        };
+
     public:
         //=========================================================================================
         /**
@@ -699,6 +703,34 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             m_tableRef = luaL_ref(L, LUA_REGISTRYINDEX);
         }
 
+        template <std::size_t N>
+        TableItem(lua_State* L, int tableRef, const char (&key)[N])
+            : LuaRefBase(L)
+            , m_keyLiteral(key)
+        {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+            luaL_checkstack(m_L, 1, detail::error_lua_stack_overflow);
+#endif
+
+            lua_rawgeti(m_L, LUA_REGISTRYINDEX, tableRef);
+            m_tableRef = luaL_ref(L, LUA_REGISTRYINDEX);
+        }
+
+        TableItem(lua_State* L, int tableRef, AdoptTableRef)
+            : LuaRefBase(L)
+            , m_tableRef(tableRef)
+            , m_keyRef(luaL_ref(L, LUA_REGISTRYINDEX))
+        {
+        }
+
+        template <std::size_t N>
+        TableItem(lua_State* L, int tableRef, AdoptTableRef, const char (&key)[N])
+            : LuaRefBase(L)
+            , m_tableRef(tableRef)
+            , m_keyLiteral(key)
+        {
+        }
+
         //=========================================================================================
         /**
          * @brief Create a TableItem via copy constructor.
@@ -719,8 +751,12 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, other.m_tableRef);
             m_tableRef = luaL_ref(m_L, LUA_REGISTRYINDEX);
 
-            lua_rawgeti(m_L, LUA_REGISTRYINDEX, other.m_keyRef);
-            m_keyRef = luaL_ref(m_L, LUA_REGISTRYINDEX);
+            m_keyLiteral = other.m_keyLiteral;
+            if (other.m_keyRef != LUA_NOREF)
+            {
+                lua_rawgeti(m_L, LUA_REGISTRYINDEX, other.m_keyRef);
+                m_keyRef = luaL_ref(m_L, LUA_REGISTRYINDEX);
+            }
         }
 
         //=========================================================================================
@@ -761,12 +797,23 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             const StackRestore stackRestore(m_L);
 
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_tableRef);
-            lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_keyRef);
+            if (m_keyLiteral != nullptr)
+            {
+                if (! Stack<T>::push(m_L, v))
+                    return *this;
 
-            if (! Stack<T>::push(m_L, v))
-                return *this;
+                lua_setfield(m_L, -2, m_keyLiteral);
+            }
+            else
+            {
+                lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_keyRef);
 
-            lua_settable(m_L, -3);
+                if (! Stack<T>::push(m_L, v))
+                    return *this;
+
+                lua_settable(m_L, -3);
+            }
+
             return *this;
         }
 
@@ -793,12 +840,25 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             const StackRestore stackRestore(m_L);
 
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_tableRef);
-            lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_keyRef);
+            if (m_keyLiteral != nullptr)
+            {
+                lua_pushstring(m_L, m_keyLiteral);
 
-            if (! Stack<T>::push(m_L, v))
-                return *this;
+                if (! Stack<T>::push(m_L, v))
+                    return *this;
 
-            lua_rawset(m_L, -3);
+                lua_rawset(m_L, -3);
+            }
+            else
+            {
+                lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_keyRef);
+
+                if (! Stack<T>::push(m_L, v))
+                    return *this;
+
+                lua_rawset(m_L, -3);
+            }
+
             return *this;
         }
 
@@ -821,8 +881,17 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
 #endif
 
             lua_rawgeti(L, LUA_REGISTRYINDEX, m_tableRef);
-            lua_rawgeti(L, LUA_REGISTRYINDEX, m_keyRef);
-            lua_gettable(L, -2);
+
+            if (m_keyLiteral != nullptr)
+            {
+                lua_getfield(L, -1, m_keyLiteral);
+            }
+            else
+            {
+                lua_rawgeti(L, LUA_REGISTRYINDEX, m_keyRef);
+                lua_gettable(L, -2);
+            }
+
             lua_remove(L, -2); // remove the table
         }
 
@@ -841,7 +910,30 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         template <class T>
         TableItem operator[](const T& key) const
         {
-            return LuaRef(*this)[key];
+            const StackRestore stackRestore(m_L);
+
+            push(m_L);
+
+            if (! Stack<T>::push(m_L, key))
+                lua_pushnil(m_L);
+
+            lua_pushvalue(m_L, -2);
+            const auto tableRef = luaL_ref(m_L, LUA_REGISTRYINDEX);
+            lua_remove(m_L, -2);
+
+            return TableItem(m_L, tableRef, AdoptTableRef{});
+        }
+
+        template <std::size_t N>
+        TableItem operator[](const char (&key)[N]) const
+        {
+            const StackRestore stackRestore(m_L);
+
+            push(m_L);
+
+            const auto tableRef = luaL_ref(m_L, LUA_REGISTRYINDEX);
+
+            return TableItem(m_L, tableRef, AdoptTableRef{}, key);
         }
 
         //=========================================================================================
@@ -862,9 +954,58 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             return LuaRef(*this).rawget(key);
         }
 
+        //=========================================================================================
+        /**
+         * @brief Get a field from the table item value without metamethods in an unsafe fast path.
+         *
+         * @param key A field key.
+         *
+         * @returns The converted value.
+         */
+        template <class T>
+        T unsafeRawgetField(const char* key) const
+        {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+            luaL_checkstack(m_L, 3, detail::error_lua_stack_overflow);
+#endif
+
+            push(m_L);
+            lua_pushstring(m_L, key);
+            lua_rawget(m_L, -2);
+
+            auto result = Stack<T>::get(m_L, -1);
+            lua_pop(m_L, 2);
+
+            return result.value();
+        }
+
+        //=========================================================================================
+        /**
+         * @brief Set a field on the table item value without metamethods in an unsafe fast path.
+         *
+         * @param key A field key.
+         * @param value A value to assign.
+         */
+        template <class T>
+        void unsafeRawsetField(const char* key, T&& value) const
+        {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+            luaL_checkstack(m_L, 3, detail::error_lua_stack_overflow);
+#endif
+
+            push(m_L);
+            lua_pushstring(m_L, key);
+            [[maybe_unused]] const auto pushed = Stack<std::decay_t<T>>::push(m_L, std::forward<T>(value));
+            LUABRIDGE_ASSERT(static_cast<bool>(pushed));
+
+            lua_rawset(m_L, -3);
+            lua_pop(m_L, 1);
+        }
+
     private:
         int m_tableRef = LUA_NOREF;
         int m_keyRef = LUA_NOREF;
+        const char* m_keyLiteral = nullptr;
     };
 
     friend struct Stack<TableItem>;
@@ -1252,6 +1393,12 @@ public:
         return TableItem(m_L, m_ref);
     }
 
+    template <std::size_t N>
+    TableItem operator[](const char (&key)[N]) const
+    {
+        return TableItem(m_L, m_ref, key);
+    }
+
     //=============================================================================================
     /**
      * @brief Access a table value using a key.
@@ -1274,6 +1421,147 @@ public:
 
         lua_rawget(m_L, -2);
         return LuaRef(m_L, FromStack());
+    }
+
+
+    //=============================================================================================
+    /**
+     * @brief Get a table field by C-string key and convert to T.
+     *
+     * This invokes metamethods.
+     *
+     * @param key A field key.
+     *
+     * @returns A converted value or an error.
+     */
+    template <class T>
+    TypeResult<T> getField(const char* key) const
+    {
+        const StackRestore stackRestore(m_L);
+
+        push(m_L);
+        lua_getfield(m_L, -1, key);
+
+        return Stack<T>::get(m_L, -1);
+    }
+
+    //=============================================================================================
+    /**
+     * @brief Set a table field by C-string key.
+     *
+     * This invokes metamethods.
+     *
+     * @param key A field key.
+     * @param value A value to assign.
+     *
+     * @returns True if value push succeeded, false otherwise.
+     */
+    template <class T>
+    bool setField(const char* key, T&& value) const
+    {
+        const StackRestore stackRestore(m_L);
+
+        push(m_L);
+
+        if (! Stack<std::decay_t<T>>::push(m_L, std::forward<T>(value)))
+            return false;
+
+        lua_setfield(m_L, -2, key);
+        return true;
+    }
+
+    //=============================================================================================
+    /**
+     * @brief Get a table field by C-string key without metamethods.
+     *
+     * @param key A field key.
+     *
+     * @returns A converted value or an error.
+     */
+    template <class T>
+    TypeResult<T> rawgetField(const char* key) const
+    {
+        const StackRestore stackRestore(m_L);
+
+        push(m_L);
+        lua_pushstring(m_L, key);
+        lua_rawget(m_L, -2);
+
+        return Stack<T>::get(m_L, -1);
+    }
+
+    //=============================================================================================
+    /**
+     * @brief Set a table field by C-string key without metamethods.
+     *
+     * @param key A field key.
+     * @param value A value to assign.
+     *
+     * @returns True if key/value push succeeded, false otherwise.
+     */
+    template <class T>
+    bool rawsetField(const char* key, T&& value) const
+    {
+        const StackRestore stackRestore(m_L);
+
+        push(m_L);
+        lua_pushstring(m_L, key);
+
+        if (! Stack<std::decay_t<T>>::push(m_L, std::forward<T>(value)))
+            return false;
+
+        lua_rawset(m_L, -3);
+        return true;
+    }
+
+    //=============================================================================================
+    /**
+     * @brief Get a table field by C-string key without metamethods in an unsafe fast path.
+     *
+     * This helper is intended for hot loops where stack conversion is known to succeed.
+     *
+     * @param key A field key.
+     *
+     * @returns The converted value.
+     */
+    template <class T>
+    T unsafeRawgetField(const char* key) const
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(m_L, 3, detail::error_lua_stack_overflow);
+#endif
+
+        push(m_L);
+        lua_pushstring(m_L, key);
+        lua_rawget(m_L, -2);
+
+        auto result = Stack<T>::get(m_L, -1);
+        lua_pop(m_L, 2);
+
+        return result.value();
+    }
+
+    //=============================================================================================
+    /**
+     * @brief Set a table field by C-string key without metamethods in an unsafe fast path.
+     *
+     * @param key A field key.
+     * @param value A value to assign.
+     */
+    template <class T>
+    void unsafeRawsetField(const char* key, T&& value) const
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(m_L, 3, detail::error_lua_stack_overflow);
+#endif
+
+        push(m_L);
+        lua_pushstring(m_L, key);
+        [[maybe_unused]] const auto pushed = Stack<std::decay_t<T>>::push(m_L, std::forward<T>(value));
+        LUABRIDGE_ASSERT(static_cast<bool>(pushed));
+
+        lua_rawset(m_L, -3);
+        lua_pop(m_L, 1);
     }
 
     //=============================================================================================

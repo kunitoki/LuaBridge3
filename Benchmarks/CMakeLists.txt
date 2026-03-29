@@ -32,4 +32,5 @@ target_include_directories(LuaBridgeBenchmarks PRIVATE
 
 target_compile_definitions(LuaBridgeBenchmarks PRIVATE
     LUABRIDGE_BENCHMARK_WITH_SOL2=1
+    SOL_ALL_SAFETIES_ON=1
     SOL_LUA_VERSION=504)

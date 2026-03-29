@@ -437,20 +437,102 @@ inline int index_metamethod_simple(lua_State* L)
 
     LUABRIDGE_ASSERT(lua_istable(L, 1) || lua_isuserdata(L, 1));
 
+    // Fast path for simple userdata objects: when registration provides propget and
+    // method tables as closure upvalues, avoid metatable/pointer-key lookups.
+    if constexpr (IsObject)
+    {
+        if (lua_isuserdata(L, 1))
+        {
+            const char* key = lua_tostring(L, 2);
+
+            const auto rawlookup = [L](int tableIndex)
+            {
+                lua_pushvalue(L, 2);
+                lua_rawget(L, tableIndex);
+            };
+
+            rawlookup(lua_upvalueindex(1)); // Stack: getter | nil
+            if (lua_iscfunction(L, -1))
+            {
+                lua_pushvalue(L, 1); // Stack: getter, self
+                lua_call(L, 1, 1); // Stack: value
+                return 1;
+            }
+
+            lua_pop(L, 1);
+
+            if (key != nullptr && is_metamethod(key))
+            {
+                lua_pushnil(L);
+                return 1;
+            }
+
+            rawlookup(lua_upvalueindex(2)); // Stack: value | nil
+            if (! lua_isnil(L, -1))
+                return 1;
+
+            lua_pop(L, 1);
+            lua_pushnil(L);
+            return 1;
+        }
+    }
+    else
+    {
+        // Fast path for simple static tables: capture propget/class/metatable as upvalues.
+        if (lua_istable(L, 1))
+        {
+            const char* key = lua_tostring(L, 2);
+
+            const auto rawlookup = [L](int tableIndex)
+            {
+                lua_pushvalue(L, 2);
+                lua_rawget(L, tableIndex);
+            };
+
+            if (key != nullptr && is_metamethod(key))
+            {
+                lua_pushnil(L);
+                return 1;
+            }
+
+            if (lua_istable(L, lua_upvalueindex(2)))
+            {
+                rawlookup(lua_upvalueindex(2)); // Stack: value | nil
+                if (! lua_isnil(L, -1))
+                    return 1;
+
+                lua_pop(L, 1);
+            }
+
+            rawlookup(lua_upvalueindex(3)); // Stack: value | nil
+            if (! lua_isnil(L, -1))
+                return 1;
+
+            lua_pop(L, 1);
+
+            rawlookup(lua_upvalueindex(1)); // Stack: getter | nil
+            if (lua_iscfunction(L, -1))
+            {
+                lua_pushvalue(L, 1); // Stack: getter, self
+                lua_call(L, 1, 1); // Stack: value
+                return 1;
+            }
+
+            lua_pop(L, 1);
+            lua_pushnil(L);
+            return 1;
+        }
+    }
+
     lua_getmetatable(L, 1); // Stack: mt
     LUABRIDGE_ASSERT(lua_istable(L, -1));
 
     const char* key = lua_tostring(L, 2);
 
-    const auto rawlookup = [L, key]()
+    const auto rawlookup = [L]()
     {
-        if (key != nullptr)
-            rawgetfield(L, -1, key);
-        else
-        {
-            lua_pushvalue(L, 2);
-            lua_rawget(L, -2);
-        }
+        lua_pushvalue(L, 2);
+        lua_rawget(L, -2);
     };
 
     // For userdata instance property access, checking propget first avoids an always-miss lookup
@@ -793,6 +875,62 @@ inline int newindex_metamethod_simple(lua_State* L)
 
     LUABRIDGE_ASSERT(lua_istable(L, 1) || lua_isuserdata(L, 1));
 
+    // Fast path for simple userdata objects: propset table is captured as upvalue.
+    if constexpr (IsObject)
+    {
+        if (lua_isuserdata(L, 1))
+        {
+            const char* key = lua_tostring(L, 2);
+
+            if (! lua_istable(L, lua_upvalueindex(1)))
+            {
+                luaL_error(L, "no writable member '%s'", key);
+                return 0;
+            }
+
+            lua_pushvalue(L, 2); // Stack: key
+            lua_rawget(L, lua_upvalueindex(1)); // Stack: setter | nil
+
+            if (lua_iscfunction(L, -1))
+            {
+                lua_pushvalue(L, 1); // Stack: setter, self
+                lua_pushvalue(L, 3); // Stack: setter, self, value
+                lua_call(L, 2, 0);
+                return 0;
+            }
+
+            luaL_error(L, "no writable member '%s'", key);
+            return 0;
+        }
+    }
+    else
+    {
+        // Fast path for simple static tables: propset table is captured as upvalue.
+        if (lua_istable(L, 1))
+        {
+            const char* key = lua_tostring(L, 2);
+
+            if (! lua_istable(L, lua_upvalueindex(1)))
+            {
+                luaL_error(L, "no writable member '%s'", key);
+                return 0;
+            }
+
+            lua_pushvalue(L, 2); // Stack: key
+            lua_rawget(L, lua_upvalueindex(1)); // Stack: setter | nil
+
+            if (lua_iscfunction(L, -1))
+            {
+                lua_pushvalue(L, 3); // Stack: setter, value
+                lua_call(L, 1, 0);
+                return 0;
+            }
+
+            luaL_error(L, "no writable member '%s'", key);
+            return 0;
+        }
+    }
+
     lua_getmetatable(L, 1); // Stack: mt
     LUABRIDGE_ASSERT(lua_istable(L, -1));
 
@@ -802,13 +940,8 @@ inline int newindex_metamethod_simple(lua_State* L)
     if (! lua_istable(L, -1))
         luaL_error(L, "no member named '%s'", key);
 
-    if (key != nullptr)
-        rawgetfield(L, -1, key); // Stack: mt, ps, setter | nil
-    else
-    {
-        lua_pushvalue(L, 2); // Stack: mt, ps, key
-        lua_rawget(L, -2); // Stack: mt, ps, setter | nil
-    }
+    lua_pushvalue(L, 2); // Stack: mt, ps, key
+    lua_rawget(L, -2); // Stack: mt, ps, setter | nil
     lua_remove(L, -2); // Stack: mt, setter | nil
 
     if (lua_iscfunction(L, -1))

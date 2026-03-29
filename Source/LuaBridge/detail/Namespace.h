@@ -165,10 +165,13 @@ class Namespace : public detail::Registrar
 
             if (simple)
             {
-                lua_pushcfunction_x(L, &detail::index_metamethod_simple<true>, "__index");
+                lua_rawgetp_x(L, tableIndex, detail::getPropgetKey()); // Stack: ..., pg | nil
+                lua_pushvalue(L, tableIndex); // Stack: ..., pg | nil, mt
+                lua_pushcclosure_x(L, &detail::index_metamethod_simple<true>, "__index", 2);
                 rawsetfield(L, tableIndex, "__index");
 
-                lua_pushcfunction_x(L, &detail::newindex_metamethod_simple<true>, "__newindex");
+                lua_rawgetp_x(L, tableIndex, detail::getPropsetKey()); // Stack: ..., ps | nil
+                lua_pushcclosure_x(L, &detail::newindex_metamethod_simple<true>, "__newindex", 1);
                 rawsetfield(L, tableIndex, "__newindex");
             }
             else
@@ -187,10 +190,14 @@ class Namespace : public detail::Registrar
 
             if (simple)
             {
-                lua_pushcfunction_x(L, &detail::index_metamethod_simple<false>, "__index");
+                lua_rawgetp_x(L, tableIndex, detail::getPropgetKey()); // Stack: ..., pg | nil
+                lua_rawgetp_x(L, tableIndex, detail::getClassKey()); // Stack: ..., pg | nil, cl | nil
+                lua_pushvalue(L, tableIndex); // Stack: ..., pg | nil, cl | nil, mt
+                lua_pushcclosure_x(L, &detail::index_metamethod_simple<false>, "__index", 3);
                 rawsetfield(L, tableIndex, "__index");
 
-                lua_pushcfunction_x(L, &detail::newindex_metamethod_simple<false>, "__newindex");
+                lua_rawgetp_x(L, tableIndex, detail::getPropsetKey()); // Stack: ..., ps | nil
+                lua_pushcclosure_x(L, &detail::newindex_metamethod_simple<false>, "__newindex", 1);
                 rawsetfield(L, tableIndex, "__newindex");
             }
             else
@@ -225,10 +232,10 @@ class Namespace : public detail::Registrar
             lua_pushstring(L, type_name.c_str()); // Stack: ns, co, name
             lua_rawsetp_x(L, -2, detail::getTypeKey()); // co [typeKey] = name. Stack: ns, co
 
-            setObjectMetaMethods(-1, ! options.test(extensibleClass)); // Stack: ns, co
-
-            lua_newtable(L); // Stack: ns, co, tb
+            lua_newtable(L); // Stack: ns, co, propget table (pg)
             lua_rawsetp_x(L, -2, detail::getPropgetKey()); // Stack: ns, co
+
+            setObjectMetaMethods(-1, ! options.test(extensibleClass)); // Stack: ns, co
 
             if (! options.test(visibleMetatables))
             {
@@ -260,6 +267,9 @@ class Namespace : public detail::Registrar
 
             lua_pushvalue(L, -1); // Stack: ns, co, cl, cl
             lua_rawsetp_x(L, -3, detail::getClassKey()); // co [classKey] = cl. Stack: ns, co, cl
+
+            if (! options.test(extensibleClass))
+                setObjectMetaMethods(-1, true);
         }
 
         //=========================================================================================
@@ -282,8 +292,6 @@ class Namespace : public detail::Registrar
             pushunsigned(L, options.toUnderlying()); // Stack: ns, co, cl, st, mt, options
             lua_rawsetp_x(L, -2, detail::getClassOptionsKey()); // st [classOptionsKey] = options. Stack: ns, co, cl, st, mt
 
-            setStaticMetaMethods(-1, ! options.test(extensibleClass));
-
             lua_newtable(L); // Stack: ns, co, cl, st, proget table (pg)
             lua_rawsetp_x(L, -2, detail::getPropgetKey()); // st [propgetKey] = pg. Stack: ns, co, cl, st
 
@@ -292,6 +300,8 @@ class Namespace : public detail::Registrar
 
             lua_pushvalue(L, -2); // Stack: ns, co, cl, st, cl
             lua_rawsetp_x(L, -2, detail::getClassKey()); // st [classKey] = cl. Stack: ns, co, cl, st
+
+            setStaticMetaMethods(-1, ! options.test(extensibleClass));
 
             if (! options.test(visibleMetatables))
             {

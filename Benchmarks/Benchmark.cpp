@@ -110,6 +110,8 @@ void runLuaBridgeBenchmarks(std::int64_t iterations)
     CaseResult freeCall;
     CaseResult memberCall;
     CaseResult property;
+    CaseResult propertySet;
+    CaseResult propertyGet;
     CaseResult cppGlobalGet;
     CaseResult cppGlobalSet;
     CaseResult cppTableGet;
@@ -131,17 +133,21 @@ void runLuaBridgeBenchmarks(std::int64_t iterations)
         const std::string freeCallLoop = "for i = 1, " + std::to_string(iterations) + " do add(i, i) end";
         const std::string memberCallLoop = "for i = 1, " + std::to_string(iterations) + " do obj:inc() end";
         const std::string propertyLoop = "for i = 1, " + std::to_string(iterations) + " do obj.value = i; local x = obj.value end";
+        const std::string propertySetLoop = "for i = 1, " + std::to_string(iterations) + " do obj.value = i end";
+        const std::string propertyGetLoop = "local s = 0; for i = 1, " + std::to_string(iterations) + " do s = s + obj.value end";
 
         empty = runCase("lua_empty_loop", iterations, [&] { doLua(emptyLoop.c_str()); });
         freeCall = runCase("lua_to_cpp_free_fn", iterations, [&] { doLua(freeCallLoop.c_str()); });
         memberCall = runCase("lua_to_cpp_member", iterations, [&] { doLua(memberCallLoop.c_str()); });
         property = runCase("lua_to_cpp_property", iterations, [&] { doLua(propertyLoop.c_str()); });
+        propertySet = runCase("lua_to_cpp_property_set", iterations, [&] { doLua(propertySetLoop.c_str()); });
+        propertyGet = runCase("lua_to_cpp_property_get", iterations, [&] { doLua(propertyGetLoop.c_str()); });
 
         cppGlobalGet = runCase("cpp_table_global_get", iterations, [&]
         {
             double x = 0.0;
             for (std::int64_t i = 0; i < iterations; ++i)
-                x += static_cast<double>(luabridge::getGlobal(L, "gvalue"));
+                x += *luabridge::getGlobal<double>(L, "gvalue");
             sink = x;
         });
 
@@ -161,7 +167,7 @@ void runLuaBridgeBenchmarks(std::int64_t iterations)
         {
             double x = 0.0;
             for (std::int64_t i = 0; i < iterations; ++i)
-                x += static_cast<double>(tableRef["value"]);
+                x += tableRef.unsafeRawgetField<double>("value");
             sink = x;
         });
 
@@ -171,9 +177,9 @@ void runLuaBridgeBenchmarks(std::int64_t iterations)
             for (std::int64_t i = 0; i < iterations; ++i)
             {
                 v += 1.0;
-                tableRef["value"] = v;
+                tableRef.unsafeRawsetField("value", v);
             }
-            sink = static_cast<double>(tableRef["value"]);
+            sink = tableRef.unsafeRawgetField<double>("value");
         });
 
         const auto chainRef = luabridge::getGlobal(L, "chain");
@@ -181,7 +187,7 @@ void runLuaBridgeBenchmarks(std::int64_t iterations)
         {
             double x = 0.0;
             for (std::int64_t i = 0; i < iterations; ++i)
-                x += static_cast<double>(chainRef["inner"]["value"]);
+                x += chainRef["inner"].unsafeRawgetField<double>("value");
             sink = x;
         });
 
@@ -191,9 +197,10 @@ void runLuaBridgeBenchmarks(std::int64_t iterations)
             for (std::int64_t i = 0; i < iterations; ++i)
             {
                 v += 1.0;
-                chainRef["inner"]["value"] = v;
+                chainRef["inner"].unsafeRawsetField("value", v);
             }
-            sink = static_cast<double>(chainRef["inner"]["value"]);
+
+            sink = chainRef["inner"].unsafeRawgetField<double>("value");
         });
 
         doLua("function f(a, b) return a + b end");
@@ -219,6 +226,8 @@ void runLuaBridgeBenchmarks(std::int64_t iterations)
     printResult("LuaBridge", freeCall);
     printResult("LuaBridge", memberCall);
     printResult("LuaBridge", property);
+    printResult("LuaBridge", propertySet);
+    printResult("LuaBridge", propertyGet);
     printResult("LuaBridge", cppGlobalGet);
     printResult("LuaBridge", cppGlobalSet);
     printResult("LuaBridge", cppTableGet);
@@ -259,11 +268,15 @@ void runSol2Benchmarks(std::int64_t iterations)
     const std::string freeCallLoop = "for i = 1, " + std::to_string(iterations) + " do add(i, i) end";
     const std::string memberCallLoop = "for i = 1, " + std::to_string(iterations) + " do obj:inc() end";
     const std::string propertyLoop = "for i = 1, " + std::to_string(iterations) + " do obj.value = i; local x = obj.value end";
+    const std::string propertySetLoop = "for i = 1, " + std::to_string(iterations) + " do obj.value = i end";
+    const std::string propertyGetLoop = "local s = 0; for i = 1, " + std::to_string(iterations) + " do s = s + obj.value end";
 
     const auto empty = runCase("lua_empty_loop", iterations, [&] { lua.script(emptyLoop); });
     const auto freeCall = runCase("lua_to_cpp_free_fn", iterations, [&] { lua.script(freeCallLoop); });
     const auto memberCall = runCase("lua_to_cpp_member", iterations, [&] { lua.script(memberCallLoop); });
     const auto property = runCase("lua_to_cpp_property", iterations, [&] { lua.script(propertyLoop); });
+    const auto propertySet = runCase("lua_to_cpp_property_set", iterations, [&] { lua.script(propertySetLoop); });
+    const auto propertyGet = runCase("lua_to_cpp_property_get", iterations, [&] { lua.script(propertyGetLoop); });
 
     const auto cppGlobalGet = runCase("cpp_table_global_get", iterations, [&]
     {
@@ -325,14 +338,14 @@ void runSol2Benchmarks(std::int64_t iterations)
     });
 
     lua.script("function f(a, b) return a + b end");
-    sol::function f = lua["f"];
+    sol::protected_function f = lua["f"];
     const auto cppToLua = runCase("cpp_to_lua_call", iterations, [&]
     {
         for (std::int64_t i = 0; i < iterations; ++i)
             (void) f(static_cast<int>(i), static_cast<int>(i));
     });
 
-    sol::function addFn = lua["add"];
+    sol::protected_function addFn = lua["add"];
     const auto cppCFunctionThroughLua = runCase("cpp_c_function_through_lua", iterations, [&]
     {
         int x = 0;
@@ -345,6 +358,8 @@ void runSol2Benchmarks(std::int64_t iterations)
     printResult("sol2", freeCall);
     printResult("sol2", memberCall);
     printResult("sol2", property);
+    printResult("sol2", propertySet);
+    printResult("sol2", propertyGet);
     printResult("sol2", cppGlobalGet);
     printResult("sol2", cppGlobalSet);
     printResult("sol2", cppTableGet);
