@@ -4,6 +4,7 @@
 
 * Moved to C++17 as minimum supported standard C++ version.
 * Reworked the whole library to be able to use it without c++ exceptions enabled.
+* Lot of optimisations have been added, and now the library is *fast*, nearly in the same league as sol2 v3.x.
 * Breaking Change: The method `Stack<T>::push` now takes a `std::error_code&` as last parameter and returns a `bool`.
 * Breaking Change: The class `LuaException` has been reworked and it now take a `std::error_code` instead of a int.
 * Breaking Change: The class `LuaException` is now thrown if a unregistered class is pushed via the Stack class, also when calling `LuaRef::operator()`, but only if exceptions are enabled.
