@@ -25,6 +25,26 @@ T identityCFunction(T value)
 {
     return value;
 }
+
+int testGetter777(lua_State* L)
+{
+    lua_pushinteger(L, 777);
+    return 1;
+}
+
+int testSetValueWithSelf(lua_State* L)
+{
+    lua_pushvalue(L, 2);
+    lua_setglobal(L, "captured");
+    return 0;
+}
+
+int testSetValueStatic(lua_State* L)
+{
+    lua_pushvalue(L, 1);
+    lua_setglobal(L, "captured");
+    return 0;
+}
 } // namespace
 
 struct LuaBridgeTest : TestBase
@@ -515,6 +535,173 @@ TEST_F(LuaBridgeTest, CallWithHandlerTypedReturnAndStackRestore)
         EXPECT_EQ(1, handlerCalls);
         EXPECT_EQ(stackTop, lua_gettop(L));
     }
+}
+
+TEST_F(LuaBridgeTest, IndexMetamethodSimple_ObjectFallbackBranches)
+{
+    // Exercise the table-based fallback branch of index_metamethod_simple<true>.
+    auto callIndex = [this](const char* key) -> bool
+    {
+        lua_newtable(L); // self
+
+        lua_newtable(L); // mt
+        lua_newtable(L); // propget
+        luabridge::lua_pushcfunction_x(L, &testGetter777, "testGetter777");
+        lua_setfield(L, -2, "viaGetter");
+        luabridge::lua_rawsetp_x(L, -2, luabridge::detail::getPropgetKey());
+        lua_setmetatable(L, -2);
+
+        lua_newtable(L); // upvalue #1 (pg)
+        lua_newtable(L); // upvalue #2 (mt)
+        luabridge::lua_pushcclosure_x(L, &luabridge::detail::index_metamethod_simple<true>, "index_metamethod_simple_object", 2);
+
+        lua_pushvalue(L, -2); // self
+        lua_pushstring(L, key);
+        const int code = lua_pcall(L, 2, 1, 0);
+
+        lua_remove(L, -2); // remove self, keep result or error
+        return code == LUABRIDGE_LUA_OK;
+    };
+
+    // 1) Value found in self table branch.
+    auto tmpSelf = luabridge::newTable(L);
+    tmpSelf["selfField"] = 55;
+    luabridge::setGlobal(L, tmpSelf, "tmpSelf");
+
+    lua_getglobal(L, "tmpSelf"); // self
+    lua_newtable(L); // mt
+    lua_newtable(L); // propget
+    luabridge::lua_rawsetp_x(L, -2, luabridge::detail::getPropgetKey());
+    lua_setmetatable(L, -2);
+    lua_newtable(L);
+    lua_newtable(L);
+    luabridge::lua_pushcclosure_x(L, &luabridge::detail::index_metamethod_simple<true>, "index_metamethod_simple_object", 2);
+    lua_pushvalue(L, -2);
+    lua_pushstring(L, "selfField");
+    ASSERT_EQ(LUABRIDGE_LUA_OK, lua_pcall(L, 2, 1, 0));
+    ASSERT_TRUE(lua_isnumber(L, -1));
+    ASSERT_EQ(55, static_cast<int>(lua_tointeger(L, -1)));
+    lua_pop(L, 2);
+
+    // 2) Value found in metatable branch.
+    lua_newtable(L); // self
+    lua_newtable(L); // mt
+    lua_pushinteger(L, 66);
+    lua_setfield(L, -2, "metaField");
+    lua_newtable(L);
+    luabridge::lua_rawsetp_x(L, -2, luabridge::detail::getPropgetKey());
+    lua_setmetatable(L, -2);
+    lua_newtable(L);
+    lua_newtable(L);
+    luabridge::lua_pushcclosure_x(L, &luabridge::detail::index_metamethod_simple<true>, "index_metamethod_simple_object", 2);
+    lua_pushvalue(L, -2);
+    lua_pushstring(L, "metaField");
+    ASSERT_EQ(LUABRIDGE_LUA_OK, lua_pcall(L, 2, 1, 0));
+    ASSERT_TRUE(lua_isnumber(L, -1));
+    ASSERT_EQ(66, static_cast<int>(lua_tointeger(L, -1)));
+    lua_pop(L, 2);
+
+    // 3) Value resolved via propget callable branch.
+    ASSERT_TRUE(callIndex("viaGetter"));
+    ASSERT_TRUE(lua_isnumber(L, -1));
+    ASSERT_EQ(777, static_cast<int>(lua_tointeger(L, -1)));
+    lua_pop(L, 1);
+
+    // 4) Unknown key returns nil at final fallback.
+    ASSERT_TRUE(callIndex("doesNotExist"));
+    ASSERT_TRUE(lua_isnil(L, -1));
+    lua_pop(L, 1);
+}
+
+TEST_F(LuaBridgeTest, NewIndexMetamethodSimple_FallbackBranches)
+{
+    // Object variant fallback path (self is table).
+    {
+        lua_newtable(L); // self
+        lua_newtable(L); // mt
+        lua_newtable(L); // propset
+        luabridge::lua_pushcfunction_x(L, &testSetValueWithSelf, "testSetValueWithSelf");
+        lua_setfield(L, -2, "x");
+        luabridge::lua_rawsetp_x(L, -2, luabridge::detail::getPropsetKey());
+        lua_setmetatable(L, -2);
+
+        lua_newtable(L); // upvalue #1
+        luabridge::lua_pushcclosure_x(L, &luabridge::detail::newindex_metamethod_simple<true>, "newindex_metamethod_simple_object", 1);
+        lua_pushvalue(L, -2);
+        lua_pushstring(L, "x");
+        lua_pushinteger(L, 123);
+        ASSERT_EQ(LUABRIDGE_LUA_OK, lua_pcall(L, 3, 0, 0));
+        lua_pop(L, 1);
+
+        auto captured = luabridge::getGlobal(L, "captured");
+        ASSERT_TRUE(captured.isNumber());
+        ASSERT_EQ(123, captured.unsafe_cast<int>());
+    }
+
+    // Object variant fallback error when propset table exists but key is missing.
+    {
+        lua_newtable(L); // self
+        lua_newtable(L); // mt
+        lua_newtable(L); // propset
+        luabridge::lua_rawsetp_x(L, -2, luabridge::detail::getPropsetKey());
+        lua_setmetatable(L, -2);
+
+        lua_newtable(L); // upvalue #1
+        luabridge::lua_pushcclosure_x(L, &luabridge::detail::newindex_metamethod_simple<true>, "newindex_metamethod_simple_object", 1);
+        lua_pushvalue(L, -2);
+        lua_pushstring(L, "missing");
+        lua_pushinteger(L, 1);
+        ASSERT_NE(LUABRIDGE_LUA_OK, lua_pcall(L, 3, 0, 0));
+        auto err = lua_tostring(L, -1);
+        ASSERT_NE(nullptr, err);
+        EXPECT_TRUE(std::string(err).find("no writable member 'missing'") != std::string::npos);
+        lua_pop(L, 2);
+    }
+
+    // Static variant fallback path (self is userdata to bypass simple table fast path).
+    {
+        lua_newuserdata(L, 1); // self
+        lua_newtable(L); // mt
+        lua_newtable(L); // propset
+        luabridge::lua_pushcfunction_x(L, &testSetValueStatic, "testSetValueStatic");
+        lua_setfield(L, -2, "x");
+        luabridge::lua_rawsetp_x(L, -2, luabridge::detail::getPropsetKey());
+        lua_setmetatable(L, -2);
+
+        lua_newtable(L); // upvalue #1
+        luabridge::lua_pushcclosure_x(L, &luabridge::detail::newindex_metamethod_simple<false>, "newindex_metamethod_simple_static", 1);
+        lua_pushvalue(L, -2);
+        lua_pushstring(L, "x");
+        lua_pushinteger(L, 321);
+        ASSERT_EQ(LUABRIDGE_LUA_OK, lua_pcall(L, 3, 0, 0));
+        lua_pop(L, 1);
+
+        auto captured = luabridge::getGlobal(L, "captured");
+        ASSERT_TRUE(captured.isNumber());
+        ASSERT_EQ(321, captured.unsafe_cast<int>());
+    }
+}
+
+TEST_F(LuaBridgeTest, ReadOnlyErrorAndArgumentDecodeRaiseLuaError)
+{
+    // Explicitly exercise read_only_error -> raise_lua_error path.
+    lua_pushstring(L, "locked");
+    luabridge::lua_pushcclosure_x(L, &luabridge::detail::read_only_error, "read_only_error", 1);
+    ASSERT_NE(LUABRIDGE_LUA_OK, lua_pcall(L, 0, 0, 0));
+    {
+        auto err = lua_tostring(L, -1);
+        ASSERT_NE(nullptr, err);
+        EXPECT_TRUE(std::string(err).find("'locked' is read-only") != std::string::npos);
+    }
+    lua_pop(L, 1);
+
+    // Exercise argument decode error path in invocation wrappers (raise_lua_error at decode).
+    luabridge::getGlobalNamespace(L)
+        .addFunction("expectInt", +[](int) { return 0; });
+
+    auto [ok, err] = runLuaCaptureError("expectInt('not an int')");
+    EXPECT_FALSE(ok);
+    EXPECT_TRUE(err.find("Error decoding argument #1") != std::string::npos);
 }
 
 TEST_F(LuaBridgeTest, InvokePassingUnregisteredClassShouldThrowAndRestoreStack)
