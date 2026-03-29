@@ -1,5 +1,5 @@
 // https://github.com/kunitoki/LuaBridge3
-// Copyright 2021, Lucio Asnaghi
+// Copyright 2021, kunitoki
 // SPDX-License-Identifier: MIT
 
 #pragma once
@@ -48,6 +48,11 @@ struct ErrorCategory : std::error_category
     }
 
     std::string message(int ev) const override
+    {
+        return errorString(ev);
+    }
+
+    static const char* errorString(int ev) noexcept
     {
         switch (static_cast<ErrorCode>(ev))
         {

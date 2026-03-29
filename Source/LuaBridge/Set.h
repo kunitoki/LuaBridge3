@@ -1,5 +1,5 @@
 // https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
+// Copyright 2020, kunitoki
 // SPDX-License-Identifier: MIT
 
 #pragma once
@@ -49,7 +49,7 @@ struct Stack<std::set<K>>
     [[nodiscard]] static TypeResult<Type> get(lua_State* L, int index)
     {
         if (!lua_istable(L, index))
-            return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
         const StackRestore stackRestore(L);
 
@@ -62,7 +62,7 @@ struct Stack<std::set<K>>
         {
             auto item = Stack<K>::get(L, -1);
             if (! item)
-                return makeUnexpected(makeErrorCode(ErrorCode::InvalidTypeCast));
+                return makeErrorCode(ErrorCode::InvalidTypeCast);
 
             set.emplace(*item);
             lua_pop(L, 1);

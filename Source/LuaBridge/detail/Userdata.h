@@ -1,5 +1,5 @@
 // https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
+// Copyright 2020, kunitoki
 // Copyright 2019, Dmitry Tarakanov
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // SPDX-License-Identifier: MIT
@@ -67,16 +67,14 @@ private:
                               const void* registryClassKey,
                               bool canBeConst)
     {
-        index = lua_absindex(L, index);
-
-        lua_getmetatable(L, index); // Stack: object metatable (ot) | nil
-        if (!lua_istable(L, -1))
+        const int result = lua_getmetatable(L, index); // Stack: object metatable (ot) | nil
+        if (result == 0 || !lua_istable(L, -1))
         {
-            lua_rawgetp(L, LUA_REGISTRYINDEX, registryClassKey); // Stack: ot | nil, registry metatable (rt) | nil
+            lua_rawgetp_x(L, LUA_REGISTRYINDEX, registryClassKey); // Stack: ot | nil, registry metatable (rt) | nil
             return throwBadArg(L, index);
         }
 
-        lua_rawgetp(L, -1, getConstKey()); // Stack: ot | nil, const table (co) | nil
+        lua_rawgetp_x(L, -1, getConstKey()); // Stack: ot | nil, const table (co) | nil
         LUABRIDGE_ASSERT(lua_istable(L, -1) || lua_isnil(L, -1));
 
         // If const table is NOT present, object is const. Use non-const registry table
@@ -85,15 +83,10 @@ private:
         // -> canBeConst = false, isConst = true
         // -> 'Class' registry table, 'const Class' object table
         // -> 'expected Class, got const Class'
-        bool isConst = lua_isnil(L, -1); // Stack: ot | nil, nil, rt
-        if (isConst && canBeConst)
-        {
-            lua_rawgetp(L, LUA_REGISTRYINDEX, registryConstKey); // Stack: ot, nil, rt
-        }
-        else
-        {
-            lua_rawgetp(L, LUA_REGISTRYINDEX, registryClassKey); // Stack: ot, co, rt
-        }
+        const bool isConst = lua_isnil(L, -1); // Stack: ot | nil, nil, rt
+        lua_rawgetp_x(L, LUA_REGISTRYINDEX, (isConst && canBeConst)
+            ? registryConstKey
+            : registryClassKey); // Stack: ot, co | nil, rt
 
         lua_insert(L, -3); // Stack: rt, ot, co | nil
         lua_pop(L, 1); // Stack: rt, ot
@@ -107,7 +100,7 @@ private:
             }
 
             // Replace current metatable with it's base class.
-            lua_rawgetp(L, -1, getParentKey()); // Stack: rt, ot, parent ot (pot) | nil
+            lua_rawgetp_x(L, -1, getParentKey()); // Stack: rt, ot, parent ot (pot) | nil
 
             if (lua_isnil(L, -1)) // Stack: rt, ot, nil
             {
@@ -122,13 +115,11 @@ private:
         unreachable();
     }
 
-    static bool isInstance(lua_State* L, int index, const void* registryClassKey)
+    static bool isInstance(lua_State* L, int index, const void* registryKey)
     {
-        index = lua_absindex(L, index);
-
-        int result = lua_getmetatable(L, index); // Stack: object metatable (ot) | nothing
+        const auto result = lua_getmetatable(L, index); // Stack: object metatable (ot) | nil
         if (result == 0)
-            return false; // Nothing was pushed on the stack
+            return false;
 
         if (!lua_istable(L, -1))
         {
@@ -136,7 +127,7 @@ private:
             return false;
         }
 
-        lua_rawgetp(L, LUA_REGISTRYINDEX, registryClassKey); // Stack: ot, rt
+        lua_rawgetp_x(L, LUA_REGISTRYINDEX, registryKey); // Stack: ot, rt
         lua_insert(L, -2); // Stack: rt, ot
 
         for (;;)
@@ -148,10 +139,11 @@ private:
             }
 
             // Replace current metatable with it's base class.
-            lua_rawgetp(L, -1, getParentKey()); // Stack: rt, ot, parent ot (pot) | nil
+            lua_rawgetp_x(L, -1, getParentKey()); // Stack: rt, ot, parent ot (pot) | nil
 
             if (lua_isnil(L, -1)) // Stack: rt, ot, nil
             {
+                // Drop the object metatable because it may be some parent metatable
                 lua_pop(L, 3); // Stack: -
                 return false;
             }
@@ -173,18 +165,18 @@ private:
         }
         else
         {
-            lua_rawgetp(L, -1, getTypeKey()); // Stack: rt, registry type
+            lua_rawgetp_x(L, -1, getTypeKey()); // Stack: rt, registry type
             expected = lua_tostring(L, -1);
             lua_pop(L, 1); // Stack: rt
         }
 
-        const char* got = 0;
+        const char* got = nullptr;
         if (lua_isuserdata(L, index))
         {
             lua_getmetatable(L, index); // Stack: rt, ot | nil
             if (lua_istable(L, -1)) // Stack: rt, ot
             {
-                lua_rawgetp(L, -1, getTypeKey()); // Stack: rt, ot, object type | nil
+                lua_rawgetp_x(L, -1, getTypeKey()); // Stack: rt, ot, object type | nil
                 if (lua_isstring(L, -1))
                     got = lua_tostring(L, -1);
 
@@ -256,7 +248,8 @@ public:
     template <class T>
     static bool isInstance(lua_State* L, int index)
     {
-        return isInstance(L, index, detail::getClassRegistryKey<T>());
+        return isInstance(L, index, detail::getClassRegistryKey<T>())
+            || isInstance(L, index, detail::getConstRegistryKey<T>());
     }
 
 protected:
@@ -311,7 +304,7 @@ public:
     {
         auto* ud = new (lua_newuserdata_x<UserdataValue<T>>(L, sizeof(UserdataValue<T>))) UserdataValue<T>();
 
-        lua_rawgetp(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>());
+        lua_rawgetp_x(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>());
 
         if (!lua_istable(L, -1))
         {
@@ -481,7 +474,7 @@ private:
     {
         auto* udptr = new (lua_newuserdata_x<UserdataPtr>(L, sizeof(UserdataPtr))) UserdataPtr(const_cast<void*>(ptr));
 
-        lua_rawgetp(L, LUA_REGISTRYINDEX, key);
+        lua_rawgetp_x(L, LUA_REGISTRYINDEX, key);
 
         if (!lua_istable(L, -1))
         {
@@ -543,7 +536,7 @@ public:
     {
         auto* ud = new (lua_newuserdata_x<UserdataValueExternal<T>>(L, sizeof(UserdataValueExternal<T>))) UserdataValueExternal<T>(obj, dealloc);
 
-        lua_rawgetp(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>());
+        lua_rawgetp_x(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>());
 
         if (!lua_istable(L, -1))
         {
@@ -645,7 +638,7 @@ struct UserdataSharedHelper
         {
             auto* us = new (lua_newuserdata_x<UserdataShared<C>>(L, sizeof(UserdataShared<C>))) UserdataShared<C>(c);
 
-            lua_rawgetp(L, LUA_REGISTRYINDEX, getClassRegistryKey<T>());
+            lua_rawgetp_x(L, LUA_REGISTRYINDEX, getClassRegistryKey<T>());
 
             if (!lua_istable(L, -1))
             {
@@ -676,7 +669,7 @@ struct UserdataSharedHelper
         {
             auto* us = new (lua_newuserdata_x<UserdataShared<C>>(L, sizeof(UserdataShared<C>))) UserdataShared<C>(t);
 
-            lua_rawgetp(L, LUA_REGISTRYINDEX, getClassRegistryKey<T>());
+            lua_rawgetp_x(L, LUA_REGISTRYINDEX, getClassRegistryKey<T>());
 
             if (!lua_istable(L, -1))
             {
@@ -716,7 +709,7 @@ struct UserdataSharedHelper<C, true>
         {
             auto* us = new (lua_newuserdata_x<UserdataShared<C>>(L, sizeof(UserdataShared<C>))) UserdataShared<C>(c);
 
-            lua_rawgetp(L, LUA_REGISTRYINDEX, getConstRegistryKey<T>());
+            lua_rawgetp_x(L, LUA_REGISTRYINDEX, getConstRegistryKey<T>());
 
             if (!lua_istable(L, -1))
             {
@@ -747,7 +740,7 @@ struct UserdataSharedHelper<C, true>
         {
             auto* us = new (lua_newuserdata_x<UserdataShared<C>>(L, sizeof(UserdataShared<C>))) UserdataShared<C>(t);
 
-            lua_rawgetp(L, LUA_REGISTRYINDEX, getConstRegistryKey<T>());
+            lua_rawgetp_x(L, LUA_REGISTRYINDEX, getConstRegistryKey<T>());
 
             if (!lua_istable(L, -1))
             {

@@ -10,6 +10,9 @@ on:
       - "**/ThirdParty/**"
       - "**/CMakeLists.txt"
       - "**/.gitmodules"
+      - "**/.codeql.yml"
+      - "!**/*.md"
+      - "!**/*.txt"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -30,19 +33,20 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v6
       with:
         submodules: true
 
     - name: Install Ninja
       run: |
         sudo apt-get update
-        sudo apt-get -y install ninja-build
+        sudo apt-get -y install ninja-build libreadline-dev
 
     - name: Initialize CodeQL
-      uses: github/codeql-action/init@v2
+      uses: github/codeql-action/init@v3
       with:
         languages: ${{ matrix.language }}
+        config-file: ./.codeql.yml
 
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
@@ -58,4 +62,4 @@ jobs:
       run: cmake --build . --config $BUILD_TYPE
 
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v2
+      uses: github/codeql-action/analyze@v3

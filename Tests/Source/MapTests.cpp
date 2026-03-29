@@ -131,7 +131,7 @@ TEST_F(MapTests, CastToMap)
 #if LUABRIDGE_HAS_EXCEPTIONS
     ASSERT_ANY_THROW((result<IntToInt>()));
 #else
-    ASSERT_DEATH((result<IntToInt>()), "");
+    ASSERT_DEATH_IF_SUPPORTED((result<IntToInt>()), "");
 #endif
 }
 

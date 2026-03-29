@@ -1,5 +1,5 @@
 // https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
+// Copyright 2020, kunitoki
 // Copyright 2019, George Tokmaji
 // Copyright 2018, Dmitry Tarakanov
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
@@ -83,9 +83,10 @@ protected:
     {
     };
 
-    LuaRefBase(lua_State* L)
+    LuaRefBase(lua_State* L) noexcept
         : m_L(L)
     {
+        LUABRIDGE_ASSERT(L != nullptr);
     }
 
     //=============================================================================================
@@ -290,6 +291,29 @@ public:
 
         auto metatable = getMetatable();
         return metatable.isTable() && metatable["__call"].isFunction();
+    }
+
+    /**
+     * @brief Get the name of the class, only if it is a C++ registered class via the library.
+     *
+     * @returns An optional string containing the name used to register the class with `beginClass`, nullopt in case it's not a registered class.
+     */
+    std::optional<std::string> getClassName()
+    {
+        if (! isUserdata())
+            return std::nullopt;
+
+        const StackRestore stackRestore(m_L);
+
+        impl().push(m_L);
+        if (! lua_getmetatable(m_L, -1))
+            return std::nullopt;
+
+        lua_rawgetp_x(m_L, -1, detail::getTypeKey());
+        if (lua_isstring(m_L, -1))
+            return lua_tostring(m_L, -1);
+
+        return std::nullopt;
     }
 
     //=============================================================================================
@@ -562,6 +586,39 @@ public:
 
     //=============================================================================================
     /**
+     * @brief Append one or more values to a referred table.
+     *
+     * If the table is a sequence this will add more elements to it.
+     *
+     * @param vs Values to append.
+     *
+     * @returns True if all values were successfully appended.
+     */
+    template <class... Ts>
+    bool append(const Ts&... vs) const
+    {
+        static_assert(sizeof...(vs) > 0);
+
+        const StackRestore stackRestore(m_L);
+
+        impl().push(m_L);
+
+        int index = get_length(m_L, -1) + 1;
+
+        auto appendOne = [&](const auto& v) -> bool
+        {
+            if (! Stack<std::decay_t<decltype(v)>>::push(m_L, v))
+                return false;
+
+            lua_rawseti(m_L, -2, index++);
+            return true;
+        };
+
+        return (appendOne(vs) && ...);
+    }
+
+    //=============================================================================================
+    /**
      * @brief Call Lua code.
      *
      * The return value is provided as a LuaRef (which may be LUA_REFNIL).
@@ -572,6 +629,12 @@ public:
      */
     template <class... Args>
     LuaResult operator()(Args&&... args) const;
+
+    template <class... Args>
+    LuaResult call(Args&&... args) const;
+
+    template <class F, class... Args>
+    LuaResult callWithHandler(F&& errorHandler, Args&&... args) const;
 
 protected:
     lua_State* m_L = nullptr;
@@ -802,7 +865,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
      *
      * @note The object is popped.
      */
-    LuaRef(lua_State* L, FromStack)
+    LuaRef(lua_State* L, FromStack) noexcept
         : LuaRefBase(L)
         , m_ref(luaL_ref(m_L, LUA_REGISTRYINDEX))
     {
@@ -833,6 +896,8 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         m_ref = luaL_ref(m_L, LUA_REGISTRYINDEX);
     }
 
+    LuaRef(std::nullptr_t) noexcept = delete;
+
 public:
     //=============================================================================================
     /**
@@ -842,7 +907,7 @@ public:
      *
      * @param L A Lua state.
      */
-    LuaRef(lua_State* L)
+    LuaRef(lua_State* L) noexcept
         : LuaRefBase(L)
         , m_ref(LUA_NOREF)
     {
@@ -896,7 +961,7 @@ public:
      *
      * @param other An existing reference.
      */
-    LuaRef(LuaRef&& other)
+    LuaRef(LuaRef&& other) noexcept
         : LuaRefBase(other.m_L)
         , m_ref(std::exchange(other.m_ref, LUA_NOREF))
     {
@@ -967,6 +1032,30 @@ public:
         lua_newtable(L);
         return LuaRef(L, FromStack());
     }
+    
+    //=============================================================================================
+    /**
+     * @brief Create a new function on the top of a Lua stack and return a reference to it.
+     *
+     * @param L A Lua state.
+     * @param func The c++ function to map to lua.
+     * @param debugname Optional debug name (used only by Luau).
+     *
+     * @returns A reference to the newly created function.
+     *
+     * @see luabridge::newFunction()
+     */
+    template <class F>
+    static LuaRef newFunction(lua_State* L, F&& func, const char* debugname = "")
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 1))
+            return { L };
+#endif
+
+        detail::push_function(L, std::forward<F>(func), debugname);
+        return LuaRef(L, FromStack());
+    }
 
     //=============================================================================================
     /**
@@ -1021,7 +1110,7 @@ public:
      *
      * @returns This reference.
      */
-    LuaRef& operator=(LuaRef&& rhs)
+    LuaRef& operator=(LuaRef&& rhs) noexcept
     {
         if (m_ref != LUA_NOREF)
             luaL_unref(m_L, LUA_REGISTRYINDEX, m_ref);
@@ -1213,7 +1302,7 @@ public:
     }
 
 private:
-    void swap(LuaRef& other)
+    void swap(LuaRef& other) noexcept
     {
         using std::swap;
 
@@ -1329,6 +1418,18 @@ struct Stack<LuaRef::TableItem>
 [[nodiscard]] inline LuaRef newTable(lua_State* L)
 {
     return LuaRef::newTable(L);
+}
+
+//=================================================================================================
+/**
+ * @brief Create a reference to a new function.
+ *
+ * This is a syntactic abbreviation for LuaRef::newFunction ().
+ */
+template <class F>
+[[nodiscard]] inline LuaRef newFunction(lua_State* L, F&& func)
+{
+    return LuaRef::newFunction(L, std::forward<F>(func));
 }
 
 //=================================================================================================

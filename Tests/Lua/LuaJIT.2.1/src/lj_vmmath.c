@@ -1,6 +1,6 @@
 /*
 ** Math helper functions for assembler VM.
-** Copyright (C) 2005-2022 Mike Pall. See Copyright Notice in luajit.h
+** Copyright (C) 2005-2026 Mike Pall. See Copyright Notice in luajit.h
 */
 
 #define lj_vmmath_c
@@ -59,7 +59,7 @@ double lj_vm_foldarith(double x, double y, int op)
   case IR_NEG - IR_ADD: return -x; break;
   case IR_ABS - IR_ADD: return fabs(x); break;
 #if LJ_HASJIT
-  case IR_LDEXP - IR_ADD: return ldexp(x, (int)y); break;
+  case IR_LDEXP - IR_ADD: return ldexp(x, lj_num2int(y)); break;
   case IR_MIN - IR_ADD: return x < y ? x : y; break;
   case IR_MAX - IR_ADD: return x > y ? x : y; break;
 #endif
@@ -75,11 +75,11 @@ int32_t LJ_FASTCALL lj_vm_modi(int32_t a, int32_t b)
   uint32_t y, ua, ub;
   /* This must be checked before using this function. */
   lj_assertX(b != 0, "modulo with zero divisor");
-  ua = a < 0 ? (uint32_t)-a : (uint32_t)a;
-  ub = b < 0 ? (uint32_t)-b : (uint32_t)b;
+  ua = a < 0 ? ~(uint32_t)a+1u : (uint32_t)a;
+  ub = b < 0 ? ~(uint32_t)b+1u : (uint32_t)b;
   y = ua % ub;
   if (y != 0 && (a^b) < 0) y = y - ub;
-  if (((int32_t)y^b) < 0) y = (uint32_t)-(int32_t)y;
+  if (((int32_t)y^b) < 0) y = ~y+1u;
   return (int32_t)y;
 }
 #endif

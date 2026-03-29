@@ -1,5 +1,5 @@
 // https://github.com/kunitoki/LuaBridge3
-// Copyright 2021, Lucio Asnaghi
+// Copyright 2021, kunitoki
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // Copyright 2008, Nigel Atkinson <suprapilot+LuaCode@gmail.com>
 // SPDX-License-Identifier: MIT
@@ -72,7 +72,7 @@ public:
         lua_pushlightuserdata(L, detail::getExceptionsKey());
         lua_gettable(L, LUA_REGISTRYINDEX);
 
-        const bool enabled = lua_isboolean(L, -1) ? lua_toboolean(L, -1) : false;
+        const bool enabled = lua_isboolean(L, -1) ? static_cast<bool>(lua_toboolean(L, -1)) : false;
         lua_pop(L, 1);
 
         return enabled;

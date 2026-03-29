@@ -1,5 +1,5 @@
 // https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
+// Copyright 2020, kunitoki
 // Copyright 2019, Dmitry Tarakanov
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // Copyright 2007, Nathan Reed
@@ -337,13 +337,13 @@ TEST_F(LuaRefTests, Comparison)
     EXPECT_TRUE(t2 == t2);
     EXPECT_FALSE(t2 == t3);
 
-#if LUABRIDGEDEMO_LUA_VERSION >= 503 && !LUABRIDGE_ON_LUAU && !LUABRIDGE_ON_LUAJIT
+#if LUA_VERSION_NUM >= 503 && !LUABRIDGE_ON_LUAU && !LUABRIDGE_ON_LUAJIT
     // This has changed in lua 5.3 and is quite a behaviour change
     EXPECT_TRUE(t2 == t4);
 #else
     EXPECT_FALSE(t2 == t4);
 #endif
-    
+
     EXPECT_TRUE(t3 == t3);
     EXPECT_FALSE(t3 == t4);
 
@@ -440,7 +440,7 @@ TEST_F(LuaRefTests, Assignment)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wself-assign-overloaded"
 #endif
-    
+
     value = value;
 
 #if __clang__
@@ -497,7 +497,7 @@ TEST_F(LuaRefTests, Callable)
     runLua("x = 1");
     auto x = luabridge::getGlobal(L, "x");
     EXPECT_FALSE(x.isCallable());
-    
+
     runLua("meta1 = { __call = function(self) return 5 end }");
     auto meta1 = luabridge::getGlobal(L, "meta1");
     EXPECT_FALSE(meta1.isCallable());
@@ -508,6 +508,36 @@ TEST_F(LuaRefTests, Callable)
     EXPECT_EQ(100, obj["i"].unsafe_cast<int>());
     obj();
     EXPECT_EQ(200, obj["i"].unsafe_cast<int>());
+}
+
+TEST_F(LuaRefTests, CallableWithHandler)
+{
+    runLua("function f(x) error('we failed ' .. x) end");
+    auto f = luabridge::getGlobal(L, "f");
+    EXPECT_TRUE(f.isCallable());
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_ANY_THROW(f.call("badly"));
+#else
+    EXPECT_FALSE(f.call("badly"));
+#endif
+
+    bool calledHandler = false;
+    std::string errorMessage;
+    auto handler = [&](lua_State*) -> int
+    {
+        calledHandler = true;
+
+        if (auto msg = lua_tostring(L, 1))
+            errorMessage = msg;
+
+        return 0;
+    };
+
+    auto result = f.callWithHandler(handler, "badly");
+    EXPECT_FALSE(result);
+    EXPECT_TRUE(calledHandler);
+    EXPECT_TRUE(errorMessage.find("we failed badly") != std::string::npos);
 }
 
 TEST_F(LuaRefTests, Pop)
@@ -528,21 +558,10 @@ TEST_F(LuaRefTests, Pop)
 
 TEST_F(LuaRefTests, IsInstance)
 {
-    struct Base
-    {
-    };
-
-    struct Derived : Base
-    {
-    };
-
-    struct Other
-    {
-    };
-
-    struct Unknown : Base
-    {
-    };
+    struct Base {};
+    struct Derived : Base {};
+    struct Other {};
+    struct Unknown : Base {};
 
     luabridge::getGlobalNamespace(L)
         .beginClass<Base>("Base")
@@ -561,6 +580,8 @@ TEST_F(LuaRefTests, IsInstance)
     EXPECT_FALSE(result().isInstance<Other>());
     EXPECT_FALSE(result().isInstance<Unknown>());
     EXPECT_TRUE(result().isUserdata());
+    EXPECT_FALSE(result().isNil());
+    EXPECT_EQ("Base", result().getClassName().value_or(""));
 
     runLua("result = Derived ()");
     EXPECT_TRUE(result().isInstance<Base>());
@@ -568,6 +589,8 @@ TEST_F(LuaRefTests, IsInstance)
     EXPECT_FALSE(result().isInstance<Other>());
     EXPECT_FALSE(result().isInstance<Unknown>());
     EXPECT_TRUE(result().isUserdata());
+    EXPECT_FALSE(result().isNil());
+    EXPECT_EQ("Derived", result().getClassName().value_or(""));
 
     runLua("result = Other ()");
     EXPECT_FALSE(result().isInstance<Base>());
@@ -575,6 +598,35 @@ TEST_F(LuaRefTests, IsInstance)
     EXPECT_TRUE(result().isInstance<Other>());
     EXPECT_FALSE(result().isInstance<Unknown>());
     EXPECT_TRUE(result().isUserdata());
+    EXPECT_FALSE(result().isNil());
+    EXPECT_EQ("Other", result().getClassName().value_or(""));
+
+    lua_newuserdata(L, sizeof(Unknown));
+    EXPECT_TRUE(lua_isuserdata(L, -1));
+    luaL_newmetatable(L, "Unknown");
+    EXPECT_TRUE(lua_istable(L, -1));
+    lua_setmetatable(L, -2);
+    EXPECT_TRUE(lua_isuserdata(L, -1));
+    lua_setglobal(L, "unkown");
+    runLua("result = unknown");
+    EXPECT_FALSE(result().isInstance<Base>());
+    EXPECT_FALSE(result().isInstance<Derived>());
+    EXPECT_FALSE(result().isInstance<Other>());
+    EXPECT_FALSE(result().isInstance<Unknown>());
+    //EXPECT_TRUE(result().isUserdata()); // TODO
+    EXPECT_FALSE(result().isTable());
+    //EXPECT_FALSE(result().isNil()); // TODO
+    EXPECT_FALSE(result().getClassName());
+
+    runLua("result = {}");
+    EXPECT_FALSE(result().isInstance<Base>());
+    EXPECT_FALSE(result().isInstance<Derived>());
+    EXPECT_FALSE(result().isInstance<Other>());
+    EXPECT_FALSE(result().isInstance<Unknown>());
+    EXPECT_FALSE(result().isUserdata());
+    EXPECT_TRUE(result().isTable());
+    EXPECT_FALSE(result().isNil());
+    EXPECT_FALSE(result().getClassName());
 
     runLua("result = 3.14");
     EXPECT_FALSE(result().isInstance<Base>());
@@ -582,6 +634,9 @@ TEST_F(LuaRefTests, IsInstance)
     EXPECT_FALSE(result().isInstance<Other>());
     EXPECT_FALSE(result().isInstance<Unknown>());
     EXPECT_FALSE(result().isUserdata());
+    EXPECT_TRUE(result().isNumber());
+    EXPECT_FALSE(result().isNil());
+    EXPECT_FALSE(result().getClassName());
 }
 
 TEST_F(LuaRefTests, Print)
@@ -643,21 +698,49 @@ TEST_F(LuaRefTests, RegisterLambdaInTable)
 {
     luabridge::getGlobalNamespace(L)
         .beginNamespace("Entities")
-        .addFunction("GetLocalHero", [&]() {
-            auto table = luabridge::newTable(L);
-            table.push(L);
-            
-            luabridge::getNamespaceFromStack(L)
-                .addProperty("index", [] { return 150; })
-                .addFunction("Health", [&] { return 500; });
+            .addFunction("GetLocalHero", [&]() {
+                auto table = luabridge::newTable(L);
+                table.push(L);
 
-            table.pop();
-            return table;
-        })
-    .endNamespace();
-    
+                luabridge::getNamespaceFromStack(L)
+                    .addProperty("index", [] { return 150; })
+                    .addFunction("Health", [&] { return 500; });
+
+                table.pop();
+                return table;
+            })
+        .endNamespace();
+
     runLua("result = Entities.GetLocalHero().Health()");
     ASSERT_EQ(500, result<int>());
+}
+
+TEST_F(LuaRefTests, RegisterLambdaInFunction)
+{
+    struct Class
+    {
+        Class() = default;
+
+        int test() const
+        {
+            return 1;
+        }
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Class>("Class")
+            .addConstructor<void (*)()>()
+            .addFunction("test", &Class::test)
+        .endClass();
+
+    luabridge::setGlobal(L, luabridge::newFunction(L, [](const Class* obj, int x) { return obj->test() + x; }), "takeClass");
+    luabridge::setGlobal(L, luabridge::newFunction(L, [](Class* obj, int x, int y, lua_State* L) { return obj->test() + x + y + lua_gettop(L); }), "takeClassState");
+
+    runLua("obj = Class(); result = takeClass (obj, 10)");
+    ASSERT_EQ(1 + 10, result<int>());
+
+    runLua("obj = Class(); result = takeClassState (obj, 10, 100)");
+    ASSERT_EQ(1 + 10 + 100 + 3, result<int>());
 }
 
 TEST_F(LuaRefTests, HookTesting)
@@ -670,7 +753,7 @@ TEST_F(LuaRefTests, HookTesting)
 
     luabridge::getGlobalNamespace(L)
         .addFunction("Hook", hook);
-    
+
     runLua(R"(
         function hook1(type, packet)
             print("lol")
@@ -682,4 +765,58 @@ TEST_F(LuaRefTests, HookTesting)
     for (auto& func : hooklist) {
         func.second(0, "x");
     }
+}
+
+TEST_F(LuaRefTests, AppendSingleValue)
+{
+    runLua("result = {}");
+
+    EXPECT_TRUE(result().append(1));
+    EXPECT_TRUE(result().append(2));
+    EXPECT_TRUE(result().append(3));
+
+    ASSERT_EQ(3, result().length());
+    ASSERT_EQ(1, result()[1].unsafe_cast<int>());
+    ASSERT_EQ(2, result()[2].unsafe_cast<int>());
+    ASSERT_EQ(3, result()[3].unsafe_cast<int>());
+}
+
+TEST_F(LuaRefTests, AppendMultipleValues)
+{
+    runLua("result = {}");
+
+    EXPECT_TRUE(result().append(10, 20, 30));
+
+    ASSERT_EQ(3, result().length());
+    ASSERT_EQ(10, result()[1].unsafe_cast<int>());
+    ASSERT_EQ(20, result()[2].unsafe_cast<int>());
+    ASSERT_EQ(30, result()[3].unsafe_cast<int>());
+}
+
+TEST_F(LuaRefTests, AppendMixedTypes)
+{
+    runLua("result = {}");
+
+    EXPECT_TRUE(result().append(42, std::string("hello"), true, 3.14));
+
+    ASSERT_EQ(4, result().length());
+    ASSERT_EQ(42, result()[1].unsafe_cast<int>());
+    ASSERT_EQ("hello", result()[2].unsafe_cast<std::string>());
+    ASSERT_TRUE(result()[3].unsafe_cast<bool>());
+    ASSERT_DOUBLE_EQ(3.14, result()[4].unsafe_cast<double>());
+}
+
+TEST_F(LuaRefTests, AppendToExistingSequence)
+{
+    runLua("result = {10, 20}");
+
+    ASSERT_EQ(2, result().length());
+
+    EXPECT_TRUE(result().append(30, 40));
+
+    ASSERT_EQ(4, result().length());
+    ASSERT_EQ(10, result()[1].unsafe_cast<int>());
+    ASSERT_EQ(20, result()[2].unsafe_cast<int>());
+    ASSERT_EQ(30, result()[3].unsafe_cast<int>());
+    ASSERT_EQ(40, result()[4].unsafe_cast<int>());
 }

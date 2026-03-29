@@ -1,5 +1,5 @@
 // https://github.com/kunitoki/LuaBridge3
-// Copyright 2023, Lucio Asnaghi
+// Copyright 2023, kunitoki
 // SPDX-License-Identifier: MIT
 
 #include "TestBase.h"
@@ -7,9 +7,9 @@
 namespace {
 int lua_resume_x(lua_State* L, int nargs)
 {
-#if LUABRIDGEDEMO_LUAJIT || LUABRIDGEDEMO_LUA_VERSION == 501
+#if LUABRIDGE_ON_LUAJIT || LUA_VERSION_NUM == 501
     return lua_resume(L, nargs);
-#elif LUABRIDGEDEMO_LUAU || LUABRIDGEDEMO_LUA_VERSION < 504
+#elif LUABRIDGE_ON_LUAU || LUABRIDGE_ON_RAVI || LUA_VERSION_NUM < 504
     return lua_resume(L, nullptr, nargs);
 #else
     [[maybe_unused]] int nresults = 0;
@@ -163,7 +163,7 @@ TEST_F(CoroutineTests, ThreadedRegistration)
     auto env = luaL_ref(thread1, LUA_REGISTRYINDEX);
     lua_rawgeti(thread1, LUA_REGISTRYINDEX, env);
 
-#if LUABRIDGEDEMO_LUAU || LUABRIDGEDEMO_LUAJIT || LUABRIDGEDEMO_LUA_VERSION == 501
+#if LUABRIDGE_ON_LUAU || LUABRIDGE_ON_LUAJIT || LUA_VERSION_NUM == 501
     lua_setfenv(thread1, 1);
 #else
     auto upvalue = lua_setupvalue(thread1, -2, 1);

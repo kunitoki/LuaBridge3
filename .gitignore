@@ -4,6 +4,7 @@ Makefile
 CMakeCache.txt
 CMakeFiles/
 build/
+Build/
 *.dir/
 *.sln
 *.vcxproj
@@ -14,3 +15,4 @@ build/
 .DS_store
 .idea/
 cmake-build-*/
+tmpunwind.o

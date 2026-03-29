@@ -1,5 +1,5 @@
 // https://github.com/kunitoki/LuaBridge3
-// Copyright 2022, Lucio Asnaghi
+// Copyright 2022, kunitoki
 // Copyright 2019, Dmitry Tarakanov
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // Copyright 2007, Nathan Reed
@@ -10,6 +10,7 @@
 #include "Lua/LuaLibrary.h"
 
 #include "LuaBridge/LuaBridge.h"
+#include "LuaBridge/Dump.h"
 
 #include <gtest/gtest.h>
 
@@ -96,7 +97,7 @@ struct TestBase : public ::testing::Test
         lua_State* l;
 
         if (alloc)
-            l = lua_newstate(alloc, nullptr);
+            l = luabridge::lua_newstate_x(alloc, nullptr, 0);
         else
             l = luaL_newstate();
 
@@ -126,7 +127,7 @@ struct TestBase : public ::testing::Test
 
         lua_settop(stateToUse, 0);
 
-        luabridge::lua_pushcfunction_x(stateToUse, &traceback);
+        luabridge::lua_pushcfunction_x(stateToUse, &traceback, "traceback");
 
         if (luaL_loadstring(stateToUse, script.c_str()) != LUABRIDGE_LUA_OK)
         {
@@ -208,7 +209,17 @@ struct TestBase : public ::testing::Test
 
     void exhaustStackSpace()
     {
-        for (int i = 0; i < 2000000; ++i)
+        // Exhaust LUAI_MAXSTACK = 1000000
+        for (int i = 0; i < 1000000; ++i)
+        {
+            if (!lua_checkstack(L, 1))
+                break;
+
+            lua_pushnil(L);
+        }
+        
+        // Exhaust ERRORSTACKSIZE = LUAI_MAXSTACK + 200
+        for (int i = 0; i < 200; ++i)
         {
             if (!lua_checkstack(L, 1))
                 break;

@@ -2,7 +2,7 @@
 /*
   https://github.com/kunitoki/LuaBridge3
 
-  Copyright (C) 2021, Lucio Asnaghi <kunitoki@gmail.com>
+  Copyright (C) 2021, kunitoki <kunitoki@gmail.com>
 
   License: The MIT License (http://www.opensource.org/licenses/mit-license.php)
 
@@ -29,7 +29,7 @@
 #define LUALIBRARY_SOURCE
 #include "Lua/LuaLibrary.h"
 
-#if LUABRIDGEDEMO_LUAU
+#if LUABRIDGE_TEST_LUAU
 
 #if _MSC_VER
 #pragma push_macro("_CRT_SECURE_NO_WARNINGS")
@@ -46,6 +46,11 @@
 #include "../../ThirdParty/luau/VM/src/lvmexecute.cpp"
 #include "../../ThirdParty/luau/VM/src/lfunc.cpp"
 #include "../../ThirdParty/luau/VM/src/lbitlib.cpp"
+#include "../../ThirdParty/luau/VM/src/lbuffer.cpp"
+#include "../../ThirdParty/luau/VM/src/lbuflib.cpp"
+#define createmetatable createmetatable_vec
+#include "../../ThirdParty/luau/VM/src/lveclib.cpp"
+#undef createmetatable
 #include "../../ThirdParty/luau/VM/src/lvmload.cpp"
 #include "../../ThirdParty/luau/VM/src/lapi.cpp"
 #include "../../ThirdParty/luau/VM/src/ldebug.cpp"
@@ -83,4 +88,4 @@
 #else
 void dummy_symbol_luau() {}
 
-#endif // LUABRIDGEDEMO_LUAU
+#endif // LUABRIDGE_TEST_LUAU

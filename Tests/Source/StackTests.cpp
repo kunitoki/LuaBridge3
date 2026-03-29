@@ -1,9 +1,13 @@
 // https://github.com/kunitoki/LuaBridge3
-// Copyright 2021, Lucio Asnaghi
+// Copyright 2021, kunitoki
 // Copyright 2020, Dmitry Tarakanov
 // SPDX-License-Identifier: MIT
 
 #include "TestBase.h"
+
+namespace {
+struct Unregistered {};
+} // namespace
 
 struct StackTests : TestBase
 {
@@ -1400,6 +1404,108 @@ TEST_F(StackTests, FloatTypeNotFittingIsInstance)
     EXPECT_TRUE(luabridge::isInstance<long double>(L, 1));
 }
 
+TEST_F(StackTests, FloatNaNAndInfPush)
+{
+    {
+        const luabridge::StackRestore sr(L);
+        EXPECT_TRUE(luabridge::push(L, std::numeric_limits<float>::quiet_NaN()));
+        EXPECT_TRUE(luabridge::isInstance<float>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<double>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<long double>(L, -1));
+        auto result = luabridge::get<float>(L, -1);
+        ASSERT_TRUE(result);
+        EXPECT_TRUE(std::isnan(*result));
+    }
+
+    {
+        const luabridge::StackRestore sr(L);
+        EXPECT_TRUE(luabridge::push(L, std::numeric_limits<float>::infinity()));
+        EXPECT_TRUE(luabridge::isInstance<float>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<double>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<long double>(L, -1));
+        auto result = luabridge::get<float>(L, -1);
+        ASSERT_TRUE(result);
+        EXPECT_TRUE(std::isinf(*result));
+    }
+
+    {
+        const luabridge::StackRestore sr(L);
+        EXPECT_TRUE(luabridge::push(L, -std::numeric_limits<float>::infinity()));
+        auto result = luabridge::get<float>(L, -1);
+        ASSERT_TRUE(result);
+        EXPECT_TRUE(std::isinf(*result));
+        EXPECT_LT(*result, 0.0f);
+    }
+}
+
+TEST_F(StackTests, DoubleNaNAndInfPush)
+{
+    {
+        const luabridge::StackRestore sr(L);
+        EXPECT_TRUE(luabridge::push(L, std::numeric_limits<double>::quiet_NaN()));
+        EXPECT_TRUE(luabridge::isInstance<float>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<double>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<long double>(L, -1));
+        auto result = luabridge::get<double>(L, -1);
+        ASSERT_TRUE(result);
+        EXPECT_TRUE(std::isnan(*result));
+    }
+
+    {
+        const luabridge::StackRestore sr(L);
+        EXPECT_TRUE(luabridge::push(L, std::numeric_limits<double>::infinity()));
+        EXPECT_TRUE(luabridge::isInstance<float>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<double>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<long double>(L, -1));
+        auto result = luabridge::get<double>(L, -1);
+        ASSERT_TRUE(result);
+        EXPECT_TRUE(std::isinf(*result));
+    }
+
+    {
+        const luabridge::StackRestore sr(L);
+        EXPECT_TRUE(luabridge::push(L, -std::numeric_limits<double>::infinity()));
+        auto result = luabridge::get<double>(L, -1);
+        ASSERT_TRUE(result);
+        EXPECT_TRUE(std::isinf(*result));
+        EXPECT_LT(*result, 0.0);
+    }
+}
+
+TEST_F(StackTests, LongDoubleNaNAndInfPush)
+{
+    {
+        const luabridge::StackRestore sr(L);
+        EXPECT_TRUE(luabridge::push(L, std::numeric_limits<long double>::quiet_NaN()));
+        EXPECT_TRUE(luabridge::isInstance<float>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<double>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<long double>(L, -1));
+        auto result = luabridge::get<long double>(L, -1);
+        ASSERT_TRUE(result);
+        EXPECT_TRUE(std::isnan(*result));
+    }
+
+    {
+        const luabridge::StackRestore sr(L);
+        EXPECT_TRUE(luabridge::push(L, std::numeric_limits<long double>::infinity()));
+        EXPECT_TRUE(luabridge::isInstance<float>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<double>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<long double>(L, -1));
+        auto result = luabridge::get<long double>(L, -1);
+        ASSERT_TRUE(result);
+        EXPECT_TRUE(std::isinf(*result));
+    }
+
+    {
+        const luabridge::StackRestore sr(L);
+        EXPECT_TRUE(luabridge::push(L, -std::numeric_limits<long double>::infinity()));
+        auto result = luabridge::get<long double>(L, -1);
+        ASSERT_TRUE(result);
+        EXPECT_TRUE(std::isinf(*result));
+        EXPECT_LT(*result, 0.0l);
+    }
+}
+
 TEST_F(StackTests, CharArrayType)
 {
     char value[] = "xyz";
@@ -2108,6 +2214,31 @@ TEST_F(StackTests, PairStackOverflow)
     ASSERT_FALSE(luabridge::push(L, value));
 }
 
+TEST_F(StackTests, PairFailUnregistered)
+{
+    {
+        auto value = std::make_pair(Unregistered(), 1);
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        EXPECT_ANY_THROW(luabridge::push(L, value).error());
+#else
+        ASSERT_FALSE(luabridge::push(L, value));
+        EXPECT_EQ(luabridge::ErrorCode::ClassNotRegistered, luabridge::push(L, value).error());
+#endif
+    }
+
+    {
+        auto value = std::make_pair(1, Unregistered());
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        EXPECT_ANY_THROW(luabridge::push(L, value).error());
+#else
+        ASSERT_FALSE(luabridge::push(L, value));
+        EXPECT_EQ(luabridge::ErrorCode::ClassNotRegistered, luabridge::push(L, value).error());
+#endif
+    }
+}
+
 TEST_F(StackTests, Tuple)
 {
     {
@@ -2160,6 +2291,31 @@ TEST_F(StackTests, TupleStackOverflow)
     auto value = std::make_tuple(1, 1.0f, "one");
 
     ASSERT_FALSE(luabridge::push(L, value));
+}
+
+TEST_F(StackTests, TupleFailUnregistered)
+{
+    {
+        auto value = std::make_tuple(Unregistered(), 1);
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        EXPECT_ANY_THROW(luabridge::push(L, value).error());
+#else
+        ASSERT_FALSE(luabridge::push(L, value));
+        EXPECT_EQ(luabridge::ErrorCode::ClassNotRegistered, luabridge::push(L, value).error());
+#endif
+    }
+
+    {
+        auto value = std::make_tuple(1, Unregistered());
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        EXPECT_ANY_THROW(luabridge::push(L, value).error());
+#else
+        ASSERT_FALSE(luabridge::push(L, value));
+        EXPECT_EQ(luabridge::ErrorCode::ClassNotRegistered, luabridge::push(L, value).error());
+#endif
+    }
 }
 
 TEST_F(StackTests, NilStackOverflow)
@@ -2295,10 +2451,134 @@ TEST_F(StackTests, StdStringView)
     ASSERT_EQ("abc", *luabridge::get<std::string_view>(L, -1));
 }
 
+TEST_F(StackTests, VoidPointer)
+{
+    {
+        void* ptr = reinterpret_cast<void*>(static_cast<std::uintptr_t>(0xdead1984ll));
+        (void)luabridge::push(L, ptr);
+
+        EXPECT_TRUE(luabridge::isInstance<void*>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<const void*>(L, -1));
+
+        {
+            auto result = luabridge::get<void*>(L, -1);
+            ASSERT_TRUE(result);
+            EXPECT_EQ(ptr, *result);
+        }
+
+        {
+            auto result = luabridge::get<const void*>(L, -1);
+            ASSERT_TRUE(result);
+            EXPECT_EQ(ptr, *result);
+        }
+    }
+
+    {
+        void* ptr = nullptr;
+        (void)luabridge::push(L, ptr);
+
+        EXPECT_TRUE(luabridge::isInstance<void*>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<const void*>(L, -1));
+
+        {
+            auto result = luabridge::get<void*>(L, -1);
+            ASSERT_TRUE(result);
+            EXPECT_EQ(ptr, *result);
+        }
+
+        {
+            auto result = luabridge::get<const void*>(L, -1);
+            ASSERT_TRUE(result);
+            EXPECT_EQ(ptr, *result);
+        }
+    }
+
+    {
+        lua_pushnumber(L, 0.0);
+
+        EXPECT_FALSE(luabridge::isInstance<void*>(L, -1));
+
+        {
+            auto result = luabridge::get<void*>(L, -1);
+            EXPECT_FALSE(result);
+        }
+    }
+}
+
+TEST_F(StackTests, VoidPointerStackOverflow)
+{
+    exhaustStackSpace();
+
+    void* ptr = reinterpret_cast<void*>(static_cast<std::uintptr_t>(0xdead1984ll));
+
+    ASSERT_FALSE(luabridge::push(L, ptr));
+}
+
+TEST_F(StackTests, ConstVoidPointer)
+{
+    {
+        const void* ptr = reinterpret_cast<const void*>(static_cast<std::uintptr_t>(0xdead1984ll));
+        (void)luabridge::push(L, ptr);
+
+        EXPECT_TRUE(luabridge::isInstance<void*>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<const void*>(L, -1));
+
+        {
+            auto result = luabridge::get<void*>(L, -1);
+            ASSERT_TRUE(result);
+            EXPECT_EQ(ptr, *result);
+        }
+
+        {
+            auto result = luabridge::get<const void*>(L, -1);
+            ASSERT_TRUE(result);
+            EXPECT_EQ(ptr, *result);
+        }
+    }
+
+    {
+        const void* ptr = nullptr;
+        (void)luabridge::push(L, ptr);
+
+        EXPECT_TRUE(luabridge::isInstance<void*>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<const void*>(L, -1));
+
+        {
+            auto result = luabridge::get<void*>(L, -1);
+            ASSERT_TRUE(result);
+            EXPECT_EQ(ptr, *result);
+        }
+
+        {
+            auto result = luabridge::get<const void*>(L, -1);
+            ASSERT_TRUE(result);
+            EXPECT_EQ(ptr, *result);
+        }
+    }
+
+    {
+        lua_pushnumber(L, 0.0);
+
+        EXPECT_FALSE(luabridge::isInstance<const void*>(L, -1));
+
+        {
+            auto result = luabridge::get<const void*>(L, -1);
+            EXPECT_FALSE(result);
+        }
+    }
+}
+
+TEST_F(StackTests, ConstVoidPointerStackOverflow)
+{
+    exhaustStackSpace();
+
+    const void* ptr = reinterpret_cast<const void*>(static_cast<std::uintptr_t>(0xdead1984ll));
+
+    ASSERT_FALSE(luabridge::push(L, ptr));
+}
+
 TEST_F(StackTests, ResultCheck)
 {
-    struct Unregistered {};
-
 #if LUABRIDGE_HAS_EXCEPTIONS
     EXPECT_ANY_THROW(luabridge::push(L, std::optional<Unregistered>(Unregistered{})).error());
 #else
@@ -2317,6 +2597,19 @@ TEST_F(StackTests, TypeResultCheck)
 
     EXPECT_EQ(luabridge::ErrorCode::InvalidTypeCast, luabridge::get<int>(L, -1).error());
     EXPECT_EQ(luabridge::ErrorCode::InvalidTypeCast, static_cast<std::error_code>(luabridge::get<int>(L, -1)));
+}
+
+TEST_F(StackTests, TypeResultValueOr)
+{
+    (void)luabridge::push(L, std::string_view("abc"));
+    EXPECT_EQ(1337, luabridge::get<int>(L, -1).valueOr(1337));
+    auto result1 = luabridge::get<int>(L, -1);
+    EXPECT_EQ(1337, result1.valueOr(1337));
+
+    (void)luabridge::push(L, 42);
+    EXPECT_EQ(42, luabridge::get<int>(L, -1).valueOr(1337));
+    auto result2 = luabridge::get<int>(L, -1);
+    EXPECT_EQ(42, result2.valueOr(1337));
 }
 
 #if LUABRIDGE_HAS_EXCEPTIONS

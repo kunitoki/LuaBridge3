@@ -2,7 +2,7 @@
 /*
   https://github.com/kunitoki/LuaBridge3
 
-  Copyright (C) 2021, Lucio Asnaghi <kunitoki@gmail.com>
+  Copyright (C) 2021, kunitoki <kunitoki@gmail.com>
 
   License: The MIT License (http://www.opensource.org/licenses/mit-license.php)
 
@@ -29,7 +29,7 @@
 #define LUALIBRARY_SOURCE
 #include "Lua/LuaLibrary.h"
 
-#if LUABRIDGEDEMO_LUAU
+#if LUABRIDGE_TEST_LUAU
 
 #if _MSC_VER
 #pragma push_macro("_CRT_SECURE_NO_WARNINGS")
@@ -47,15 +47,19 @@
 #include "../../ThirdParty/luau/Compiler/src/CostModel.cpp"
 #include "../../ThirdParty/luau/Compiler/src/lcode.cpp"
 #include "../../ThirdParty/luau/Compiler/src/TableShape.cpp"
+#include "../../ThirdParty/luau/Compiler/src/Types.cpp"
 #include "../../ThirdParty/luau/Compiler/src/ValueTracking.cpp"
 
+// Common
+#include "../../ThirdParty/luau/Common/src/StringUtils.cpp"
+
 // Ast
+#include "../../ThirdParty/luau/Ast/src/Allocator.cpp"
 #include "../../ThirdParty/luau/Ast/src/Ast.cpp"
 #include "../../ThirdParty/luau/Ast/src/Confusables.cpp"
-#include "../../ThirdParty/luau/Ast/src/StringUtils.cpp"
+#include "../../ThirdParty/luau/Ast/src/Cst.cpp"
 #include "../../ThirdParty/luau/Ast/src/Location.cpp"
 #include "../../ThirdParty/luau/Ast/src/Lexer.cpp"
-#include "../../ThirdParty/luau/Ast/src/TimeTrace.cpp"
 
 #if _MSC_VER
 #pragma pop_macro("_CRT_SECURE_NO_WARNINGS")
@@ -64,4 +68,4 @@
 #else
 void dummy_symbol_luau2() {}
 
-#endif // LUABRIDGEDEMO_LUAU
+#endif // LUABRIDGE_TEST_LUAU

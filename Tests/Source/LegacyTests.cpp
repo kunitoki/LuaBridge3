@@ -1,5 +1,5 @@
 // https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
+// Copyright 2020, kunitoki
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // Copyright 2007, Nathan Reed
 // SPDX-License-Identifier: MIT
@@ -8,8 +8,6 @@
 
 #include "TestBase.h"
 #include "LegacyTests.h"
-
-#include "LuaBridge/RefCountedObject.h"
 
 #include <cstring>
 #include <iostream>
@@ -239,10 +237,10 @@ void addToState(lua_State* L)
         .addFunction("getName", &A::getName)
         .addFunction("testSucceeded", &A::testSucceeded)
         .addFunction("__add", &A::operator+)
-        .addProperty("testProp", &A::testProp)
+        .addProperty("testProp", &A::testProp, &A::testProp)
         .addProperty("testProp2", &A::testPropGet, &A::testPropSet)
         .addStaticFunction("testStatic", &A::testStatic)
-        .addStaticProperty("testStaticProp", &A::testStaticProp)
+        .addStaticProperty("testStaticProp", &A::testStaticProp, &A::testStaticProp)
         .addStaticProperty("testStaticProp2", &A::testStaticPropGet, &A::testStaticPropSet)
         .endClass()
         .deriveClass<B, A>("B")

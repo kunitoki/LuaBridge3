@@ -1,5 +1,5 @@
 // https://github.com/kunitoki/LuaBridge3
-// Copyright 2022, Lucio Asnaghi
+// Copyright 2022, kunitoki
 // SPDX-License-Identifier: MIT
 
 #include "TestBase.h"
@@ -106,7 +106,7 @@ struct DynamicLibraryTests : TestBase
         if (! executablePath.has_value())
             return nullptr;
 
-        auto libraryPath = executablePath->remove_filename() / LUABRIDGEDEMO_SHARED_LIBRARY;
+        auto libraryPath = executablePath->remove_filename() / LUABRIDGE_TEST_SHARED_LIBRARY;
         if (! std::filesystem::exists(libraryPath))
             return nullptr;
 

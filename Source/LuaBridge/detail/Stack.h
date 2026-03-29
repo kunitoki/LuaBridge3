@@ -1,5 +1,5 @@
 // https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
+// Copyright 2020, kunitoki
 // Copyright 2019, Dmitry Tarakanov
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // Copyright 2007, Nathan Reed
@@ -138,7 +138,7 @@ struct Stack<lua_CFunction>
             return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
-        lua_pushcfunction_x(L, f);
+        lua_pushcfunction_x(L, f, "");
         return {};
     }
 
@@ -1148,11 +1148,7 @@ private:
 
         auto result = Stack<T>::push(L, std::get<Index>(p));
         if (! result)
-        {
-            lua_pushnil(L);
-            lua_settable(L, -3);
             return result;
-        }
 
         lua_settable(L, -3);
 
@@ -1253,11 +1249,7 @@ private:
 
         auto result = Stack<T>::push(L, std::get<Index>(t));
         if (! result)
-        {
-            lua_pushnil(L);
-            lua_settable(L, -3);
             return result;
-        }
 
         lua_settable(L, -3);
 
@@ -1356,7 +1348,7 @@ struct Stack<std::reference_wrapper<T>>
 
         luaL_newmetatable(L, typeName());
         lua_pushvalue(L, -2);
-        lua_pushcclosure_x(L, &get_set_reference_value<T>, 1);
+        lua_pushcclosure_x(L, &get_set_reference_value<T>, "reference_wrapper", 1);
         rawsetfield(L, -2, "__call");
         lua_setmetatable(L, -2);
 
@@ -1416,6 +1408,74 @@ private:
         }
     }
 };
+
+//=================================================================================================
+/**
+ * @brief Specialization for `void*` and `const void*` type.
+ */
+template <>
+struct Stack<void*>
+{
+    [[nodiscard]] static Result push(lua_State* L, void* ptr)
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 1))
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
+        lua_pushlightuserdata(L, ptr);
+        return {};
+    }
+
+    [[nodiscard]] static TypeResult<void*> get(lua_State* L, int index)
+    {
+        if (lua_isnil(L, index))
+            return nullptr;
+
+        if (lua_islightuserdata(L, index))
+            return lua_touserdata(L, index);
+
+        return makeErrorCode(ErrorCode::InvalidTypeCast);
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        return lua_islightuserdata(L, index) || lua_isnil(L, index);
+    }
+};
+
+template <>
+struct Stack<const void*>
+{
+    [[nodiscard]] static Result push(lua_State* L, const void* ptr)
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 1))
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
+        lua_pushlightuserdata(L, const_cast<void*>(ptr));
+        return {};
+    }
+
+    [[nodiscard]] static TypeResult<const void*> get(lua_State* L, int index)
+    {
+        if (lua_isnil(L, index))
+            return nullptr;
+
+        if (lua_islightuserdata(L, index))
+            return lua_touserdata(L, index);
+
+        return makeErrorCode(ErrorCode::InvalidTypeCast);
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        return lua_islightuserdata(L, index) || lua_isnil(L, index);
+    }
+};
+
+//=================================================================================================
 
 namespace detail {
 template <class T>

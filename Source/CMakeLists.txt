@@ -1,11 +1,11 @@
-cmake_minimum_required (VERSION 3.5)
+cmake_minimum_required (VERSION 3.10)
 
 set (LUABRIDGE_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/Array.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/Dump.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/List.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/LuaBridge.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/Map.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/RefCountedObject.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/Set.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/UnorderedMap.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/Vector.h)
@@ -15,7 +15,6 @@ set (LUABRIDGE_DETAIL_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/CFunctions.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/ClassInfo.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Config.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Dump.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Enum.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Errors.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Expected.h

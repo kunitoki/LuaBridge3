@@ -127,7 +127,7 @@ TEST_F(IssueTests, Issue178)
     luabridge::getGlobalNamespace(L)
         .beginClass<WideVector>("WideVector")
         .addConstructor<void (*)(float, float, float, float)>()
-        .addProperty("x", &Vector::x, true)
+        .addProperty("x", &Vector::x, &Vector::x)
         .endClass();
 
     runLua("result = WideVector (0, 1, 2, 3).x");
@@ -223,7 +223,7 @@ TEST_F(IssueTests, IssueMainThread)
         .beginClass<SomeClass>("SomeClass")
         .addConstructor<void (*)(lua_State*)>()
         .addFunction("SomeMember", &SomeClass::SomeMember)
-        .addProperty("SomeMemberOverride", &SomeClass::override_)
+        .addProperty("SomeMemberOverride", &SomeClass::override_, &SomeClass::override_)
         .endClass();
 
     const char* source = R"(

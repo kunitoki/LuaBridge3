@@ -1,5 +1,5 @@
 // https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
+// Copyright 2020, kunitoki
 // Copyright 2020, Dmitry Tarakanov
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // SPDX-License-Identifier: MIT
@@ -39,7 +39,7 @@ namespace detail {
 }
 
 template <class T>
-[[nodiscard]] static constexpr auto typeName() noexcept
+[[nodiscard]] static constexpr auto typeName(T* = nullptr) noexcept
 {
     constexpr std::string_view prettyName{ LUABRIDGE_PRETTY_FUNCTION };
 
@@ -49,7 +49,7 @@ template <class T>
 }
 
 template <class T, auto = typeName<T>().find_first_of('.')>
-[[nodiscard]] static constexpr auto typeHash() noexcept
+[[nodiscard]] static constexpr auto typeHash(T* = nullptr) noexcept
 {
     constexpr auto stripped = typeName<T>();
 
@@ -143,7 +143,12 @@ template <class T, auto = typeName<T>().find_first_of('.')>
  */
 [[nodiscard]] inline const void* getIndexFallbackKey()
 {
-  return reinterpret_cast<void*>(0x81ca);
+    return reinterpret_cast<void*>(0x81ca);
+}
+
+[[nodiscard]] inline const void* getIndexExtensibleKey()
+{
+    return reinterpret_cast<void*>(0x81cb);
 }
 
 //=================================================================================================
@@ -152,7 +157,30 @@ template <class T, auto = typeName<T>().find_first_of('.')>
  */
 [[nodiscard]] inline const void* getNewIndexFallbackKey()
 {
-  return reinterpret_cast<void*>(0x8107);
+    return reinterpret_cast<void*>(0x8107);
+}
+
+[[nodiscard]] inline const void* getNewIndexExtensibleKey()
+{
+    return reinterpret_cast<void*>(0x8108);
+}
+
+//=================================================================================================
+/**
+ * The key of the static index fall back in another metatable.
+ */
+[[nodiscard]] inline const void* getStaticIndexFallbackKey()
+{
+    return reinterpret_cast<void*>(0x81cc);
+}
+
+//=================================================================================================
+/**
+ * The key of the static new index fall back in another metatable.
+ */
+[[nodiscard]] inline const void* getStaticNewIndexFallbackKey()
+{
+    return reinterpret_cast<void*>(0x8109);
 }
 
 //=================================================================================================

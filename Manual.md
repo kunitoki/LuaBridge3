@@ -8,7 +8,7 @@ LuaBridge 3.0 Reference Manual
 LuaBridge3 repository is located at [https://github.com/kunitoki/LuaBridge3](https://github.com/kunitoki/LuaBridge3).
 Official LuaBridge (up to version 2) repository is located at [https://github.com/vinniefalco/LuaBridge](https://github.com/vinniefalco/LuaBridge).
 
-*   Copyright © 2020 Asnaghi Lucio.
+*   Copyright © 2020 kunitoki.
 *   Copyright © 2019 Dmitry Tarakanov.
 *   Copyright © 2012 Vinnie Falco.
 *   Copyright © 2007 Nathan Reed.
@@ -38,6 +38,7 @@ Contents
     *   [2.7 - Extending Classes](#27---extending-classes)
         *   [2.7.1 - Extensible Classes](#271---extensible-classes)
         *   [2.7.2 - Index and New Index Metamethods Fallback](#272---index-and-new-index-metamethods-fallback)
+        *   [2.7.3 - Static Index and New Index Metamethods Fallback](#273---static-index-and-new-index-metamethods-fallback)
     *   [2.8 - Lua Stack](#28---lua-stack)
         *   [2.8.1 - Enums](#281---enums)
         *   [2.8.2 - lua_State](#282---lua_state)
@@ -48,10 +49,9 @@ Contents
     *   [3.2 - Lua Lifetime](#32---lua-lifetime)
     *   [3.3 - Pointers, References, and Pass by Value](#33---pointers-references-and-pass-by-value)
     *   [3.4 - Shared Lifetime](#34---shared-lifetime)
-        *   [3.4.1 - Class RefCountedObjectPtr](#341---class-refcountedobjectptr)
-        *   [3.4.2 - User-defined Containers](#342---user-defined-containers)
-        *   [3.4.3 - shared_ptr As Container](#343---shared_ptr-as-container)
-        *   [3.4.4 - Container Constructors](#344---container-constructors)
+        *   [3.4.1 - User-defined Containers](#341---user-defined-containers)
+        *   [3.4.2 - shared_ptr As Container](#342---shared_ptr-as-container)
+        *   [3.4.3 - Container Constructors](#343---container-constructors)
     *   [3.5 - Mixing Lifetimes](#35---mixing-lifetimes)
     *   [3.6 - Convenience Functions](#36---convenience-functions)
 
@@ -72,13 +72,13 @@ Contents
 1 - Introduction
 ================
 
-[LuaBridge](https://github.com/kunitoki/LuaBridge3) is a lightweight and dependency-free library for mapping data, functions, and classes back and forth between C++ and [Lua](http://wwww.lua.org), a powerful, fast, lightweight, embeddable scripting language. LuaBridge has been tested and works with Lua 5.1.5, 5.2.4, 5.3.6 and 5.4.4. It also works transparently with [LuaJIT](http://luajit.org/) 2.x onwards and for the first time also with [Luau](https://luau-lang.org/) 0.556 onwards.
+[LuaBridge](https://github.com/kunitoki/LuaBridge3) is a lightweight and dependency-free library for mapping data, functions, and classes back and forth between C++ and [Lua](http://wwww.lua.org), a powerful, fast, lightweight, embeddable scripting language. LuaBridge has been tested and works with Lua 5.1.5, 5.2.4, 5.3.6, 5.4.8 and 5.5.0. It also works transparently with [LuaJIT](http://luajit.org/) 2.1 onwards and for the first time also with [Luau](https://luau-lang.org/) 0.713 onwards and [Ravi](https://github.com/dibyendumajumdar/ravi) 1.0-beta11.
 
 LuaBridge is usable from a compliant C++17 and offers the following features:
 
 * [MIT Licensed](http://www.opensource.org/licenses/mit-license.html), no usage restrictions!
 * Headers-only: No Makefile, no .cpp files, just one `#include` and one header file (optional) !
-* Works with ANY lua version out there (PUC-Lua, LuaJIT, Luau, you name it).
+* Works with ANY lua version out there (PUC-Lua, LuaJIT, Luau, Ravi, you name it).
 * Simple, light, and nothing else needed.
 * No macros, settings, or configuration scripts needed.
 * Supports different object lifetime management models.
@@ -91,7 +91,7 @@ LuaBridge is usable from a compliant C++17 and offers the following features:
 
 It also offers a set of improvements compared to vanilla LuaBridge:
 
-* The only binder library that works with PUC-Lua as well as LuaJIT and Luau, wonderful for game development !
+* The only binder library that works with PUC-Lua as well as LuaJIT, Luau and Ravi, wonderful for game development !
 * Can work with both c++ exceptions and without (Works with `-fno-exceptions` and `/EHsc-`).
 * Can safely register and use classes exposed across shared library boundaries.
 * Full support for capturing lambdas in all namespace and class methods.
@@ -111,7 +111,7 @@ LuaBridge is distributed as a a collection of header files. You simply add one l
 
 C++ concepts like variables and classes are made available to Lua through a process called _registration_. Because Lua is weakly typed, the resulting structure is not rigid. The API is based on C++ template metaprogramming. It contains template code to automatically generate at compile-time the various Lua C API calls necessary to export your program's classes and functions to the Lua environment.
 
-To expose Lua objects to C++, a class called `LuaRef` is provided. The implementation allows C++ code to access Lua objects such as numbers or strings, but more importantly to access things like tables and their values. Using this class makes idioms like calling Lua functions simple and clean.
+To expose Lua objects to C++, a class called `luabridge::LuaRef` is provided. The implementation allows C++ code to access Lua objects such as numbers or strings, but more importantly to access things like tables and their values. Using this class makes idioms like calling Lua functions simple and clean.
 
 1.1 - Design
 ------------
@@ -159,9 +159,9 @@ SOFTWARE.
 
 The original version of LuaBridge was written by Nathan Reed. The project has been taken over by Vinnie Falco, who added new functionality and wrote the new documentation. Vinnie also incorporated `LuaRef` and other Lua to C++ binding contributions from Nigel Atkinson.
 
-For questions, comments, or bug reports feel free to open a Github issue or contact Lucio Asnaghi directly at the email address indicated below.
+For questions, comments, or bug reports feel free to open a Github issue or contact kunitoki directly at the email address indicated below.
 
-*   Copyright 2020, Lucio Asnaghi [<kunitoki@gmail.com>](mailto:kunitoki@gmail.com)
+*   Copyright 2020, kunitoki [<kunitoki@gmail.com>](mailto:kunitoki@gmail.com)
 *   Copyright 2019, Dmitry Tarakanov
 *   Copyright 2012, Vinnie Falco [<vinnie.falco@gmail.com>](mailto:vinnie.falco@gmail.com)
 *   Copyright 2008, Nigel Atkinson [<suprapilot+LuaCode@gmail.com>](mailto:suprapilot+LuaCode@gmail.com)
@@ -289,11 +289,12 @@ These are registered with:
 ```cpp
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
-    .addProperty ("var1", &globalVar)
-    .addProperty ("var2", &staticVar, false) // read-only
-    .addProperty ("prop1", getString, setString)
-    .addProperty ("prop2", getString)            // read only
-    .addProperty ("tup", &tuple)
+    .addProperty ("var1", &globalVar) // read-only
+    .addProperty ("var2", &staticVar, &staticVar) // read-write
+    .addProperty ("prop1", getString) // read-only
+    .addProperty ("prop2", getString, setString) // read-write
+    .addProperty ("tup1", &tuple) // read-only
+    .addProperty ("tup2", &tuple, &tuple) // read-write
     .addFunction ("foo", foo)
     .addFunction ("bar", bar)
     .addFunction ("cfunc", cFunc)
@@ -304,11 +305,12 @@ Variables can be marked _read-only_ by passing `false` in the second optional pa
 
 ```lua
 test        -- a namespace
-test.var1   -- a lua_Number property
-test.var2   -- a read-only lua_Number property
-test.prop1  -- a lua_String property
-test.prop2  -- a read-only lua_String property
-test.tup    -- a lua_Table property mapping to a c++ tuple
+test.var1   -- a read-only lua_Number property
+test.var2   -- a read-write lua_Number property
+test.prop1  -- a read-only lua_String property
+test.prop2  -- a read-write lua_String property
+test.tup1   -- a read-only lua_Table property mapping to a c++ tuple
+test.tup2   -- a read-write lua_Table property mapping to a c++ tuple
 test.foo    -- a function returning a lua_Number
 test.bar    -- a function taking a lua_String as a parameter
 test.cfunc  -- a function with a variable argument list and multi-return
@@ -317,18 +319,19 @@ test.cfunc  -- a function with a variable argument list and multi-return
 Note that `test.prop1` and `test.prop2` both refer to the same value. However, since `test.prop2` is read-only, assignment attempts will generate a run-time error. These Lua statements have the stated effects:
 
 ```lua
-test.var1 = 5         -- okay
-test.var2 = 6         -- error: var2 is not writable
-test.prop1 = "Hello"  -- okay
-test.prop1 = 68       -- okay, Lua converts the number to a string
-test.prop2 = "bar"    -- error: prop2 is not writable
-test.tup = { 1, "a" } -- okay, converts a table to tuple with the same size
-test.tup = { "size" } -- error: table has different size than tuple
+test.var1 = 5          -- error: var1 is not writable
+test.var2 = 6          -- okay
+test.prop1 = "bar"     -- error: prop1 is not writable
+test.prop2 = "Hello"   -- okay
+test.prop2 = 68        -- okay, Lua converts the number to a string
+test.tup1 = { 1, "a" } -- error: tup1 is not writable
+test.tup2 = { 1, "a" } -- okay, converts a table to tuple with the same size
+test.tup2 = { "size" } -- error: table has different size than tuple
 
-test.foo ()           -- calls foo and discards the return value
-test.var1 = foo ()    -- calls foo and stores the result in var1
-test.bar ("Employee") -- calls bar with a string
-test.bar (test)       -- error: bar expects a string not a table
+test.foo ()            -- calls foo and discards the return value
+test.var1 = foo ()     -- calls foo and stores the result in var1
+test.bar ("Employee")  -- calls bar with a string
+test.bar (test)        -- error: bar expects a string not a table
 ```
 
 LuaBridge does not support overloaded functions nor is it likely to in the future. Since Lua is dynamically typed, any system that tries to resolve a set of parameters passed from a script will face considerable ambiguity when trying to choose an appropriately matching C++ function signature.
@@ -382,11 +385,11 @@ are registered using:
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
     .beginClass<A> ("A")
-      .addStaticProperty ("staticData", &A::staticData)
+      .addStaticProperty ("staticData", &A::staticData, &A::staticData)
       .addStaticProperty ("staticProperty", &A::getStaticProperty, &A::setStaticProperty)
       .addStaticFunction ("staticFunc", &A::staticFunc)
       .addStaticFunction ("staticCFunc", &A::staticCFunc)
-      .addProperty ("data", &A::dataMember)
+      .addProperty ("data", &A::dataMember, &A::dataMember)
       .addProperty ("prop", &A::getProperty, &A::setProperty)
       .addFunction ("func1", &A::func1)
       .addFunction ("virtualFunc", &A::virtualFunc)
@@ -394,7 +397,7 @@ luabridge::getGlobalNamespace (L)
       .addFunction ("cfunc", &A::cfunc)
     .endClass ()
     .deriveClass<B, A> ("B")
-      .addProperty ("data", &B::dataMember2)
+      .addProperty ("data", &B::dataMember2, &B::dataMember2)
       .addFunction ("func1", &B::func1)
       .addFunction ("func2", &B::func2)
     .endClass ()
@@ -561,7 +564,7 @@ luabridge::getGlobalNamespace (L)
   .endNamespace ();
 ```
 
-In case of members (or functions) with the same name, it's necessary to use `overload`, `constOverload` or `nonConstOverload` to disambiguate which of the functions needs to be registered:
+In case of members (or functions) with the same name, it's necessary to use `luabridge::overload`, `luabridge::constOverload` or `luabridge::nonConstOverload` to disambiguate which of the functions needs to be registered:
 
 ```cpp
 struct Quat { float values [4]; };
@@ -741,7 +744,7 @@ struct ExtensibleClass
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
     .beginClass<ExtensibleClass> ("ExtensibleClass", luabridge::extensibleClass)
-      .addProperty ("propertyOne", &ExtensibleClass::propertyOne)
+      .addProperty ("propertyOne", &ExtensibleClass::propertyOne, &ExtensibleClass::propertyOne)
     .endClass ()
   .endNamespace ();
 
@@ -791,8 +794,6 @@ print (clazz:existingMethod())
 ```
 
 
-
-
 In case storing instance properties is needed, storage needs to be provided per instance. See the next chapter for an explanation on how to add custom properties per instance.
 
 ### 2.7.2 - Index and New Index Metamethods Fallback
@@ -810,7 +811,7 @@ struct FlexibleClass
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
     .beginClass<FlexibleClass> ("FlexibleClass")
-      .addProperty ("propertyOne", &FlexibleClass::propertyOne)
+      .addProperty ("propertyOne", &FlexibleClass::propertyOne, &FlexibleClass::propertyOne)
       .addIndexMetaMethod ([] (FlexibleClass& self, const luabridge::LuaRef& key, lua_State* L)
       {
         if (key.tostring () == "existingProperty")
@@ -881,6 +882,73 @@ propertyOne = flexi.propertyOne
 assert (propertyOne == 1337, "Value is now present !")
 ```
 
+### 2.7.3 - Static Index and New Index Metamethods Fallback
+
+The same fallback mechanism is available for the *static class table* — i.e. for key lookups performed on the class name itself (e.g. `MyClass.someKey`) rather than on an instance.  Use `addStaticIndexMetaMethod` and `addStaticNewIndexMetaMethod` to register the callbacks.  Unlike their instance counterparts, the static callbacks receive only the key (and optionally `lua_State*`) — there is no `self` parameter.
+
+```cpp
+struct MyClass {};
+
+std::unordered_map<std::string, int> store;
+
+luabridge::getGlobalNamespace (L)
+  .beginClass<MyClass> ("MyClass")
+    .addStaticIndexMetaMethod ([] (const luabridge::LuaRef& key, lua_State* L) -> luabridge::LuaRef
+    {
+      auto it = store.find (key.tostring ());
+      if (it != store.end ())
+        return luabridge::LuaRef (L, it->second);
+
+      return luabridge::LuaRef (L, luabridge::LuaNil ());
+    })
+    .addStaticNewIndexMetaMethod ([] (const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State* L) -> luabridge::LuaRef
+    {
+      if (value.isNumber ())
+        store[key.tostring ()] = value.unsafe_cast<int> ();
+      return value;
+    })
+  .endClass ();
+```
+
+Then in lua:
+
+```lua
+MyClass.dynamicProp = 42
+
+value = MyClass.dynamicProp
+assert (value == 42, "Value stored via static __newindex fallback and retrieved via static __index fallback")
+
+missing = MyClass.nonExistingKey
+assert (missing == nil, "Unknown key returns nil through the static __index fallback")
+```
+
+Existing static properties and functions registered with `addStaticProperty` / `addStaticFunction` are found *after* the fallback is consulted.  If the fallback callback returns `nil` (or a nil `LuaRef`) for a given key, normal lookup continues and the real property or function is returned.  Conversely, if the callback returns a non-nil value the fallback result takes priority over any registered static property with the same name.
+
+```cpp
+struct MyClass
+{
+  static int answer () { return 42; }
+};
+
+luabridge::getGlobalNamespace (L)
+  .beginClass<MyClass> ("MyClass")
+    .addStaticFunction ("answer", &MyClass::answer)
+    .addStaticIndexMetaMethod ([] (const luabridge::LuaRef& /*key*/, lua_State* L) -> luabridge::LuaRef
+    {
+      // Returning nil lets the registered static function be found normally
+      return luabridge::LuaRef (L, luabridge::LuaNil ());
+    })
+  .endClass ();
+```
+
+Then in lua:
+
+```lua
+-- The registered static function is still callable because the fallback returned nil
+result = MyClass.answer ()
+assert (result == 42)
+```
+
 2.8 - Lua Stack
 ---------------
 
@@ -902,16 +970,16 @@ struct Stack
 } // namespace luabridge
 ```
 
-When a specialization of `Stack` exists for a given type `T` we say that the `T` is _convertible_. Throughout this document and the LuaBridge API, these types can be used anywhere a convertible type is expected.
+When a specialization of `luabridge::Stack <>` exists for a given type `T` we say that the `T` is _convertible_. Throughout this document and the LuaBridge API, these types can be used anywhere a convertible type is expected.
 
 The Stack template class specializations are used automatically for variables, properties, data members, property members, function arguments and return values. These basic types are supported:
 
 * `bool`
 * `char`, converted to a string of length one.
-* `const char*` and `std::string` strings.
-* `std::byte`, integers, `float`, `double`, `long double` converted to `Lua_number`.
+* `const char*`, `std::string_view` and `std::string` all converted to strings.
+* `std::byte`, integers, `float`, `double`, `long double` all converted to `Lua_number`.
 
-User-defined types which are convertible to one of the basic types are possible, simply provide a `Stack <>` specialization in the `luabridge` namespace for your user-defined type, modeled after the existing types. For example, here is a specialization for a `juce::String`:
+User-defined types which are convertible to one of the basic types are possible, simply provide a `luabridge::Stack <>` specialization in the `luabridge` namespace for your user-defined type, modeled after the existing types. For example, here is a specialization for a `juce::String`:
 
 ```cpp
 namespace luabridge {
@@ -947,7 +1015,7 @@ struct Stack<juce::String>
 } // namespace luabridge
 ```
 
-To make sure the library can work without exceptions enabled, if for some reason the push and get of the value on/from the lua stack cannot be performed, it is mandatory to return a `Result` object that can be constructed from a `std::error_code`. It also good practice to resotre the stack to it's original state in case of failures:
+To make sure the library can work without exceptions enabled, if for some reason the push and get of the value on/from the lua stack cannot be performed, it is mandatory to return a `luabridge::Result` object that can be constructed from a `std::error_code`. It also good practice to resotre the stack to it's original state in case of failures:
 
 ```cpp
 namespace luabridge {
@@ -968,14 +1036,14 @@ struct Stack<Array<T>>
       auto result = Stack<T>::push (L, array[i]);
       if (! result)
       {
-        lua_pop (L, lua_gettop (L) - initialStackSize);  // Restore the stack
-        return result;                                   // Forward the error code
+        lua_pop (L, lua_gettop (L) - initialStackSize);
+        return result;
       }
 
       lua_settable (L, -3);
     }
 
-    return {};                                           // No error
+    return {};
   }
 
   static TypeResult<Array<T>> get (lua_State* L, int index)
@@ -1030,7 +1098,7 @@ struct luabridge::Stack<MyEnum> : luabridge::Enum<MyEnum>
 };
 ```
 
-This will map the enum to an integer as `int16_t` (the `underlying_type_t` of the enum) that will be converted to a `lua_Integer` in lua space. This has the drawback that any `lua_Integer` could be casted to a C++ enum. In order to provide a runtime check over the possible alternatives a `lua_Integer` could casted to, it's possible to specify the list of values the C++ enum has: the values registered into the `luabridge::Enum` will be checked against the passed integer and LuaBridge will raise an error in case the cast couldn't be made when using a `Stack<>::get` method:
+This will map the enum to an integer as `int16_t` (the `underlying_type_t` of the enum) that will be converted to a `lua_Integer` in lua space. This has the drawback that any `lua_Integer` could be casted to a C++ enum. In order to provide a runtime check over the possible alternatives a `lua_Integer` could casted to, it's possible to specify the list of values the C++ enum has: the values registered into the `luabridge::Enum` will be checked against the passed integer and LuaBridge will raise an error in case the cast couldn't be made when using a `luabridge::Stack<>::get` method:
 
 ```cpp
 enum class MyEnum
@@ -1066,7 +1134,7 @@ luabridge::getGlobalNamespace (L)
     .addVariable ("C", MyEnum::C)
   .endNamespace();
 
-// This ¡nstead will modification of the value from lua
+// This ¡nstead will prevent the modification of the value from lua
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("MyEnum2")
     .addProperty ("A", +[] { return MyEnum::A; })
@@ -1134,16 +1202,16 @@ The creation and deletion of objects with _C++ lifetime_ is controlled by the C+
 ```cpp
 A a;
 
-luabridge::push (L, &a);              // pointer to 'a', C++ lifetime
+auto result = luabridge::push (L, &a);              // pointer to 'a', C++ lifetime
 lua_setglobal (L, "a");
 
-luabridge::push (L, (const A*) &a);   // pointer to 'a const', C++ lifetime
+auto result = luabridge::push (L, (const A*) &a);   // pointer to 'a const', C++ lifetime
 lua_setglobal (L, "ac");
 
-luabridge::push <const A*> (L, &a);   // equivalent to push (L, (A const*) &a)
+auto result = luabridge::push <const A*> (L, &a);   // equivalent to push (L, (A const*) &a)
 lua_setglobal (L, "ac2");
 
-luabridge::push (L, new A);           // compiles, but will leak memory
+auto result = luabridge::push (L, new A);           // compiles, but will leak memory
 lua_setglobal (L, "ap");
 ```
 
@@ -1155,7 +1223,7 @@ When an object of a registered class is passed by value to Lua, it will have _Lu
 ```cpp
 B b;
 
-luabridge::push (L, b);                    // Copy of b passed, Lua lifetime.
+auto result = luabridge::push (L, b);  // Copy of b passed, Lua lifetime.
 lua_setglobal (L, "b");
 ```
 
@@ -1238,31 +1306,9 @@ When a pointer or pointer to const is passed to Lua and the pointer is null (zer
 
 LuaBridge supports a _shared lifetime_ model: dynamically allocated and reference counted objects whose ownership is shared by both Lua and C++. The object remains in existence until there are no remaining C++ or Lua references, and Lua performs its usual garbage collection cycle. A container is recognized by a specialization of the `ContainerTraits` template class. LuaBridge will automatically recognize when a data type is a container when the corresponding specialization is present. Two styles of containers come with LuaBridge, including the necessary specializations.
 
-### 3.4.1 - Class RefCountedObjectPtr
+### 3.4.1 - User-defined Containers
 
-This is an intrusive style container. Your existing class declaration must be changed to be also derived from `RefCountedObject`. Given `class T`, derived from `RefCountedObject`, the container `RefCountedObjectPtr <T>` may be used. In order for reference counts to be maintained properly, all C++ code must store a container instead of the pointer. This is similar in style to `std::shared_ptr` although there are slight differences. For example:
-
-```cpp
-// A is reference counted.
-struct A : public luabridge::RefCountedObject
-{
-  void foo () { }
-};
-
-struct B
-{
-  RefCountedObjectPtr<A> a; // holds a reference to A
-};
-
-void bar (luabridge::RefCountedObjectPtr<A> a)
-{
-  a->foo ();
-}
-```
-
-### 3.4.2 - User-defined Containers
-
-If you have your own container, you must provide a specialization of `ContainerTraits` in the `luabridge` namespace for your type before it will be recognized by LuaBridge (or else the code will not compile):
+If you have your own container, you must provide a specialization of `luabridge::ContainerTraits` in the `luabridge` namespace for your type before it will be recognized by LuaBridge (or else the code will not compile):
 
 ```cpp
 namespace luabridge {
@@ -1288,14 +1334,14 @@ struct ContainerTraits<CustomContainer<T>>
 
 Containers must be safely constructible from raw pointers to objects that are already referenced by other instances of the container (such as is the case for the provided containers or for example `boost::intrusive_ptr` but not `std::shared_ptr` or `boost::shared_ptr`).
 
-### 3.4.3 - shared_ptr As Container
+### 3.4.2 - shared_ptr As Container
 
 Standard containers like `std::shared_ptr` or `boost::shared_ptr` will work in LuaBridge3, but they require special care. This is because of type erasure; when the object goes from C++ to Lua and back to C++, constructing a new shared_ptr from the raw pointer will create another reference count and result in undefined behavior, unless it could intrusively reconstruct the container from a raw pointer.
 
 To overcome this issue classes that should be managed by `shared_ptr` have to provide a way to correctly reconstruct a `shared_ptr` which can be done only if type hold it is deriving publicly from `std::enable_shared_from_this` or `boost::enable_shared_from_this`. No additional specialization of traits is needed in this case.
 
 ```cpp
-struct A : public std::enable_shared_from_this
+struct A : public std::enable_shared_from_this<A>
 {
   A () { }
   A (int) { }
@@ -1326,12 +1372,12 @@ anotherA2 = A (1)
 anotherA2.foo ()
 ```
 
-### 3.4.4 - Container Constructors
+### 3.4.3 - Container Constructors
 
-When a constructor is registered for a class, there is an additional optional second template parameter describing the type of container to use. If this parameter is specified, calls to the constructor will create the object dynamically, via operator new, and place it a container of that type. The container must have been previously specialized in `ContainerTraits`, or else a compile error will result. This code will register two objects, each using a constructor that creates an object with Lua lifetime using the specified container:
+When a constructor is registered for a class, there is a method called `addConstructorFrom` which accepts the type of container to use. This parameter allows the constructor to create the object dynamically, via operator new, and place it a container of that type. The container must have been previously specialized in `ContainerTraits`, or else it will produce a compile error:
 
 ```cpp
-class C : public luabridge::RefCountedObject
+class C : public std::enable_shared_from_this<C>
 {
   C () { }
   C (int) { }
@@ -1340,7 +1386,26 @@ class C : public luabridge::RefCountedObject
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
     .beginClass <C> ("C")
-      .addConstructorFrom<luabridge::RefCountedObjectPtr<C>, void(), void(int)> ()
+      .addConstructorFrom<std::shared_ptr<C>, void(), void(int)> ()
+    .endClass ()
+  .endNamespace ()
+```
+
+Alternatively is possible to pass custom lambdas to construct the container, where the return value of those lambdas must be exactly the container specified:
+
+```cpp
+class C : public std::enable_shared_from_this<C>
+{
+  C () { }
+  C (int) { }
+};
+
+luabridge::getGlobalNamespace (L)
+  .beginNamespace ("test")
+    .beginClass <C> ("C")
+      .addConstructorFrom<std::shared_ptr<C>> (
+        []() { return std::make_shared<C> (); },
+        [](int value) { return std::make_shared<C> (value); })
     .endClass ()
   .endNamespace ()
 ```
@@ -1353,7 +1418,7 @@ Mixing object lifetime models is entirely possible, subject to the usual caveats
 3.6 - Convenience Functions
 ---------------------------
 
-The `setGlobal` function can be used to assign any convertible value into a global variable.
+The `luabridge::setGlobal` function can be used to assign any convertible value into a global variable.
 
 4 - Accessing Lua from C++
 ==========================
@@ -1363,9 +1428,9 @@ Because Lua is a _dynamically typed language_, special consideration is required
 4.1 - Class LuaRef
 ------------------
 
-The `LuaRef` class is a container which references any Lua type. It can hold anything which a Lua variable can hold: **nil**, number, boolean, string, table, function, thread, userdata, and lightuserdata. Because `LuaRef` uses the `Stack` template specializations to do its work, classes, functions, and data exported to Lua through namespace registrations can also be stored (these are instances of userdata). In general, a `LuaRef` can represent any _convertible_ C++ type as well as all Lua types.
+The `luabridge::LuaRef` class is a container which references any Lua type. It can hold anything which a Lua variable can hold: **nil**, number, boolean, string, table, function, thread, userdata, and lightuserdata. Because `luabridge::LuaRef` uses the `luabridge::Stack` template specializations to do its work, classes, functions, and data exported to Lua through namespace registrations can also be stored (these are instances of userdata). In general, a `luabridge::LuaRef` can represent any _convertible_ C++ type as well as all Lua types.
 
-A `LuaRef` variable constructed with no parameters produces a reference to **nil**:
+A `luabridge::LuaRef` variable constructed with no parameters produces a reference to **nil**:
 
 ```cpp
 luabridge::LuaRef v (L); // References nil
@@ -1383,8 +1448,8 @@ luabridge::LuaRef v4 (L, "string");            // A LUA_TSTRING
 The functions `newTable` and `getGlobal` create references to new empty table and an existing value in the global table respectively:
 
 ```cpp
-LuaRef v1 = newTable (L);           // Create a new table
-LuaRef v2 = getGlobal (L, "print")  // Reference to _G ["print"]
+luabridge::LuaRef v1 = luabridge::newTable (L);           // Create a new table
+luabridge::LuaRef v2 = luabridge::getGlobal (L, "print")  // Reference to _G ["print"]
 ```
 
 A `LuaRef` can hold classes _registered_ using LuaBridge:
@@ -1402,8 +1467,7 @@ Any convertible type may be assigned to an already-existing `LuaRef`:
 ```cpp
 luabridge::LuaRef v (L);        // Nil
 v = luabridge::newTable (L);    // An empty table
-v = "string";                   // A string. The previous value becomes
-                                // eligible for garbage collection.
+v = "string";                   // A string. The previous value becomes eligible for garbage collection.
 ```
 
 A `LuaRef` is itself a convertible type, and the convertible type `LuaNil` can be used to represent a Lua **nil**.
@@ -1415,15 +1479,14 @@ v2 = v1;                        // v2 becomes "x"
 v1 = "z";                       // v1 becomes "z", v2 is unchanged
 v1 = luabridge::newTable (L);   // An empty table
 v2 = v1;                        // v2 references the same table as v1
-v1 = luabridge::LuaNil ();      // v1 becomes nil, table is still
-                                // referenced by v2.
+v1 = luabridge::LuaNil ();      // v1 becomes nil, table is still referenced by v2.
 ```
 
-Values stored in a `LuaRef` object obey the same rules as variables in Lua: tables, functions, threads, and full userdata values are _objects_. The `LuaRef` does not actually _contain_ these values, only _references_ to them. Assignment, parameter passing, and function returns always manipulate references to such values; these operations do not imply any kind of copy.
+Values stored in a `luabridge::LuaRef` object obey the same rules as variables in Lua: tables, functions, threads, and full userdata values are _objects_. The `luabridge::LuaRef` does not actually _contain_ these values, only _references_ to them. Assignment, parameter passing, and function returns always manipulate references to such values; these operations do not imply any kind of copy.
 
 ### 4.1.1 - Lifetime, States and Lua Threads
 
-Lifetime of `LuaRef` is bound to the lua state or thread passed in when constructing the reference. It is responsibility of the developer to keep the passed lua state/thread alive for the duration of the usage of the `LuaRef`. In case of storing objects in those references that might be created in lua threads that could be destroyed during the application lifetime, it is advised to pass `luabridge::main_thread (L)` in place of `L` when constructing a `LuaRef`, to make sure the reference is kept in the main lua state instead of the volatile lua thread where it has been created.
+Lifetime of `luabridge::LuaRef` is bound to the lua state or thread passed in when constructing the reference. It is responsibility of the developer to keep the passed lua state/thread alive for the duration of the usage of the `luabridge::LuaRef`. In case of storing objects in those references that might be created in lua threads that could be destroyed during the application lifetime, it is advised to pass `luabridge::main_thread (L)` in place of `L` when constructing a `luabridge::LuaRef`, to make sure the reference is kept in the main lua state instead of the volatile lua thread where it has been created.
 
 In order to have `luabridge::main_thread` method working in all lua versions, one have to call `luabridge::registerMainThread` function at the beginning of the usage of luabridge (lua 5.1 doesn't store the main thread in the registry, and this needs to be manually setup by the developer).
 
@@ -1437,7 +1500,7 @@ void passBool (bool);
 void passString (std::string);
 void passObject (A*);
 
-luabridge::LuaRef v (L);
+LuaRef v (L);
 //...
 passInt (v);        // implicit conversion to int
 passBool (v);       // implicit conversion to bool
@@ -1463,7 +1526,7 @@ passString (static_cast<std::string> (v));
 passString (v.unsafe_cast<std::string> ());
 ```
 
-The only way to ensure safety when type casting is to use the `LuaRef::cast<T>` method, which is a safe cast of a lua reference to a type `T`. It will return a `luabridge::TypeResult<T>` which will contain the type if the cast was successful, and an error code otherwise. No exception or abort will be triggered from such call (while it's not the same for `LuaRef::cast<T>`).
+The only way to ensure safety when type casting is to use the `luabridge::LuaRef::cast<T>` method, which is a safe cast of a lua reference to a type `T`. It will return a `luabridge::TypeResult<T>` which will contain the type if the cast was successful, and an error code otherwise. No exception or abort will be triggered from such call (while it's not the same for `luabridge::LuaRef::cast<T>`).
 
 ```cpp
 void passString (std::string);
@@ -1478,26 +1541,37 @@ passString (v.cast<std::string> ().valueOr ("fallback"));
 4.2 - Table Proxies
 -------------------
 
-As tables are the sole data structuring mechanism in Lua, the `LuaRef` class provides robust facilities for accessing and manipulating table elements using a simple, precise syntax. Any convertible type may be used as a key or value. Applying the array indexing operator `[]` to a `LuaRef` returns a special temporary object called a _table proxy_ which supports all the operations which can be performed on a `LuaRef`. In addition, assignments made to table proxies change the underlying table. Because table proxies are compiler-created temporary objects, you don't work with them directly. A LuaBridge table proxy should not be confused with the Lua proxy table technique described in the book "Programming in Lua"; the LuaBridge table proxy is simply an intermediate C++ class object that works behind the scenes to make table manipulation syntax conform to C++ idioms. These operations all invoke table proxies:
+As tables are the sole data structuring mechanism in Lua, the `luabridge::LuaRef` class provides robust facilities for accessing and manipulating table elements using a simple, precise syntax. Any convertible type may be used as a key or value. Applying the array indexing operator `[]` to a `luabridge::LuaRef` returns a special temporary object called a _table proxy_ which supports all the operations which can be performed on a `luabridge::LuaRef`. In addition, assignments made to table proxies change the underlying table. Because table proxies are compiler-created temporary objects, you don't work with them directly. A LuaBridge table proxy should not be confused with the Lua proxy table technique described in the book "Programming in Lua"; the LuaBridge table proxy is simply an intermediate C++ class object that works behind the scenes to make table manipulation syntax conform to C++ idioms. These operations all invoke table proxies:
 
 ```cpp
 luabridge::LuaRef v (L);
 v = luabridge::newTable (L);
 
-v ["name"] = "John Doe";         // string key, string value
-v [1] = 200;                     // integer key, integer value
-v [2] = luabridge::newTable (L); // integer key, LuaRef value
-v [3] = v [1];                   // assign 200 to integer index 3
-v [1] = 100;                     // v[1] is 100, v[3] is still 200
-v [3] = v [2];                   // v[2] and v[3] reference the same table
-v [2] = luabridge::LuaNil ();    // Removes the value with key = 2. The table
-                                 //   is still referenced by v[3].
+v ["name"] = "John Doe";             // string key, string value
+v [1] = 200;                         // integer key, integer value
+v [2] = luabridge::newTable (L);     // integer key, LuaRef value
+v [3] = v [1];                       // assign 200 to integer index 3
+v [1] = 100;                         // v[1] is 100, v[3] is still 200
+v [3] = v [2];                       // v[2] and v[3] reference the same table
+v [2] = luabridge::LuaNil ();        // Removes the value with key = 2. The table is still referenced by v[3].
 ```
+
+To append one or more values to a sequence table, use `append`. It is equivalent to assigning to `#t + 1`, `#t + 2`, etc., and uses `lua_rawseti` internally:
+
+```cpp
+luabridge::LuaRef t = luabridge::newTable (L);
+
+t.append (1);              // t = {1}
+t.append (2, 3);           // t = {1, 2, 3}
+t.append ("hello", true);  // t = {1, 2, 3, "hello", true}
+```
+
+`append` returns `true` if all values were successfully pushed and stored, and stops early (returning `false`) if any value fails to push onto the Lua stack.
 
 4.3 - Calling Lua
 -----------------
 
-Table proxies and `LuaRef` objects provide a convenient syntax for invoking `lua_pcall` on suitable referenced object. This includes C functions, Lua functions, or Lua objects with an appropriate `__call` metamethod set. The provided implementation supports up to eight parameters (although more can be supported by adding new functions). Any convertible C++ type can be passed as a parameter in its native format. The return value of the function call is provided as a `LuaRef`, which may be **nil**.
+Table proxies and `luabridge::LuaRef` objects provide a convenient syntax for invoking `lua_pcall` on suitable referenced object. This includes C functions, Lua functions, or Lua objects with an appropriate `__call` metamethod set. The provided implementation supports up to eight parameters (although more can be supported by adding new functions). Any convertible C++ type can be passed as a parameter in its native format. The return value of the function call is provided as a `luabridge::LuaRef`, which may be **nil**.
 
 ```lua
 function same (arg1, arg)
@@ -1516,7 +1590,7 @@ same ("text", "text");
 same (1, 1, 2); // third param ignored
 ```
 
-Table proxies support all of the Lua call notation that `LuaRef` supports, making these statements possible:
+Table proxies support all of the Lua call notation that `luabridge::LuaRef` supports, making these statements possible:
 
 ```lua
 t[1]();
@@ -1557,7 +1631,7 @@ if (! result)
   std::cerr << result.errorMessage ();
 ```
 
-It is also possible that pushing an unregistered class instance into those function will generate an error, that can be trapped using the same mechanism in a `LuaResult`:
+It is also possible that pushing an unregistered class instance into those function will generate an error, that can be trapped using the same mechanism in a `luabridge::LuaResult`:
 
 ```lua
 function fail (unregistred)
@@ -1577,13 +1651,13 @@ if (! result)
   std::cerr << result.errorMessage ();
 ```
 
-Calling `luabridge::pcall` will not return a `LuaResult` but only the status code. It will anyway throw an exception if the return code of `lua_pcall`is not equal `LUA_OK`, and return the error code in case exceptions are disabled.
+Calling `luabridge::pcall` will not return a `luabridge::LuaResult` but only the status code. It will anyway throw an exception if the return code of `lua_pcall`is not equal `LUA_OK`, and return the error code in case exceptions are disabled.
 
 When compiling `LuaBridge3` with exceptions disabled, all references to try catch blocks and throws will be removed.
 
 ### 4.3.2 - Class LuaException
 
-When the application is compiled with exceptions and `luabridge::enableExceptions` function has been called, using `luabridge::call` or `LuaRef::operator()` will uses the C++ exception handling mechanism, throwing a `LuaException` object in case an argument has a type that has not been registered (and cannot be pushed onto the lua stack) or the lua function generated an error:
+When the application is compiled with exceptions and `luabridge::enableExceptions` function has been called, using `luabridge::call` or `LuaRef::operator()` will uses the C++ exception handling mechanism, throwing a `luabridge::LuaException` object in case an argument has a type that has not been registered (and cannot be pushed onto the lua stack) or the lua function generated an error:
 
 ```lua
 function fail ()
@@ -1717,31 +1791,13 @@ Namespace endNamespace ();
 template <class... Functions>
 Namespace addFunction (const char* name, Functions... functions);
 
-/// Registers a property with a getter and setter.
-template <class V>
-Namespace addProperty (const char* name, V (*getFn)(), void (*setFn)(V));
+/// Registers a readonly property with only a getter.
+template <class Getter>
+Namespace addProperty (const char* name, Getter getter);
 
-/// Registers a property with a getter and setter.
-template <class V>
-Namespace addProperty (const char* name, std::function<V ()> getFn, std::function<void (V)> setFn);
-
-/// Registers a property with a C-function getter and setter.
-Namespace addProperty (const char* name, int (*getFn)(lua_State*), int (*setFn)(lua_State*));
-
-/// Registers a read-only property with a getter function.
-template <class V>
-Namespace addProperty (const char* name, V (*getFn)());
-
-/// Registers a read-only property with a getter function.
-template <class V>
-Namespace addProperty (const char* name, std::function<V ()> getFn);
-
-/// Registers a read-only property with a C-function getter.
-Namespace addProperty (const char* name, int (*getFn)(lua_State*));
-
-/// Registers a variable, writable or read-only.
-template <class V>
-Namespace addProperty (const char* name, V* varPtr, bool isWritable = true);
+/// Registers a readwrite property with a getter and a setter.
+template <class Getter, class Setter>
+Namespace addProperty (const char* name, Getter getter, Setter setter);
 ```
 
 Class Registration - Class<T>
@@ -1774,7 +1830,11 @@ Class<T> addConstructor (Functions... functions);
 
 /// Registers one or multiple overloaded constructors for type T when usable from intrusive container C.
 template <class C, class... Functions>
-Class<T> addConstructor ();
+Class<T> addConstructorFrom ();
+
+/// Registers one or multiple overloaded constructors for type T when usable from intrusive container C using callable arguments.
+template <class C, class... Functions>
+Class<T> addConstructorFrom (Functions... functions);
 
 /// Registers allocator and deallocators for type T.
 template <class Alloc, class Dealloc>
@@ -1792,31 +1852,13 @@ Class<T> addFunction (const char* name, Functions... functions);
 ### Member Property Registration
 
 ```cpp
-/// Registers a property with a getter and setter.
-template <class V>
-Class<T> addProperty (const char* name, V (T::* getFn)(), void (T::* setFn)(V));
+/// Registers a readonly property with a getter.
+template <class Getter>
+Class<T> addProperty (const char* name, Getter getter);
 
-/// Registers a property with a getter and setter.
-template <class V>
-Class<T> addProperty (const char* name, std::function<V ()> getFn, std::function<void (V)> setFn);
-
-/// Registers a property with a C-function getter and setter.
-Class<T> addProperty (const char* name, int (*getFn)(lua_State*), int (*setFn)(lua_State*));
-
-/// Registers a read-only property with a getter member function.
-template <class V>
-Class<T> addProperty (const char* name, V (T::* getFn)());
-
-/// Registers a read-only property with a getter function.
-template <class V>
-Class<T> addProperty(const char* name, std::function<V ()> getFn);
-
-/// Registers a read-only property with a C-function getter.
-Class<T> addProperty (const char* name, int (*getFn)(lua_State*));
-
-/// Registers a member variable, writable or read-only.
-template <class V>
-Class<T> addProperty (const char* name, V T::* varPtr, bool isWritable = true);
+/// Registers a readwrite property with a getter and a setter.
+template <class Getter>
+Class<T> addProperty (const char* name, Getter getter, Setter setter);
 ```
 
 ### Static Function Registration
@@ -1830,30 +1872,13 @@ Class<T> addStaticFunction (const char* name, Functions... functions);
 ### Static Property Registration
 
 ```cpp
-/// Registers a property with a getter and setter.
-template <class V>
-Class<T> addStaticProperty (const char* name, V (*getFn)(), void (*setFn)(V));
+/// Registers a static readonly property with a getter.
+template <class Getter>
+Class<T> addStaticProperty (const char* name, Getter getter);
 
-/// Registers a property with a getter and setter.
-template <class V>
-Class<T> addStaticProperty (const char* name, std::function<V ()> getFn, std::function<void (V)> setFn);
-
-/// Registers a property with a C-function getter and setter.
-Class<T> addStaticProperty (const char* name, int (*getFn)(lua_State*), int (*setFn)(lua_State*));
-
-/// Registers a read-only property with a getter function.
-template <class V>
-Class<T> addStaticProperty (const char* name, V (*getFn)());
-
-/// Registers a read-only property with a getter function.
-template <class V>
-Class<T> addStaticProperty (const char* name, std::function <V()> getFn);
-
-/// Registers a read-only property with a C-function getter.
-Class<T> addStaticProperty (const char* name, int (*getFn)(lua_State*));
-
-/// Registers a variable, writable or read-only.
-Class<T> addStaticProperty (const char* name, T* varPtr, bool isWritable = true);
+/// Registers a static readwrite property with a getter and a setter.
+template <class Getter>
+Class<T> addStaticProperty (const char* name, Getter getter, Setter setter);
 ```
 
 Lua Variable Reference - LuaRef
@@ -1958,9 +1983,10 @@ bool operator>= (T rhs) const;
 template <class T>
 bool rawequal (T v) const;
 
-/// Append a value to a referred table. If the table is a sequence this will add another element to it.
-template <class T>
-void append (T v) const;
+/// Append one or more values to a referred table. If the table is a sequence this will add more elements to it.
+/// Uses lua_rawseti internally. Returns true if all values were successfully appended.
+template <class... Ts>
+bool append (const Ts&... vs) const;
 
 /// Return the length of a referred array. This is identical to applying the Lua # operator.
 int length () const;

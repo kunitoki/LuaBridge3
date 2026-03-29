@@ -1,5 +1,5 @@
 // https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, Lucio Asnaghi
+// Copyright 2020, kunitoki
 // Copyright 2019, Dmitry Tarakanov
 // Copyright 2012, Vinnie Falco <vinnie.falco@gmail.com>
 // SPDX-License-Identifier: MIT
@@ -121,7 +121,7 @@ private:
     static constexpr yes& test(...);
 
 public:
-    static constexpr bool value = sizeof(test<ContainerTraits<T>>(0)) == sizeof(yes);
+    static constexpr bool value = sizeof(test<ContainerTraits<T>>(nullptr)) == sizeof(yes);
 };
 
 } // namespace detail
