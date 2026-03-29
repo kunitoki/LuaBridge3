@@ -428,6 +428,188 @@ inline int index_metamethod(lua_State* L)
     // no return
 }
 
+template <bool IsObject>
+inline int index_metamethod_simple(lua_State* L)
+{
+#if LUABRIDGE_SAFE_STACK_CHECKS
+    luaL_checkstack(L, 3, detail::error_lua_stack_overflow);
+#endif
+
+    LUABRIDGE_ASSERT(lua_istable(L, 1) || lua_isuserdata(L, 1));
+
+    // Fast path for simple userdata objects: when registration provides propget and
+    // method tables as closure upvalues, avoid metatable/pointer-key lookups.
+    if constexpr (IsObject)
+    {
+        if (lua_isuserdata(L, 1))
+        {
+            const char* key = lua_tostring(L, 2);
+
+            const auto rawlookup = [L](int tableIndex)
+            {
+                lua_pushvalue(L, 2);
+                lua_rawget(L, tableIndex);
+            };
+
+            rawlookup(lua_upvalueindex(1)); // Stack: getter | nil
+            if (lua_iscfunction(L, -1))
+            {
+                lua_pushvalue(L, 1); // Stack: getter, self
+                lua_call(L, 1, 1); // Stack: value
+                return 1;
+            }
+
+            lua_pop(L, 1);
+
+            if (key != nullptr && is_metamethod(key))
+            {
+                lua_pushnil(L);
+                return 1;
+            }
+
+            rawlookup(lua_upvalueindex(2)); // Stack: value | nil
+            if (! lua_isnil(L, -1))
+                return 1;
+
+            lua_pop(L, 1);
+            lua_pushnil(L);
+            return 1;
+        }
+    }
+    else
+    {
+        // Fast path for simple static tables: capture propget/class/metatable as upvalues.
+        if (lua_istable(L, 1))
+        {
+            const char* key = lua_tostring(L, 2);
+
+            const auto rawlookup = [L](int tableIndex)
+            {
+                lua_pushvalue(L, 2);
+                lua_rawget(L, tableIndex);
+            };
+
+            if (key != nullptr && is_metamethod(key))
+            {
+                lua_pushnil(L);
+                return 1;
+            }
+
+            if (lua_istable(L, lua_upvalueindex(2)))
+            {
+                rawlookup(lua_upvalueindex(2)); // Stack: value | nil
+                if (! lua_isnil(L, -1))
+                    return 1;
+
+                lua_pop(L, 1);
+            }
+
+            rawlookup(lua_upvalueindex(3)); // Stack: value | nil
+            if (! lua_isnil(L, -1))
+                return 1;
+
+            lua_pop(L, 1);
+
+            rawlookup(lua_upvalueindex(1)); // Stack: getter | nil
+            if (lua_iscfunction(L, -1))
+            {
+                lua_pushvalue(L, 1); // Stack: getter, self
+                lua_call(L, 1, 1); // Stack: value
+                return 1;
+            }
+
+            lua_pop(L, 1);
+            lua_pushnil(L);
+            return 1;
+        }
+    }
+
+    lua_getmetatable(L, 1); // Stack: mt
+    LUABRIDGE_ASSERT(lua_istable(L, -1));
+
+    const char* key = lua_tostring(L, 2);
+
+    const auto rawlookup = [L]()
+    {
+        lua_pushvalue(L, 2);
+        lua_rawget(L, -2);
+    };
+
+    // For userdata instance property access, checking propget first avoids an always-miss lookup
+    // in the class table for common property keys.
+    if (lua_isuserdata(L, 1))
+    {
+        lua_rawgetp_x(L, -1, getPropgetKey()); // Stack: mt, pg
+        LUABRIDGE_ASSERT(lua_istable(L, -1));
+
+        rawlookup(); // Stack: mt, pg, getter | nil
+        lua_remove(L, -2); // Stack: mt, getter | nil
+
+        if (lua_iscfunction(L, -1))
+        {
+            lua_remove(L, -2); // Stack: getter
+            lua_pushvalue(L, 1); // Stack: getter, self
+            lua_call(L, 1, 1); // Stack: value
+            return 1;
+        }
+
+        lua_pop(L, 1); // Stack: mt
+    }
+    if (key != nullptr && is_metamethod(key))
+    {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    if (lua_istable(L, 1))
+    {
+        if constexpr (IsObject)
+            lua_pushvalue(L, 1); // Stack: mt, self
+        else
+            push_class_or_const_table(L, -1); // Stack: mt, cl | co
+
+        if (lua_istable(L, -1))
+        {
+            rawlookup(); // Stack: mt, self | cl | co, value | nil
+            lua_remove(L, -2); // Stack: mt, value | nil
+            if (! lua_isnil(L, -1))
+            {
+                lua_remove(L, -2); // Stack: value
+                return 1;
+            }
+        }
+
+        lua_pop(L, 1); // Stack: mt
+    }
+
+    rawlookup(); // Stack: mt, value | nil
+    if (! lua_isnil(L, -1))
+    {
+        lua_remove(L, -2); // Stack: value
+        return 1;
+    }
+
+    lua_pop(L, 1); // Stack: mt
+
+    lua_rawgetp_x(L, -1, getPropgetKey()); // Stack: mt, pg
+    LUABRIDGE_ASSERT(lua_istable(L, -1));
+
+    rawlookup(); // Stack: mt, pg, getter | nil
+    lua_remove(L, -2); // Stack: mt, getter | nil
+
+    if (lua_iscfunction(L, -1))
+    {
+        lua_remove(L, -2); // Stack: getter
+        lua_pushvalue(L, 1); // Stack: getter, self
+        lua_call(L, 1, 1); // Stack: value
+        return 1;
+    }
+
+    lua_pop(L, 2); // Stack: -
+    lua_pushnil(L);
+    return 1;
+}
+
 //=================================================================================================
 /**
  * @brief __newindex metamethod for non-static members.
@@ -684,6 +866,89 @@ inline int newindex_metamethod(lua_State* L)
     return 0;
 }
 
+template <bool IsObject>
+inline int newindex_metamethod_simple(lua_State* L)
+{
+#if LUABRIDGE_SAFE_STACK_CHECKS
+    luaL_checkstack(L, 3, detail::error_lua_stack_overflow);
+#endif
+
+    LUABRIDGE_ASSERT(lua_istable(L, 1) || lua_isuserdata(L, 1));
+
+    // Fast path for simple userdata objects: propset table is captured as upvalue.
+    if constexpr (IsObject)
+    {
+        if (lua_isuserdata(L, 1))
+        {
+            const char* key = lua_tostring(L, 2);
+
+            if (! lua_istable(L, lua_upvalueindex(1)))
+                luaL_error(L, "no writable member '%s'", key);
+
+            lua_pushvalue(L, 2); // Stack: key
+            lua_rawget(L, lua_upvalueindex(1)); // Stack: setter | nil
+
+            if (lua_iscfunction(L, -1))
+            {
+                lua_pushvalue(L, 1); // Stack: setter, self
+                lua_pushvalue(L, 3); // Stack: setter, self, value
+                lua_call(L, 2, 0);
+                return 0;
+            }
+
+            luaL_error(L, "no writable member '%s'", key);
+        }
+    }
+    else
+    {
+        // Fast path for simple static tables: propset table is captured as upvalue.
+        if (lua_istable(L, 1))
+        {
+            const char* key = lua_tostring(L, 2);
+
+            if (! lua_istable(L, lua_upvalueindex(1)))
+                luaL_error(L, "no writable member '%s'", key);
+
+            lua_pushvalue(L, 2); // Stack: key
+            lua_rawget(L, lua_upvalueindex(1)); // Stack: setter | nil
+
+            if (lua_iscfunction(L, -1))
+            {
+                lua_pushvalue(L, 3); // Stack: setter, value
+                lua_call(L, 1, 0);
+                return 0;
+            }
+
+            luaL_error(L, "no writable member '%s'", key);
+        }
+    }
+
+    lua_getmetatable(L, 1); // Stack: mt
+    LUABRIDGE_ASSERT(lua_istable(L, -1));
+
+    const char* key = lua_tostring(L, 2);
+
+    lua_rawgetp_x(L, -1, getPropsetKey()); // Stack: mt, ps | nil
+    if (! lua_istable(L, -1))
+        luaL_error(L, "no member named '%s'", key);
+
+    lua_pushvalue(L, 2); // Stack: mt, ps, key
+    lua_rawget(L, -2); // Stack: mt, ps, setter | nil
+    lua_remove(L, -2); // Stack: mt, setter | nil
+
+    if (lua_iscfunction(L, -1))
+    {
+        lua_remove(L, -2); // Stack: setter
+        if constexpr (IsObject)
+            lua_pushvalue(L, 1); // Stack: setter, self
+        lua_pushvalue(L, 3); // Stack: setter, self, value
+        lua_call(L, IsObject ? 2 : 1, 0);
+        return 0;
+    }
+
+    luaL_error(L, "no writable member '%s'", key);
+}
+
 //=================================================================================================
 /**
  * @brief lua_CFunction to report an error writing to a read-only value.
@@ -804,7 +1069,9 @@ struct property_getter
 {
     static int call(lua_State* L)
     {
-        C* c = Userdata::get<C>(L, 1, true);
+        auto c = Userdata::get<C>(L, 1, true);
+        if (! c)
+            raise_lua_error(L, "%s", c.error_cstr());
 
         T C::** mp = static_cast<T C::**>(lua_touserdata(L, lua_upvalueindex(1)));
 
@@ -814,7 +1081,7 @@ struct property_getter
         try
         {
 #endif
-            result = Stack<T&>::push(L, c->**mp);
+            result = Stack<T&>::push(L, (*c)->**mp);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
@@ -890,7 +1157,9 @@ struct property_setter
 {
     static int call(lua_State* L)
     {
-        C* c = Userdata::get<C>(L, 1, false);
+        auto c = Userdata::get<C>(L, 1, false);
+        if (! c)
+            raise_lua_error(L, "%s", c.error_cstr());
 
         T C::** mp = static_cast<T C::**>(lua_touserdata(L, lua_upvalueindex(1)));
 
@@ -902,7 +1171,7 @@ struct property_setter
             if (! result)
                 raise_lua_error(L, "%s", result.error_cstr());
 
-            c->** mp = std::move(*result);
+            (*c)->** mp = std::move(*result);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
@@ -939,6 +1208,42 @@ inline void add_property_setter(lua_State* L, const char* name, int tableIndex)
 /**
  * @brief Function generator.
  */
+template <class ArgsPack, std::size_t Start, class F, std::size_t... Indices>
+decltype(auto) invoke_callable_from_stack_impl(lua_State* L, F&& func, std::index_sequence<Indices...>)
+{
+    return std::invoke(
+        std::forward<F>(func),
+        unwrap_argument_or_error<std::tuple_element_t<Indices, ArgsPack>>(L, Indices, Start)...);
+}
+
+template <class ArgsPack, std::size_t Start, class F>
+decltype(auto) invoke_callable_from_stack(lua_State* L, F&& func)
+{
+    return invoke_callable_from_stack_impl<ArgsPack, Start>(
+        L,
+        std::forward<F>(func),
+        std::make_index_sequence<std::tuple_size_v<ArgsPack>>());
+}
+
+template <class ArgsPack, std::size_t Start, class T, class F, std::size_t... Indices>
+decltype(auto) invoke_member_callable_from_stack_impl(lua_State* L, T* ptr, F&& func, std::index_sequence<Indices...>)
+{
+    return std::invoke(
+        std::forward<F>(func),
+        ptr,
+        unwrap_argument_or_error<std::tuple_element_t<Indices, ArgsPack>>(L, Indices, Start)...);
+}
+
+template <class ArgsPack, std::size_t Start, class T, class F>
+decltype(auto) invoke_member_callable_from_stack(lua_State* L, T* ptr, F&& func)
+{
+    return invoke_member_callable_from_stack_impl<ArgsPack, Start>(
+        L,
+        ptr,
+        std::forward<F>(func),
+        std::make_index_sequence<std::tuple_size_v<ArgsPack>>());
+}
+
 template <class ReturnType, class ArgsPack, std::size_t Start = 1u>
 struct function
 {
@@ -951,7 +1256,7 @@ struct function
         try
         {
 #endif
-            result = Stack<ReturnType>::push(L, std::apply(std::forward<F>(func), make_arguments_list<ArgsPack, Start>(L)));
+        result = Stack<ReturnType>::push(L, invoke_callable_from_stack<ArgsPack, Start>(L, std::forward<F>(func)));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
@@ -976,9 +1281,7 @@ struct function
         try
         {
 #endif
-            auto f = [ptr, func = std::forward<F>(func)](auto&&... args) -> ReturnType { return (ptr->*func)(std::forward<decltype(args)>(args)...); };
-
-            result = Stack<ReturnType>::push(L, std::apply(f, make_arguments_list<ArgsPack, Start>(L)));
+        result = Stack<ReturnType>::push(L, invoke_member_callable_from_stack<ArgsPack, Start>(L, ptr, std::forward<F>(func)));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
@@ -1005,7 +1308,7 @@ struct function<void, ArgsPack, Start>
         try
         {
 #endif
-            std::apply(std::forward<F>(func), make_arguments_list<ArgsPack, Start>(L));
+        invoke_callable_from_stack<ArgsPack, Start>(L, std::forward<F>(func));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
@@ -1025,9 +1328,7 @@ struct function<void, ArgsPack, Start>
         try
         {
 #endif
-            auto f = [ptr, func = std::forward<F>(func)](auto&&... args) { (ptr->*func)(std::forward<decltype(args)>(args)...); };
-
-            std::apply(f, make_arguments_list<ArgsPack, Start>(L));
+        invoke_member_callable_from_stack<ArgsPack, Start>(L, ptr, std::forward<F>(func));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
@@ -1054,12 +1355,14 @@ int invoke_member_function(lua_State* L)
 
     LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
-    T* ptr = Userdata::get<T>(L, 1, false);
+    auto ptr = Userdata::get<T>(L, 1, false);
+    if (! ptr)
+        raise_lua_error(L, "%s", ptr.error_cstr());
 
     const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
     LUABRIDGE_ASSERT(func != nullptr);
 
-    return function<typename FnTraits::result_type, typename FnTraits::argument_types, 2>::call(L, ptr, func);
+    return function<typename FnTraits::result_type, typename FnTraits::argument_types, 2>::call(L, *ptr, func);
 }
 
 template <class F, class T>
@@ -1069,12 +1372,14 @@ int invoke_const_member_function(lua_State* L)
 
     LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
-    const T* ptr = Userdata::get<T>(L, 1, true);
+    auto ptr = Userdata::get<T>(L, 1, true);
+    if (! ptr)
+        raise_lua_error(L, "%s", ptr.error_cstr());
 
     const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
     LUABRIDGE_ASSERT(func != nullptr);
 
-    return function<typename FnTraits::result_type, typename FnTraits::argument_types, 2>::call(L, ptr, func);
+    return function<typename FnTraits::result_type, typename FnTraits::argument_types, 2>::call(L, *ptr, func);
 }
 
 //=================================================================================================
@@ -1090,7 +1395,9 @@ int invoke_member_cfunction(lua_State* L)
 
     LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
-    T* t = Userdata::get<T>(L, 1, false);
+    auto t = Userdata::get<T>(L, 1, false);
+    if (! t)
+        raise_lua_error(L, "%s", t.error_cstr());
 
     const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
     LUABRIDGE_ASSERT(func != nullptr);
@@ -1099,7 +1406,7 @@ int invoke_member_cfunction(lua_State* L)
     try
     {
 #endif
-        return (t->*func)(L);
+        return ((*t)->*func)(L);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
     }
@@ -1119,7 +1426,9 @@ int invoke_const_member_cfunction(lua_State* L)
 
     LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
-    const T* t = Userdata::get<T>(L, 1, true);
+    auto t = Userdata::get<T>(L, 1, true);
+    if (! t)
+        raise_lua_error(L, "%s", t.error_cstr());
 
     const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
     LUABRIDGE_ASSERT(func != nullptr);
@@ -1128,7 +1437,7 @@ int invoke_const_member_cfunction(lua_State* L)
     try
     {
 #endif
-        return (t->*func)(L);
+        return ((*t)->*func)(L);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
     }
@@ -2079,11 +2388,11 @@ struct destructor_forwarder
 
     void operator()(lua_State* L)
     {
-        auto* value = Userdata::get<T>(L, -1, false);
-        if (value == nullptr)
-            raise_lua_error(L, "invalid object destruction");
+        auto value = Userdata::get<T>(L, -1, false);
+        if (! value)
+            raise_lua_error(L, "%s", value.error_cstr());
 
-        std::invoke(m_func, value);
+        std::invoke(m_func, *value);
     }
 
 private:

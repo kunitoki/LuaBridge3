@@ -274,7 +274,7 @@ IF(HAS_POSITION_INDEPENDENT_CODE)
 ENDIF()
 
 if ( WIN32 )
-  add_definitions ( -DLUAJIT_OS=LUAJIT_OS_WINDOWS )
+  add_definitions ( -DLUAJIT_OS=LUAJIT_OS_WINDOWS -D_CRT_SECURE_NO_WARNINGS=1 )
   if(NOT MSVC)
     set ( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -malign-double" )
   endif()

@@ -231,7 +231,7 @@ TEST_F(ExceptionTests, Bug153)
 
     try
     {
-        (*luaCallback)();
+        luaCallback->call<std::tuple<>>();
     }
     catch (const std::exception& e)
     {

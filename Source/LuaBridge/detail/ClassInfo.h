@@ -103,6 +103,15 @@ template <class T, auto = typeName<T>().find_first_of('.')>
 
 //=================================================================================================
 /**
+ * @brief The key of a type identity tag in class/const metatables.
+ */
+[[nodiscard]] inline const void* getTypeIdentityKey() noexcept
+{
+    return reinterpret_cast<void*>(0xc2c);
+}
+
+//=================================================================================================
+/**
  * @brief The key of a propget table in another metatable.
  */
 [[nodiscard]] inline const void* getPropgetKey() noexcept

@@ -81,14 +81,14 @@ TEST_F(ListTests, PassToFunction)
     resetResult();
 
     std::list<int> lvalue{ 10, 20, 30 };
-    foo(lvalue);
+    ASSERT_TRUE(foo.call(lvalue));
     ASSERT_TRUE(result().isTable());
     ASSERT_EQ(lvalue, result<std::list<int>>());
 
     resetResult();
 
     const std::list<int> constLvalue = lvalue;
-    foo(constLvalue);
+    ASSERT_TRUE(foo.call(constLvalue));
     ASSERT_TRUE(result().isTable());
     ASSERT_EQ(lvalue, result<std::list<int>>());
 }

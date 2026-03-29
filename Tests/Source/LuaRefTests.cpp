@@ -183,14 +183,9 @@ TEST_F(LuaRefTests, ValueAccess)
            "  return i "
            "end");
     EXPECT_TRUE(result().isFunction());
-    auto fnResult = result()(41); // Replaces result variable
-    EXPECT_TRUE(fnResult);
-    EXPECT_TRUE(fnResult.size());
-    EXPECT_TRUE(fnResult[0].isNumber());
-    ASSERT_EQ(41, fnResult[0].unsafe_cast<int>());
-    ASSERT_EQ(41, *fnResult[0].cast<int>());
-    ASSERT_EQ(41, luabridge::unsafe_cast<int>(fnResult[0]));
-    ASSERT_EQ(41, *luabridge::cast<int>(fnResult[0]));
+    auto fnResult = result().call<int>(41); // Replaces result variable
+    ASSERT_TRUE(fnResult);
+    ASSERT_EQ(41, *fnResult);
     EXPECT_TRUE(result().isNumber());
     ASSERT_EQ(42, result<int>());
 }
@@ -237,11 +232,9 @@ TEST_F(LuaRefTests, DictionaryRead)
     ASSERT_STREQ("abc", result()[8].unsafe_cast<char const*>());
 
     EXPECT_TRUE(result()["fn"].isFunction());
-    auto fnResult = result()["fn"](41); // Replaces result variable
-    EXPECT_TRUE(fnResult);
-    EXPECT_TRUE(fnResult.size());
-    EXPECT_TRUE(fnResult[0].isNumber());
-    ASSERT_EQ(41, fnResult[0].unsafe_cast<int>());
+    auto fnResult = result()["fn"].call<int>(41); // Replaces result variable
+    ASSERT_TRUE(fnResult);
+    ASSERT_EQ(41, *fnResult);
     EXPECT_TRUE(result().isNumber());
     ASSERT_EQ(42, result<int>());
 }
@@ -506,7 +499,7 @@ TEST_F(LuaRefTests, Callable)
     auto obj = luabridge::getGlobal(L, "obj");
     EXPECT_TRUE(obj.isCallable());
     EXPECT_EQ(100, obj["i"].unsafe_cast<int>());
-    obj();
+    EXPECT_TRUE(obj.call());
     EXPECT_EQ(200, obj["i"].unsafe_cast<int>());
 }
 
@@ -534,10 +527,75 @@ TEST_F(LuaRefTests, CallableWithHandler)
         return 0;
     };
 
-    auto result = f.callWithHandler(handler, "badly");
+    auto result = f.callWithHandler<std::tuple<>>(handler, "badly");
     EXPECT_FALSE(result);
     EXPECT_TRUE(calledHandler);
     EXPECT_TRUE(errorMessage.find("we failed badly") != std::string::npos);
+}
+
+TEST_F(LuaRefTests, CallableWrapper)
+{
+    runLua("function sum(a, b) return a + b end");
+    auto sumRef = luabridge::getGlobal(L, "sum");
+
+    auto sumFn = sumRef.callable<int(int, int)>();
+    EXPECT_TRUE(sumFn.isValid());
+
+    {
+        auto result = sumFn(20, 22);
+        ASSERT_TRUE(result);
+        EXPECT_EQ(42, *result);
+    }
+
+    {
+        auto result = sumFn.call(1, 2);
+        ASSERT_TRUE(result);
+        EXPECT_EQ(3, *result);
+    }
+
+    runLua("function sumFail(a, b) error('sum failed') end");
+    auto sumFailRef = luabridge::getGlobal(L, "sumFail");
+    auto sumFailFn = sumFailRef.callable<int(int, int)>();
+
+    bool calledHandler = false;
+    auto handler = [&calledHandler](lua_State*) -> int
+    {
+        calledHandler = true;
+        return 0;
+    };
+
+    auto failed = sumFailFn.callWithHandler(handler, 1, 2);
+    EXPECT_FALSE(failed);
+    EXPECT_TRUE(calledHandler);
+    EXPECT_EQ(luabridge::makeErrorCode(luabridge::ErrorCode::LuaFunctionCallFailed), failed.error());
+
+    runLua("notCallable = 10");
+    auto notCallableRef = luabridge::getGlobal(L, "notCallable");
+    auto invalidFn = notCallableRef.callable<int(int)>();
+    EXPECT_FALSE(invalidFn.isValid());
+}
+
+TEST_F(LuaRefTests, CallableWrapperVoidAndTypedMismatch)
+{
+    runLua("pingCalls = 0 "
+           "function ping() pingCalls = pingCalls + 1 end "
+           "function returnText() return 'abc' end");
+
+    auto pingRef = luabridge::getGlobal(L, "ping");
+    auto pingFn = pingRef.callable<void()>();
+    ASSERT_TRUE(pingFn.isValid());
+
+    auto pingResult = pingFn();
+    ASSERT_TRUE(pingResult);
+    EXPECT_EQ(1, luabridge::getGlobal(L, "pingCalls").unsafe_cast<int>());
+
+    auto returnTextRef = luabridge::getGlobal(L, "returnText");
+    auto typedFn = returnTextRef.callable<int()>();
+    ASSERT_TRUE(typedFn.isValid());
+
+    auto mismatch = typedFn.call();
+    EXPECT_FALSE(mismatch);
+    EXPECT_EQ(luabridge::makeErrorCode(luabridge::ErrorCode::InvalidTypeCast), mismatch.error());
 }
 
 TEST_F(LuaRefTests, Pop)
@@ -763,7 +821,7 @@ TEST_F(LuaRefTests, HookTesting)
     )");
 
     for (auto& func : hooklist) {
-        func.second(0, "x");
+        EXPECT_TRUE(func.second.call(0, "x"));
     }
 }
 
@@ -819,4 +877,180 @@ TEST_F(LuaRefTests, AppendToExistingSequence)
     ASSERT_EQ(20, result()[2].unsafe_cast<int>());
     ASSERT_EQ(30, result()[3].unsafe_cast<int>());
     ASSERT_EQ(40, result()[4].unsafe_cast<int>());
+}
+
+TEST_F(LuaRefTests, FieldHelpersRespectMetamethodsAndRawAccess)
+{
+    runLua("indexCalls = 0 "
+           "newindexCalls = 0 "
+           "shadow = {} "
+           "result = setmetatable({}, {"
+           "  __index = function(_, key) indexCalls = indexCalls + 1; return shadow[key] end,"
+           "  __newindex = function(_, key, value) newindexCalls = newindexCalls + 1; shadow[key] = value end"
+           "})");
+
+    auto table = result();
+
+    EXPECT_TRUE(table.setField("metaValue", 42));
+    EXPECT_EQ(1, luabridge::getGlobal(L, "newindexCalls").unsafe_cast<int>());
+
+    auto viaMeta = table.getField<int>("metaValue");
+    ASSERT_TRUE(viaMeta);
+    EXPECT_EQ(42, *viaMeta);
+    EXPECT_EQ(1, luabridge::getGlobal(L, "indexCalls").unsafe_cast<int>());
+
+    auto rawMissing = table.rawgetField<int>("metaValue");
+    EXPECT_FALSE(rawMissing);
+    EXPECT_EQ(luabridge::makeErrorCode(luabridge::ErrorCode::InvalidTypeCast), rawMissing.error());
+
+    EXPECT_TRUE(table.rawsetField("rawValue", 99));
+    EXPECT_EQ(1, luabridge::getGlobal(L, "newindexCalls").unsafe_cast<int>());
+
+    auto rawValue = table.rawgetField<int>("rawValue");
+    ASSERT_TRUE(rawValue);
+    EXPECT_EQ(99, *rawValue);
+}
+
+TEST_F(LuaRefTests, UnsafeRawFieldHelpersKeepStackBalanced)
+{
+    runLua("indexCalls = 0 "
+           "newindexCalls = 0 "
+           "result = setmetatable({}, {"
+           "  __index = function() indexCalls = indexCalls + 1; return 777 end,"
+           "  __newindex = function(_, _, _) newindexCalls = newindexCalls + 1 end"
+           "})");
+
+    auto table = result();
+    const int topBeforeSet = lua_gettop(L);
+
+    table.unsafeRawsetField("rawNumber", 55);
+    EXPECT_EQ(topBeforeSet, lua_gettop(L));
+    EXPECT_EQ(0, luabridge::getGlobal(L, "newindexCalls").unsafe_cast<int>());
+
+    const int topBeforeGet = lua_gettop(L);
+    auto rawNumber = table.unsafeRawgetField<int>("rawNumber");
+    EXPECT_EQ(55, rawNumber);
+    EXPECT_EQ(topBeforeGet, lua_gettop(L));
+    EXPECT_EQ(0, luabridge::getGlobal(L, "indexCalls").unsafe_cast<int>());
+}
+
+TEST_F(LuaRefTests, RawgetFieldBypassesIndexMetamethod)
+{
+    runLua("indexCalls = 0 "
+           "result = setmetatable({}, {"
+           "  __index = function(_, _) indexCalls = indexCalls + 1; return 123 end"
+           "})");
+
+    auto table = result();
+
+    auto viaMeta = table.getField<int>("metaOnly");
+    ASSERT_TRUE(viaMeta);
+    EXPECT_EQ(123, *viaMeta);
+    EXPECT_EQ(1, luabridge::getGlobal(L, "indexCalls").unsafe_cast<int>());
+
+    auto rawViaMissing = table.rawgetField<int>("metaOnly");
+    EXPECT_FALSE(rawViaMissing);
+    EXPECT_EQ(luabridge::makeErrorCode(luabridge::ErrorCode::InvalidTypeCast), rawViaMissing.error());
+    EXPECT_EQ(1, luabridge::getGlobal(L, "indexCalls").unsafe_cast<int>());
+}
+
+TEST_F(LuaRefTests, UnsafeRawgetFieldBypassesIndexMetamethod)
+{
+    runLua("indexCalls = 0 "
+           "result = setmetatable({ rawValue = 999 }, {"
+           "  __index = function(_, _) indexCalls = indexCalls + 1; return 123 end"
+           "})");
+
+    auto table = result();
+
+    const int topBefore = lua_gettop(L);
+    auto rawValue = table.unsafeRawgetField<int>("rawValue");
+    EXPECT_EQ(999, rawValue);
+    EXPECT_EQ(topBefore, lua_gettop(L));
+    EXPECT_EQ(0, luabridge::getGlobal(L, "indexCalls").unsafe_cast<int>());
+}
+
+TEST_F(LuaRefTests, UserdataIndexMetamethodPropgetFastPath)
+{
+    struct PropsClass
+    {
+        int value = 7;
+    };
+
+    int getterCalls = 0;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<PropsClass>("PropsClass")
+        .addConstructor<void (*)()>()
+        .addProperty("tracked", [&getterCalls](const PropsClass* self) {
+            ++getterCalls;
+            return self->value;
+        })
+        .endClass();
+
+    runLua("obj = PropsClass(); result = obj");
+    auto obj = result();
+    ASSERT_TRUE(obj.isUserdata());
+
+    auto tracked = obj["tracked"];
+    auto trackedValue = luabridge::LuaRef(tracked);
+    ASSERT_TRUE(trackedValue.isNumber());
+    EXPECT_EQ(7, luabridge::unsafe_cast<int>(trackedValue));
+    EXPECT_EQ(1, getterCalls);
+
+    // Missing key exercises the propget fast-path miss branch (line 556 pop) and falls through to nil.
+    auto missing = obj["definitely_missing"];
+    auto missingValue = luabridge::LuaRef(missing);
+    EXPECT_TRUE(missingValue.isNil());
+    EXPECT_EQ(1, getterCalls);
+}
+
+TEST_F(LuaRefTests, TableItemNestedRawHelpersAndCopy)
+{
+    runLua("result = { outer = { value = 10 } }");
+
+    auto outer = result()["outer"];
+    auto outerCopy = outer; // Exercise TableItem copy constructor
+
+    outerCopy.rawset(luabridge::newTable(L));
+    ASSERT_TRUE(result()["outer"].isTable());
+
+    result()["outer"].rawset(luabridge::newTable(L));
+    auto replacedOuter = result()["outer"];
+
+    replacedOuter.unsafeRawsetField("value", 77);
+    const int value = replacedOuter.unsafeRawgetField<int>("value");
+    EXPECT_EQ(77, value);
+
+    auto rawField = replacedOuter.rawget("value");
+    ASSERT_TRUE(rawField.isNumber());
+    EXPECT_EQ(77, luabridge::cast<int>(rawField).valueOr(0));
+}
+
+TEST_F(LuaRefTests, TableItemOperatorIndexAdoptPathAndRawRoundTrip)
+{
+    runLua("result = { outer = {} }");
+
+    std::string outerKey = "outer";
+    std::string childKey = "child";
+
+    auto outer = result()[outerKey];
+    auto child = outer[childKey]; // Exercise TableItem::operator[](const T&) and AdoptTableRef ctor path
+
+    child.rawset(19);
+
+    auto fromRaw = outer.rawget(childKey);
+    ASSERT_TRUE(fromRaw.isNumber());
+    EXPECT_EQ(19, luabridge::unsafe_cast<int>(fromRaw));
+
+    child.rawset(luabridge::newTable(L));
+
+    const int stackTopBefore = lua_gettop(L);
+    auto childAgain = result()[outerKey][childKey];
+    childAgain.unsafeRawsetField("nested", 1234);
+    EXPECT_EQ(stackTopBefore, lua_gettop(L));
+
+    auto nested = childAgain.unsafeRawgetField<int>("nested");
+    EXPECT_EQ(1234, nested);
+    EXPECT_EQ(stackTopBefore, lua_gettop(L));
 }

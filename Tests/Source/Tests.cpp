@@ -25,6 +25,41 @@ T identityCFunction(T value)
 {
     return value;
 }
+
+struct UnregisteredDecodeType
+{
+};
+
+int returnTupleWithUnregisteredValue(lua_State* L)
+{
+    lua_pushinteger(L, 17);
+
+    lua_newuserdata(L, sizeof(UnregisteredDecodeType));
+    luaL_newmetatable(L, "UnregisteredDecodeType");
+    lua_setmetatable(L, -2);
+
+    return 2;
+}
+
+int testGetter777(lua_State* L)
+{
+    lua_pushinteger(L, 777);
+    return 1;
+}
+
+int testSetValueWithSelf(lua_State* L)
+{
+    lua_pushvalue(L, 2);
+    lua_setglobal(L, "captured");
+    return 0;
+}
+
+int testSetValueStatic(lua_State* L)
+{
+    lua_pushvalue(L, 1);
+    lua_setglobal(L, "captured");
+    return 0;
+}
 } // namespace
 
 struct LuaBridgeTest : TestBase
@@ -397,7 +432,7 @@ TEST_F(LuaBridgeTest, PropertyGetterFailOnUnregisteredClass)
 #endif
 }
 
-TEST_F(LuaBridgeTest, CallReturnLuaResult)
+TEST_F(LuaBridgeTest, CallReturnTypeResult)
 {
     runLua("function f1 (arg0, arg1) end");
     runLua("function f2 (arg0, arg1) return arg0; end");
@@ -406,44 +441,298 @@ TEST_F(LuaBridgeTest, CallReturnLuaResult)
 
     {
         auto f1 = luabridge::getGlobal(L, "f1");
-        auto result = luabridge::call(f1, 1, 2);
-        EXPECT_FALSE(result.hasFailed());
-        EXPECT_TRUE(result.wasOk());
-        EXPECT_EQ(std::error_code(), result.errorCode());
+        auto result = f1.call<std::tuple<>>(1, 2);
+        EXPECT_TRUE(result);
+        EXPECT_EQ(std::tuple<>{}, *result);
     }
 
     {
         auto f2 = luabridge::getGlobal(L, "f2");
-        auto result = luabridge::call(f2, 1, 2);
-        EXPECT_FALSE(result.hasFailed());
-        EXPECT_TRUE(result.wasOk());
-        EXPECT_EQ(std::error_code(), result.errorCode());
-        EXPECT_EQ(1u, result.size());
-        EXPECT_EQ(result[0], 1);
+        auto result = f2.call<int>(1, 2);
+        ASSERT_TRUE(result);
+        EXPECT_EQ(1, *result);
     }
 
     {
         auto f3 = luabridge::getGlobal(L, "f3");
-        auto result = luabridge::call(f3, 1, 2);
-        EXPECT_FALSE(result.hasFailed());
-        EXPECT_TRUE(result.wasOk());
-        EXPECT_EQ(std::error_code(), result.errorCode());
-        EXPECT_EQ(2u, result.size());
-        EXPECT_EQ(result[0], 1);
-        EXPECT_EQ(result[1], 2);
+        auto result = f3.call<std::tuple<int, int>>(1, 2);
+        ASSERT_TRUE(result);
+        EXPECT_EQ(1, std::get<0>(*result));
+        EXPECT_EQ(2, std::get<1>(*result));
     }
 
 #if ! LUABRIDGE_HAS_EXCEPTIONS
     {
         auto f3 = luabridge::getGlobal(L, "f4");
-        auto result = luabridge::call(f3);
-        EXPECT_TRUE(result.hasFailed());
-        EXPECT_FALSE(result.wasOk());
-        EXPECT_EQ(0u, result.size());
-        EXPECT_NE(std::error_code(), result.errorCode());
-        EXPECT_NE(std::string::npos, result.errorMessage().find("Something bad happened"));
+        auto result = f3.call();
+        EXPECT_FALSE(result);
+        EXPECT_EQ(luabridge::makeErrorCode(luabridge::ErrorCode::LuaFunctionCallFailed), result.error());
     }
 #endif
+}
+
+TEST_F(LuaBridgeTest, CallReturnTypeResultErrorPaths)
+{
+    runLua("function ret0() end");
+    runLua("function ret1() return 11 end");
+    runLua("function ret2bad() return 10, 'bad' end");
+
+    {
+        auto f = luabridge::getGlobal(L, "ret0");
+        const int stackTop = lua_gettop(L);
+
+        auto result = f.call<int>();
+        EXPECT_FALSE(result);
+        EXPECT_EQ(luabridge::makeErrorCode(luabridge::ErrorCode::InvalidTypeCast), result.error());
+        EXPECT_EQ(stackTop, lua_gettop(L));
+    }
+
+    {
+        auto f = luabridge::getGlobal(L, "ret1");
+        const int stackTop = lua_gettop(L);
+
+        auto result = f.call<void>();
+        EXPECT_FALSE(result);
+        EXPECT_EQ(luabridge::makeErrorCode(luabridge::ErrorCode::InvalidTableSizeInCast), result.error());
+        EXPECT_EQ(stackTop, lua_gettop(L));
+    }
+
+    {
+        auto f = luabridge::getGlobal(L, "ret1");
+        const int stackTop = lua_gettop(L);
+
+        auto result = f.call<std::tuple<int, int>>();
+        EXPECT_FALSE(result);
+        EXPECT_EQ(luabridge::makeErrorCode(luabridge::ErrorCode::InvalidTableSizeInCast), result.error());
+        EXPECT_EQ(stackTop, lua_gettop(L));
+    }
+
+    {
+        auto f = luabridge::getGlobal(L, "ret2bad");
+        const int stackTop = lua_gettop(L);
+
+        auto result = f.call<std::tuple<int, int>>();
+        EXPECT_FALSE(result);
+        EXPECT_EQ(luabridge::makeErrorCode(luabridge::ErrorCode::InvalidTypeCast), result.error());
+        EXPECT_EQ(stackTop, lua_gettop(L));
+    }
+}
+
+TEST_F(LuaBridgeTest, CallWithHandlerTypedReturnAndStackRestore)
+{
+    runLua("function fOk(x) return x + 1 end");
+    runLua("function fFail() error('boom') end");
+
+    auto fOk = luabridge::getGlobal(L, "fOk");
+    auto fFail = luabridge::getGlobal(L, "fFail");
+
+    int handlerCalls = 0;
+    auto handler = [&handlerCalls](lua_State*) -> int
+    {
+        ++handlerCalls;
+        return 0;
+    };
+
+    {
+        const int stackTop = lua_gettop(L);
+        auto result = fOk.callWithHandler<int>(handler, 41);
+        ASSERT_TRUE(result);
+        EXPECT_EQ(42, *result);
+        EXPECT_EQ(0, handlerCalls);
+        EXPECT_EQ(stackTop, lua_gettop(L));
+    }
+
+    {
+        const int stackTop = lua_gettop(L);
+        auto result = fFail.callWithHandler<int>(handler);
+        EXPECT_FALSE(result);
+        EXPECT_EQ(luabridge::makeErrorCode(luabridge::ErrorCode::LuaFunctionCallFailed), result.error());
+        EXPECT_EQ(1, handlerCalls);
+        EXPECT_EQ(stackTop, lua_gettop(L));
+    }
+}
+
+TEST_F(LuaBridgeTest, CallTupleDecodeFailsOnUnregisteredClassResult)
+{
+    luabridge::setGlobal(L, static_cast<lua_CFunction>(&returnTupleWithUnregisteredValue), "retTupleWithUnregistered");
+
+    auto f = luabridge::getGlobal(L, "retTupleWithUnregistered");
+    using TupleWithUnregistered = std::tuple<int, UnregisteredDecodeType>;
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    ASSERT_ANY_THROW((void)f.call<TupleWithUnregistered>());
+#else
+    auto result = f.call<TupleWithUnregistered>();
+    EXPECT_FALSE(result);
+    EXPECT_EQ(luabridge::makeErrorCode(luabridge::ErrorCode::ClassNotRegistered), result.error());
+#endif
+}
+
+TEST_F(LuaBridgeTest, IndexMetamethodSimple_ObjectFallbackBranches)
+{
+    // Exercise the table-based fallback branch of index_metamethod_simple<true>.
+    auto callIndex = [this](const char* key) -> bool
+    {
+        lua_newtable(L); // self
+
+        lua_newtable(L); // mt
+        lua_newtable(L); // propget
+        luabridge::lua_pushcfunction_x(L, &testGetter777, "testGetter777");
+        lua_setfield(L, -2, "viaGetter");
+        luabridge::lua_rawsetp_x(L, -2, luabridge::detail::getPropgetKey());
+        lua_setmetatable(L, -2);
+
+        lua_newtable(L); // upvalue #1 (pg)
+        lua_newtable(L); // upvalue #2 (mt)
+        luabridge::lua_pushcclosure_x(L, &luabridge::detail::index_metamethod_simple<true>, "index_metamethod_simple_object", 2);
+
+        lua_pushvalue(L, -2); // self
+        lua_pushstring(L, key);
+        const int code = lua_pcall(L, 2, 1, 0);
+
+        lua_remove(L, -2); // remove self, keep result or error
+        return code == LUABRIDGE_LUA_OK;
+    };
+
+    // 1) Value found in self table branch.
+    auto tmpSelf = luabridge::newTable(L);
+    tmpSelf["selfField"] = 55;
+    luabridge::setGlobal(L, tmpSelf, "tmpSelf");
+
+    lua_getglobal(L, "tmpSelf"); // self
+    lua_newtable(L); // mt
+    lua_newtable(L); // propget
+    luabridge::lua_rawsetp_x(L, -2, luabridge::detail::getPropgetKey());
+    lua_setmetatable(L, -2);
+    lua_newtable(L);
+    lua_newtable(L);
+    luabridge::lua_pushcclosure_x(L, &luabridge::detail::index_metamethod_simple<true>, "index_metamethod_simple_object", 2);
+    lua_pushvalue(L, -2);
+    lua_pushstring(L, "selfField");
+    ASSERT_EQ(LUABRIDGE_LUA_OK, lua_pcall(L, 2, 1, 0));
+    ASSERT_TRUE(lua_isnumber(L, -1));
+    ASSERT_EQ(55, static_cast<int>(lua_tointeger(L, -1)));
+    lua_pop(L, 2);
+
+    // 2) Value found in metatable branch.
+    lua_newtable(L); // self
+    lua_newtable(L); // mt
+    lua_pushinteger(L, 66);
+    lua_setfield(L, -2, "metaField");
+    lua_newtable(L);
+    luabridge::lua_rawsetp_x(L, -2, luabridge::detail::getPropgetKey());
+    lua_setmetatable(L, -2);
+    lua_newtable(L);
+    lua_newtable(L);
+    luabridge::lua_pushcclosure_x(L, &luabridge::detail::index_metamethod_simple<true>, "index_metamethod_simple_object", 2);
+    lua_pushvalue(L, -2);
+    lua_pushstring(L, "metaField");
+    ASSERT_EQ(LUABRIDGE_LUA_OK, lua_pcall(L, 2, 1, 0));
+    ASSERT_TRUE(lua_isnumber(L, -1));
+    ASSERT_EQ(66, static_cast<int>(lua_tointeger(L, -1)));
+    lua_pop(L, 2);
+
+    // 3) Value resolved via propget callable branch.
+    ASSERT_TRUE(callIndex("viaGetter"));
+    ASSERT_TRUE(lua_isnumber(L, -1));
+    ASSERT_EQ(777, static_cast<int>(lua_tointeger(L, -1)));
+    lua_pop(L, 1);
+
+    // 4) Unknown key returns nil at final fallback.
+    ASSERT_TRUE(callIndex("doesNotExist"));
+    ASSERT_TRUE(lua_isnil(L, -1));
+    lua_pop(L, 1);
+}
+
+TEST_F(LuaBridgeTest, NewIndexMetamethodSimple_FallbackBranches)
+{
+    // Object variant fallback path (self is table).
+    {
+        lua_newtable(L); // self
+        lua_newtable(L); // mt
+        lua_newtable(L); // propset
+        luabridge::lua_pushcfunction_x(L, &testSetValueWithSelf, "testSetValueWithSelf");
+        lua_setfield(L, -2, "x");
+        luabridge::lua_rawsetp_x(L, -2, luabridge::detail::getPropsetKey());
+        lua_setmetatable(L, -2);
+
+        lua_newtable(L); // upvalue #1
+        luabridge::lua_pushcclosure_x(L, &luabridge::detail::newindex_metamethod_simple<true>, "newindex_metamethod_simple_object", 1);
+        lua_pushvalue(L, -2);
+        lua_pushstring(L, "x");
+        lua_pushinteger(L, 123);
+        ASSERT_EQ(LUABRIDGE_LUA_OK, lua_pcall(L, 3, 0, 0));
+        lua_pop(L, 1);
+
+        auto captured = luabridge::getGlobal(L, "captured");
+        ASSERT_TRUE(captured.isNumber());
+        ASSERT_EQ(123, captured.unsafe_cast<int>());
+    }
+
+    // Object variant fallback error when propset table exists but key is missing.
+    {
+        lua_newtable(L); // self
+        lua_newtable(L); // mt
+        lua_newtable(L); // propset
+        luabridge::lua_rawsetp_x(L, -2, luabridge::detail::getPropsetKey());
+        lua_setmetatable(L, -2);
+
+        lua_newtable(L); // upvalue #1
+        luabridge::lua_pushcclosure_x(L, &luabridge::detail::newindex_metamethod_simple<true>, "newindex_metamethod_simple_object", 1);
+        lua_pushvalue(L, -2);
+        lua_pushstring(L, "missing");
+        lua_pushinteger(L, 1);
+        ASSERT_NE(LUABRIDGE_LUA_OK, lua_pcall(L, 3, 0, 0));
+        auto err = lua_tostring(L, -1);
+        ASSERT_NE(nullptr, err);
+        EXPECT_TRUE(std::string(err).find("no writable member 'missing'") != std::string::npos);
+        lua_pop(L, 2);
+    }
+
+    // Static variant fallback path (self is userdata to bypass simple table fast path).
+    {
+        lua_newuserdata(L, 1); // self
+        lua_newtable(L); // mt
+        lua_newtable(L); // propset
+        luabridge::lua_pushcfunction_x(L, &testSetValueStatic, "testSetValueStatic");
+        lua_setfield(L, -2, "x");
+        luabridge::lua_rawsetp_x(L, -2, luabridge::detail::getPropsetKey());
+        lua_setmetatable(L, -2);
+
+        lua_newtable(L); // upvalue #1
+        luabridge::lua_pushcclosure_x(L, &luabridge::detail::newindex_metamethod_simple<false>, "newindex_metamethod_simple_static", 1);
+        lua_pushvalue(L, -2);
+        lua_pushstring(L, "x");
+        lua_pushinteger(L, 321);
+        ASSERT_EQ(LUABRIDGE_LUA_OK, lua_pcall(L, 3, 0, 0));
+        lua_pop(L, 1);
+
+        auto captured = luabridge::getGlobal(L, "captured");
+        ASSERT_TRUE(captured.isNumber());
+        ASSERT_EQ(321, captured.unsafe_cast<int>());
+    }
+}
+
+TEST_F(LuaBridgeTest, ReadOnlyErrorAndArgumentDecodeRaiseLuaError)
+{
+    // Explicitly exercise read_only_error -> raise_lua_error path.
+    lua_pushstring(L, "locked");
+    luabridge::lua_pushcclosure_x(L, &luabridge::detail::read_only_error, "read_only_error", 1);
+    ASSERT_NE(LUABRIDGE_LUA_OK, lua_pcall(L, 0, 0, 0));
+    {
+        auto err = lua_tostring(L, -1);
+        ASSERT_NE(nullptr, err);
+        EXPECT_TRUE(std::string(err).find("'locked' is read-only") != std::string::npos);
+    }
+    lua_pop(L, 1);
+
+    // Exercise argument decode error path in invocation wrappers (raise_lua_error at decode).
+    luabridge::getGlobalNamespace(L)
+        .addFunction("expectInt", +[](int) { return 0; });
+
+    auto [ok, err] = runLuaCaptureError("expectInt('not an int')");
+    EXPECT_FALSE(ok);
+    EXPECT_TRUE(err.find("Error decoding argument #1") != std::string::npos);
 }
 
 TEST_F(LuaBridgeTest, InvokePassingUnregisteredClassShouldThrowAndRestoreStack)
@@ -456,14 +745,13 @@ TEST_F(LuaBridgeTest, InvokePassingUnregisteredClassShouldThrowAndRestoreStack)
         auto f1 = luabridge::getGlobal(L, "f1");
 
 #if LUABRIDGE_HAS_EXCEPTIONS
-        EXPECT_THROW(luabridge::call(f1, unregistered), luabridge::LuaException);
+    EXPECT_THROW(f1.call(unregistered), luabridge::LuaException);
 #else
         int stackTop = lua_gettop(L);
         
-        auto result = luabridge::call(f1, unregistered);
-        EXPECT_TRUE(result.hasFailed());
-        EXPECT_FALSE(result.wasOk());
-        EXPECT_EQ(luabridge::makeErrorCode(luabridge::ErrorCode::ClassNotRegistered), result.errorCode());
+    auto result = f1.call(unregistered);
+    EXPECT_FALSE(result);
+    EXPECT_EQ(luabridge::makeErrorCode(luabridge::ErrorCode::ClassNotRegistered), result.error());
 
         EXPECT_EQ(stackTop, lua_gettop(L));
 #endif
