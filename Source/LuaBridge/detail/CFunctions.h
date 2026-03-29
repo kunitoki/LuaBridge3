@@ -883,10 +883,7 @@ inline int newindex_metamethod_simple(lua_State* L)
             const char* key = lua_tostring(L, 2);
 
             if (! lua_istable(L, lua_upvalueindex(1)))
-            {
                 luaL_error(L, "no writable member '%s'", key);
-                return 0;
-            }
 
             lua_pushvalue(L, 2); // Stack: key
             lua_rawget(L, lua_upvalueindex(1)); // Stack: setter | nil
@@ -900,7 +897,6 @@ inline int newindex_metamethod_simple(lua_State* L)
             }
 
             luaL_error(L, "no writable member '%s'", key);
-            return 0;
         }
     }
     else
@@ -911,10 +907,7 @@ inline int newindex_metamethod_simple(lua_State* L)
             const char* key = lua_tostring(L, 2);
 
             if (! lua_istable(L, lua_upvalueindex(1)))
-            {
                 luaL_error(L, "no writable member '%s'", key);
-                return 0;
-            }
 
             lua_pushvalue(L, 2); // Stack: key
             lua_rawget(L, lua_upvalueindex(1)); // Stack: setter | nil
@@ -927,7 +920,6 @@ inline int newindex_metamethod_simple(lua_State* L)
             }
 
             luaL_error(L, "no writable member '%s'", key);
-            return 0;
         }
     }
 
@@ -955,7 +947,6 @@ inline int newindex_metamethod_simple(lua_State* L)
     }
 
     luaL_error(L, "no writable member '%s'", key);
-    return 0;
 }
 
 //=================================================================================================

@@ -138,8 +138,6 @@ class Namespace : public detail::Registrar
         s = s + message;
 
         luaL_error(L, "%s", s.c_str());
-
-        return 0;
     }
 #endif
 
