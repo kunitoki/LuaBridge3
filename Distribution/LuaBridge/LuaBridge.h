@@ -3069,6 +3069,25 @@ public:
 namespace luabridge {
 namespace detail {
 
+template <class T>
+std::error_code getNilBadArgError(lua_State* L, int index)
+{
+    const std::string message = std::string(typeName<T>()) + " expected, got no value";
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    if (index > 0 && LuaException::areExceptionsEnabled(L))
+    {
+        lua_pushstring(L, message.c_str());
+        LuaException::raise(L, makeErrorCode(ErrorCode::InvalidTypeCast));
+    }
+#endif
+
+    if (index > 0)
+        luaL_argerror(L, lua_absindex(L, index), message.c_str());
+
+    return makeErrorCode(ErrorCode::InvalidTypeCast);
+}
+
 class Userdata
 {
 private:
@@ -3078,17 +3097,80 @@ private:
         return (void)classKey, static_cast<Userdata*>(lua_touserdata(L, lua_absindex(L, index)));
     }
 
-    static Userdata* getClass(lua_State* L,
-                              int index,
-                              const void* registryConstKey,
-                              const void* registryClassKey,
-                              bool canBeConst)
+    static std::error_code getClassErrorCode(lua_State* L, const void* registryClassKey)
+    {
+        lua_rawgetp_x(L, LUA_REGISTRYINDEX, registryClassKey);
+        const bool classIsRegistered = lua_istable(L, -1);
+        lua_pop(L, 1);
+
+        return makeErrorCode(classIsRegistered ? ErrorCode::InvalidTypeCast : ErrorCode::ClassNotRegistered);
+    }
+
+    static std::error_code getBadArgError(lua_State* L, int index, const void* registryClassKey)
+    {
+        const int absIndex = lua_absindex(L, index);
+
+        lua_rawgetp_x(L, LUA_REGISTRYINDEX, registryClassKey); 
+        const bool classIsRegistered = lua_istable(L, -1);
+
+        const char* expected = "unregistered class";
+        if (classIsRegistered)
+        {
+            lua_rawgetp_x(L, -1, getTypeKey()); 
+            if (lua_isstring(L, -1))
+                expected = lua_tostring(L, -1);
+            lua_pop(L, 1); 
+        }
+
+        const char* got = nullptr;
+        if (lua_isuserdata(L, absIndex))
+        {
+            lua_getmetatable(L, absIndex); 
+            if (lua_istable(L, -1))
+            {
+                lua_rawgetp_x(L, -1, getTypeKey()); 
+                if (lua_isstring(L, -1))
+                    got = lua_tostring(L, -1);
+
+                lua_pop(L, 1); 
+            }
+
+            lua_pop(L, 1); 
+        }
+
+        if (! got)
+            got = lua_typename(L, lua_type(L, absIndex));
+
+        lua_pop(L, 1); 
+
+    const auto errorCode = classIsRegistered ? ErrorCode::InvalidTypeCast : ErrorCode::ClassNotRegistered;
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    if (LuaException::areExceptionsEnabled(L))
+    {
+        const std::string message = std::string(expected) + " expected, got " + got;
+        lua_pushstring(L, message.c_str());
+
+        LuaException::raise(L, makeErrorCode(errorCode));
+    }
+#endif
+
+        return makeErrorCode(errorCode);
+    }
+
+    static TypeResult<Userdata*> getClass(lua_State* L,
+                                          int index,
+                                          const void* registryConstKey,
+                                          const void* registryClassKey,
+                                          bool canBeConst)
     {
         const int result = lua_getmetatable(L, index); 
         if (result == 0 || !lua_istable(L, -1))
         {
-            lua_rawgetp_x(L, LUA_REGISTRYINDEX, registryClassKey); 
-            return throwBadArg(L, index);
+            if (result != 0)
+                lua_pop(L, 1);
+
+            return getBadArgError(L, index, registryClassKey);
         }
 
         lua_rawgetp_x(L, -1, getConstKey()); 
@@ -3115,8 +3197,8 @@ private:
             if (lua_isnil(L, -1)) 
             {
                 
-                lua_pop(L, 2); 
-                return throwBadArg(L, index);
+                lua_pop(L, 3); 
+                return getBadArgError(L, index, registryClassKey);
             }
 
             lua_remove(L, -2); 
@@ -3161,48 +3243,6 @@ private:
 
     }
 
-    static Userdata* throwBadArg(lua_State* L, int index)
-    {
-        LUABRIDGE_ASSERT(lua_istable(L, -1) || lua_isnil(L, -1)); 
-
-        const char* expected = 0;
-        if (lua_isnil(L, -1)) 
-        {
-            expected = "unregistered class";
-        }
-        else
-        {
-            lua_rawgetp_x(L, -1, getTypeKey()); 
-            expected = lua_tostring(L, -1);
-            lua_pop(L, 1); 
-        }
-
-        const char* got = nullptr;
-        if (lua_isuserdata(L, index))
-        {
-            lua_getmetatable(L, index); 
-            if (lua_istable(L, -1)) 
-            {
-                lua_rawgetp_x(L, -1, getTypeKey()); 
-                if (lua_isstring(L, -1))
-                    got = lua_tostring(L, -1);
-
-                lua_pop(L, 1); 
-            }
-
-            lua_pop(L, 1); 
-        }
-
-        if (!got)
-        {
-            lua_pop(L, 1); 
-            got = lua_typename(L, lua_type(L, index));
-        }
-
-        luaL_argerror(L, index, lua_pushfstring(L, "%s expected, got %s", expected, got));
-        return nullptr;
-    }
-
 public:
     virtual ~Userdata() {}
 
@@ -3213,7 +3253,7 @@ public:
     }
 
     template <class T>
-    static T* get(lua_State* L, int index, bool canBeConst)
+    static TypeResult<T*> get(lua_State* L, int index, bool canBeConst)
     {
         if (lua_isnil(L, index))
             return nullptr;
@@ -3237,11 +3277,11 @@ public:
             lua_pop(L, 1);
         }
 
-        auto* clazz = getClass(L, absIndex, constId, classId, canBeConst);
+        auto clazz = getClass(L, absIndex, constId, classId, canBeConst);
         if (! clazz)
-            return nullptr;
+            return clazz.error();
 
-        return static_cast<T*>(clazz->getPointer());
+        return static_cast<T*>((*clazz)->getPointer());
     }
 
     template <class T>
@@ -3666,11 +3706,11 @@ struct StackHelper
     {
         using CastType = std::remove_const_t<typename ContainerTraits<T>::Type>;
 
-        auto* result = Userdata::get<CastType>(L, index, true);
+        auto result = Userdata::get<CastType>(L, index, true);
         if (! result)
-            return makeErrorCode(ErrorCode::InvalidTypeCast);
+            return result.error();
 
-        return ContainerTraits<T>::construct(result);
+        return ContainerTraits<T>::construct(*result);
     }
 };
 
@@ -3689,11 +3729,14 @@ struct StackHelper<T, false>
 
     static TypeResult<std::reference_wrapper<const T>> get(lua_State* L, int index)
     {
-        auto* result = Userdata::get<T>(L, index, true);
+        auto result = Userdata::get<T>(L, index, true);
         if (! result)
-            return makeErrorCode(ErrorCode::InvalidTypeCast); 
+            return result.error(); 
 
-        return std::cref(*result);
+        if (*result == nullptr)
+            return getNilBadArgError<T>(L, index);
+
+        return std::cref(**result);
     }
 };
 
@@ -3710,11 +3753,11 @@ struct RefStackHelper
 
     static ReturnType get(lua_State* L, int index)
     {
-        auto* result = Userdata::get<T>(L, index, true);
+        auto result = Userdata::get<T>(L, index, true);
         if (! result)
-            return makeErrorCode(ErrorCode::InvalidTypeCast);
+            return result.error();
 
-        return ContainerTraits<C>::construct(result);
+        return ContainerTraits<C>::construct(*result);
     }
 };
 
@@ -3735,11 +3778,14 @@ struct RefStackHelper<T, false>
 
     static ReturnType get(lua_State* L, int index)
     {
-        auto* result = Userdata::get<T>(L, index, true);
+        auto result = Userdata::get<T>(L, index, true);
         if (! result)
-            return makeErrorCode(ErrorCode::InvalidTypeCast); 
+            return result.error(); 
 
-        return std::ref(*result);
+        if (*result == nullptr)
+            return getNilBadArgError<T>(L, index);
+
+        return std::ref(**result);
     }
 };
 
@@ -3750,11 +3796,11 @@ struct UserdataGetter
 
     static ReturnType get(lua_State* L, int index)
     {
-        auto* result = Userdata::get<T>(L, index, true);
+        auto result = Userdata::get<T>(L, index, true);
         if (! result)
-            return makeErrorCode(ErrorCode::InvalidTypeCast);
+            return result.error();
 
-        return result;
+        return *result;
     }
 };
 
@@ -3839,7 +3885,14 @@ struct StackOpSelector<const T*, true>
 
     static Result push(lua_State* L, const T* value) { return UserdataPtr::push(L, value); }
 
-    static ReturnType get(lua_State* L, int index) { return Userdata::get<T>(L, index, true); }
+    static ReturnType get(lua_State* L, int index)
+    {
+        auto result = Userdata::get<T>(L, index, true);
+        if (! result)
+            return result.error();
+
+        return *result;
+    }
 
     template <class U = T>
     static bool isInstance(lua_State* L, int index) { return Userdata::isInstance<U>(L, index); }
@@ -6874,6 +6927,9 @@ inline int newindex_metamethod_simple(lua_State* L)
         {
             const char* key = lua_tostring(L, 2);
 
+            if (! lua_istable(L, lua_upvalueindex(1)))
+                luaL_error(L, "no writable member '%s'", key);
+
             lua_pushvalue(L, 2); 
             lua_rawget(L, lua_upvalueindex(1)); 
 
@@ -6886,7 +6942,6 @@ inline int newindex_metamethod_simple(lua_State* L)
             }
 
             luaL_error(L, "no writable member '%s'", key);
-            return 0;
         }
     }
     else
@@ -6895,6 +6950,9 @@ inline int newindex_metamethod_simple(lua_State* L)
         if (lua_istable(L, 1))
         {
             const char* key = lua_tostring(L, 2);
+
+            if (! lua_istable(L, lua_upvalueindex(1)))
+                luaL_error(L, "no writable member '%s'", key);
 
             lua_pushvalue(L, 2); 
             lua_rawget(L, lua_upvalueindex(1)); 
@@ -6907,7 +6965,6 @@ inline int newindex_metamethod_simple(lua_State* L)
             }
 
             luaL_error(L, "no writable member '%s'", key);
-            return 0;
         }
     }
 
@@ -6935,7 +6992,6 @@ inline int newindex_metamethod_simple(lua_State* L)
     }
 
     luaL_error(L, "no writable member '%s'", key);
-    return 0;
 }
 
 inline int read_only_error(lua_State* L)
@@ -7028,7 +7084,9 @@ struct property_getter
 {
     static int call(lua_State* L)
     {
-        C* c = Userdata::get<C>(L, 1, true);
+        auto c = Userdata::get<C>(L, 1, true);
+        if (! c)
+            raise_lua_error(L, "%s", c.error_cstr());
 
         T C::** mp = static_cast<T C::**>(lua_touserdata(L, lua_upvalueindex(1)));
 
@@ -7038,7 +7096,7 @@ struct property_getter
         try
         {
 #endif
-            result = Stack<T&>::push(L, c->**mp);
+            result = Stack<T&>::push(L, (*c)->**mp);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
@@ -7099,7 +7157,9 @@ struct property_setter
 {
     static int call(lua_State* L)
     {
-        C* c = Userdata::get<C>(L, 1, false);
+        auto c = Userdata::get<C>(L, 1, false);
+        if (! c)
+            raise_lua_error(L, "%s", c.error_cstr());
 
         T C::** mp = static_cast<T C::**>(lua_touserdata(L, lua_upvalueindex(1)));
 
@@ -7111,7 +7171,7 @@ struct property_setter
             if (! result)
                 raise_lua_error(L, "%s", result.error_cstr());
 
-            c->** mp = std::move(*result);
+            (*c)->** mp = std::move(*result);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
@@ -7282,12 +7342,14 @@ int invoke_member_function(lua_State* L)
 
     LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
-    T* ptr = Userdata::get<T>(L, 1, false);
+    auto ptr = Userdata::get<T>(L, 1, false);
+    if (! ptr)
+        raise_lua_error(L, "%s", ptr.error_cstr());
 
     const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
     LUABRIDGE_ASSERT(func != nullptr);
 
-    return function<typename FnTraits::result_type, typename FnTraits::argument_types, 2>::call(L, ptr, func);
+    return function<typename FnTraits::result_type, typename FnTraits::argument_types, 2>::call(L, *ptr, func);
 }
 
 template <class F, class T>
@@ -7297,12 +7359,14 @@ int invoke_const_member_function(lua_State* L)
 
     LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
-    const T* ptr = Userdata::get<T>(L, 1, true);
+    auto ptr = Userdata::get<T>(L, 1, true);
+    if (! ptr)
+        raise_lua_error(L, "%s", ptr.error_cstr());
 
     const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
     LUABRIDGE_ASSERT(func != nullptr);
 
-    return function<typename FnTraits::result_type, typename FnTraits::argument_types, 2>::call(L, ptr, func);
+    return function<typename FnTraits::result_type, typename FnTraits::argument_types, 2>::call(L, *ptr, func);
 }
 
 template <class T>
@@ -7312,7 +7376,9 @@ int invoke_member_cfunction(lua_State* L)
 
     LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
-    T* t = Userdata::get<T>(L, 1, false);
+    auto t = Userdata::get<T>(L, 1, false);
+    if (! t)
+        raise_lua_error(L, "%s", t.error_cstr());
 
     const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
     LUABRIDGE_ASSERT(func != nullptr);
@@ -7321,7 +7387,7 @@ int invoke_member_cfunction(lua_State* L)
     try
     {
 #endif
-        return (t->*func)(L);
+        return ((*t)->*func)(L);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
     }
@@ -7341,7 +7407,9 @@ int invoke_const_member_cfunction(lua_State* L)
 
     LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
-    const T* t = Userdata::get<T>(L, 1, true);
+    auto t = Userdata::get<T>(L, 1, true);
+    if (! t)
+        raise_lua_error(L, "%s", t.error_cstr());
 
     const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
     LUABRIDGE_ASSERT(func != nullptr);
@@ -7350,7 +7418,7 @@ int invoke_const_member_cfunction(lua_State* L)
     try
     {
 #endif
-        return (t->*func)(L);
+        return ((*t)->*func)(L);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
     }
@@ -8192,11 +8260,11 @@ struct destructor_forwarder
 
     void operator()(lua_State* L)
     {
-        auto* value = Userdata::get<T>(L, -1, false);
-        if (value == nullptr)
-            raise_lua_error(L, "invalid object destruction");
+        auto value = Userdata::get<T>(L, -1, false);
+        if (! value)
+            raise_lua_error(L, "%s", value.error_cstr());
 
-        std::invoke(m_func, value);
+        std::invoke(m_func, *value);
     }
 
 private:
@@ -8968,6 +9036,39 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         LuaRef rawget(const T& key) const
         {
             return LuaRef(*this).rawget(key);
+        }
+
+        template <class T>
+        T unsafeRawgetField(const char* key) const
+        {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+            luaL_checkstack(m_L, 3, detail::error_lua_stack_overflow);
+#endif
+
+            push(m_L);
+            lua_pushstring(m_L, key);
+            lua_rawget(m_L, -2);
+
+            auto result = Stack<T>::get(m_L, -1);
+            lua_pop(m_L, 2);
+
+            return result.value();
+        }
+
+        template <class T>
+        void unsafeRawsetField(const char* key, T&& value) const
+        {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+            luaL_checkstack(m_L, 3, detail::error_lua_stack_overflow);
+#endif
+
+            push(m_L);
+            lua_pushstring(m_L, key);
+            [[maybe_unused]] const auto pushed = Stack<std::decay_t<T>>::push(m_L, std::forward<T>(value));
+            LUABRIDGE_ASSERT(static_cast<bool>(pushed));
+
+            lua_rawset(m_L, -3);
+            lua_pop(m_L, 1);
         }
 
     private:
@@ -9918,8 +10019,6 @@ class Namespace : public detail::Registrar
         s = s + message;
 
         luaL_error(L, "%s", s.c_str());
-
-        return 0;
     }
 #endif
 
