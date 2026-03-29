@@ -970,6 +970,41 @@ TEST_F(LuaRefTests, UnsafeRawgetFieldBypassesIndexMetamethod)
     EXPECT_EQ(0, luabridge::getGlobal(L, "indexCalls").unsafe_cast<int>());
 }
 
+TEST_F(LuaRefTests, UserdataIndexMetamethodPropgetFastPath)
+{
+    struct PropsClass
+    {
+        int value = 7;
+    };
+
+    int getterCalls = 0;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<PropsClass>("PropsClass")
+        .addConstructor<void (*)()>()
+        .addProperty("tracked", [&getterCalls](const PropsClass* self) {
+            ++getterCalls;
+            return self->value;
+        })
+        .endClass();
+
+    runLua("obj = PropsClass(); result = obj");
+    auto obj = result();
+    ASSERT_TRUE(obj.isUserdata());
+
+    auto tracked = obj["tracked"];
+    auto trackedValue = luabridge::LuaRef(tracked);
+    ASSERT_TRUE(trackedValue.isNumber());
+    EXPECT_EQ(7, luabridge::unsafe_cast<int>(trackedValue));
+    EXPECT_EQ(1, getterCalls);
+
+    // Missing key exercises the propget fast-path miss branch (line 556 pop) and falls through to nil.
+    auto missing = obj["definitely_missing"];
+    auto missingValue = luabridge::LuaRef(missing);
+    EXPECT_TRUE(missingValue.isNil());
+    EXPECT_EQ(1, getterCalls);
+}
+
 TEST_F(LuaRefTests, TableItemNestedRawHelpersAndCopy)
 {
     runLua("result = { outer = { value = 10 } }");
@@ -989,7 +1024,7 @@ TEST_F(LuaRefTests, TableItemNestedRawHelpersAndCopy)
 
     auto rawField = replacedOuter.rawget("value");
     ASSERT_TRUE(rawField.isNumber());
-    EXPECT_EQ(77, rawField.unsafe_cast<int>());
+    EXPECT_EQ(77, luabridge::cast<int>(rawField).valueOr(0));
 }
 
 TEST_F(LuaRefTests, TableItemOperatorIndexAdoptPathAndRawRoundTrip)
@@ -1006,7 +1041,7 @@ TEST_F(LuaRefTests, TableItemOperatorIndexAdoptPathAndRawRoundTrip)
 
     auto fromRaw = outer.rawget(childKey);
     ASSERT_TRUE(fromRaw.isNumber());
-    EXPECT_EQ(19, fromRaw.unsafe_cast<int>());
+    EXPECT_EQ(19, luabridge::unsafe_cast<int>(fromRaw));
 
     child.rawset(luabridge::newTable(L));
 
