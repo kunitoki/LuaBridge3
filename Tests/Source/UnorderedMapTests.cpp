@@ -121,14 +121,14 @@ TEST_F(UnorderedMapTests, PassToFunction)
     resetResult();
 
     Int2Bool lvalue{{10, false}, {20, true}, {30, true}};
-    foo(lvalue);
+    ASSERT_TRUE(foo.call(lvalue));
     ASSERT_TRUE(result().isTable());
     ASSERT_EQ(lvalue, result<Int2Bool>());
 
     resetResult();
 
     const Int2Bool constLvalue = lvalue;
-    foo(constLvalue);
+    ASSERT_TRUE(foo.call(constLvalue));
     ASSERT_TRUE(result().isTable());
     ASSERT_EQ(constLvalue, result<Int2Bool>());
 }

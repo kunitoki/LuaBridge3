@@ -164,6 +164,62 @@ private:
     Expected<T, std::error_code> m_value;
 };
 
+template <>
+struct TypeResult<void>
+{
+    TypeResult() noexcept = default;
+
+    TypeResult(std::error_code ec) noexcept
+        : m_ec(ec)
+    {
+    }
+
+    TypeResult(const TypeResult&) noexcept = default;
+    TypeResult(TypeResult&&) noexcept = default;
+    TypeResult& operator=(const TypeResult&) noexcept = default;
+    TypeResult& operator=(TypeResult&&) noexcept = default;
+
+    explicit operator bool() const noexcept
+    {
+        return ! m_ec;
+    }
+
+    void value() const noexcept
+    {
+    }
+
+    std::error_code error() const noexcept
+    {
+        return m_ec;
+    }
+
+    const char* error_cstr() const noexcept
+    {
+        return detail::ErrorCategory::errorString(m_ec.value());
+    }
+
+    operator std::error_code() const noexcept
+    {
+        return m_ec;
+    }
+
+    std::string message() const
+    {
+        return m_ec.message();
+    }
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    void throw_on_error() const
+    {
+        if (m_ec)
+            throw std::system_error(m_ec);
+    }
+#endif
+
+private:
+    std::error_code m_ec;
+};
+
 template <class U>
 inline bool operator==(const TypeResult<U>& lhs, const U& rhs) noexcept
 {

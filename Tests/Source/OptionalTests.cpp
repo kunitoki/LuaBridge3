@@ -255,14 +255,14 @@ TEST_F(OptionalTests, PassToFunction)
         resetResult();
 
         std::optional<int> lvalue{ 10 };
-        foo(lvalue);
+        ASSERT_TRUE(foo.call(lvalue));
         EXPECT_FALSE(result().isNil());
         EXPECT_EQ(lvalue, result<std::optional<int>>());
 
         resetResult();
 
         const std::optional<int> constLvalue = lvalue;
-        foo(constLvalue);
+        ASSERT_TRUE(foo.call(constLvalue));
         EXPECT_FALSE(result().isNil());
         EXPECT_EQ(lvalue, result<std::optional<int>>());
     }
@@ -271,14 +271,14 @@ TEST_F(OptionalTests, PassToFunction)
         resetResult();
 
         std::optional<std::string> lvalue;
-        foo(lvalue);
+        ASSERT_TRUE(foo.call(lvalue));
         EXPECT_TRUE(result().isNil());
         EXPECT_FALSE(result<std::optional<std::string>>());
 
         resetResult();
 
         const std::optional<std::string> constLvalue = lvalue;
-        foo(constLvalue);
+        ASSERT_TRUE(foo.call(constLvalue));
         EXPECT_TRUE(result().isNil());
         EXPECT_FALSE(result<std::optional<std::string>>());
     }
