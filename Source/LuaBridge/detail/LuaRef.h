@@ -23,7 +23,8 @@
 
 namespace luabridge {
 
-class LuaResult;
+template <class Signature>
+class LuaFunction;
 
 //=================================================================================================
 /**
@@ -619,22 +620,36 @@ public:
 
     //=============================================================================================
     /**
-     * @brief Call Lua code.
+     * @brief Call Lua code and decode the first return value to R.
      *
-     * The return value is provided as a LuaRef (which may be LUA_REFNIL).
-     *
-     * If an error occurs, a LuaException is thrown (only if exceptions are enabled).
-     *
-     * @returns A result of the call.
+     * For tuple types, each tuple element is decoded from a distinct Lua return value.
+     */
+    template <class R = void, class... Args>
+    TypeResult<R> call(Args&&... args) const;
+
+    /**
+     * @brief Call Lua code assuming no return values.
      */
     template <class... Args>
-    LuaResult operator()(Args&&... args) const;
+    TypeResult<void> operator()(Args&&... args) const;
 
-    template <class... Args>
-    LuaResult call(Args&&... args) const;
+    /**
+     * @brief Call Lua code with an explicit error handler and decode the return type.
+     */
+    template <class R, class F, class... Args>
+    TypeResult<R> callWithHandler(F&& errorHandler, Args&&... args) const;
 
+    /**
+     * @brief Call Lua code with an explicit error handler and no return values.
+     */
     template <class F, class... Args>
-    LuaResult callWithHandler(F&& errorHandler, Args&&... args) const;
+    TypeResult<void> callWithHandler(F&& errorHandler, Args&&... args) const;
+
+    /**
+     * @brief Build a typed callable wrapper from this Lua object.
+     */
+    template <class Signature>
+    LuaFunction<Signature> callable() const;
 
 protected:
     lua_State* m_L = nullptr;

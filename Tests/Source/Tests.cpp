@@ -397,7 +397,7 @@ TEST_F(LuaBridgeTest, PropertyGetterFailOnUnregisteredClass)
 #endif
 }
 
-TEST_F(LuaBridgeTest, CallReturnLuaResult)
+TEST_F(LuaBridgeTest, CallReturnTypeResult)
 {
     runLua("function f1 (arg0, arg1) end");
     runLua("function f2 (arg0, arg1) return arg0; end");
@@ -406,42 +406,32 @@ TEST_F(LuaBridgeTest, CallReturnLuaResult)
 
     {
         auto f1 = luabridge::getGlobal(L, "f1");
-        auto result = luabridge::call(f1, 1, 2);
-        EXPECT_FALSE(result.hasFailed());
-        EXPECT_TRUE(result.wasOk());
-        EXPECT_EQ(std::error_code(), result.errorCode());
+        auto result = f1.call<std::tuple<>>(1, 2);
+        EXPECT_TRUE(result);
+        EXPECT_EQ(std::tuple<>{}, *result);
     }
 
     {
         auto f2 = luabridge::getGlobal(L, "f2");
-        auto result = luabridge::call(f2, 1, 2);
-        EXPECT_FALSE(result.hasFailed());
-        EXPECT_TRUE(result.wasOk());
-        EXPECT_EQ(std::error_code(), result.errorCode());
-        EXPECT_EQ(1u, result.size());
-        EXPECT_EQ(result[0], 1);
+        auto result = f2.call<int>(1, 2);
+        ASSERT_TRUE(result);
+        EXPECT_EQ(1, *result);
     }
 
     {
         auto f3 = luabridge::getGlobal(L, "f3");
-        auto result = luabridge::call(f3, 1, 2);
-        EXPECT_FALSE(result.hasFailed());
-        EXPECT_TRUE(result.wasOk());
-        EXPECT_EQ(std::error_code(), result.errorCode());
-        EXPECT_EQ(2u, result.size());
-        EXPECT_EQ(result[0], 1);
-        EXPECT_EQ(result[1], 2);
+        auto result = f3.call<std::tuple<int, int>>(1, 2);
+        ASSERT_TRUE(result);
+        EXPECT_EQ(1, std::get<0>(*result));
+        EXPECT_EQ(2, std::get<1>(*result));
     }
 
 #if ! LUABRIDGE_HAS_EXCEPTIONS
     {
         auto f3 = luabridge::getGlobal(L, "f4");
-        auto result = luabridge::call(f3);
-        EXPECT_TRUE(result.hasFailed());
-        EXPECT_FALSE(result.wasOk());
-        EXPECT_EQ(0u, result.size());
-        EXPECT_NE(std::error_code(), result.errorCode());
-        EXPECT_NE(std::string::npos, result.errorMessage().find("Something bad happened"));
+        auto result = f3.call();
+        EXPECT_FALSE(result);
+        EXPECT_EQ(luabridge::makeErrorCode(luabridge::ErrorCode::LuaFunctionCallFailed), result.error());
     }
 #endif
 }
@@ -456,14 +446,13 @@ TEST_F(LuaBridgeTest, InvokePassingUnregisteredClassShouldThrowAndRestoreStack)
         auto f1 = luabridge::getGlobal(L, "f1");
 
 #if LUABRIDGE_HAS_EXCEPTIONS
-        EXPECT_THROW(luabridge::call(f1, unregistered), luabridge::LuaException);
+    EXPECT_THROW(f1.call(unregistered), luabridge::LuaException);
 #else
         int stackTop = lua_gettop(L);
         
-        auto result = luabridge::call(f1, unregistered);
-        EXPECT_TRUE(result.hasFailed());
-        EXPECT_FALSE(result.wasOk());
-        EXPECT_EQ(luabridge::makeErrorCode(luabridge::ErrorCode::ClassNotRegistered), result.errorCode());
+    auto result = f1.call(unregistered);
+    EXPECT_FALSE(result);
+    EXPECT_EQ(luabridge::makeErrorCode(luabridge::ErrorCode::ClassNotRegistered), result.error());
 
         EXPECT_EQ(stackTop, lua_gettop(L));
 #endif

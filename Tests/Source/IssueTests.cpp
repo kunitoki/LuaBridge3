@@ -179,23 +179,23 @@ TEST_F(IssueTests, Issue8)
     luabridge::LuaRef func = luabridge::getGlobal(L, "HelloWorld");
 
     {
-        auto result = func("helloworld");
-        ASSERT_EQ(1, result.size());
-        ASSERT_STREQ("helloworld", result[0].unsafe_cast<const char*>());
+        auto result = func.call<std::string>("helloworld");
+        ASSERT_TRUE(result);
+        ASSERT_EQ("helloworld", *result);
     }
 
     {
         const char* str = "helloworld";
-        auto result = func(str);
-        ASSERT_EQ(1, result.size());
-        ASSERT_STREQ("helloworld", result[0].unsafe_cast<const char*>());
+        auto result = func.call<std::string>(str);
+        ASSERT_TRUE(result);
+        ASSERT_EQ("helloworld", *result);
     }
 
     {
         std::string str = "helloworld";
-        auto result = func(std::move(str));
-        ASSERT_EQ(1, result.size());
-        ASSERT_STREQ("helloworld", result[0].unsafe_cast<const char*>());
+        auto result = func.call<std::string>(std::move(str));
+        ASSERT_TRUE(result);
+        ASSERT_EQ("helloworld", *result);
     }
 }
 
@@ -212,7 +212,7 @@ struct SomeClass
     void SomeMember()
     {
         if (override_.isFunction())
-            override_();
+            override_.call();
     }
 };
 } // namespace
@@ -264,5 +264,5 @@ TEST_F(IssueTests, IssueMainThread)
     }
 
     luabridge::LuaRef test = luabridge::getGlobal(L, "test");
-    test();
+    EXPECT_TRUE(test.call());
 }

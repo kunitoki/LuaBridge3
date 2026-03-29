@@ -53,7 +53,7 @@ TYPED_TEST_P(PairTest, push)
         this->runLua("result = nil; function func(data) result = data end");
 
         luabridge::LuaRef func = luabridge::getGlobal(this->L, "func");
-        func(data);
+        ASSERT_TRUE(func.call(data));
 
         Pair const actual = this->result();
         ASSERT_EQ(actual, data);

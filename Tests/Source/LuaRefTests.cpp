@@ -183,14 +183,9 @@ TEST_F(LuaRefTests, ValueAccess)
            "  return i "
            "end");
     EXPECT_TRUE(result().isFunction());
-    auto fnResult = result()(41); // Replaces result variable
-    EXPECT_TRUE(fnResult);
-    EXPECT_TRUE(fnResult.size());
-    EXPECT_TRUE(fnResult[0].isNumber());
-    ASSERT_EQ(41, fnResult[0].unsafe_cast<int>());
-    ASSERT_EQ(41, *fnResult[0].cast<int>());
-    ASSERT_EQ(41, luabridge::unsafe_cast<int>(fnResult[0]));
-    ASSERT_EQ(41, *luabridge::cast<int>(fnResult[0]));
+    auto fnResult = result().call<int>(41); // Replaces result variable
+    ASSERT_TRUE(fnResult);
+    ASSERT_EQ(41, *fnResult);
     EXPECT_TRUE(result().isNumber());
     ASSERT_EQ(42, result<int>());
 }
@@ -237,11 +232,9 @@ TEST_F(LuaRefTests, DictionaryRead)
     ASSERT_STREQ("abc", result()[8].unsafe_cast<char const*>());
 
     EXPECT_TRUE(result()["fn"].isFunction());
-    auto fnResult = result()["fn"](41); // Replaces result variable
-    EXPECT_TRUE(fnResult);
-    EXPECT_TRUE(fnResult.size());
-    EXPECT_TRUE(fnResult[0].isNumber());
-    ASSERT_EQ(41, fnResult[0].unsafe_cast<int>());
+    auto fnResult = result()["fn"].call<int>(41); // Replaces result variable
+    ASSERT_TRUE(fnResult);
+    ASSERT_EQ(41, *fnResult);
     EXPECT_TRUE(result().isNumber());
     ASSERT_EQ(42, result<int>());
 }
@@ -506,7 +499,7 @@ TEST_F(LuaRefTests, Callable)
     auto obj = luabridge::getGlobal(L, "obj");
     EXPECT_TRUE(obj.isCallable());
     EXPECT_EQ(100, obj["i"].unsafe_cast<int>());
-    obj();
+    EXPECT_TRUE(obj.call());
     EXPECT_EQ(200, obj["i"].unsafe_cast<int>());
 }
 
@@ -534,7 +527,7 @@ TEST_F(LuaRefTests, CallableWithHandler)
         return 0;
     };
 
-    auto result = f.callWithHandler(handler, "badly");
+    auto result = f.callWithHandler<std::tuple<>>(handler, "badly");
     EXPECT_FALSE(result);
     EXPECT_TRUE(calledHandler);
     EXPECT_TRUE(errorMessage.find("we failed badly") != std::string::npos);
@@ -763,7 +756,7 @@ TEST_F(LuaRefTests, HookTesting)
     )");
 
     for (auto& func : hooklist) {
-        func.second(0, "x");
+        EXPECT_TRUE(func.second.call(0, "x"));
     }
 }
 

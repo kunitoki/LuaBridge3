@@ -159,6 +159,50 @@ class Namespace : public detail::Registrar
         using Registrar::operator=;
 
     protected:
+        void setObjectMetaMethods(int tableIndex, bool simple)
+        {
+            tableIndex = lua_absindex(L, tableIndex);
+
+            if (simple)
+            {
+                lua_pushcfunction_x(L, &detail::index_metamethod_simple<true>, "__index");
+                rawsetfield(L, tableIndex, "__index");
+
+                lua_pushcfunction_x(L, &detail::newindex_metamethod_simple<true>, "__newindex");
+                rawsetfield(L, tableIndex, "__newindex");
+            }
+            else
+            {
+                lua_pushcfunction_x(L, &detail::index_metamethod<true>, "__index");
+                rawsetfield(L, tableIndex, "__index");
+
+                lua_pushcfunction_x(L, &detail::newindex_metamethod<true>, "__newindex");
+                rawsetfield(L, tableIndex, "__newindex");
+            }
+        }
+
+        void setStaticMetaMethods(int tableIndex, bool simple)
+        {
+            tableIndex = lua_absindex(L, tableIndex);
+
+            if (simple)
+            {
+                lua_pushcfunction_x(L, &detail::index_metamethod_simple<false>, "__index");
+                rawsetfield(L, tableIndex, "__index");
+
+                lua_pushcfunction_x(L, &detail::newindex_metamethod_simple<false>, "__newindex");
+                rawsetfield(L, tableIndex, "__newindex");
+            }
+            else
+            {
+                lua_pushcfunction_x(L, &detail::index_metamethod<false>, "__index");
+                rawsetfield(L, tableIndex, "__index");
+
+                lua_pushcfunction_x(L, &detail::newindex_metamethod<false>, "__newindex");
+                rawsetfield(L, tableIndex, "__newindex");
+            }
+        }
+
         //=========================================================================================
         /**
          * @brief Create the const table.
@@ -181,11 +225,7 @@ class Namespace : public detail::Registrar
             lua_pushstring(L, type_name.c_str()); // Stack: ns, co, name
             lua_rawsetp_x(L, -2, detail::getTypeKey()); // co [typeKey] = name. Stack: ns, co
 
-            lua_pushcfunction_x(L, &detail::index_metamethod<true>, "__index"); // Stack: ns, co, im
-            rawsetfield(L, -2, "__index"); // Stack: ns, co
-
-            lua_pushcfunction_x(L, &detail::newindex_metamethod<true>, "__newindex"); // Stack: ns, co, nim
-            rawsetfield(L, -2, "__newindex"); // Stack: ns, co
+            setObjectMetaMethods(-1, ! options.test(extensibleClass)); // Stack: ns, co
 
             lua_newtable(L); // Stack: ns, co, tb
             lua_rawsetp_x(L, -2, detail::getPropgetKey()); // Stack: ns, co
@@ -242,11 +282,7 @@ class Namespace : public detail::Registrar
             pushunsigned(L, options.toUnderlying()); // Stack: ns, co, cl, st, mt, options
             lua_rawsetp_x(L, -2, detail::getClassOptionsKey()); // st [classOptionsKey] = options. Stack: ns, co, cl, st, mt
 
-            lua_pushcfunction_x(L, &detail::index_metamethod<false>, "__index");
-            rawsetfield(L, -2, "__index");
-
-            lua_pushcfunction_x(L, &detail::newindex_metamethod<false>, "__newindex");
-            rawsetfield(L, -2, "__newindex");
+            setStaticMetaMethods(-1, ! options.test(extensibleClass));
 
             lua_newtable(L); // Stack: ns, co, cl, st, proget table (pg)
             lua_rawsetp_x(L, -2, detail::getPropgetKey()); // st [propgetKey] = pg. Stack: ns, co, cl, st
@@ -326,6 +362,12 @@ class Namespace : public detail::Registrar
 
                 createClassTable(name, options); // Stack: ns, co, class table (cl)
                 ++m_stackSize;
+
+                lua_pushlightuserdata(L, const_cast<void*>(detail::getConstRegistryKey<T>())); // Stack: ns, co, cl, id
+                lua_rawsetp_x(L, -3, detail::getTypeIdentityKey()); // co[typeIdentityKey] = const id. Stack: ns, co, cl
+                lua_pushlightuserdata(L, const_cast<void*>(detail::getClassRegistryKey<T>())); // Stack: ns, co, cl, id
+                lua_rawsetp_x(L, -2, detail::getTypeIdentityKey()); // cl[typeIdentityKey] = class id. Stack: ns, co, cl
+
 #if !defined(LUABRIDGE_ON_LUAU)
                 lua_pushcfunction_x(L, &detail::gc_metamethod<T>, "__gc"); // Stack: ns, co, cl, function
                 rawsetfield(L, -2, "__gc"); // cl ["__gc"] = function. Stack: ns, co, cl
@@ -397,6 +439,12 @@ class Namespace : public detail::Registrar
 
             createClassTable(name, options); // Stack: ns, co, class table (cl)
             ++m_stackSize;
+
+            lua_pushlightuserdata(L, const_cast<void*>(detail::getConstRegistryKey<T>())); // Stack: ns, co, cl, id
+            lua_rawsetp_x(L, -3, detail::getTypeIdentityKey()); // co[typeIdentityKey] = const id. Stack: ns, co, cl
+            lua_pushlightuserdata(L, const_cast<void*>(detail::getClassRegistryKey<T>())); // Stack: ns, co, cl, id
+            lua_rawsetp_x(L, -2, detail::getTypeIdentityKey()); // cl[typeIdentityKey] = class id. Stack: ns, co, cl
+
 #if !defined(LUABRIDGE_ON_LUAU)
             lua_pushcfunction_x(L, &detail::gc_metamethod<T>, "__gc"); // Stack: ns, co, cl, function
             rawsetfield(L, -2, "__gc"); // cl ["__gc"] = function. Stack: ns, co, cl
@@ -432,6 +480,10 @@ class Namespace : public detail::Registrar
             lua_rawsetp_x(L, -6, detail::getParentKey()); // co [parentKey] = pco. Stack: ns, co, cl, st, pst, pcl
             lua_rawsetp_x(L, -4, detail::getParentKey()); // cl [parentKey] = pcl. Stack: ns, co, cl, st, pst
             lua_rawsetp_x(L, -2, detail::getParentKey()); // st [parentKey] = pst. Stack: ns, co, cl, st
+
+            setObjectMetaMethods(-3, false); // co
+            setObjectMetaMethods(-2, false); // cl
+            setStaticMetaMethods(-1, false); // st
 
             lua_pushvalue(L, -1); // Stack: ns, co, cl, st, st
             lua_rawsetp_x(L, LUA_REGISTRYINDEX, detail::getStaticRegistryKey<T>()); // Stack: ns, co, cl, st
@@ -569,6 +621,7 @@ class Namespace : public detail::Registrar
             lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: co, cl, st, function userdata (ud)
             lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, "__index", 1); // Stack: co, cl, st, function
             lua_rawsetp_x(L, -2, detail::getStaticIndexFallbackKey());
+            setStaticMetaMethods(-1, false);
 
             return *this;
         }
@@ -582,6 +635,7 @@ class Namespace : public detail::Registrar
             lua_pushlightuserdata(L, reinterpret_cast<void*>(idxf)); // Stack: co, cl, st, function ptr
             lua_pushcclosure_x(L, &detail::invoke_proxy_function<FnType>, "__index", 1); // Stack: co, cl, st, function
             lua_rawsetp_x(L, -2, detail::getStaticIndexFallbackKey());
+            setStaticMetaMethods(-1, false);
 
             return *this;
         }
@@ -604,6 +658,7 @@ class Namespace : public detail::Registrar
             lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: co, cl, st, function userdata (ud)
             lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, "__newindex", 1); // Stack: co, cl, st, function
             lua_rawsetp_x(L, -2, detail::getStaticNewIndexFallbackKey());
+            setStaticMetaMethods(-1, false);
 
             return *this;
         }
@@ -617,6 +672,7 @@ class Namespace : public detail::Registrar
             lua_pushlightuserdata(L, reinterpret_cast<void*>(idxf)); // Stack: co, cl, st, function ptr
             lua_pushcclosure_x(L, &detail::invoke_proxy_function<FnType>, "__newindex", 1); // Stack: co, cl, st, function
             lua_rawsetp_x(L, -2, detail::getStaticNewIndexFallbackKey());
+            setStaticMetaMethods(-1, false);
 
             return *this;
         }
@@ -1063,6 +1119,7 @@ class Namespace : public detail::Registrar
             lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: co, cl, st, function userdata (ud)
             lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, "__index", 1); // Stack: co, cl, st, function
             lua_rawsetp_x(L, -3, detail::getIndexFallbackKey());
+            setObjectMetaMethods(-2, false);
 
             return *this;
         }
@@ -1076,6 +1133,7 @@ class Namespace : public detail::Registrar
             lua_pushlightuserdata(L, reinterpret_cast<void*>(idxf)); // Stack: co, cl, st, function ptr
             lua_pushcclosure_x(L, &detail::invoke_proxy_function<FnType>, "__index", 1); // Stack: co, cl, st, function
             lua_rawsetp_x(L, -3, detail::getIndexFallbackKey());
+            setObjectMetaMethods(-2, false);
 
             return *this;
         }
@@ -1089,6 +1147,7 @@ class Namespace : public detail::Registrar
             new (lua_newuserdata_x<MemFnPtr>(L, sizeof(MemFnPtr))) MemFnPtr(idxf);
             lua_pushcclosure_x(L, &detail::invoke_member_function<MemFnPtr, T>, "__index", 1);
             lua_rawsetp_x(L, -3, detail::getIndexFallbackKey());
+            setObjectMetaMethods(-2, false);
 
             return *this;
         }
@@ -1111,6 +1170,7 @@ class Namespace : public detail::Registrar
             lua_newuserdata_aligned<FnType>(L, std::move(function)); // Stack: co, cl, st, function userdata (ud)
             lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, "__newindex", 1); // Stack: co, cl, st, function
             lua_rawsetp_x(L, -3, detail::getNewIndexFallbackKey());
+            setObjectMetaMethods(-2, false);
 
             return *this;
         }
@@ -1124,6 +1184,7 @@ class Namespace : public detail::Registrar
             lua_pushlightuserdata(L, reinterpret_cast<void*>(idxf)); // Stack: co, cl, st, function ptr
             lua_pushcclosure_x(L, &detail::invoke_proxy_function<FnType>, "__newindex", 1); // Stack: co, cl, st, function
             lua_rawsetp_x(L, -3, detail::getNewIndexFallbackKey());
+            setObjectMetaMethods(-2, false);
 
             return *this;
         }
@@ -1137,6 +1198,7 @@ class Namespace : public detail::Registrar
             new (lua_newuserdata_x<MemFnPtr>(L, sizeof(MemFnPtr))) MemFnPtr(idxf);
             lua_pushcclosure_x(L, &detail::invoke_member_function<MemFnPtr, T>, "__newindex", 1);
             lua_rawsetp_x(L, -3, detail::getNewIndexFallbackKey());
+            setObjectMetaMethods(-2, false);
 
             return *this;
         }
