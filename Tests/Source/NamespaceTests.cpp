@@ -458,6 +458,37 @@ TEST_F(NamespaceTests, Properties_ProxyCFunctions_ReadOnly)
     ASSERT_EQ(3, result<int>());
 }
 
+TEST_F(NamespaceTests, Properties_SimpleMetaMethods)
+{
+    int value = 5;
+
+    luabridge::getGlobalNamespace(L)
+        .beginNamespace("ns")
+        .addFunction("inc", +[](int x) { return x + 1; })
+        .addProperty("rw", [&value] { return value; }, [&value](int v) { value = v; })
+        .addProperty("ro", [&value] { return value; })
+        .endNamespace();
+
+    runLua("result = ns.inc(41)");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(42, result<int>());
+
+    runLua("ns.rw = 9");
+    ASSERT_EQ(9, value);
+
+    runLua("result = ns.rw");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(9, result<int>());
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    ASSERT_THROW(runLua("ns.ro = 1"), std::exception);
+    ASSERT_THROW(runLua("ns.missing = 1"), std::exception);
+#else
+    ASSERT_FALSE(runLua("ns.ro = 1"));
+    ASSERT_FALSE(runLua("ns.missing = 1"));
+#endif
+}
+
 namespace {
 struct Class {};
 } // namespace

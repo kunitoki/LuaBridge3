@@ -149,14 +149,14 @@ TEST_F(SetTests, PassToFunction)
     resetResult();
 
     IntSet lvalue{ 10, 20, 30 };
-    foo(lvalue);
+    ASSERT_TRUE(foo.call(lvalue));
     ASSERT_TRUE(result().isTable());
     ASSERT_EQ(lvalue, result<IntSet>());
 
     resetResult();
 
     const IntSet constLvalue = lvalue;
-    foo(constLvalue);
+    ASSERT_TRUE(foo.call(constLvalue));
     ASSERT_TRUE(result().isTable());
     ASSERT_EQ(constLvalue, result<IntSet>());
 }

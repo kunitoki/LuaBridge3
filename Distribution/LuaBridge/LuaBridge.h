@@ -32,7 +32,6 @@
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
-#include <variant>
 #include <vector>
 
 
@@ -185,10 +184,7 @@ inline int get_length(lua_State* L, int idx)
 #else 
 inline int get_length(lua_State* L, int idx)
 {
-    lua_len(L, idx);
-    const int len = static_cast<int>(luaL_checknumber(L, -1));
-    lua_pop(L, 1);
-    return len;
+    return static_cast<int>(lua_rawlen(L, idx));
 }
 #endif 
 
@@ -2641,6 +2637,62 @@ private:
     Expected<T, std::error_code> m_value;
 };
 
+template <>
+struct TypeResult<void>
+{
+    TypeResult() noexcept = default;
+
+    TypeResult(std::error_code ec) noexcept
+        : m_ec(ec)
+    {
+    }
+
+    TypeResult(const TypeResult&) noexcept = default;
+    TypeResult(TypeResult&&) noexcept = default;
+    TypeResult& operator=(const TypeResult&) noexcept = default;
+    TypeResult& operator=(TypeResult&&) noexcept = default;
+
+    explicit operator bool() const noexcept
+    {
+        return ! m_ec;
+    }
+
+    void value() const noexcept
+    {
+    }
+
+    std::error_code error() const noexcept
+    {
+        return m_ec;
+    }
+
+    const char* error_cstr() const noexcept
+    {
+        return detail::ErrorCategory::errorString(m_ec.value());
+    }
+
+    operator std::error_code() const noexcept
+    {
+        return m_ec;
+    }
+
+    std::string message() const
+    {
+        return m_ec.message();
+    }
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    void throw_on_error() const
+    {
+        if (m_ec)
+            throw std::system_error(m_ec);
+    }
+#endif
+
+private:
+    std::error_code m_ec;
+};
+
 template <class U>
 inline bool operator==(const TypeResult<U>& lhs, const U& rhs) noexcept
 {
@@ -2739,6 +2791,11 @@ template <class T, auto = typeName<T>().find_first_of('.')>
 [[nodiscard]] inline const void* getClassOptionsKey() noexcept
 {
     return reinterpret_cast<void*>(0xc2b);
+}
+
+[[nodiscard]] inline const void* getTypeIdentityKey() noexcept
+{
+    return reinterpret_cast<void*>(0xc2c);
 }
 
 [[nodiscard]] inline const void* getPropgetKey() noexcept
@@ -3198,7 +3255,26 @@ public:
         if (lua_isnil(L, index))
             return nullptr;
 
-        auto* clazz = getClass(L, index, detail::getConstRegistryKey<T>(), detail::getClassRegistryKey<T>(), canBeConst);
+        const int absIndex = lua_absindex(L, index);
+        const auto classId = detail::getClassRegistryKey<T>();
+        const auto constId = detail::getConstRegistryKey<T>();
+
+        if (lua_getmetatable(L, absIndex) && lua_istable(L, -1))
+        {
+            lua_rawgetp_x(L, -1, detail::getTypeIdentityKey());
+            const void* identity = lua_touserdata(L, -1);
+            lua_pop(L, 1);
+
+            if (identity == classId || (canBeConst && identity == constId))
+            {
+                lua_pop(L, 1);
+                return static_cast<T*>(static_cast<Userdata*>(lua_touserdata(L, absIndex))->getPointer());
+            }
+
+            lua_pop(L, 1);
+        }
+
+        auto* clazz = getClass(L, absIndex, constId, classId, canBeConst);
         if (! clazz)
             return nullptr;
 
@@ -4040,8 +4116,8 @@ struct Stack<char>
     {
         if (lua_type(L, index) == LUA_TSTRING)
         {
-            std::size_t len;
-            luaL_checklstring(L, index, &len);
+            std::size_t len = 0;
+            lua_tolstring(L, index, &len);
             return len == 1;
         }
 
@@ -6491,6 +6567,184 @@ inline int index_metamethod(lua_State* L)
 
 }
 
+template <bool IsObject>
+inline int index_metamethod_simple(lua_State* L)
+{
+#if LUABRIDGE_SAFE_STACK_CHECKS
+    luaL_checkstack(L, 3, detail::error_lua_stack_overflow);
+#endif
+
+    LUABRIDGE_ASSERT(lua_istable(L, 1) || lua_isuserdata(L, 1));
+
+    if constexpr (IsObject)
+    {
+        if (lua_isuserdata(L, 1))
+        {
+            const char* key = lua_tostring(L, 2);
+
+            const auto rawlookup = [L](int tableIndex)
+            {
+                lua_pushvalue(L, 2);
+                lua_rawget(L, tableIndex);
+            };
+
+            rawlookup(lua_upvalueindex(1)); 
+            if (lua_iscfunction(L, -1))
+            {
+                lua_pushvalue(L, 1); 
+                lua_call(L, 1, 1); 
+                return 1;
+            }
+
+            lua_pop(L, 1);
+
+            if (key != nullptr && is_metamethod(key))
+            {
+                lua_pushnil(L);
+                return 1;
+            }
+
+            rawlookup(lua_upvalueindex(2)); 
+            if (! lua_isnil(L, -1))
+                return 1;
+
+            lua_pop(L, 1);
+            lua_pushnil(L);
+            return 1;
+        }
+    }
+    else
+    {
+        
+        if (lua_istable(L, 1))
+        {
+            const char* key = lua_tostring(L, 2);
+
+            const auto rawlookup = [L](int tableIndex)
+            {
+                lua_pushvalue(L, 2);
+                lua_rawget(L, tableIndex);
+            };
+
+            if (key != nullptr && is_metamethod(key))
+            {
+                lua_pushnil(L);
+                return 1;
+            }
+
+            if (lua_istable(L, lua_upvalueindex(2)))
+            {
+                rawlookup(lua_upvalueindex(2)); 
+                if (! lua_isnil(L, -1))
+                    return 1;
+
+                lua_pop(L, 1);
+            }
+
+            rawlookup(lua_upvalueindex(3)); 
+            if (! lua_isnil(L, -1))
+                return 1;
+
+            lua_pop(L, 1);
+
+            rawlookup(lua_upvalueindex(1)); 
+            if (lua_iscfunction(L, -1))
+            {
+                lua_pushvalue(L, 1); 
+                lua_call(L, 1, 1); 
+                return 1;
+            }
+
+            lua_pop(L, 1);
+            lua_pushnil(L);
+            return 1;
+        }
+    }
+
+    lua_getmetatable(L, 1); 
+    LUABRIDGE_ASSERT(lua_istable(L, -1));
+
+    const char* key = lua_tostring(L, 2);
+
+    const auto rawlookup = [L]()
+    {
+        lua_pushvalue(L, 2);
+        lua_rawget(L, -2);
+    };
+
+    if (lua_isuserdata(L, 1))
+    {
+        lua_rawgetp_x(L, -1, getPropgetKey()); 
+        LUABRIDGE_ASSERT(lua_istable(L, -1));
+
+        rawlookup(); 
+        lua_remove(L, -2); 
+
+        if (lua_iscfunction(L, -1))
+        {
+            lua_remove(L, -2); 
+            lua_pushvalue(L, 1); 
+            lua_call(L, 1, 1); 
+            return 1;
+        }
+
+        lua_pop(L, 1); 
+    }
+    if (key != nullptr && is_metamethod(key))
+    {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    if (lua_istable(L, 1))
+    {
+        if constexpr (IsObject)
+            lua_pushvalue(L, 1); 
+        else
+            push_class_or_const_table(L, -1); 
+
+        if (lua_istable(L, -1))
+        {
+            rawlookup(); 
+            lua_remove(L, -2); 
+            if (! lua_isnil(L, -1))
+            {
+                lua_remove(L, -2); 
+                return 1;
+            }
+        }
+
+        lua_pop(L, 1); 
+    }
+
+    rawlookup(); 
+    if (! lua_isnil(L, -1))
+    {
+        lua_remove(L, -2); 
+        return 1;
+    }
+
+    lua_pop(L, 1); 
+
+    lua_rawgetp_x(L, -1, getPropgetKey()); 
+    LUABRIDGE_ASSERT(lua_istable(L, -1));
+
+    rawlookup(); 
+    lua_remove(L, -2); 
+
+    if (lua_iscfunction(L, -1))
+    {
+        lua_remove(L, -2); 
+        lua_pushvalue(L, 1); 
+        lua_call(L, 1, 1); 
+        return 1;
+    }
+
+    lua_pop(L, 2); 
+    lua_pushnil(L);
+    return 1;
+}
+
 inline std::optional<int> try_call_newindex_fallback(lua_State* L)
 {
     LUABRIDGE_ASSERT(lua_istable(L, -1)); 
@@ -6721,6 +6975,85 @@ inline int newindex_metamethod(lua_State* L)
     return 0;
 }
 
+template <bool IsObject>
+inline int newindex_metamethod_simple(lua_State* L)
+{
+#if LUABRIDGE_SAFE_STACK_CHECKS
+    luaL_checkstack(L, 3, detail::error_lua_stack_overflow);
+#endif
+
+    LUABRIDGE_ASSERT(lua_istable(L, 1) || lua_isuserdata(L, 1));
+
+    if constexpr (IsObject)
+    {
+        if (lua_isuserdata(L, 1))
+        {
+            const char* key = lua_tostring(L, 2);
+
+            lua_pushvalue(L, 2); 
+            lua_rawget(L, lua_upvalueindex(1)); 
+
+            if (lua_iscfunction(L, -1))
+            {
+                lua_pushvalue(L, 1); 
+                lua_pushvalue(L, 3); 
+                lua_call(L, 2, 0);
+                return 0;
+            }
+
+            luaL_error(L, "no writable member '%s'", key);
+            return 0;
+        }
+    }
+    else
+    {
+        
+        if (lua_istable(L, 1))
+        {
+            const char* key = lua_tostring(L, 2);
+
+            lua_pushvalue(L, 2); 
+            lua_rawget(L, lua_upvalueindex(1)); 
+
+            if (lua_iscfunction(L, -1))
+            {
+                lua_pushvalue(L, 3); 
+                lua_call(L, 1, 0);
+                return 0;
+            }
+
+            luaL_error(L, "no writable member '%s'", key);
+            return 0;
+        }
+    }
+
+    lua_getmetatable(L, 1); 
+    LUABRIDGE_ASSERT(lua_istable(L, -1));
+
+    const char* key = lua_tostring(L, 2);
+
+    lua_rawgetp_x(L, -1, getPropsetKey()); 
+    if (! lua_istable(L, -1))
+        luaL_error(L, "no member named '%s'", key);
+
+    lua_pushvalue(L, 2); 
+    lua_rawget(L, -2); 
+    lua_remove(L, -2); 
+
+    if (lua_iscfunction(L, -1))
+    {
+        lua_remove(L, -2); 
+        if constexpr (IsObject)
+            lua_pushvalue(L, 1); 
+        lua_pushvalue(L, 3); 
+        lua_call(L, IsObject ? 2 : 1, 0);
+        return 0;
+    }
+
+    luaL_error(L, "no writable member '%s'", key);
+    return 0;
+}
+
 inline int read_only_error(lua_State* L)
 {
     raise_lua_error(L, "'%s' is read-only", lua_tostring(L, lua_upvalueindex(1)));
@@ -6924,6 +7257,42 @@ inline void add_property_setter(lua_State* L, const char* name, int tableIndex)
     lua_pop(L, 2); 
 }
 
+template <class ArgsPack, std::size_t Start, class F, std::size_t... Indices>
+decltype(auto) invoke_callable_from_stack_impl(lua_State* L, F&& func, std::index_sequence<Indices...>)
+{
+    return std::invoke(
+        std::forward<F>(func),
+        unwrap_argument_or_error<std::tuple_element_t<Indices, ArgsPack>>(L, Indices, Start)...);
+}
+
+template <class ArgsPack, std::size_t Start, class F>
+decltype(auto) invoke_callable_from_stack(lua_State* L, F&& func)
+{
+    return invoke_callable_from_stack_impl<ArgsPack, Start>(
+        L,
+        std::forward<F>(func),
+        std::make_index_sequence<std::tuple_size_v<ArgsPack>>());
+}
+
+template <class ArgsPack, std::size_t Start, class T, class F, std::size_t... Indices>
+decltype(auto) invoke_member_callable_from_stack_impl(lua_State* L, T* ptr, F&& func, std::index_sequence<Indices...>)
+{
+    return std::invoke(
+        std::forward<F>(func),
+        ptr,
+        unwrap_argument_or_error<std::tuple_element_t<Indices, ArgsPack>>(L, Indices, Start)...);
+}
+
+template <class ArgsPack, std::size_t Start, class T, class F>
+decltype(auto) invoke_member_callable_from_stack(lua_State* L, T* ptr, F&& func)
+{
+    return invoke_member_callable_from_stack_impl<ArgsPack, Start>(
+        L,
+        ptr,
+        std::forward<F>(func),
+        std::make_index_sequence<std::tuple_size_v<ArgsPack>>());
+}
+
 template <class ReturnType, class ArgsPack, std::size_t Start = 1u>
 struct function
 {
@@ -6936,7 +7305,7 @@ struct function
         try
         {
 #endif
-            result = Stack<ReturnType>::push(L, std::apply(std::forward<F>(func), make_arguments_list<ArgsPack, Start>(L)));
+        result = Stack<ReturnType>::push(L, invoke_callable_from_stack<ArgsPack, Start>(L, std::forward<F>(func)));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
@@ -6961,9 +7330,7 @@ struct function
         try
         {
 #endif
-            auto f = [ptr, func = std::forward<F>(func)](auto&&... args) -> ReturnType { return (ptr->*func)(std::forward<decltype(args)>(args)...); };
-
-            result = Stack<ReturnType>::push(L, std::apply(f, make_arguments_list<ArgsPack, Start>(L)));
+        result = Stack<ReturnType>::push(L, invoke_member_callable_from_stack<ArgsPack, Start>(L, ptr, std::forward<F>(func)));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
@@ -6990,7 +7357,7 @@ struct function<void, ArgsPack, Start>
         try
         {
 #endif
-            std::apply(std::forward<F>(func), make_arguments_list<ArgsPack, Start>(L));
+        invoke_callable_from_stack<ArgsPack, Start>(L, std::forward<F>(func));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
@@ -7010,9 +7377,7 @@ struct function<void, ArgsPack, Start>
         try
         {
 #endif
-            auto f = [ptr, func = std::forward<F>(func)](auto&&... args) { (ptr->*func)(std::forward<decltype(args)>(args)...); };
-
-            std::apply(f, make_arguments_list<ArgsPack, Start>(L));
+        invoke_member_callable_from_stack<ArgsPack, Start>(L, ptr, std::forward<F>(func));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
@@ -8130,7 +8495,8 @@ bool setGlobal(lua_State* L, T&& t, const char* name)
 
 namespace luabridge {
 
-class LuaResult;
+template <class Signature>
+class LuaFunction;
 
 struct LuaNil
 {
@@ -8487,14 +8853,20 @@ public:
         return (appendOne(vs) && ...);
     }
 
-    template <class... Args>
-    LuaResult operator()(Args&&... args) const;
+    template <class R = void, class... Args>
+    TypeResult<R> call(Args&&... args) const;
 
     template <class... Args>
-    LuaResult call(Args&&... args) const;
+    TypeResult<void> operator()(Args&&... args) const;
+
+    template <class R, class F, class... Args>
+    TypeResult<R> callWithHandler(F&& errorHandler, Args&&... args) const;
 
     template <class F, class... Args>
-    LuaResult callWithHandler(F&& errorHandler, Args&&... args) const;
+    TypeResult<void> callWithHandler(F&& errorHandler, Args&&... args) const;
+
+    template <class Signature>
+    LuaFunction<Signature> callable() const;
 
 protected:
     lua_State* m_L = nullptr;
@@ -8512,6 +8884,10 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
     {
         friend class LuaRef;
 
+        struct AdoptTableRef
+        {
+        };
+
     public:
         
         TableItem(lua_State* L, int tableRef)
@@ -8526,6 +8902,34 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             m_tableRef = luaL_ref(L, LUA_REGISTRYINDEX);
         }
 
+        template <std::size_t N>
+        TableItem(lua_State* L, int tableRef, const char (&key)[N])
+            : LuaRefBase(L)
+            , m_keyLiteral(key)
+        {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+            luaL_checkstack(m_L, 1, detail::error_lua_stack_overflow);
+#endif
+
+            lua_rawgeti(m_L, LUA_REGISTRYINDEX, tableRef);
+            m_tableRef = luaL_ref(L, LUA_REGISTRYINDEX);
+        }
+
+        TableItem(lua_State* L, int tableRef, AdoptTableRef)
+            : LuaRefBase(L)
+            , m_tableRef(tableRef)
+            , m_keyRef(luaL_ref(L, LUA_REGISTRYINDEX))
+        {
+        }
+
+        template <std::size_t N>
+        TableItem(lua_State* L, int tableRef, AdoptTableRef, const char (&key)[N])
+            : LuaRefBase(L)
+            , m_tableRef(tableRef)
+            , m_keyLiteral(key)
+        {
+        }
+
         TableItem(const TableItem& other)
             : LuaRefBase(other.m_L)
         {
@@ -8537,8 +8941,12 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, other.m_tableRef);
             m_tableRef = luaL_ref(m_L, LUA_REGISTRYINDEX);
 
-            lua_rawgeti(m_L, LUA_REGISTRYINDEX, other.m_keyRef);
-            m_keyRef = luaL_ref(m_L, LUA_REGISTRYINDEX);
+            m_keyLiteral = other.m_keyLiteral;
+            if (other.m_keyRef != LUA_NOREF)
+            {
+                lua_rawgeti(m_L, LUA_REGISTRYINDEX, other.m_keyRef);
+                m_keyRef = luaL_ref(m_L, LUA_REGISTRYINDEX);
+            }
         }
 
         ~TableItem()
@@ -8561,12 +8969,23 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             const StackRestore stackRestore(m_L);
 
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_tableRef);
-            lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_keyRef);
+            if (m_keyLiteral != nullptr)
+            {
+                if (! Stack<T>::push(m_L, v))
+                    return *this;
 
-            if (! Stack<T>::push(m_L, v))
-                return *this;
+                lua_setfield(m_L, -2, m_keyLiteral);
+            }
+            else
+            {
+                lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_keyRef);
 
-            lua_settable(m_L, -3);
+                if (! Stack<T>::push(m_L, v))
+                    return *this;
+
+                lua_settable(m_L, -3);
+            }
+
             return *this;
         }
 
@@ -8581,12 +9000,25 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             const StackRestore stackRestore(m_L);
 
             lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_tableRef);
-            lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_keyRef);
+            if (m_keyLiteral != nullptr)
+            {
+                lua_pushstring(m_L, m_keyLiteral);
 
-            if (! Stack<T>::push(m_L, v))
-                return *this;
+                if (! Stack<T>::push(m_L, v))
+                    return *this;
 
-            lua_rawset(m_L, -3);
+                lua_rawset(m_L, -3);
+            }
+            else
+            {
+                lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_keyRef);
+
+                if (! Stack<T>::push(m_L, v))
+                    return *this;
+
+                lua_rawset(m_L, -3);
+            }
+
             return *this;
         }
 
@@ -8605,15 +9037,47 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
 #endif
 
             lua_rawgeti(L, LUA_REGISTRYINDEX, m_tableRef);
-            lua_rawgeti(L, LUA_REGISTRYINDEX, m_keyRef);
-            lua_gettable(L, -2);
+
+            if (m_keyLiteral != nullptr)
+            {
+                lua_getfield(L, -1, m_keyLiteral);
+            }
+            else
+            {
+                lua_rawgeti(L, LUA_REGISTRYINDEX, m_keyRef);
+                lua_gettable(L, -2);
+            }
+
             lua_remove(L, -2); 
         }
 
         template <class T>
         TableItem operator[](const T& key) const
         {
-            return LuaRef(*this)[key];
+            const StackRestore stackRestore(m_L);
+
+            push(m_L);
+
+            if (! Stack<T>::push(m_L, key))
+                lua_pushnil(m_L);
+
+            lua_pushvalue(m_L, -2);
+            const auto tableRef = luaL_ref(m_L, LUA_REGISTRYINDEX);
+            lua_remove(m_L, -2);
+
+            return TableItem(m_L, tableRef, AdoptTableRef{});
+        }
+
+        template <std::size_t N>
+        TableItem operator[](const char (&key)[N]) const
+        {
+            const StackRestore stackRestore(m_L);
+
+            push(m_L);
+
+            const auto tableRef = luaL_ref(m_L, LUA_REGISTRYINDEX);
+
+            return TableItem(m_L, tableRef, AdoptTableRef{}, key);
         }
 
         template <class T>
@@ -8625,6 +9089,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
     private:
         int m_tableRef = LUA_NOREF;
         int m_keyRef = LUA_NOREF;
+        const char* m_keyLiteral = nullptr;
     };
 
     friend struct Stack<TableItem>;
@@ -8830,6 +9295,12 @@ public:
         return TableItem(m_L, m_ref);
     }
 
+    template <std::size_t N>
+    TableItem operator[](const char (&key)[N]) const
+    {
+        return TableItem(m_L, m_ref, key);
+    }
+
     template <class T>
     LuaRef rawget(const T& key) const
     {
@@ -8842,6 +9313,91 @@ public:
 
         lua_rawget(m_L, -2);
         return LuaRef(m_L, FromStack());
+    }
+
+    template <class T>
+    TypeResult<T> getField(const char* key) const
+    {
+        const StackRestore stackRestore(m_L);
+
+        push(m_L);
+        lua_getfield(m_L, -1, key);
+
+        return Stack<T>::get(m_L, -1);
+    }
+
+    template <class T>
+    bool setField(const char* key, T&& value) const
+    {
+        const StackRestore stackRestore(m_L);
+
+        push(m_L);
+
+        if (! Stack<std::decay_t<T>>::push(m_L, std::forward<T>(value)))
+            return false;
+
+        lua_setfield(m_L, -2, key);
+        return true;
+    }
+
+    template <class T>
+    TypeResult<T> rawgetField(const char* key) const
+    {
+        const StackRestore stackRestore(m_L);
+
+        push(m_L);
+        lua_pushstring(m_L, key);
+        lua_rawget(m_L, -2);
+
+        return Stack<T>::get(m_L, -1);
+    }
+
+    template <class T>
+    bool rawsetField(const char* key, T&& value) const
+    {
+        const StackRestore stackRestore(m_L);
+
+        push(m_L);
+        lua_pushstring(m_L, key);
+
+        if (! Stack<std::decay_t<T>>::push(m_L, std::forward<T>(value)))
+            return false;
+
+        lua_rawset(m_L, -3);
+        return true;
+    }
+
+    template <class T>
+    T unsafeRawgetField(const char* key) const
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(m_L, 3, detail::error_lua_stack_overflow);
+#endif
+
+        push(m_L);
+        lua_pushstring(m_L, key);
+        lua_rawget(m_L, -2);
+
+        auto result = Stack<T>::get(m_L, -1);
+        lua_pop(m_L, 2);
+
+        return result.value();
+    }
+
+    template <class T>
+    void unsafeRawsetField(const char* key, T&& value) const
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        luaL_checkstack(m_L, 3, detail::error_lua_stack_overflow);
+#endif
+
+        push(m_L);
+        lua_pushstring(m_L, key);
+        [[maybe_unused]] const auto pushed = Stack<std::decay_t<T>>::push(m_L, std::forward<T>(value));
+        LUABRIDGE_ASSERT(static_cast<bool>(pushed));
+
+        lua_rawset(m_L, -3);
+        lua_pop(m_L, 1);
     }
 
     std::size_t hash() const
@@ -9008,138 +9564,99 @@ struct hash<luabridge::LuaRef>
 
 namespace luabridge {
 
-class LuaResult
+namespace detail {
+
+template <class T>
+struct IsTuple : std::false_type
 {
-public:
-    
-    explicit operator bool() const noexcept
-    {
-        return !m_ec;
-    }
+};
 
-    bool wasOk() const noexcept
-    {
-        return !m_ec;
-    }
+template <class... Ts>
+struct IsTuple<std::tuple<Ts...>> : std::true_type
+{
+};
 
-    bool hasFailed() const noexcept
-    {
-        return !!m_ec;
-    }
+template <class Tuple, std::size_t... Indices>
+TypeResult<Tuple> decodeTupleResult(lua_State* L, int firstResultIndex, std::index_sequence<Indices...>)
+{
+    Tuple value;
+    std::error_code ec;
 
-    std::error_code errorCode() const noexcept
-    {
-        return m_ec;
-    }
-
-    std::string errorMessage() const noexcept
-    {
-        if (std::holds_alternative<std::string>(m_data))
+    const bool ok =
+        (([&]()
         {
-            const auto& message = std::get<std::string>(m_data);
-            return message.empty() ? m_ec.message() : message;
-        }
+            using ElementType = std::tuple_element_t<Indices, Tuple>;
+
+            auto element = Stack<ElementType>::get(L, firstResultIndex + static_cast<int>(Indices));
+            if (! element)
+            {
+                ec = element.error();
+                return false;
+            }
+
+            std::get<Indices>(value) = std::move(*element);
+            return true;
+        }())
+            && ...);
+
+    if (! ok)
+        return ec;
+
+    return value;
+}
+
+template <class R>
+TypeResult<R> decodeCallResult(lua_State* L, int firstResultIndex, int numReturnedValues)
+{
+    if constexpr (std::is_same_v<R, void> || std::is_same_v<R, std::tuple<>>)
+    {
+        if (numReturnedValues != 0)
+            return makeErrorCode(ErrorCode::InvalidTableSizeInCast);
 
         return {};
     }
-
-    std::size_t size() const noexcept
+    else
+    if constexpr (IsTuple<R>::value)
     {
-        if (std::holds_alternative<std::vector<LuaRef>>(m_data))
-            return std::get<std::vector<LuaRef>>(m_data).size();
+        constexpr auto expectedSize = static_cast<int>(std::tuple_size_v<R>);
+        if (numReturnedValues != expectedSize)
+            return makeErrorCode(ErrorCode::InvalidTableSizeInCast);
 
-        return 0;
+        return decodeTupleResult<R>(L, firstResultIndex, std::make_index_sequence<std::tuple_size_v<R>>{});
     }
-
-    LuaRef operator[](std::size_t index) const
+    else
     {
-        LUABRIDGE_ASSERT(m_ec == std::error_code());
+        if (numReturnedValues < 1)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
 
-        if (std::holds_alternative<std::vector<LuaRef>>(m_data))
-        {
-            const auto& values = std::get<std::vector<LuaRef>>(m_data);
-
-            LUABRIDGE_ASSERT(index < values.size());
-            return values[index];
-        }
-
-        return LuaRef(m_L);
+        return Stack<R>::get(L, firstResultIndex);
     }
+}
 
-private:
-    template <class... Args>
-    friend LuaResult call(const LuaRef&, Args&&...);
+} 
 
-    template <class F, class... Args>
-    friend LuaResult callWithHandler(const LuaRef&, F&&, Args&&...);
-
-    static LuaResult errorFromStack(lua_State* L, std::error_code ec)
-    {
-        auto errorString = lua_tostring(L, -1);
-        lua_pop(L, 1);
-
-        return LuaResult(L, ec, errorString ? errorString : ec.message());
-    }
-
-    static LuaResult valuesFromStack(lua_State* L, int stackTop)
-    {
-        std::vector<LuaRef> values;
-
-        const int numReturnedValues = lua_gettop(L) - stackTop;
-        if (numReturnedValues > 0)
-        {
-            values.reserve(numReturnedValues);
-
-            for (int index = numReturnedValues; index > 0; --index)
-                values.emplace_back(LuaRef::fromStack(L, -index));
-
-            lua_pop(L, numReturnedValues);
-        }
-
-        return LuaResult(L, std::move(values));
-    }
-
-    LuaResult(lua_State* L, std::error_code ec, std::string_view errorString)
-        : m_L(L)
-        , m_ec(ec)
-        , m_data(std::string(errorString))
-    {
-    }
-
-    explicit LuaResult(lua_State* L, std::vector<LuaRef> values) noexcept
-        : m_L(L)
-        , m_data(std::move(values))
-    {
-    }
-
-    lua_State* m_L = nullptr;
-    std::error_code m_ec;
-    std::variant<std::vector<LuaRef>, std::string> m_data;
-};
-
-template <class F, class... Args>
-LuaResult callWithHandler(const LuaRef& object, F&& errorHandler, Args&&... args)
+template <class R, class Ref, class F, class... Args>
+TypeResult<R> callWithHandler(const Ref& object, F&& errorHandler, Args&&... args)
 {
     static constexpr bool isValidHandler = !std::is_same_v<detail::remove_cvref_t<F>, detail::remove_cvref_t<decltype(std::ignore)>>;
 
     lua_State* L = object.state();
-    const int stackTop = lua_gettop(L);
+    const StackRestore stackRestore(L);
+    const int initialTop = lua_gettop(L);
 
     if constexpr (isValidHandler)
-        detail::push_function(L, std::forward<F>(errorHandler), ""); 
+        detail::push_function(L, std::forward<F>(errorHandler), "");
 
-    object.push(); 
+    object.push();
 
     {
-        const auto [result, index] = detail::push_arguments(L, std::forward_as_tuple(args...)); 
+        const auto [result, index] = detail::push_arguments(L, std::forward_as_tuple(args...));
         if (! result)
-        {
-            lua_pop(L, static_cast<int>(index) + 1);
-            return LuaResult(L, result, result.message());
-        }
+            return result.error();
     }
 
-    const int code = lua_pcall(L, sizeof...(Args), LUA_MULTRET, isValidHandler ? (-static_cast<int>(sizeof...(Args)) - 2) : 0);
+    const int messageHandlerIndex = isValidHandler ? (initialTop + 1) : 0;
+    const int code = lua_pcall(L, sizeof...(Args), LUA_MULTRET, messageHandlerIndex);
     if (code != LUABRIDGE_LUA_OK)
     {
         auto ec = makeErrorCode(ErrorCode::LuaFunctionCallFailed);
@@ -9152,17 +9669,78 @@ LuaResult callWithHandler(const LuaRef& object, F&& errorHandler, Args&&... args
         }
 #endif
 
-        return LuaResult::errorFromStack(L, ec);
+        lua_pop(L, 1);
+        return ec;
     }
 
-    return LuaResult::valuesFromStack(L, stackTop);
+    if constexpr (isValidHandler)
+        lua_remove(L, initialTop + 1);
+
+    const int firstResultIndex = initialTop + 1;
+    const int numReturnedValues = lua_gettop(L) - initialTop;
+    return detail::decodeCallResult<R>(L, firstResultIndex, numReturnedValues);
 }
 
-template <class... Args>
-LuaResult call(const LuaRef& object, Args&&... args)
+template <class Ref, class F, class... Args>
+TypeResult<void> callWithHandler(const Ref& object, F&& errorHandler, Args&&... args)
 {
-    return callWithHandler(object, std::ignore, std::forward<Args>(args)...);
+    return callWithHandler<void, Ref, F, Args...>(object, std::forward<F>(errorHandler), std::forward<Args>(args)...);
 }
+
+template <class R = void, class Ref, class... Args>
+TypeResult<R> call(const Ref& object, Args&&... args)
+{
+    return callWithHandler<R>(object, std::ignore, std::forward<Args>(args)...);
+}
+
+template <class Signature>
+class LuaFunction;
+
+template <class R, class... Args>
+class LuaFunction<R(Args...)>
+{
+public:
+    LuaFunction() = default;
+
+    explicit LuaFunction(const LuaRef& function)
+        : m_function(function)
+    {
+    }
+
+    explicit LuaFunction(LuaRef&& function)
+        : m_function(std::move(function))
+    {
+    }
+
+    [[nodiscard]] TypeResult<R> operator()(Args... args) const
+    {
+        return call(std::forward<Args>(args)...);
+    }
+
+    [[nodiscard]] TypeResult<R> call(Args... args) const
+    {
+        return luabridge::call<R>(m_function, std::forward<Args>(args)...);
+    }
+
+    template <class F>
+    [[nodiscard]] TypeResult<R> callWithHandler(F&& errorHandler, Args... args) const
+    {
+        return luabridge::callWithHandler<R>(m_function, std::forward<F>(errorHandler), std::forward<Args>(args)...);
+    }
+
+    [[nodiscard]] bool isValid() const
+    {
+        return m_function.isCallable();
+    }
+
+    [[nodiscard]] const LuaRef& ref() const
+    {
+        return m_function;
+    }
+
+private:
+    LuaRef m_function;
+};
 
 inline int pcall(lua_State* L, int nargs = 0, int nresults = 0, int msgh = 0)
 {
@@ -9177,24 +9755,40 @@ inline int pcall(lua_State* L, int nargs = 0, int nresults = 0, int msgh = 0)
 }
 
 template <class Impl, class LuaRef>
-template <class... Args>
-LuaResult LuaRefBase<Impl, LuaRef>::operator()(Args&&... args) const
+template <class R, class... Args>
+TypeResult<R> LuaRefBase<Impl, LuaRef>::call(Args&&... args) const
 {
-    return luabridge::call(*this, std::forward<Args>(args)...);
+    return luabridge::call<R>(impl(), std::forward<Args>(args)...);
 }
 
 template <class Impl, class LuaRef>
 template <class... Args>
-LuaResult LuaRefBase<Impl, LuaRef>::call(Args&&... args) const
+TypeResult<void> LuaRefBase<Impl, LuaRef>::operator()(Args&&... args) const
 {
-    return luabridge::call(*this, std::forward<Args>(args)...);
+    return call<void>(std::forward<Args>(args)...);
+}
+
+template <class Impl, class LuaRef>
+template <class R, class F, class... Args>
+TypeResult<R> LuaRefBase<Impl, LuaRef>::callWithHandler(F&& errorHandler, Args&&... args) const
+{
+    return luabridge::callWithHandler<R>(impl(), std::forward<F>(errorHandler), std::forward<Args>(args)...);
 }
 
 template <class Impl, class LuaRef>
 template <class F, class... Args>
-LuaResult LuaRefBase<Impl, LuaRef>::callWithHandler(F&& errorHandler, Args&&... args) const
+TypeResult<void> LuaRefBase<Impl, LuaRef>::callWithHandler(F&& errorHandler, Args&&... args) const
 {
-    return luabridge::callWithHandler(*this, std::forward<F>(errorHandler), std::forward<Args>(args)...);
+    return callWithHandler<void>(std::forward<F>(errorHandler), std::forward<Args>(args)...);
+}
+
+template <class Impl, class LuaRef>
+template <class Signature>
+LuaFunction<Signature> LuaRefBase<Impl, LuaRef>::callable() const
+{
+    const StackRestore stackRestore(m_L);
+    impl().push(m_L);
+    return LuaFunction<Signature>(LuaRef::fromStack(m_L));
 }
 
 } 
@@ -9457,7 +10051,57 @@ class Namespace : public detail::Registrar
         using Registrar::operator=;
 
     protected:
-        
+        void setObjectMetaMethods(int tableIndex, bool simple)
+        {
+            tableIndex = lua_absindex(L, tableIndex);
+
+            if (simple)
+            {
+                lua_rawgetp_x(L, tableIndex, detail::getPropgetKey()); 
+                lua_pushvalue(L, tableIndex); 
+                lua_pushcclosure_x(L, &detail::index_metamethod_simple<true>, "__index", 2);
+                rawsetfield(L, tableIndex, "__index");
+
+                lua_rawgetp_x(L, tableIndex, detail::getPropsetKey()); 
+                lua_pushcclosure_x(L, &detail::newindex_metamethod_simple<true>, "__newindex", 1);
+                rawsetfield(L, tableIndex, "__newindex");
+            }
+            else
+            {
+                lua_pushcfunction_x(L, &detail::index_metamethod<true>, "__index");
+                rawsetfield(L, tableIndex, "__index");
+
+                lua_pushcfunction_x(L, &detail::newindex_metamethod<true>, "__newindex");
+                rawsetfield(L, tableIndex, "__newindex");
+            }
+        }
+
+        void setStaticMetaMethods(int tableIndex, bool simple)
+        {
+            tableIndex = lua_absindex(L, tableIndex);
+
+            if (simple)
+            {
+                lua_rawgetp_x(L, tableIndex, detail::getPropgetKey()); 
+                lua_rawgetp_x(L, tableIndex, detail::getClassKey()); 
+                lua_pushvalue(L, tableIndex); 
+                lua_pushcclosure_x(L, &detail::index_metamethod_simple<false>, "__index", 3);
+                rawsetfield(L, tableIndex, "__index");
+
+                lua_rawgetp_x(L, tableIndex, detail::getPropsetKey()); 
+                lua_pushcclosure_x(L, &detail::newindex_metamethod_simple<false>, "__newindex", 1);
+                rawsetfield(L, tableIndex, "__newindex");
+            }
+            else
+            {
+                lua_pushcfunction_x(L, &detail::index_metamethod<false>, "__index");
+                rawsetfield(L, tableIndex, "__index");
+
+                lua_pushcfunction_x(L, &detail::newindex_metamethod<false>, "__newindex");
+                rawsetfield(L, tableIndex, "__newindex");
+            }
+        }
+
         void createConstTable(const char* name, bool trueConst, Options options)
         {
             LUABRIDGE_ASSERT(name != nullptr);
@@ -9474,14 +10118,10 @@ class Namespace : public detail::Registrar
             lua_pushstring(L, type_name.c_str()); 
             lua_rawsetp_x(L, -2, detail::getTypeKey()); 
 
-            lua_pushcfunction_x(L, &detail::index_metamethod<true>, "__index"); 
-            rawsetfield(L, -2, "__index"); 
-
-            lua_pushcfunction_x(L, &detail::newindex_metamethod<true>, "__newindex"); 
-            rawsetfield(L, -2, "__newindex"); 
-
             lua_newtable(L); 
             lua_rawsetp_x(L, -2, detail::getPropgetKey()); 
+
+            setObjectMetaMethods(-1, ! options.test(extensibleClass)); 
 
             if (! options.test(visibleMetatables))
             {
@@ -9504,6 +10144,9 @@ class Namespace : public detail::Registrar
 
             lua_pushvalue(L, -1); 
             lua_rawsetp_x(L, -3, detail::getClassKey()); 
+
+            if (! options.test(extensibleClass))
+                setObjectMetaMethods(-1, true);
         }
 
         void createStaticTable(const char* name, Options options)
@@ -9520,12 +10163,6 @@ class Namespace : public detail::Registrar
             pushunsigned(L, options.toUnderlying()); 
             lua_rawsetp_x(L, -2, detail::getClassOptionsKey()); 
 
-            lua_pushcfunction_x(L, &detail::index_metamethod<false>, "__index");
-            rawsetfield(L, -2, "__index");
-
-            lua_pushcfunction_x(L, &detail::newindex_metamethod<false>, "__newindex");
-            rawsetfield(L, -2, "__newindex");
-
             lua_newtable(L); 
             lua_rawsetp_x(L, -2, detail::getPropgetKey()); 
 
@@ -9534,6 +10171,8 @@ class Namespace : public detail::Registrar
 
             lua_pushvalue(L, -2); 
             lua_rawsetp_x(L, -2, detail::getClassKey()); 
+
+            setStaticMetaMethods(-1, ! options.test(extensibleClass));
 
             if (! options.test(visibleMetatables))
             {
@@ -9581,6 +10220,12 @@ class Namespace : public detail::Registrar
 
                 createClassTable(name, options); 
                 ++m_stackSize;
+
+                lua_pushlightuserdata(L, const_cast<void*>(detail::getConstRegistryKey<T>())); 
+                lua_rawsetp_x(L, -3, detail::getTypeIdentityKey()); 
+                lua_pushlightuserdata(L, const_cast<void*>(detail::getClassRegistryKey<T>())); 
+                lua_rawsetp_x(L, -2, detail::getTypeIdentityKey()); 
+
 #if !defined(LUABRIDGE_ON_LUAU)
                 lua_pushcfunction_x(L, &detail::gc_metamethod<T>, "__gc"); 
                 rawsetfield(L, -2, "__gc"); 
@@ -9642,6 +10287,12 @@ class Namespace : public detail::Registrar
 
             createClassTable(name, options); 
             ++m_stackSize;
+
+            lua_pushlightuserdata(L, const_cast<void*>(detail::getConstRegistryKey<T>())); 
+            lua_rawsetp_x(L, -3, detail::getTypeIdentityKey()); 
+            lua_pushlightuserdata(L, const_cast<void*>(detail::getClassRegistryKey<T>())); 
+            lua_rawsetp_x(L, -2, detail::getTypeIdentityKey()); 
+
 #if !defined(LUABRIDGE_ON_LUAU)
             lua_pushcfunction_x(L, &detail::gc_metamethod<T>, "__gc"); 
             rawsetfield(L, -2, "__gc"); 
@@ -9677,6 +10328,10 @@ class Namespace : public detail::Registrar
             lua_rawsetp_x(L, -6, detail::getParentKey()); 
             lua_rawsetp_x(L, -4, detail::getParentKey()); 
             lua_rawsetp_x(L, -2, detail::getParentKey()); 
+
+            setObjectMetaMethods(-3, false); 
+            setObjectMetaMethods(-2, false); 
+            setStaticMetaMethods(-1, false); 
 
             lua_pushvalue(L, -1); 
             lua_rawsetp_x(L, LUA_REGISTRYINDEX, detail::getStaticRegistryKey<T>()); 
@@ -9789,6 +10444,7 @@ class Namespace : public detail::Registrar
             lua_newuserdata_aligned<FnType>(L, std::move(function)); 
             lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, "__index", 1); 
             lua_rawsetp_x(L, -2, detail::getStaticIndexFallbackKey());
+            setStaticMetaMethods(-1, false);
 
             return *this;
         }
@@ -9802,6 +10458,7 @@ class Namespace : public detail::Registrar
             lua_pushlightuserdata(L, reinterpret_cast<void*>(idxf)); 
             lua_pushcclosure_x(L, &detail::invoke_proxy_function<FnType>, "__index", 1); 
             lua_rawsetp_x(L, -2, detail::getStaticIndexFallbackKey());
+            setStaticMetaMethods(-1, false);
 
             return *this;
         }
@@ -9818,6 +10475,7 @@ class Namespace : public detail::Registrar
             lua_newuserdata_aligned<FnType>(L, std::move(function)); 
             lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, "__newindex", 1); 
             lua_rawsetp_x(L, -2, detail::getStaticNewIndexFallbackKey());
+            setStaticMetaMethods(-1, false);
 
             return *this;
         }
@@ -9831,6 +10489,7 @@ class Namespace : public detail::Registrar
             lua_pushlightuserdata(L, reinterpret_cast<void*>(idxf)); 
             lua_pushcclosure_x(L, &detail::invoke_proxy_function<FnType>, "__newindex", 1); 
             lua_rawsetp_x(L, -2, detail::getStaticNewIndexFallbackKey());
+            setStaticMetaMethods(-1, false);
 
             return *this;
         }
@@ -10219,6 +10878,7 @@ class Namespace : public detail::Registrar
             lua_newuserdata_aligned<FnType>(L, std::move(function)); 
             lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, "__index", 1); 
             lua_rawsetp_x(L, -3, detail::getIndexFallbackKey());
+            setObjectMetaMethods(-2, false);
 
             return *this;
         }
@@ -10232,6 +10892,7 @@ class Namespace : public detail::Registrar
             lua_pushlightuserdata(L, reinterpret_cast<void*>(idxf)); 
             lua_pushcclosure_x(L, &detail::invoke_proxy_function<FnType>, "__index", 1); 
             lua_rawsetp_x(L, -3, detail::getIndexFallbackKey());
+            setObjectMetaMethods(-2, false);
 
             return *this;
         }
@@ -10245,6 +10906,7 @@ class Namespace : public detail::Registrar
             new (lua_newuserdata_x<MemFnPtr>(L, sizeof(MemFnPtr))) MemFnPtr(idxf);
             lua_pushcclosure_x(L, &detail::invoke_member_function<MemFnPtr, T>, "__index", 1);
             lua_rawsetp_x(L, -3, detail::getIndexFallbackKey());
+            setObjectMetaMethods(-2, false);
 
             return *this;
         }
@@ -10261,6 +10923,7 @@ class Namespace : public detail::Registrar
             lua_newuserdata_aligned<FnType>(L, std::move(function)); 
             lua_pushcclosure_x(L, &detail::invoke_proxy_functor<FnType>, "__newindex", 1); 
             lua_rawsetp_x(L, -3, detail::getNewIndexFallbackKey());
+            setObjectMetaMethods(-2, false);
 
             return *this;
         }
@@ -10274,6 +10937,7 @@ class Namespace : public detail::Registrar
             lua_pushlightuserdata(L, reinterpret_cast<void*>(idxf)); 
             lua_pushcclosure_x(L, &detail::invoke_proxy_function<FnType>, "__newindex", 1); 
             lua_rawsetp_x(L, -3, detail::getNewIndexFallbackKey());
+            setObjectMetaMethods(-2, false);
 
             return *this;
         }
@@ -10287,6 +10951,7 @@ class Namespace : public detail::Registrar
             new (lua_newuserdata_x<MemFnPtr>(L, sizeof(MemFnPtr))) MemFnPtr(idxf);
             lua_pushcclosure_x(L, &detail::invoke_member_function<MemFnPtr, T>, "__newindex", 1);
             lua_rawsetp_x(L, -3, detail::getNewIndexFallbackKey());
+            setObjectMetaMethods(-2, false);
 
             return *this;
         }

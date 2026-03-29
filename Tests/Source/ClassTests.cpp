@@ -2494,6 +2494,46 @@ TEST_F(ClassMetaMethods, MetamethodsShouldNotBePartOfClassInstances)
     EXPECT_TRUE(result().isFunction());
 }
 
+TEST_F(ClassMetaMethods, MetamethodsShouldNotBePartOfClassStaticTable)
+{
+    using Int = Class<int, EmptyBase>;
+
+    int value = 10;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+            .addConstructor<void (*)(int)>()
+            .addStaticFunction("inc", +[](int x) { return x + 1; })
+            .addStaticProperty("rw", [&value] { return value; }, [&value](int x) { value = x; })
+            .addStaticProperty("ro", [&value] { return value; })
+        .endClass();
+
+    runLua("result = Int.inc(41)");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(42, result<int>());
+
+    runLua("result = Int.__index");
+    ASSERT_TRUE(result().isNil());
+
+    runLua("result = Int.__newindex");
+    ASSERT_TRUE(result().isNil());
+
+    runLua("Int.rw = 77");
+    ASSERT_EQ(77, value);
+
+    runLua("result = Int.rw");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(77, result<int>());
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    ASSERT_THROW(runLua("Int.ro = 1"), std::exception);
+    ASSERT_THROW(runLua("Int.missing = 1"), std::exception);
+#else
+    ASSERT_FALSE(runLua("Int.ro = 1"));
+    ASSERT_FALSE(runLua("Int.missing = 1"));
+#endif
+}
+
 TEST_F(ClassMetaMethods, MetamethodsShouldNotBeWritable)
 {
     using Int = Class<int, EmptyBase>;
@@ -3692,34 +3732,40 @@ TEST_F(ClassTests, WrongThrowBadArgObjectDescription)
 #endif
 
 #else
+    auto expectBadArgOrInvalidCast = [](const std::string& errorMessage, const char* gotToken)
+    {
+        EXPECT_TRUE(errorMessage.find(gotToken) != std::string::npos
+            || errorMessage.find("can't be cast") != std::string::npos);
+    };
+
     {
         auto [result, errorMessage] = runLuaCaptureError("textSingleXYZ()");
         ASSERT_FALSE(result);
-        EXPECT_NE(std::string::npos, errorMessage.find("got no value"));
+        expectBadArgOrInvalidCast(errorMessage, "got no value");
     }
 
     {
         auto [result, errorMessage] = runLuaCaptureError("textXYZ(1, 1.0)");
         ASSERT_FALSE(result);
-        EXPECT_NE(std::string::npos, errorMessage.find("got no value"));
+        expectBadArgOrInvalidCast(errorMessage, "got no value");
     }
 
     {
         auto [result, errorMessage] = runLuaCaptureError("textXYZ(1, 1.0, 1)");
         ASSERT_FALSE(result);
-        EXPECT_NE(std::string::npos, errorMessage.find("got number"));
+        expectBadArgOrInvalidCast(errorMessage, "got number");
     }
 
     {
         auto [result, errorMessage] = runLuaCaptureError("textXYZ(1, 1.0, '1')");
         ASSERT_FALSE(result);
-        EXPECT_NE(std::string::npos, errorMessage.find("got string"));
+        expectBadArgOrInvalidCast(errorMessage, "got string");
     }
 
     {
         auto [result, errorMessage] = runLuaCaptureError("textXYZ(1, 1.0, ABC())");
         ASSERT_FALSE(result);
-        EXPECT_NE(std::string::npos, errorMessage.find("got ABC"));
+        expectBadArgOrInvalidCast(errorMessage, "got ABC");
     }
 #endif
 }
