@@ -18,6 +18,7 @@
 #include <stdexcept>
 #include <string_view>
 #include <string>
+#include <initializer_list>
 #include <type_traits>
 #include <utility>
 
@@ -157,6 +158,64 @@ class Namespace : public detail::Registrar
         using Registrar::operator=;
 
     protected:
+        static void appendParentList(lua_State* L, int parentsIndex, int visitedIndex, int baseMetatableIndex)
+        {
+            parentsIndex = lua_absindex(L, parentsIndex);
+            visitedIndex = lua_absindex(L, visitedIndex);
+            baseMetatableIndex = lua_absindex(L, baseMetatableIndex);
+
+            LUABRIDGE_ASSERT(lua_istable(L, parentsIndex));
+            LUABRIDGE_ASSERT(lua_istable(L, visitedIndex));
+            LUABRIDGE_ASSERT(lua_istable(L, baseMetatableIndex));
+
+            const auto appendUnique = [L, parentsIndex, visitedIndex](int metatableIndex)
+            {
+                metatableIndex = lua_absindex(L, metatableIndex);
+
+                if (! lua_istable(L, metatableIndex))
+                    return;
+
+                auto* metatablePtr = const_cast<void*>(lua_topointer(L, metatableIndex));
+                LUABRIDGE_ASSERT(metatablePtr != nullptr);
+
+                lua_pushlightuserdata(L, metatablePtr);
+                lua_rawget(L, visitedIndex);
+                const bool alreadyVisited = ! lua_isnil(L, -1);
+                lua_pop(L, 1);
+
+                if (alreadyVisited)
+                    return;
+
+                lua_pushlightuserdata(L, metatablePtr);
+                lua_pushboolean(L, 1);
+                lua_rawset(L, visitedIndex);
+
+                lua_pushvalue(L, metatableIndex);
+                lua_rawseti(L, parentsIndex, static_cast<int>(static_cast<lua_Integer>(get_length(L, parentsIndex)) + 1));
+            };
+
+            appendUnique(baseMetatableIndex);
+
+            lua_rawgetp_x(L, baseMetatableIndex, detail::getParentKey()); // Stack: ..., parent list | nil
+            if (! lua_istable(L, -1))
+            {
+                lua_pop(L, 1);
+                return;
+            }
+
+            const int parentListIndex = lua_absindex(L, -1);
+            const int count = get_length(L, parentListIndex);
+
+            for (int i = 1; i <= count; ++i)
+            {
+                lua_rawgeti(L, parentListIndex, i);
+                appendUnique(-1);
+                lua_pop(L, 1);
+            }
+
+            lua_pop(L, 1);
+        }
+
         void setObjectMetaMethods(int tableIndex, bool simple)
         {
             tableIndex = lua_absindex(L, tableIndex);
@@ -430,7 +489,7 @@ class Namespace : public detail::Registrar
          * @param parent A parent namespace object.
          * @param staticKey Key where the class is stored.
         */
-        Class(const char* name, Namespace parent, const void* const staticKey, Options options)
+        Class(const char* name, Namespace parent, std::initializer_list<const void*> staticKeys, Options options)
             : ClassBase(name, std::move(parent))
         {
             LUABRIDGE_ASSERT(name != nullptr);
@@ -468,26 +527,75 @@ class Namespace : public detail::Registrar
             lua_pushvalue(L, -1); // Stack: ns, co, cl, st, st
             lua_rawsetp_x(L, -3, detail::getStaticKey()); // co [staticKey] = st. Stack: ns, co, cl, st
 
-            lua_rawgetp_x(L, LUA_REGISTRYINDEX, staticKey); // Stack: ns, co, cl, st, parent st (pst) | nil
-            if (lua_isnil(L, -1)) // Stack: ns, co, cl, st, nil
-            {
-                lua_pop(L, 1);
+            const int coIndex = lua_absindex(L, -3);
+            const int clIndex = lua_absindex(L, -2);
+            const int stIndex = lua_absindex(L, -1);
 
-                throw_or_assert<std::logic_error>("Base class is not registered");
-                return;
+            lua_newtable(L); // Stack: ns, co, cl, st, cl parents
+            const int clParentsIndex = lua_absindex(L, -1);
+            lua_newtable(L); // Stack: ns, co, cl, st, cl parents, visited
+            const int visitedIndex = lua_absindex(L, -1);
+
+            for (const auto* staticKey : staticKeys)
+            {
+                lua_rawgetp_x(L, LUA_REGISTRYINDEX, staticKey); // Stack: ..., visited, base st | nil
+                if (! lua_istable(L, -1))
+                {
+                    lua_pop(L, 2); // Stack: ns, co, cl, st, cl parents
+                    lua_pop(L, 1); // Stack: ns, co, cl, st
+
+                    throw_or_assert<std::logic_error>("Base class is not registered");
+                    return;
+                }
+
+                lua_rawgetp_x(L, -1, detail::getClassKey()); // Stack: ..., visited, base st, base cl
+                if (! lua_istable(L, -1))
+                {
+                    lua_pop(L, 3); // Stack: ns, co, cl, st, cl parents
+                    lua_pop(L, 1); // Stack: ns, co, cl, st
+
+                    throw_or_assert<std::logic_error>("Base class is not registered");
+                    return;
+                }
+
+                appendParentList(L, clParentsIndex, visitedIndex, -1);
+                lua_pop(L, 2); // Stack: ns, co, cl, st, cl parents, visited
             }
 
-            LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: ns, co, cl, st, pst
+            lua_pop(L, 1); // Stack: ns, co, cl, st, cl parents
 
-            lua_rawgetp_x(L, -1, detail::getClassKey()); // Stack: ns, co, cl, st, pst, parent cl (pcl)
-            LUABRIDGE_ASSERT(lua_istable(L, -1));
+            lua_createtable(L, get_length(L, clParentsIndex), 0); // Stack: ns, co, cl, st, cl parents, co parents
+            const int coParentsIndex = lua_absindex(L, -1);
+            lua_createtable(L, get_length(L, clParentsIndex), 0); // Stack: ns, co, cl, st, cl parents, co parents, st parents
+            const int stParentsIndex = lua_absindex(L, -1);
 
-            lua_rawgetp_x(L, -1, detail::getConstKey()); // Stack: ns, co, cl, st, pst, pcl, parent co (pco)
-            LUABRIDGE_ASSERT(lua_istable(L, -1));
+            const int parentCount = get_length(L, clParentsIndex);
+            for (int i = 1; i <= parentCount; ++i)
+            {
+                lua_rawgeti(L, clParentsIndex, i); // Stack: ..., st parents, parent cl
+                LUABRIDGE_ASSERT(lua_istable(L, -1));
 
-            lua_rawsetp_x(L, -6, detail::getParentKey()); // co [parentKey] = pco. Stack: ns, co, cl, st, pst, pcl
-            lua_rawsetp_x(L, -4, detail::getParentKey()); // cl [parentKey] = pcl. Stack: ns, co, cl, st, pst
-            lua_rawsetp_x(L, -2, detail::getParentKey()); // st [parentKey] = pst. Stack: ns, co, cl, st
+                lua_rawgetp_x(L, -1, detail::getConstKey()); // Stack: ..., parent cl, parent co
+                LUABRIDGE_ASSERT(lua_istable(L, -1));
+                lua_rawseti(L, coParentsIndex, i); // Stack: ..., parent cl
+
+                lua_rawgetp_x(L, -1, detail::getStaticKey()); // Stack: ..., parent cl, parent st
+                LUABRIDGE_ASSERT(lua_istable(L, -1));
+                lua_rawseti(L, stParentsIndex, i); // Stack: ..., parent cl
+
+                lua_pop(L, 1); // Stack: ..., st parents
+            }
+
+            lua_pushvalue(L, coParentsIndex);
+            lua_rawsetp_x(L, coIndex, detail::getParentKey());
+
+            lua_pushvalue(L, clParentsIndex);
+            lua_rawsetp_x(L, clIndex, detail::getParentKey());
+
+            lua_pushvalue(L, stParentsIndex);
+            lua_rawsetp_x(L, stIndex, detail::getParentKey());
+
+            lua_pop(L, 3); // Stack: ns, co, cl, st
 
             setObjectMetaMethods(-3, false); // co
             setObjectMetaMethods(-2, false); // cl
@@ -1665,11 +1773,12 @@ public:
      *
      * @returns A class registration object.
      */
-    template <class Derived, class Base>
+    template <class Derived, class Base1, class... Bases>
     Class<Derived> deriveClass(const char* name, Options options = defaultOptions)
     {
         assertIsActive();
-        return Class<Derived>(name, std::move(*this), detail::getStaticRegistryKey<Base>(), options);
+        return Class<Derived>(name, std::move(*this),
+            {detail::getStaticRegistryKey<Base1>(), detail::getStaticRegistryKey<Bases>()...}, options);
     }
     
 private:

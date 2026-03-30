@@ -174,26 +174,33 @@ private:
         lua_insert(L, -3); // Stack: rt, ot, co | nil
         lua_pop(L, 1); // Stack: rt, ot
 
-        for (;;)
+        if (lua_rawequal(L, -1, -2)) // Stack: rt, ot
         {
-            if (lua_rawequal(L, -1, -2)) // Stack: rt, ot
-            {
-                lua_pop(L, 2); // Stack: -
-                return static_cast<Userdata*>(lua_touserdata(L, index));
-            }
-
-            // Replace current metatable with it's base class.
-            lua_rawgetp_x(L, -1, getParentKey()); // Stack: rt, ot, parent ot (pot) | nil
-
-            if (lua_isnil(L, -1)) // Stack: rt, ot, nil
-            {
-                // Drop the object metatable because it may be some parent metatable
-                lua_pop(L, 3); // Stack: -
-                return getBadArgError(L, index, registryClassKey);
-            }
-
-            lua_remove(L, -2); // Stack: rt, pot
+            lua_pop(L, 2); // Stack: -
+            return static_cast<Userdata*>(lua_touserdata(L, index));
         }
+
+        lua_rawgetp_x(L, -1, getParentKey()); // Stack: rt, ot, parent list | nil
+        if (lua_istable(L, -1))
+        {
+            const int parentListIndex = lua_absindex(L, -1);
+            const int parentCount = get_length(L, parentListIndex);
+
+            for (int i = 1; i <= parentCount; ++i)
+            {
+                lua_rawgeti(L, parentListIndex, i); // Stack: rt, ot, parent list, parent ot
+                if (lua_istable(L, -1) && lua_rawequal(L, -1, -4)) // Stack: rt, ot, parent list, parent ot
+                {
+                    lua_pop(L, 4); // Stack: -
+                    return static_cast<Userdata*>(lua_touserdata(L, index));
+                }
+
+                lua_pop(L, 1); // Stack: rt, ot, parent list
+            }
+        }
+
+        lua_pop(L, 3); // Stack: -
+        return getBadArgError(L, index, registryClassKey);
 
         // no return
     }
@@ -213,26 +220,33 @@ private:
         lua_rawgetp_x(L, LUA_REGISTRYINDEX, registryKey); // Stack: ot, rt
         lua_insert(L, -2); // Stack: rt, ot
 
-        for (;;)
+        if (lua_rawequal(L, -1, -2)) // Stack: rt, ot
         {
-            if (lua_rawequal(L, -1, -2)) // Stack: rt, ot
-            {
-                lua_pop(L, 2); // Stack: -
-                return true;
-            }
-
-            // Replace current metatable with it's base class.
-            lua_rawgetp_x(L, -1, getParentKey()); // Stack: rt, ot, parent ot (pot) | nil
-
-            if (lua_isnil(L, -1)) // Stack: rt, ot, nil
-            {
-                // Drop the object metatable because it may be some parent metatable
-                lua_pop(L, 3); // Stack: -
-                return false;
-            }
-
-            lua_remove(L, -2); // Stack: rt, pot
+            lua_pop(L, 2); // Stack: -
+            return true;
         }
+
+        lua_rawgetp_x(L, -1, getParentKey()); // Stack: rt, ot, parent list | nil
+        if (lua_istable(L, -1))
+        {
+            const int parentListIndex = lua_absindex(L, -1);
+            const int parentCount = get_length(L, parentListIndex);
+
+            for (int i = 1; i <= parentCount; ++i)
+            {
+                lua_rawgeti(L, parentListIndex, i); // Stack: rt, ot, parent list, parent ot
+                if (lua_istable(L, -1) && lua_rawequal(L, -1, -4)) // Stack: rt, ot, parent list, parent ot
+                {
+                    lua_pop(L, 4); // Stack: -
+                    return true;
+                }
+
+                lua_pop(L, 1); // Stack: rt, ot, parent list
+            }
+        }
+
+        lua_pop(L, 3); // Stack: -
+        return false;
 
         // no return
     }
