@@ -533,6 +533,30 @@ TEST_F(LuaRefTests, CallableWithHandler)
     EXPECT_TRUE(errorMessage.find("we failed badly") != std::string::npos);
 }
 
+TEST_F(LuaRefTests, CallableWithHandlerAsIntToBoolValuedFunction)
+{
+    runLua("function f(x) return x <= 1 end");
+    auto f = luabridge::getGlobal(L, "f");
+    EXPECT_TRUE(f.isCallable());
+    
+    bool calledHandler = false;
+    std::string errorMessage;
+    auto handler = [&](lua_State*) -> int
+    {
+        calledHandler = true;
+
+        if (auto msg = lua_tostring(L, 1))
+            errorMessage = msg;
+
+        return 0;
+    };
+
+    auto result = f.callWithHandler<bool>(handler, 2);
+    ASSERT_TRUE(result);
+    EXPECT_FALSE(calledHandler);
+    EXPECT_FALSE(result.value());
+}
+
 TEST_F(LuaRefTests, CallableWrapper)
 {
     runLua("function sum(a, b) return a + b end");
