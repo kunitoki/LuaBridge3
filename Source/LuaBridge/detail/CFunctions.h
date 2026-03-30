@@ -159,16 +159,22 @@ inline bool is_metamethod(std::string_view method_name)
     return result != metamethods.end() && *result == method_name;
 }
 
-/**
- * @brief Make super method name.
- */
-inline std::string make_super_method_name(const char* name)
+inline void rawset_super_method(lua_State* L, int tableIndex, const char* key)
 {
-    LUABRIDGE_ASSERT(name != nullptr);
+    LUABRIDGE_ASSERT(key != nullptr);
 
-    return (std::string_view(name).find("_") == 0u)
-        ? (std::string("super") + name)
-        : (std::string("super_") + name);
+    tableIndex = lua_absindex(L, tableIndex);
+
+    // Stack before: ..., value
+    if (key[0] == '_')
+        lua_pushliteral(L, "super"); // Stack: ..., value, "super"
+    else
+        lua_pushliteral(L, "super_"); // Stack: ..., value, "super_"
+
+    lua_pushstring(L, key); // Stack: ..., value, prefix, key
+    lua_concat(L, 2); // Stack: ..., value, super_key
+    lua_insert(L, -2); // Stack: ..., super_key, value
+    lua_rawset(L, tableIndex); // Pops key/value. Stack: ...
 }
 
 //=================================================================================================
@@ -290,10 +296,77 @@ inline std::optional<int> try_call_index_extensible(lua_State* L, const char* ke
 }
 
 template <bool IsObject>
+inline std::optional<int> try_call_parent_index_fallback(lua_State* L, const char* key)
+{
+    LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt
+
+    if (key == nullptr)
+        return std::nullopt;
+
+    lua_rawgetp_x(L, -1, getParentKey()); // Stack: mt, parent list | nil
+    if (! lua_istable(L, -1))
+    {
+        lua_pop(L, 1); // Stack: mt
+        return std::nullopt;
+    }
+
+    const int parentListIndex = lua_absindex(L, -1);
+    const int parentCount = get_length(L, parentListIndex);
+
+    for (int i = 1; i <= parentCount; ++i)
+    {
+        lua_rawgeti(L, parentListIndex, i); // Stack: mt, parent list, parent mt
+        if (! lua_istable(L, -1))
+        {
+            lua_pop(L, 1);
+            continue;
+        }
+
+        const Options parentOptions = get_class_options(L, -1); // Stack: mt, parent list, parent mt
+        if (parentOptions.test(extensibleClass | ~allowOverridingMethods))
+        {
+            if (auto result = try_call_index_extensible<IsObject>(L, key))
+            {
+                lua_remove(L, -2); // Stack: mt, result
+                lua_remove(L, -2); // Stack: result
+                return *result;
+            }
+        }
+
+        lua_rawgetp_x(L, -1, getIndexFallbackKey()); // Stack: mt, parent list, parent mt, ifb | nil
+        if (lua_iscfunction(L, -1))
+        {
+            lua_pushvalue(L, 1); // Stack: mt, parent list, parent mt, ifb, arg1
+            lua_pushvalue(L, 2); // Stack: mt, parent list, parent mt, ifb, arg1, arg2
+            lua_call(L, 2, 1); // Stack: mt, parent list, parent mt, result
+
+            if (! lua_isnoneornil(L, -1))
+            {
+                lua_remove(L, -2); // Stack: mt, parent list, result
+                lua_remove(L, -2); // Stack: mt, result
+                lua_remove(L, -2); // Stack: result
+                return 1;
+            }
+
+            lua_pop(L, 1); // Stack: mt, parent list, parent mt
+        }
+        else
+        {
+            lua_pop(L, 1); // Stack: mt, parent list, parent mt
+        }
+
+        lua_pop(L, 1); // Stack: mt, parent list
+    }
+
+    lua_pop(L, 1); // Stack: mt
+    return std::nullopt;
+}
+
+template <bool IsObject>
 inline int index_metamethod(lua_State* L)
 {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-    luaL_checkstack(L, 3, detail::error_lua_stack_overflow);
+    luaL_checkstack(L, 6, detail::error_lua_stack_overflow);
 #endif
 
     LUABRIDGE_ASSERT(lua_istable(L, 1) || lua_isuserdata(L, 1)); // Stack (further not shown): table | userdata, name
@@ -387,44 +460,81 @@ inline int index_metamethod(lua_State* L)
 
         // It may mean that the field may be in const table and it's constness violation.
 
-        // Repeat the lookup in the parent metafield, or fallback to extensible class check.
-        lua_rawgetp_x(L, -1, getParentKey()); // Stack: mt, parent mt | nil
-        if (lua_isnil(L, -1)) // Stack: mt, nil
+        // Search flattened parent list in declaration-order DFS.
+        lua_rawgetp_x(L, -1, getParentKey()); // Stack: mt, parent list | nil
+
+        if (lua_istable(L, -1))
         {
-            lua_pop(L, 2); // Stack: -
-            break;
+            const int parentListIndex = lua_absindex(L, -1);
+            const int parentCount = get_length(L, parentListIndex);
+
+            for (int i = 1; i <= parentCount; ++i)
+            {
+                lua_rawgeti(L, parentListIndex, i); // Stack: mt, parent list, parent mt
+                if (! lua_istable(L, -1))
+                {
+                    lua_pop(L, 1);
+                    continue;
+                }
+
+                lua_pushvalue(L, 2); // Stack: mt, parent list, parent mt, field name
+                lua_rawget(L, -2); // Stack: mt, parent list, parent mt, field | nil
+                if (! lua_isnil(L, -1))
+                {
+                    lua_remove(L, -2); // Stack: mt, parent list, field
+                    lua_remove(L, -2); // Stack: mt, field
+                    lua_remove(L, -2); // Stack: field
+                    return 1;
+                }
+                lua_pop(L, 1); // Stack: mt, parent list, parent mt
+
+                lua_rawgetp_x(L, -1, getPropgetKey()); // Stack: mt, parent list, parent mt, pg | nil
+                if (lua_istable(L, -1))
+                {
+                    lua_pushvalue(L, 2); // Stack: mt, parent list, parent mt, pg, field name
+                    lua_rawget(L, -2); // Stack: mt, parent list, parent mt, pg, getter | nil
+                    lua_remove(L, -2); // Stack: mt, parent list, parent mt, getter | nil
+                    if (lua_iscfunction(L, -1))
+                    {
+                        lua_remove(L, -2); // Stack: mt, parent list, getter
+                        lua_remove(L, -2); // Stack: mt, getter
+                        lua_remove(L, -2); // Stack: getter
+                        lua_pushvalue(L, 1); // Stack: getter, table | userdata
+                        lua_call(L, 1, 1); // Stack: value
+                        return 1;
+                    }
+
+                    lua_pop(L, 1); // Stack: mt, parent list, parent mt
+                }
+                else
+                {
+                    lua_pop(L, 1); // Stack: mt, parent list, parent mt
+                }
+
+                lua_pop(L, 1); // Stack: mt, parent list
+            }
         }
 
-        // Remove the metatable and repeat the search in the parent one.
-        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt, parent mt
-        lua_remove(L, -2); // Stack: parent mt
+        lua_pop(L, 2); // Stack: -
+        break;
     }
 
     lua_getmetatable(L, 1); // Stack: class/const table (mt)
     LUABRIDGE_ASSERT(lua_istable(L, -1));
 
-    for (;;)
+    const Options options = get_class_options(L, -1); // Stack: mt
+    if (options.test(extensibleClass | ~allowOverridingMethods))
     {
-        const Options options = get_class_options(L, -1); // Stack: mt
-
-        if (options.test(extensibleClass | ~allowOverridingMethods))
-        {
-            if (auto result = try_call_index_extensible<IsObject>(L, key))
-                return *result;
-        }
-
-        // Repeat the lookup in the parent metafield, or return nil if the field doesn't exist.
-        lua_rawgetp_x(L, -1, getParentKey()); // Stack: mt, parent mt | nil
-        if (lua_isnil(L, -1)) // Stack: mt, nil
-        {
-            lua_remove(L, -2); // Stack: nil
-            return 1;
-        }
-
-        // Remove the metatable and repeat the search in the parent one.
-        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt, parent mt
-        lua_remove(L, -2); // Stack: parent mt
+        if (auto result = try_call_index_extensible<IsObject>(L, key))
+            return *result;
     }
+
+    if (auto result = try_call_parent_index_fallback<IsObject>(L, key))
+        return *result;
+
+    lua_pop(L, 1); // Stack: -
+    lua_pushnil(L);
+    return 1;
 
     // no return
 }
@@ -683,52 +793,66 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
         }
         // Stack: mt, orig_ct
 
-        lua_pushvalue(L, -2); // Stack: mt, orig_ct, cur_mt (traversal copy)
-
-        for (;;)
+        const int mtIndex = lua_absindex(L, -2);
+        const int origClassTableIndex = lua_absindex(L, -1);
+        const auto process_metatable = [L, key, origClassTableIndex](int candidateMtIndex)
         {
-            push_class_or_const_table(L, -1); // Stack: mt, orig_ct, cur_mt, cur_ct | nil
-            if (! lua_istable(L, -1)) // Stack: mt, orig_ct, cur_mt, nil
+            push_class_or_const_table(L, candidateMtIndex); // Stack: ..., candidate_ct | nil
+            if (! lua_istable(L, -1))
             {
-                lua_pop(L, 2); // Stack: mt, orig_ct
-                break;
+                lua_pop(L, 1);
+                return false;
             }
 
-            lua_pushvalue(L, 2); // Stack: mt, orig_ct, cur_mt, cur_ct, field name
-            lua_rawget(L, -2); // Stack: mt, orig_ct, cur_mt, cur_ct, field | nil
+            lua_pushvalue(L, 2); // Stack: ..., candidate_ct, field name
+            lua_rawget(L, -2); // Stack: ..., candidate_ct, field | nil
 
-            if (! lua_isnil(L, -1)) // Stack: mt, orig_ct, cur_mt, cur_ct, field
+            if (lua_isnil(L, -1))
             {
-                if (! lua_iscfunction(L, -1))
+                lua_pop(L, 2); // Stack: ...
+                return false;
+            }
+
+            if (! lua_iscfunction(L, -1))
+            {
+                lua_pop(L, 2); // Stack: ...
+                return true;
+            }
+
+            const Options options = get_class_options(L, -2);
+            if (! options.test(allowOverridingMethods))
+                luaL_error(L, "immutable member '%s'", key);
+
+            rawset_super_method(L, origClassTableIndex, key); // Stack: ..., candidate_ct
+            lua_pop(L, 1); // Stack: ...
+            return true;
+        };
+
+        (void) process_metatable(mtIndex);
+
+        lua_rawgetp_x(L, mtIndex, getParentKey()); // Stack: mt, orig_ct, parent list | nil
+        if (lua_istable(L, -1))
+        {
+            const int parentListIndex = lua_absindex(L, -1);
+            const int parentCount = get_length(L, parentListIndex);
+
+            for (int i = 1; i <= parentCount; ++i)
+            {
+                lua_rawgeti(L, parentListIndex, i); // Stack: mt, orig_ct, parent list, parent mt
+                if (lua_istable(L, -1))
                 {
-                    lua_pop(L, 3); // Stack: mt, orig_ct
-                    break;
+                    if (process_metatable(lua_absindex(L, -1)))
+                    {
+                        lua_pop(L, 1); // Stack: mt, orig_ct, parent list
+                        break;
+                    }
                 }
 
-                const Options options = get_class_options(L, -2); // Stack: mt, orig_ct, cur_mt, cur_ct, field
-                if (! options.test(allowOverridingMethods))
-                    luaL_error(L, "immutable member '%s'", key);
-
-                // Store super_ alias in the ORIGINAL (derived) class table so only derived
-                // instances can call it; the base class table is left completely untouched.
-                rawsetfield(L, -4, make_super_method_name(key).c_str()); // Stack: mt, orig_ct, cur_mt, cur_ct
-                lua_pop(L, 2); // Stack: mt, orig_ct
-                break;
+                lua_pop(L, 1); // Stack: mt, orig_ct, parent list
             }
-
-            lua_pop(L, 1); // Stack: mt, orig_ct, cur_mt, cur_ct
-
-            lua_rawgetp_x(L, -2, getParentKey()); // Stack: mt, orig_ct, cur_mt, cur_ct, pmt | nil
-            if (lua_isnil(L, -1)) // Stack: mt, orig_ct, cur_mt, cur_ct, nil
-            {
-                lua_pop(L, 3); // Stack: mt, orig_ct
-                break;
-            }
-
-            LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt, orig_ct, cur_mt, cur_ct, pmt
-            lua_remove(L, -2); // Stack: mt, orig_ct, cur_mt, pmt
-            lua_remove(L, -2); // Stack: mt, orig_ct, pmt
         }
+
+        lua_pop(L, 1); // Stack: mt, orig_ct
 
         // Stack: mt, orig_ct — write to the original (most-derived) class table.
         lua_getmetatable(L, -1); // Stack: mt, orig_ct, orig_ct_mt
@@ -739,63 +863,168 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
     }
 
     // Non-function value (static property): use original traversal-end write location.
-    lua_pushvalue(L, -1); // Stack: mt, mt
+    const int rootMetatableIndex = lua_absindex(L, -1);
+    lua_pushvalue(L, rootMetatableIndex); // Stack: mt, target mt
+    const int targetMetatableIndex = lua_absindex(L, -1);
 
-    for (;;)
+    const auto process_metatable = [L, key, targetMetatableIndex](int candidateMtIndex)
     {
-        push_class_or_const_table(L, -1); // Stack: mt, mt, ct | nil
-        if (! lua_istable(L, -1)) // Stack: mt, mt, nil
+        push_class_or_const_table(L, candidateMtIndex); // Stack: ..., candidate_ct | nil
+        if (! lua_istable(L, -1))
         {
-            lua_pop(L, 2); // Stack: mt
-            return std::nullopt;
+            lua_pop(L, 1);
+            return false;
         }
 
-        lua_pushvalue(L, 2); // Stack: mt, mt, ct, field name
-        lua_rawget(L, -2); // Stack: mt, mt, ct, field | nil
+        lua_pushvalue(L, 2); // Stack: ..., candidate_ct, field name
+        lua_rawget(L, -2); // Stack: ..., candidate_ct, field | nil
 
-        if (! lua_isnil(L, -1)) // Stack: mt, mt, ct, field
+        if (lua_isnil(L, -1))
         {
-            if (! lua_iscfunction(L, -1))
+            lua_pop(L, 2); // Stack: ...
+            return false;
+        }
+
+        lua_pushvalue(L, candidateMtIndex);
+        lua_replace(L, targetMetatableIndex);
+
+        if (! lua_iscfunction(L, -1))
+        {
+            lua_pop(L, 2); // Stack: ...
+            return true;
+        }
+
+        const Options options = get_class_options(L, -2);
+        if (! options.test(allowOverridingMethods))
+            luaL_error(L, "immutable member '%s'", key);
+
+        rawset_super_method(L, -2, key); // Stack: ..., candidate_ct
+        lua_pop(L, 1); // Stack: ...
+        return true;
+    };
+
+    (void) process_metatable(rootMetatableIndex);
+
+    lua_rawgetp_x(L, rootMetatableIndex, getParentKey()); // Stack: mt, target mt, parent list | nil
+    if (lua_istable(L, -1))
+    {
+        const int parentListIndex = lua_absindex(L, -1);
+        const int parentCount = get_length(L, parentListIndex);
+
+        for (int i = 1; i <= parentCount; ++i)
+        {
+            lua_rawgeti(L, parentListIndex, i); // Stack: mt, target mt, parent list, parent mt
+            if (! lua_istable(L, -1))
             {
                 lua_pop(L, 1);
+                continue;
+            }
+
+            // Preserve old traversal-end behavior when no member exists in the chain.
+            lua_pushvalue(L, -1);
+            lua_replace(L, targetMetatableIndex);
+
+            if (process_metatable(lua_absindex(L, -1)))
+            {
+                lua_pop(L, 1); // Stack: mt, target mt, parent list
                 break;
             }
 
-            const Options options = get_class_options(L, -2); // Stack: mt, mt, ct, field
-            if (! options.test(allowOverridingMethods))
-                luaL_error(L, "immutable member '%s'", key);
-
-            rawsetfield(L, -2, make_super_method_name(key).c_str()); // Stack: mt, mt, ct
-            break;
+            lua_pop(L, 1); // Stack: mt, target mt, parent list
         }
-
-        lua_pop(L, 1); // Stack: mt, mt, ct
-
-        lua_rawgetp_x(L, -2, getParentKey()); // Stack: mt, mt, ct, pmt | nil
-        if (lua_isnil(L, -1)) // Stack: mt, mt, ct, nil
-        {
-            lua_pop(L, 1); // Stack: mt, mt, ct
-            break;
-        }
-
-        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt, mt, ct, pmt
-        lua_remove(L, -2); // Stack: mt, mt, pmt
-        lua_remove(L, -2); // Stack: mt, pmt
     }
 
-    lua_remove(L, -2); // Stack: mt, ct
-    lua_getmetatable(L, -1); // Stack: mt, ct, ct_mt
-    lua_pushvalue(L, 3); // Stack: mt, ct, ct_mt, arg3
-    rawsetfield(L, -2, key); // Stack: mt, ct, ct_mt
-    lua_pop(L, 2); // Stack: mt
+    lua_pop(L, 1); // Stack: mt, target mt
+
+    push_class_or_const_table(L, targetMetatableIndex); // Stack: mt, target mt, ct | nil
+    if (! lua_istable(L, -1)) // Stack: mt, target mt, nil
+    {
+        lua_pop(L, 2); // Stack: mt
+        return std::nullopt;
+    }
+
+    lua_getmetatable(L, -1); // Stack: mt, target mt, ct, ct_mt
+    lua_pushvalue(L, 3); // Stack: mt, target mt, ct, ct_mt, arg3
+    rawsetfield(L, -2, key); // Stack: mt, target mt, ct, ct_mt
+    lua_pop(L, 3); // Stack: mt
     return 0;
+}
+
+template <bool IsObject>
+inline std::optional<int> try_call_parent_newindex(lua_State* L)
+{
+    LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt
+
+    lua_rawgetp_x(L, -1, getParentKey()); // Stack: mt, parent list | nil
+    if (! lua_istable(L, -1))
+    {
+        lua_pop(L, 1); // Stack: mt
+        return std::nullopt;
+    }
+
+    const int parentListIndex = lua_absindex(L, -1);
+    const int parentCount = get_length(L, parentListIndex);
+
+    for (int i = 1; i <= parentCount; ++i)
+    {
+        lua_rawgeti(L, parentListIndex, i); // Stack: mt, parent list, parent mt
+        if (! lua_istable(L, -1))
+        {
+            lua_pop(L, 1);
+            continue;
+        }
+
+        lua_rawgetp_x(L, -1, getPropsetKey()); // Stack: mt, parent list, parent mt, ps | nil
+        if (lua_istable(L, -1))
+        {
+            lua_pushvalue(L, 2); // Stack: mt, parent list, parent mt, ps, field name
+            lua_rawget(L, -2); // Stack: mt, parent list, parent mt, ps, setter | nil
+            lua_remove(L, -2); // Stack: mt, parent list, parent mt, setter | nil
+
+            if (lua_iscfunction(L, -1))
+            {
+                lua_remove(L, -2); // Stack: mt, parent list, setter
+                lua_remove(L, -2); // Stack: mt, setter
+                lua_remove(L, -2); // Stack: setter
+
+                if constexpr (IsObject)
+                    lua_pushvalue(L, 1); // Stack: setter, table | userdata
+                lua_pushvalue(L, 3); // Stack: setter, table | userdata, new value
+                lua_call(L, IsObject ? 2 : 1, 0); // Stack: -
+                return 0;
+            }
+
+            lua_pop(L, 1); // Stack: mt, parent list, parent mt
+        }
+        else
+        {
+            lua_pop(L, 1); // Stack: mt, parent list, parent mt
+        }
+
+        lua_rawgetp_x(L, -1, getNewIndexFallbackKey()); // Stack: mt, parent list, parent mt, nifb | nil
+        if (lua_iscfunction(L, -1))
+        {
+            lua_pushvalue(L, 1); // Stack: mt, parent list, parent mt, nifb, arg1
+            lua_pushvalue(L, 2); // Stack: mt, parent list, parent mt, nifb, arg1, arg2
+            lua_pushvalue(L, 3); // Stack: mt, parent list, parent mt, nifb, arg1, arg2, arg3
+            lua_call(L, 3, 0); // Stack: mt, parent list, parent mt
+
+            lua_pop(L, 3); // Stack: -
+            return 0;
+        }
+
+        lua_pop(L, 2); // Stack: mt, parent list
+    }
+
+    lua_pop(L, 1); // Stack: mt
+    return std::nullopt;
 }
 
 template <bool IsObject>
 inline int newindex_metamethod(lua_State* L)
 {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-    luaL_checkstack(L, 3, detail::error_lua_stack_overflow);
+    luaL_checkstack(L, 6, detail::error_lua_stack_overflow);
 #endif
 
     LUABRIDGE_ASSERT(lua_istable(L, 1) || lua_isuserdata(L, 1)); // Stack (further not shown): table | userdata, name, new value
@@ -805,17 +1034,59 @@ inline int newindex_metamethod(lua_State* L)
 
     const char* key = lua_tostring(L, 2);
 
-    for (;;)
+    const Options options = get_class_options(L, -1);
+
+    // Try in the property set table on the current class first.
+    lua_rawgetp_x(L, -1, getPropsetKey()); // Stack: mt, propset table (ps) | nil
+    if (! lua_istable(L, -1))
+        luaL_error(L, "no member named '%s'", key);
+
+    lua_pushvalue(L, 2); // Stack: mt, ps, field name
+    lua_rawget(L, -2); // Stack: mt, ps, setter | nil
+    lua_remove(L, -2); // Stack: mt, setter | nil
+
+    if (lua_iscfunction(L, -1)) // Stack: mt, setter
     {
-        const Options options = get_class_options(L, -1);
+        lua_remove(L, -2); // Stack: setter
+        if constexpr (IsObject)
+            lua_pushvalue(L, 1); // Stack: setter, table | userdata
+        lua_pushvalue(L, 3); // Stack: setter, table | userdata, new value
+        lua_call(L, IsObject ? 2 : 1, 0); // Stack: -
+        return 0;
+    }
 
-        // Try in the property set table
-        lua_rawgetp_x(L, -1, getPropsetKey()); // Stack: mt, propset table (ps) | nil
-        if (lua_isnil(L, -1)) // Stack: mt, nil
-            luaL_error(L, "no member named '%s'", key);
+    lua_pop(L, 1); // Stack: mt
 
-        LUABRIDGE_ASSERT(lua_istable(L, -1));
+    if constexpr (IsObject)
+    {
+        if (auto result = try_call_newindex_fallback(L))
+            return *result;
+    }
+    else
+    {
+        if (auto result = try_call_static_newindex_fallback(L))
+            return *result;
 
+        if (options.test(extensibleClass))
+        {
+            // For static extensible writes of plain values, store directly on the class table.
+            // Function values still go through try_call_newindex_extensible to preserve super_* wiring.
+            if (! lua_isfunction(L, 3))
+            {
+                lua_pushvalue(L, 3);
+                rawsetfield(L, 1, key);
+                return 0;
+            }
+
+            if (auto result = try_call_newindex_extensible(L,key))
+                return *result;
+        }
+    }
+
+    // Try in the propget key
+    lua_rawgetp_x(L, -1, getPropsetKey()); // Stack: mt, propset table (ps)
+    if (lua_istable(L, -1))
+    {
         lua_pushvalue(L, 2); // Stack: mt, ps, field name
         lua_rawget(L, -2); // Stack: mt, ps, setter | nil
         lua_remove(L, -2); // Stack: mt, setter | nil
@@ -829,41 +1100,25 @@ inline int newindex_metamethod(lua_State* L)
             lua_call(L, IsObject ? 2 : 1, 0); // Stack: -
             return 0;
         }
-
-        LUABRIDGE_ASSERT(lua_isnil(L, -1)); // Stack: mt, nil
-        lua_pop(L, 1); // Stack: mt
-
-        if constexpr (IsObject)
-        {
-            // Try in the new index fallback
-            if (auto result = try_call_newindex_fallback(L))
-                return *result;
-        }
-        else
-        {
-            // Try in the static new index fallback
-            if (auto result = try_call_static_newindex_fallback(L))
-                return *result;
-
-            // Try in the new index extensible
-            if (options.test(extensibleClass))
-            {
-                if (auto result = try_call_newindex_extensible(L, key))
-                    return *result;
-            }
-        }
-
-        // Try in the parent
-        lua_rawgetp_x(L, -1, getParentKey()); // Stack: mt, parent mt | nil
-        if (lua_isnil(L, -1)) // Stack: mt, nil
-            luaL_error(L, "no writable member '%s'", key);
-
-        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt, parent mt
-        lua_remove(L, -2); // Stack: parent mt
-
-        // Repeat the search in the parent
     }
 
+    lua_pop(L, 1); // Stack: mt
+
+    if (auto result = try_call_parent_newindex<IsObject>(L))
+        return *result;
+
+    if constexpr (IsObject)
+    {
+        // Parent metamethods should win; extensible storage is the final fallback.
+        if (options.test(extensibleClass))
+        {
+            if (auto result = try_call_newindex_extensible(L, key))
+                return *result;
+        }
+    }
+
+    lua_pop(L, 1); // Stack: -
+    luaL_error(L, "no writable member '%s'", key);
     return 0;
 }
 

@@ -38,6 +38,7 @@ set (LUABRIDGE_TEST_SOURCE_FILES
   Source/ListTests.cpp
   Source/LuaRefTests.cpp
   Source/MapTests.cpp
+  Source/MultipleInheritanceTests.cpp
   Source/NamespaceTests.cpp
   Source/OptionalTests.cpp
   Source/OverloadTests.cpp

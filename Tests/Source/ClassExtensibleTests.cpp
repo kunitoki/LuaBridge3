@@ -288,6 +288,13 @@ struct ExtensibleDerived : ExtensibleBase
     int derivedClass() { return 11; }
     int derivedClassConst() const { return 22; }
 };
+
+struct SimplePropertyClass
+{
+    int value = 17;
+
+    int getValue() const { return value; }
+};
 } // namespace
 
 TEST_F(ClassExtensibleTests, ExtensibleClass)
@@ -394,6 +401,48 @@ TEST_F(ClassExtensibleTests, ExtensibleDerivedClassAndBaseCascading)
     )");
 
     EXPECT_EQ(1, result<int>());
+}
+
+TEST_F(ClassExtensibleTests, ExtensibleParentLuaMethodVisibleFromDerived)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<ExtensibleBase>("ExtensibleBase", luabridge::extensibleClass)
+            .addConstructor<void(*)()>()
+        .endClass()
+        .deriveClass<ExtensibleDerived, ExtensibleBase>("ExtensibleDerived")
+            .addConstructor<void(*)()>()
+        .endClass()
+    ;
+
+    runLua(R"(
+        function ExtensibleBase:luaOnlyMethod()
+            return 123
+        end
+
+        local derived = ExtensibleDerived()
+        result = derived:luaOnlyMethod()
+    )");
+
+    EXPECT_EQ(123, result<int>());
+}
+
+TEST_F(ClassExtensibleTests, SimpleUserdataPropertyLookupFastPath)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<SimplePropertyClass>("SimplePropertyClass")
+            .addConstructor<void(*)()>()
+            .addProperty("value", &SimplePropertyClass::getValue)
+        .endClass()
+    ;
+
+    runLua(R"(
+        local obj = SimplePropertyClass()
+        local valueOk = obj.value == 17
+        local missingIsNil = obj.missing == nil
+        result = valueOk and missingIsNil
+    )");
+
+    EXPECT_TRUE(result<bool>());
 }
 
 TEST_F(ClassExtensibleTests, ExtensibleDerivedClassAndBaseSameMethod)
@@ -599,6 +648,47 @@ TEST_F(ClassExtensibleTests, ExtensibleDerivedOverridePreservesCppBaseMethod)
     // derived:baseClass() == 100 + 1 == 101, base:baseClass() == 1 (original C++)
     // => 101 * 1000 + 1 == 101001
     EXPECT_EQ(101001, result<int>());
+}
+
+TEST_F(ClassExtensibleTests, ExtensibleObjectNonFunctionWriteCanReplaceMethodWithSuper)
+{
+    constexpr auto options = luabridge::extensibleClass | luabridge::allowOverridingMethods;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<ExtensibleBase>("ExtensibleBase", options)
+            .addConstructor<void(*)()>()
+            .addFunction("baseClass", &ExtensibleBase::baseClass)
+        .endClass()
+    ;
+
+    ASSERT_TRUE(runLua(R"(
+        local base = ExtensibleBase()
+        base.baseClass = 41
+        result = true
+    )"));
+
+    EXPECT_TRUE(result<bool>());
+}
+
+TEST_F(ClassExtensibleTests, ExtensibleObjectNonFunctionWriteTraversesParentAndUpdatesExistingValue)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<ExtensibleBase>("ExtensibleBase", luabridge::extensibleClass)
+            .addConstructor<void(*)()>()
+        .endClass()
+        .deriveClass<ExtensibleDerived, ExtensibleBase>("ExtensibleDerived", luabridge::extensibleClass)
+            .addConstructor<void(*)()>()
+        .endClass()
+    ;
+
+    runLua(R"(
+        local derived = ExtensibleDerived()
+        derived.dynamicValue = 10
+        derived.dynamicValue = 20
+        result = derived.dynamicValue
+    )");
+
+    EXPECT_EQ(20, result<int>());
 }
 
 TEST_F(ClassExtensibleTests, ExtensibleClassCustomMetamethods)
