@@ -598,6 +598,41 @@ void* lua_newuserdata_aligned(lua_State* L, Args&&... args)
     return pointer;
 }
 
+template <class T>
+int lua_deleteuserdata_pointer(lua_State* L)
+{
+    assert(isfulluserdata(L, 1));
+
+    T** aligned = align<T*>(lua_touserdata(L, 1));
+    delete *aligned;
+
+    return 0;
+}
+
+template <class T>
+void* lua_newuserdata_pointer(lua_State* L, T* ptr)
+{
+#if LUABRIDGE_ON_LUAU
+    void* pointer = lua_newuserdatadtor(L, maximum_space_needed_to_align<T*>(), [](void* x)
+    {
+        T** aligned = align<T*>(x);
+        delete *aligned;
+    });
+#else
+    void* pointer = lua_newuserdata_x<T*>(L, maximum_space_needed_to_align<T*>());
+
+    lua_newtable(L);
+    lua_pushcfunction_x(L, &lua_deleteuserdata_pointer<T*>);
+    rawsetfield(L, -2, "__gc");
+    lua_setmetatable(L, -2);
+#endif
+
+    T** aligned = align<T*>(pointer);
+    *aligned = ptr;
+
+    return pointer;
+}
+
 inline int raise_lua_error(lua_State* L, const char* fmt, ...)
 {
     va_list argp;
@@ -3204,6 +3239,7 @@ private:
             lua_remove(L, -2); 
         }
 
+        unreachable();
     }
 
     static bool isInstance(lua_State* L, int index, const void* registryKey)
@@ -3241,6 +3277,7 @@ private:
             lua_remove(L, -2); 
         }
 
+        unreachable();
     }
 
 public:
@@ -5115,6 +5152,76 @@ struct Stack<T[N]>
     }
 };
 
+template <class T>
+struct Stack<std::reference_wrapper<T>>
+{
+    static Result push(lua_State* L, const std::reference_wrapper<T>& reference)
+    {
+        lua_newuserdata_aligned<std::reference_wrapper<T>>(L, reference.get());
+
+        luaL_newmetatable(L, typeName());
+        lua_pushvalue(L, -2);
+        lua_pushcclosure_x(L, &get_set_reference_value<T>, "reference_wrapper", 1);
+        rawsetfield(L, -2, "__call");
+        lua_setmetatable(L, -2);
+
+        return {};
+    }
+
+    static TypeResult<std::reference_wrapper<T>> get(lua_State* L, int index)
+    {
+        auto ptr = luaL_testudata(L, index, typeName());
+        if (ptr == nullptr)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        auto reference = reinterpret_cast<std::reference_wrapper<T>*>(ptr);
+        if (reference == nullptr)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        return *reference;
+    }
+    
+    static bool isInstance(lua_State* L, int index)
+    {
+        return luaL_testudata(L, index, typeName()) != nullptr;
+    }
+
+private:
+    static const char* typeName()
+    {
+        static const std::string s{ detail::typeName<std::reference_wrapper<T>>() };
+        return s.c_str();
+    }
+
+    template <class U>
+    static int get_set_reference_value(lua_State* L)
+    {
+        LUABRIDGE_ASSERT(lua_isuserdata(L, lua_upvalueindex(1)));
+
+        std::reference_wrapper<U>* ptr = static_cast<std::reference_wrapper<U>*>(lua_touserdata(L, lua_upvalueindex(1)));
+        LUABRIDGE_ASSERT(ptr != nullptr);
+
+        if (lua_gettop(L) > 1)
+        {
+            auto result = Stack<U>::get(L, 2);
+            if (! result)
+                luaL_error(L, "%s", result.message().c_str());
+
+            ptr->get() = *result;
+
+            return 0;
+        }
+        else
+        {
+            auto result = Stack<U>::push(L, ptr->get());
+            if (! result)
+                luaL_error(L, "%s", result.message().c_str());
+
+            return 1;
+        }
+    }
+};
+
 template <>
 struct Stack<void*>
 {
@@ -5178,7 +5285,6 @@ struct Stack<const void*>
 };
 
 namespace detail {
-
 template <class T>
 struct StackOpSelector<T&, false>
 {
@@ -5232,7 +5338,6 @@ struct StackOpSelector<const T*, false>
 
     static bool isInstance(lua_State* L, int index) { return Stack<T>::isInstance(L, index); }
 };
-
 } 
 
 template <class T>
@@ -6156,10 +6261,21 @@ template <class T>
 auto unwrap_argument_or_error(lua_State* L, std::size_t index, std::size_t start)
 {
     auto result = Stack<T>::get(L, static_cast<int>(index + start));
-    if (! result)
-        raise_lua_error(L, "Error decoding argument #%d: %s", static_cast<int>(index + 1), result.error_cstr());
+    if (result)
+        return std::move(*result);
 
-    return std::move(*result);
+    if constexpr (! std::is_lvalue_reference_v<T>)
+    {
+        using U = std::reference_wrapper<std::remove_reference_t<T>>;
+
+        auto resultRef = Stack<U>::get(L, static_cast<int>(index));
+        if (resultRef)
+            return (*resultRef).get();
+    }
+
+    raise_lua_error(L, "Error decoding argument #%d: %s", static_cast<int>(index + 1), result.message().c_str());
+
+    unreachable();
 }
 
 template <class ArgsPack, std::size_t Start, std::size_t... Indices>
