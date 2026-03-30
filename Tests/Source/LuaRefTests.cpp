@@ -590,6 +590,10 @@ TEST_F(LuaRefTests, CallableWithNullifiedStdFunction)
 
     std::function<int(lua_State*)> pHandler = nullptr;
     EXPECT_FALSE(f.callWithHandler(pHandler, "badly"));
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_ANY_THROW(f.callWithHandler(pHandler, "badly").throw_on_error());
+#endif
 }
 
 TEST_F(LuaRefTests, CallableWithCFunction)
@@ -609,11 +613,10 @@ TEST_F(LuaRefTests, CallableWithNullCFunction)
     EXPECT_TRUE(f.isCallable());
 
     lua_CFunction pHandler = nullptr;
+    EXPECT_FALSE(f.callWithHandler(pHandler, "badly"));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
-    EXPECT_ANY_THROW(f.callWithHandler(pHandler, "badly"));
-#else
-    EXPECT_FALSE(f.callWithHandler(pHandler, "badly"));
+    EXPECT_ANY_THROW(f.callWithHandler(pHandler, "badly").throw_on_error());
 #endif
 }
 

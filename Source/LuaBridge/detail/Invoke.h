@@ -20,6 +20,17 @@ namespace luabridge {
 //=================================================================================================
 namespace detail {
 
+template <class F>
+bool is_handler_valid(const F& f)
+{
+    if constexpr (std::is_pointer_v<remove_cvref_t<F>>)
+        return f != nullptr;
+    else if constexpr (std::is_constructible_v<bool, remove_cvref_t<F>>)
+        return static_cast<bool>(f);
+    else
+        return true;
+}
+
 template <class T>
 struct IsTuple : std::false_type
 {
@@ -105,11 +116,7 @@ TypeResult<R> callWithHandler(const Ref& object, F&& errorHandler, Args&&... arg
     bool hasHandler = false;
     if constexpr (isValidHandler)
     {
-        if constexpr (std::is_constructible_v<bool, detail::remove_cvref_t<F>>)
-            hasHandler = static_cast<bool>(errorHandler);
-        else
-            hasHandler = true;
-
+        hasHandler = detail::is_handler_valid(errorHandler);
         if (hasHandler)
             detail::push_function(L, std::forward<F>(errorHandler), "");
     }
@@ -129,7 +136,7 @@ TypeResult<R> callWithHandler(const Ref& object, F&& errorHandler, Args&&... arg
         auto ec = makeErrorCode(ErrorCode::LuaFunctionCallFailed);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
-        if (! hasHandler)
+        if constexpr (! isValidHandler)
         {
             if (LuaException::areExceptionsEnabled(L))
                 LuaException::raise(L, ec);
