@@ -67,6 +67,13 @@ Contents
 
 *   [5 - Security](#5---security)
 
+*   [6 - Configuration](#6---configuration)
+
+    * [6.1 - LUABRIDGE_SAFE_STACK_CHECKS](#61---luabridge-safe-stack-checks)
+    * [6.2 - LUABRIDGE_STRICT_STACK_CONVERSIONS](#62---luabridge-strict-stack-conversions)
+    * [6.3 - LUABRIDGE_SAFE_LUA_C_EXCEPTION_HANDLING](#63---luabridge-safe-c-exception-handling)
+    * [6.4 - LUABRIDGE_RAISE_UNREGISTERED_CLASS_USAGE](#64---luabridge-raise-unregistered-class-usage)
+
 *   [Appendix - API Reference](#appendix---api-reference)
 
 1 - Introduction
@@ -1720,7 +1727,7 @@ luabridge::getGlobalNamespace (L)
 6 - Configuration
 =================
 
-LuaBridge3 exposes several compile-time configuration macros in `Config.h`. Each macro can be overridden by defining it **before** including any LuaBridge header, or by passing it as a compiler flag (e.g. `-DLUABRIDGE_SAFE_STACK_CHECKS=0`).
+LuaBridge3 exposes several compile-time configuration macros. Each macro can be overridden by defining it **before** including any LuaBridge header, or by passing it as a compiler flag (e.g. `-DLUABRIDGE_SAFE_STACK_CHECKS=0`).
 
 6.1 - LUABRIDGE_SAFE_STACK_CHECKS
 ----------------------------------
