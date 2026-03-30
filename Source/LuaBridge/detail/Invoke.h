@@ -21,7 +21,7 @@ namespace luabridge {
 namespace detail {
 
 template <class F>
-bool is_handler_valid(const F& f)
+bool is_handler_valid(const F& f) noexcept
 {
     if constexpr (std::is_pointer_v<remove_cvref_t<F>>)
         return f != nullptr;
@@ -107,7 +107,10 @@ TypeResult<R> decodeCallResult(lua_State* L, int firstResultIndex, int numReturn
 template <class R, class Ref, class F, class... Args>
 TypeResult<R> callWithHandler(const Ref& object, F&& errorHandler, Args&&... args)
 {
-    static constexpr bool isValidHandler = !std::is_same_v<detail::remove_cvref_t<F>, detail::remove_cvref_t<decltype(std::ignore)>>;
+    static_assert(std::is_same_v<detail::remove_cvref_t<F>, detail::remove_cvref_t<decltype(std::ignore)>> || std::is_invocable_r_v<int, F, lua_State*>);
+
+    static constexpr bool isValidHandler =
+        !std::is_same_v<detail::remove_cvref_t<F>, detail::remove_cvref_t<decltype(std::ignore)>>;
 
     lua_State* L = object.state();
     const StackRestore stackRestore(L);
