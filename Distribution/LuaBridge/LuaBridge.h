@@ -4059,13 +4059,8 @@ struct Stack<bool>
 
     [[nodiscard]] static TypeResult<bool> get(lua_State* L, int index)
     {
-        const auto type = lua_type(L, index);
-
 #if LUABRIDGE_STRICT_STACK_CONVERSIONS
-        if (type != LUA_TBOOLEAN)
-            return makeErrorCode(ErrorCode::InvalidTypeCast);
-#else
-        if (type != LUA_TBOOLEAN && type != LUA_TNIL)
+        if (lua_type(L, index) != LUA_TBOOLEAN)
             return makeErrorCode(ErrorCode::InvalidTypeCast);
 #endif
 
