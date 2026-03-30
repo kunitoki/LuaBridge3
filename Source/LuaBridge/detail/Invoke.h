@@ -102,8 +102,17 @@ TypeResult<R> callWithHandler(const Ref& object, F&& errorHandler, Args&&... arg
     const StackRestore stackRestore(L);
     const int initialTop = lua_gettop(L);
 
+    bool hasHandler = false;
     if constexpr (isValidHandler)
-        detail::push_function(L, std::forward<F>(errorHandler), "");
+    {
+        if constexpr (std::is_pointer_v<detail::remove_cvref_t<F>>)
+            hasHandler = (errorHandler != nullptr);
+        else
+            hasHandler = true;
+
+        if (hasHandler)
+            detail::push_function(L, std::forward<F>(errorHandler), "");
+    }
 
     object.push();
 
@@ -113,14 +122,14 @@ TypeResult<R> callWithHandler(const Ref& object, F&& errorHandler, Args&&... arg
             return result.error();
     }
 
-    const int messageHandlerIndex = isValidHandler ? (initialTop + 1) : 0;
+    const int messageHandlerIndex = hasHandler ? (initialTop + 1) : 0;
     const int code = lua_pcall(L, sizeof...(Args), LUA_MULTRET, messageHandlerIndex);
     if (code != LUABRIDGE_LUA_OK)
     {
         auto ec = makeErrorCode(ErrorCode::LuaFunctionCallFailed);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
-        if constexpr (! isValidHandler)
+        if (! hasHandler)
         {
             if (LuaException::areExceptionsEnabled(L))
                 LuaException::raise(L, ec);
@@ -131,7 +140,7 @@ TypeResult<R> callWithHandler(const Ref& object, F&& errorHandler, Args&&... arg
         return ec;
     }
 
-    if constexpr (isValidHandler)
+    if (hasHandler)
         lua_remove(L, initialTop + 1);
 
     const int firstResultIndex = initialTop + 1;

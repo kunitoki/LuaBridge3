@@ -947,6 +947,7 @@ inline int newindex_metamethod_simple(lua_State* L)
     }
 
     luaL_error(L, "no writable member '%s'", key);
+    return 0;
 }
 
 //=================================================================================================
