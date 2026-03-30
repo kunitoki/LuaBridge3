@@ -190,11 +190,13 @@ TEST_F(StackTests, BoolStackOverflow)
 
 TEST_F(StackTests, BoolInvalidType)
 {
+#if !LUABRIDGE_STRICT_STACK_CONVERSIONS
+    // Non-strict mode: any Lua value is accepted via lua_toboolean
     {
         (void)luabridge::Stack<int>::push(L, 0);
         auto result = luabridge::Stack<bool>::get(L, -1);
         ASSERT_TRUE(result);
-        EXPECT_TRUE(*result);
+        EXPECT_TRUE(*result); // integer 0 is truthy in Lua
     }
 
     {
@@ -208,8 +210,28 @@ TEST_F(StackTests, BoolInvalidType)
         (void)luabridge::Stack<std::nullptr_t>::push(L, nullptr);
         auto result = luabridge::Stack<bool>::get(L, -1);
         ASSERT_TRUE(result);
-        EXPECT_FALSE(*result);
+        EXPECT_FALSE(*result); // nil is falsy
     }
+#else
+    // Strict mode: only LUA_TBOOLEAN is accepted
+    {
+        (void)luabridge::Stack<int>::push(L, 0);
+        auto result = luabridge::Stack<bool>::get(L, -1);
+        ASSERT_FALSE(result);
+    }
+
+    {
+        (void)luabridge::Stack<int>::push(L, 42);
+        auto result = luabridge::Stack<bool>::get(L, -1);
+        ASSERT_FALSE(result);
+    }
+
+    {
+        (void)luabridge::Stack<std::nullptr_t>::push(L, nullptr);
+        auto result = luabridge::Stack<bool>::get(L, -1);
+        ASSERT_FALSE(result);
+    }
+#endif
 }
 
 TEST_F(StackTests, CharType)
