@@ -1243,7 +1243,15 @@ TEST_F(LuaBridgeTest, BooleanNoValue)
             .endClass()
         .endNamespace();
 
-    runLua("local foo = test.ConstructibleFromBool(); result = foo:val()");
+    // Calling with no argument must fail: missing bool argument is LUA_TNONE, not a valid bool
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_THROW(runLua("local foo = test.ConstructibleFromBool(); result = foo:val()"), std::runtime_error);
+#else
+    EXPECT_FALSE(runLua("local foo = test.ConstructibleFromBool(); result = foo:val()"));
+#endif
+
+    // Passing false explicitly must work
+    runLua("local foo = test.ConstructibleFromBool(false); result = foo:val()");
     ASSERT_TRUE(result().isBool());
     EXPECT_FALSE(result<bool>());
 }

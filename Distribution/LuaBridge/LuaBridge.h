@@ -91,6 +91,10 @@
 #define LUABRIDGE_SAFE_STACK_CHECKS 1
 #endif
 
+#if !defined(LUABRIDGE_STRICT_STACK_CONVERSIONS)
+#define LUABRIDGE_STRICT_STACK_CONVERSIONS 0
+#endif
+
 #if !defined(LUABRIDGE_SAFE_LUA_C_EXCEPTION_HANDLING)
 #define LUABRIDGE_SAFE_LUA_C_EXCEPTION_HANDLING 0
 #endif
@@ -4055,6 +4059,16 @@ struct Stack<bool>
 
     [[nodiscard]] static TypeResult<bool> get(lua_State* L, int index)
     {
+        const auto type = lua_type(L, index);
+
+#if LUABRIDGE_STRICT_STACK_CONVERSIONS
+        if (type != LUA_TBOOLEAN)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+#else
+        if (type != LUA_TBOOLEAN && type != LUA_TNIL)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+#endif
+
         return lua_toboolean(L, index) ? true : false;
     }
 
@@ -4084,6 +4098,11 @@ struct Stack<std::byte>
     {
         if (lua_type(L, index) != LUA_TNUMBER)
             return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+#if LUABRIDGE_STRICT_STACK_CONVERSIONS && LUA_VERSION_NUM >= 503
+        if (! lua_isinteger(L, index))
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+#endif
 
         if (! is_integral_representable_by<unsigned char>(L, index))
             return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
@@ -4163,6 +4182,11 @@ struct Stack<int8_t>
         if (lua_type(L, index) != LUA_TNUMBER)
             return makeErrorCode(ErrorCode::InvalidTypeCast);
 
+#if LUABRIDGE_STRICT_STACK_CONVERSIONS && LUA_VERSION_NUM >= 503
+        if (! lua_isinteger(L, index))
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+#endif
+
         if (! is_integral_representable_by<int8_t>(L, index))
             return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
@@ -4200,6 +4224,11 @@ struct Stack<unsigned char>
         if (lua_type(L, index) != LUA_TNUMBER)
             return makeErrorCode(ErrorCode::InvalidTypeCast);
 
+#if LUABRIDGE_STRICT_STACK_CONVERSIONS && LUA_VERSION_NUM >= 503
+        if (! lua_isinteger(L, index))
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+#endif
+
         if (! is_integral_representable_by<unsigned char>(L, index))
             return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
@@ -4236,6 +4265,11 @@ struct Stack<short>
         if (lua_type(L, index) != LUA_TNUMBER)
             return makeErrorCode(ErrorCode::InvalidTypeCast);
 
+#if LUABRIDGE_STRICT_STACK_CONVERSIONS && LUA_VERSION_NUM >= 503
+        if (! lua_isinteger(L, index))
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+#endif
+
         if (! is_integral_representable_by<short>(L, index))
             return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
@@ -4271,6 +4305,11 @@ struct Stack<unsigned short>
     {
         if (lua_type(L, index) != LUA_TNUMBER)
             return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+#if LUABRIDGE_STRICT_STACK_CONVERSIONS && LUA_VERSION_NUM >= 503
+        if (! lua_isinteger(L, index))
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+#endif
 
         if (! is_integral_representable_by<unsigned short>(L, index))
             return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
@@ -4309,6 +4348,11 @@ struct Stack<int>
         if (lua_type(L, index) != LUA_TNUMBER)
             return makeErrorCode(ErrorCode::InvalidTypeCast);
 
+#if LUABRIDGE_STRICT_STACK_CONVERSIONS && LUA_VERSION_NUM >= 503
+        if (! lua_isinteger(L, index))
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+#endif
+
         if (! is_integral_representable_by<int>(L, index))
             return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
@@ -4345,6 +4389,11 @@ struct Stack<unsigned int>
     {
         if (lua_type(L, index) != LUA_TNUMBER)
             return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+#if LUABRIDGE_STRICT_STACK_CONVERSIONS && LUA_VERSION_NUM >= 503
+        if (! lua_isinteger(L, index))
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+#endif
 
         if (! is_integral_representable_by<unsigned int>(L, index))
             return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
@@ -4383,6 +4432,11 @@ struct Stack<long>
         if (lua_type(L, index) != LUA_TNUMBER)
             return makeErrorCode(ErrorCode::InvalidTypeCast);
 
+#if LUABRIDGE_STRICT_STACK_CONVERSIONS && LUA_VERSION_NUM >= 503
+        if (! lua_isinteger(L, index))
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+#endif
+
         if (! is_integral_representable_by<long>(L, index))
             return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
@@ -4419,6 +4473,11 @@ struct Stack<unsigned long>
     {
         if (lua_type(L, index) != LUA_TNUMBER)
             return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+#if LUABRIDGE_STRICT_STACK_CONVERSIONS && LUA_VERSION_NUM >= 503
+        if (! lua_isinteger(L, index))
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+#endif
 
         if (! is_integral_representable_by<unsigned long>(L, index))
             return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
@@ -4457,6 +4516,11 @@ struct Stack<long long>
         if (lua_type(L, index) != LUA_TNUMBER)
             return makeErrorCode(ErrorCode::InvalidTypeCast);
 
+#if LUABRIDGE_STRICT_STACK_CONVERSIONS && LUA_VERSION_NUM >= 503
+        if (! lua_isinteger(L, index))
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+#endif
+
         if (! is_integral_representable_by<long long>(L, index))
             return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
@@ -4493,6 +4557,11 @@ struct Stack<unsigned long long>
     {
         if (lua_type(L, index) != LUA_TNUMBER)
             return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+#if LUABRIDGE_STRICT_STACK_CONVERSIONS && LUA_VERSION_NUM >= 503
+        if (! lua_isinteger(L, index))
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+#endif
 
         if (! is_integral_representable_by<unsigned long long>(L, index))
             return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
@@ -4533,6 +4602,11 @@ struct Stack<__int128_t>
         if (lua_type(L, index) != LUA_TNUMBER)
             return makeErrorCode(ErrorCode::InvalidTypeCast);
 
+#if LUABRIDGE_STRICT_STACK_CONVERSIONS && LUA_VERSION_NUM >= 503
+        if (! lua_isinteger(L, index))
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+#endif
+
         if (! is_integral_representable_by<__int128_t>(L, index))
             return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
@@ -4569,6 +4643,11 @@ struct Stack<__uint128_t>
     {
         if (lua_type(L, index) != LUA_TNUMBER)
             return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+#if LUABRIDGE_STRICT_STACK_CONVERSIONS && LUA_VERSION_NUM >= 503
+        if (! lua_isinteger(L, index))
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+#endif
 
         if (! is_integral_representable_by<__uint128_t>(L, index))
             return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
@@ -4795,6 +4874,7 @@ struct Stack<std::string>
         {
             str = lua_tolstring(L, index, &length);
         }
+#if !LUABRIDGE_STRICT_STACK_CONVERSIONS
         else
         {
 #if LUABRIDGE_SAFE_STACK_CHECKS
@@ -4806,6 +4886,7 @@ struct Stack<std::string>
             str = lua_tolstring(L, -1, &length);
             lua_pop(L, 1);
         }
+#endif
 
         if (str == nullptr)
             return makeErrorCode(ErrorCode::InvalidTypeCast);

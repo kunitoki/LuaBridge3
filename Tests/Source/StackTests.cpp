@@ -190,26 +190,35 @@ TEST_F(StackTests, BoolStackOverflow)
 
 TEST_F(StackTests, BoolInvalidType)
 {
+    // Non-boolean types are rejected even in non-strict mode
     {
         (void)luabridge::Stack<int>::push(L, 0);
         auto result = luabridge::Stack<bool>::get(L, -1);
-        ASSERT_TRUE(result);
-        EXPECT_TRUE(*result);
+        ASSERT_FALSE(result);
     }
 
     {
         (void)luabridge::Stack<int>::push(L, 42);
         auto result = luabridge::Stack<bool>::get(L, -1);
-        ASSERT_TRUE(result);
-        EXPECT_TRUE(*result);
+        ASSERT_FALSE(result);
     }
 
+#if !LUABRIDGE_STRICT_STACK_CONVERSIONS
+    // nil converts to false in non-strict mode
     {
         (void)luabridge::Stack<std::nullptr_t>::push(L, nullptr);
         auto result = luabridge::Stack<bool>::get(L, -1);
         ASSERT_TRUE(result);
         EXPECT_FALSE(*result);
     }
+#else
+    // nil is rejected in strict mode
+    {
+        (void)luabridge::Stack<std::nullptr_t>::push(L, nullptr);
+        auto result = luabridge::Stack<bool>::get(L, -1);
+        ASSERT_FALSE(result);
+    }
+#endif
 }
 
 TEST_F(StackTests, CharType)

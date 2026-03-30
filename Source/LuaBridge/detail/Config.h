@@ -68,6 +68,25 @@
 #endif
 
 /**
+ * @brief Enable strict stack conversions to enforce exact type matching when getting values from the stack.
+ *
+ * When enabled:
+ * - `Stack<bool>::get` only accepts `LUA_TBOOLEAN` (nil is not convertible to bool).
+ * - Integer `Stack` specializations only accept Lua integer values (not floats with integer representation, on Lua 5.3+).
+ * - `Stack<std::string>::get` only accepts `LUA_TSTRING` (numbers are not coerced to strings).
+ *
+ * When disabled (default), a more permissive conversion is used:
+ * - `Stack<bool>::get` accepts `LUA_TBOOLEAN` and `LUA_TNIL` (nil converts to false).
+ * - Integer `Stack` specializations accept any `LUA_TNUMBER` that can be represented as the target integer type.
+ * - `Stack<std::string>::get` accepts `LUA_TSTRING` and `LUA_TNUMBER` (numbers are coerced to strings).
+ *
+ * @note Default is disabled.
+ */
+#if !defined(LUABRIDGE_STRICT_STACK_CONVERSIONS)
+#define LUABRIDGE_STRICT_STACK_CONVERSIONS 0
+#endif
+
+/**
  * @brief Enable safe exception handling when lua is compiled as `C` and exceptions raise during execution of registered `lua_CFunction`.
  * 
  * This is a problem that manifests when exceptions are leaking a CFunction when lua is compiled as `C` because the library will then longjmp
