@@ -105,8 +105,8 @@ TypeResult<R> callWithHandler(const Ref& object, F&& errorHandler, Args&&... arg
     bool hasHandler = false;
     if constexpr (isValidHandler)
     {
-        if constexpr (std::is_pointer_v<detail::remove_cvref_t<F>>)
-            hasHandler = (errorHandler != nullptr);
+        if constexpr (std::is_constructible_v<bool, detail::remove_cvref_t<F>>)
+            hasHandler = static_cast<bool>(errorHandler);
         else
             hasHandler = true;
 
