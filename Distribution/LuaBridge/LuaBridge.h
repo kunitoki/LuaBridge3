@@ -91,6 +91,10 @@
 #define LUABRIDGE_SAFE_STACK_CHECKS 1
 #endif
 
+#if !defined(LUABRIDGE_STRICT_STACK_CONVERSIONS)
+#define LUABRIDGE_STRICT_STACK_CONVERSIONS 0
+#endif
+
 #if !defined(LUABRIDGE_SAFE_LUA_C_EXCEPTION_HANDLING)
 #define LUABRIDGE_SAFE_LUA_C_EXCEPTION_HANDLING 0
 #endif
@@ -4055,6 +4059,11 @@ struct Stack<bool>
 
     [[nodiscard]] static TypeResult<bool> get(lua_State* L, int index)
     {
+#if LUABRIDGE_STRICT_STACK_CONVERSIONS
+        if (lua_type(L, index) != LUA_TBOOLEAN)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+#endif
+
         return lua_toboolean(L, index) ? true : false;
     }
 
@@ -4795,6 +4804,7 @@ struct Stack<std::string>
         {
             str = lua_tolstring(L, index, &length);
         }
+#if !LUABRIDGE_STRICT_STACK_CONVERSIONS
         else
         {
 #if LUABRIDGE_SAFE_STACK_CHECKS
@@ -4806,6 +4816,7 @@ struct Stack<std::string>
             str = lua_tolstring(L, -1, &length);
             lua_pop(L, 1);
         }
+#endif
 
         if (str == nullptr)
             return makeErrorCode(ErrorCode::InvalidTypeCast);

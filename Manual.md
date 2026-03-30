@@ -67,6 +67,13 @@ Contents
 
 *   [5 - Security](#5---security)
 
+*   [6 - Configuration](#6---configuration)
+
+    * [6.1 - LUABRIDGE_SAFE_STACK_CHECKS](#61---luabridge-safe-stack-checks)
+    * [6.2 - LUABRIDGE_STRICT_STACK_CONVERSIONS](#62---luabridge-strict-stack-conversions)
+    * [6.3 - LUABRIDGE_SAFE_LUA_C_EXCEPTION_HANDLING](#63---luabridge-safe-c-exception-handling)
+    * [6.4 - LUABRIDGE_RAISE_UNREGISTERED_CLASS_USAGE](#64---luabridge-raise-unregistered-class-usage)
+
 *   [Appendix - API Reference](#appendix---api-reference)
 
 1 - Introduction
@@ -1715,6 +1722,93 @@ luabridge::getGlobalNamespace (L)
       .addConstructor<void ()> ()
     .endClass ()
   .endNamespace ()
+```
+
+6 - Configuration
+=================
+
+LuaBridge3 exposes several compile-time configuration macros. Each macro can be overridden by defining it **before** including any LuaBridge header, or by passing it as a compiler flag (e.g. `-DLUABRIDGE_SAFE_STACK_CHECKS=0`).
+
+6.1 - LUABRIDGE_SAFE_STACK_CHECKS
+----------------------------------
+
+**Default: `1` (enabled)**
+
+When enabled, every `Stack<T>::push` operation calls `lua_checkstack` before pushing a value. This prevents silent stack overflows when the Lua stack is exhausted.
+
+Disable this flag only when you are certain that the Lua stack will never overflow and you need to squeeze out the last bit of performance:
+
+```cpp
+#define LUABRIDGE_SAFE_STACK_CHECKS 0
+#include <LuaBridge/LuaBridge.h>
+```
+
+6.2 - LUABRIDGE_STRICT_STACK_CONVERSIONS
+-----------------------------------------
+
+**Default: `0` (disabled)**
+
+Controls how permissive the `Stack<T>::get` operations are when reading values off the Lua stack.
+
+| Type | Non-strict (default) | Strict |
+|------|---------------------|--------|
+| `bool` | Any Lua value is accepted via `lua_toboolean` (legacy behavior) | Only `LUA_TBOOLEAN` is accepted |
+| Integers | Any `LUA_TNUMBER` that fits the target integer type is accepted | Any `LUA_TNUMBER` that fits the target integer type is accepted (same behavior) |
+| `std::string` | `LUA_TSTRING` and `LUA_TNUMBER` accepted (numbers coerced to strings) | Only `LUA_TSTRING` is accepted |
+
+In non-strict mode (the default), `lua_toboolean` semantics apply to `bool`: every Lua value except `false` and `nil` is truthy. This preserves backward-compatible behavior for existing code bases.
+
+Enable strict mode when you want explicit, type-safe conversions:
+
+```cpp
+#define LUABRIDGE_STRICT_STACK_CONVERSIONS 1
+#include <LuaBridge/LuaBridge.h>
+```
+
+With strict mode enabled:
+
+```cpp
+lua_pushinteger (L, 42);
+auto r = luabridge::Stack<bool>::get (L, -1); // error: not a boolean
+
+lua_pushnil (L);
+auto r = luabridge::Stack<bool>::get (L, -1); // error: not a boolean
+
+lua_pushstring (L, "hello");
+auto r = luabridge::Stack<bool>::get (L, -1); // error: not a boolean
+
+lua_pushboolean (L, 1);
+auto r = luabridge::Stack<bool>::get (L, -1); // ok: true
+```
+
+6.3 - LUABRIDGE_SAFE_LUA_C_EXCEPTION_HANDLING
+-----------------------------------------------
+
+**Default: `0` (disabled). Only meaningful when `LUABRIDGE_HAS_EXCEPTIONS` is `1`.**
+
+When Lua is compiled as C and a C++ exception escapes a registered `lua_CFunction`, the Lua runtime will call `longjmp` instead of propagating the exception, which leads to undefined behavior. Enabling this flag adds a safe indirection that catches C++ exceptions at the CFunction boundary and re-raises them as Lua errors.
+
+Enable this flag only if you are compiling Lua as C (not as C++), have exceptions enabled in your application, and you observe crashes when registered CFunctions throw:
+
+```cpp
+#define LUABRIDGE_SAFE_LUA_C_EXCEPTION_HANDLING 1
+#include <LuaBridge/LuaBridge.h>
+```
+
+> **Warning:** Enabling this flag introduces a small performance overhead on every registered CFunction call through the library.
+
+6.4 - LUABRIDGE_RAISE_UNREGISTERED_CLASS_USAGE
+------------------------------------------------
+
+**Default: `1` when exceptions are enabled, `0` otherwise.**
+
+When enabled, using an unregistered class with LuaBridge (for example, passing an instance of a type that has not been registered via `beginClass`) will raise an error rather than silently failing. With exceptions enabled this translates to a `luabridge::LuaException`; with exceptions disabled it translates to a Lua error via `lua_error`.
+
+Override the default when you need fine-grained control:
+
+```cpp
+#define LUABRIDGE_RAISE_UNREGISTERED_CLASS_USAGE 0
+#include <LuaBridge/LuaBridge.h>
 ```
 
 Appendix - API Reference
