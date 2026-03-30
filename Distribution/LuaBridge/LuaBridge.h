@@ -3069,6 +3069,25 @@ public:
 namespace luabridge {
 namespace detail {
 
+template <class T>
+std::error_code getNilBadArgError(lua_State* L, int index)
+{
+    const std::string message = std::string(typeName<T>()) + " expected, got no value";
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    if (index > 0 && LuaException::areExceptionsEnabled(L))
+    {
+        lua_pushstring(L, message.c_str());
+        LuaException::raise(L, makeErrorCode(ErrorCode::InvalidTypeCast));
+    }
+#endif
+
+    if (index > 0)
+        luaL_argerror(L, lua_absindex(L, index), message.c_str());
+
+    return makeErrorCode(ErrorCode::InvalidTypeCast);
+}
+
 class Userdata
 {
 private:
@@ -3078,17 +3097,80 @@ private:
         return (void)classKey, static_cast<Userdata*>(lua_touserdata(L, lua_absindex(L, index)));
     }
 
-    static Userdata* getClass(lua_State* L,
-                              int index,
-                              const void* registryConstKey,
-                              const void* registryClassKey,
-                              bool canBeConst)
+    static std::error_code getClassErrorCode(lua_State* L, const void* registryClassKey)
+    {
+        lua_rawgetp_x(L, LUA_REGISTRYINDEX, registryClassKey);
+        const bool classIsRegistered = lua_istable(L, -1);
+        lua_pop(L, 1);
+
+        return makeErrorCode(classIsRegistered ? ErrorCode::InvalidTypeCast : ErrorCode::ClassNotRegistered);
+    }
+
+    static std::error_code getBadArgError(lua_State* L, int index, const void* registryClassKey)
+    {
+        const int absIndex = lua_absindex(L, index);
+
+        lua_rawgetp_x(L, LUA_REGISTRYINDEX, registryClassKey); 
+        const bool classIsRegistered = lua_istable(L, -1);
+
+        const char* expected = "unregistered class";
+        if (classIsRegistered)
+        {
+            lua_rawgetp_x(L, -1, getTypeKey()); 
+            if (lua_isstring(L, -1))
+                expected = lua_tostring(L, -1);
+            lua_pop(L, 1); 
+        }
+
+        const char* got = nullptr;
+        if (lua_isuserdata(L, absIndex))
+        {
+            lua_getmetatable(L, absIndex); 
+            if (lua_istable(L, -1))
+            {
+                lua_rawgetp_x(L, -1, getTypeKey()); 
+                if (lua_isstring(L, -1))
+                    got = lua_tostring(L, -1);
+
+                lua_pop(L, 1); 
+            }
+
+            lua_pop(L, 1); 
+        }
+
+        if (! got)
+            got = lua_typename(L, lua_type(L, absIndex));
+
+        lua_pop(L, 1); 
+
+    const auto errorCode = classIsRegistered ? ErrorCode::InvalidTypeCast : ErrorCode::ClassNotRegistered;
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    if (LuaException::areExceptionsEnabled(L))
+    {
+        const std::string message = std::string(expected) + " expected, got " + got;
+        lua_pushstring(L, message.c_str());
+
+        LuaException::raise(L, makeErrorCode(errorCode));
+    }
+#endif
+
+        return makeErrorCode(errorCode);
+    }
+
+    static TypeResult<Userdata*> getClass(lua_State* L,
+                                          int index,
+                                          const void* registryConstKey,
+                                          const void* registryClassKey,
+                                          bool canBeConst)
     {
         const int result = lua_getmetatable(L, index); 
         if (result == 0 || !lua_istable(L, -1))
         {
-            lua_rawgetp_x(L, LUA_REGISTRYINDEX, registryClassKey); 
-            return throwBadArg(L, index);
+            if (result != 0)
+                lua_pop(L, 1);
+
+            return getBadArgError(L, index, registryClassKey);
         }
 
         lua_rawgetp_x(L, -1, getConstKey()); 
@@ -3115,8 +3197,8 @@ private:
             if (lua_isnil(L, -1)) 
             {
                 
-                lua_pop(L, 2); 
-                return throwBadArg(L, index);
+                lua_pop(L, 3); 
+                return getBadArgError(L, index, registryClassKey);
             }
 
             lua_remove(L, -2); 
@@ -3161,48 +3243,6 @@ private:
 
     }
 
-    static Userdata* throwBadArg(lua_State* L, int index)
-    {
-        LUABRIDGE_ASSERT(lua_istable(L, -1) || lua_isnil(L, -1)); 
-
-        const char* expected = 0;
-        if (lua_isnil(L, -1)) 
-        {
-            expected = "unregistered class";
-        }
-        else
-        {
-            lua_rawgetp_x(L, -1, getTypeKey()); 
-            expected = lua_tostring(L, -1);
-            lua_pop(L, 1); 
-        }
-
-        const char* got = nullptr;
-        if (lua_isuserdata(L, index))
-        {
-            lua_getmetatable(L, index); 
-            if (lua_istable(L, -1)) 
-            {
-                lua_rawgetp_x(L, -1, getTypeKey()); 
-                if (lua_isstring(L, -1))
-                    got = lua_tostring(L, -1);
-
-                lua_pop(L, 1); 
-            }
-
-            lua_pop(L, 1); 
-        }
-
-        if (!got)
-        {
-            lua_pop(L, 1); 
-            got = lua_typename(L, lua_type(L, index));
-        }
-
-        luaL_argerror(L, index, lua_pushfstring(L, "%s expected, got %s", expected, got));
-        return nullptr;
-    }
-
 public:
     virtual ~Userdata() {}
 
@@ -3213,7 +3253,7 @@ public:
     }
 
     template <class T>
-    static T* get(lua_State* L, int index, bool canBeConst)
+    static TypeResult<T*> get(lua_State* L, int index, bool canBeConst)
     {
         if (lua_isnil(L, index))
             return nullptr;
@@ -3237,11 +3277,11 @@ public:
             lua_pop(L, 1);
         }
 
-        auto* clazz = getClass(L, absIndex, constId, classId, canBeConst);
+        auto clazz = getClass(L, absIndex, constId, classId, canBeConst);
         if (! clazz)
-            return nullptr;
+            return clazz.error();
 
-        return static_cast<T*>(clazz->getPointer());
+        return static_cast<T*>((*clazz)->getPointer());
     }
 
     template <class T>
@@ -3666,11 +3706,11 @@ struct StackHelper
     {
         using CastType = std::remove_const_t<typename ContainerTraits<T>::Type>;
 
-        auto* result = Userdata::get<CastType>(L, index, true);
+        auto result = Userdata::get<CastType>(L, index, true);
         if (! result)
-            return makeErrorCode(ErrorCode::InvalidTypeCast);
+            return result.error();
 
-        return ContainerTraits<T>::construct(result);
+        return ContainerTraits<T>::construct(*result);
     }
 };
 
@@ -3689,11 +3729,14 @@ struct StackHelper<T, false>
 
     static TypeResult<std::reference_wrapper<const T>> get(lua_State* L, int index)
     {
-        auto* result = Userdata::get<T>(L, index, true);
+        auto result = Userdata::get<T>(L, index, true);
         if (! result)
-            return makeErrorCode(ErrorCode::InvalidTypeCast); 
+            return result.error(); 
 
-        return std::cref(*result);
+        if (*result == nullptr)
+            return getNilBadArgError<T>(L, index);
+
+        return std::cref(**result);
     }
 };
 
@@ -3710,11 +3753,11 @@ struct RefStackHelper
 
     static ReturnType get(lua_State* L, int index)
     {
-        auto* result = Userdata::get<T>(L, index, true);
+        auto result = Userdata::get<T>(L, index, true);
         if (! result)
-            return makeErrorCode(ErrorCode::InvalidTypeCast);
+            return result.error();
 
-        return ContainerTraits<C>::construct(result);
+        return ContainerTraits<C>::construct(*result);
     }
 };
 
@@ -3735,11 +3778,14 @@ struct RefStackHelper<T, false>
 
     static ReturnType get(lua_State* L, int index)
     {
-        auto* result = Userdata::get<T>(L, index, true);
+        auto result = Userdata::get<T>(L, index, true);
         if (! result)
-            return makeErrorCode(ErrorCode::InvalidTypeCast); 
+            return result.error(); 
 
-        return std::ref(*result);
+        if (*result == nullptr)
+            return getNilBadArgError<T>(L, index);
+
+        return std::ref(**result);
     }
 };
 
@@ -3750,11 +3796,11 @@ struct UserdataGetter
 
     static ReturnType get(lua_State* L, int index)
     {
-        auto* result = Userdata::get<T>(L, index, true);
+        auto result = Userdata::get<T>(L, index, true);
         if (! result)
-            return makeErrorCode(ErrorCode::InvalidTypeCast);
+            return result.error();
 
-        return result;
+        return *result;
     }
 };
 
@@ -3839,7 +3885,14 @@ struct StackOpSelector<const T*, true>
 
     static Result push(lua_State* L, const T* value) { return UserdataPtr::push(L, value); }
 
-    static ReturnType get(lua_State* L, int index) { return Userdata::get<T>(L, index, true); }
+    static ReturnType get(lua_State* L, int index)
+    {
+        auto result = Userdata::get<T>(L, index, true);
+        if (! result)
+            return result.error();
+
+        return *result;
+    }
 
     template <class U = T>
     static bool isInstance(lua_State* L, int index) { return Userdata::isInstance<U>(L, index); }
@@ -6874,6 +6927,9 @@ inline int newindex_metamethod_simple(lua_State* L)
         {
             const char* key = lua_tostring(L, 2);
 
+            if (! lua_istable(L, lua_upvalueindex(1)))
+                luaL_error(L, "no writable member '%s'", key);
+
             lua_pushvalue(L, 2); 
             lua_rawget(L, lua_upvalueindex(1)); 
 
@@ -6886,7 +6942,6 @@ inline int newindex_metamethod_simple(lua_State* L)
             }
 
             luaL_error(L, "no writable member '%s'", key);
-            return 0;
         }
     }
     else
@@ -6895,6 +6950,9 @@ inline int newindex_metamethod_simple(lua_State* L)
         if (lua_istable(L, 1))
         {
             const char* key = lua_tostring(L, 2);
+
+            if (! lua_istable(L, lua_upvalueindex(1)))
+                luaL_error(L, "no writable member '%s'", key);
 
             lua_pushvalue(L, 2); 
             lua_rawget(L, lua_upvalueindex(1)); 
@@ -6907,7 +6965,6 @@ inline int newindex_metamethod_simple(lua_State* L)
             }
 
             luaL_error(L, "no writable member '%s'", key);
-            return 0;
         }
     }
 
@@ -6941,7 +6998,6 @@ inline int newindex_metamethod_simple(lua_State* L)
 inline int read_only_error(lua_State* L)
 {
     raise_lua_error(L, "'%s' is read-only", lua_tostring(L, lua_upvalueindex(1)));
-
     return 0;
 }
 
@@ -7028,7 +7084,9 @@ struct property_getter
 {
     static int call(lua_State* L)
     {
-        C* c = Userdata::get<C>(L, 1, true);
+        auto c = Userdata::get<C>(L, 1, true);
+        if (! c)
+            raise_lua_error(L, "%s", c.error_cstr());
 
         T C::** mp = static_cast<T C::**>(lua_touserdata(L, lua_upvalueindex(1)));
 
@@ -7038,7 +7096,7 @@ struct property_getter
         try
         {
 #endif
-            result = Stack<T&>::push(L, c->**mp);
+            result = Stack<T&>::push(L, (*c)->**mp);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
@@ -7099,7 +7157,9 @@ struct property_setter
 {
     static int call(lua_State* L)
     {
-        C* c = Userdata::get<C>(L, 1, false);
+        auto c = Userdata::get<C>(L, 1, false);
+        if (! c)
+            raise_lua_error(L, "%s", c.error_cstr());
 
         T C::** mp = static_cast<T C::**>(lua_touserdata(L, lua_upvalueindex(1)));
 
@@ -7111,7 +7171,7 @@ struct property_setter
             if (! result)
                 raise_lua_error(L, "%s", result.error_cstr());
 
-            c->** mp = std::move(*result);
+            (*c)->** mp = std::move(*result);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
@@ -7282,12 +7342,14 @@ int invoke_member_function(lua_State* L)
 
     LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
-    T* ptr = Userdata::get<T>(L, 1, false);
+    auto ptr = Userdata::get<T>(L, 1, false);
+    if (! ptr)
+        raise_lua_error(L, "%s", ptr.error_cstr());
 
     const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
     LUABRIDGE_ASSERT(func != nullptr);
 
-    return function<typename FnTraits::result_type, typename FnTraits::argument_types, 2>::call(L, ptr, func);
+    return function<typename FnTraits::result_type, typename FnTraits::argument_types, 2>::call(L, *ptr, func);
 }
 
 template <class F, class T>
@@ -7297,12 +7359,14 @@ int invoke_const_member_function(lua_State* L)
 
     LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
-    const T* ptr = Userdata::get<T>(L, 1, true);
+    auto ptr = Userdata::get<T>(L, 1, true);
+    if (! ptr)
+        raise_lua_error(L, "%s", ptr.error_cstr());
 
     const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
     LUABRIDGE_ASSERT(func != nullptr);
 
-    return function<typename FnTraits::result_type, typename FnTraits::argument_types, 2>::call(L, ptr, func);
+    return function<typename FnTraits::result_type, typename FnTraits::argument_types, 2>::call(L, *ptr, func);
 }
 
 template <class T>
@@ -7312,7 +7376,9 @@ int invoke_member_cfunction(lua_State* L)
 
     LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
-    T* t = Userdata::get<T>(L, 1, false);
+    auto t = Userdata::get<T>(L, 1, false);
+    if (! t)
+        raise_lua_error(L, "%s", t.error_cstr());
 
     const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
     LUABRIDGE_ASSERT(func != nullptr);
@@ -7321,7 +7387,7 @@ int invoke_member_cfunction(lua_State* L)
     try
     {
 #endif
-        return (t->*func)(L);
+        return ((*t)->*func)(L);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
     }
@@ -7341,7 +7407,9 @@ int invoke_const_member_cfunction(lua_State* L)
 
     LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
-    const T* t = Userdata::get<T>(L, 1, true);
+    auto t = Userdata::get<T>(L, 1, true);
+    if (! t)
+        raise_lua_error(L, "%s", t.error_cstr());
 
     const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
     LUABRIDGE_ASSERT(func != nullptr);
@@ -7350,7 +7418,7 @@ int invoke_const_member_cfunction(lua_State* L)
     try
     {
 #endif
-        return (t->*func)(L);
+        return ((*t)->*func)(L);
 
 #if LUABRIDGE_HAS_EXCEPTIONS
     }
@@ -7436,54 +7504,100 @@ int invoke_proxy_destructor(lua_State* L)
     return 1;
 }
 
+struct OverloadEntry
+{
+    using TypeChecker = bool (*)(lua_State*, int start);
+
+    int arity;           
+    TypeChecker checker; 
+};
+
+struct OverloadSet
+{
+    std::vector<OverloadEntry> entries;
+};
+
+template <class T>
+bool overload_check_one_arg(lua_State* L, int& idx)
+{
+    if constexpr (std::is_pointer_v<T> &&
+                  std::is_same_v<std::remove_const_t<std::remove_pointer_t<T>>, lua_State>)
+    {
+        return true; 
+    }
+    else
+    {
+        return Stack<T>::isInstance(L, idx++);
+    }
+}
+
+template <class ArgsPack, std::size_t... I>
+bool overload_check_args_impl(lua_State* L, int start, std::index_sequence<I...>)
+{
+    int idx = start;
+    return (overload_check_one_arg<std::tuple_element_t<I, ArgsPack>>(L, idx) && ...);
+}
+
+template <class ArgsPack>
+bool overload_check_args(lua_State* L, int start)
+{
+    return overload_check_args_impl<ArgsPack>(L, start,
+        std::make_index_sequence<std::tuple_size_v<ArgsPack>>{});
+}
+
+template <class ArgsPack>
+bool overload_type_checker(lua_State* L, int start)
+{
+    return overload_check_args<ArgsPack>(L, start);
+}
+
 template <bool Member>
 inline int try_overload_functions(lua_State* L)
 {
     const int nargs = lua_gettop(L);
     const int effective_args = nargs - (Member ? 1 : 0);
+    const int start_arg = Member ? 2 : 1;
 
-    lua_pushvalue(L, lua_upvalueindex(1));
+    LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
+    auto* overload_set = align<OverloadSet>(lua_touserdata(L, lua_upvalueindex(1)));
+
+    lua_pushvalue(L, lua_upvalueindex(2));
     LUABRIDGE_ASSERT(lua_istable(L, -1));
-    const int idx_overloads = nargs + 1;
-    const int num_overloads = get_length(L, idx_overloads);
+    const int idx_funcs = nargs + 1;
 
-    lua_createtable(L, num_overloads, 0);
+    lua_createtable(L, static_cast<int>(overload_set->entries.size()), 0);
     const int idx_errors = nargs + 2;
     int nerrors = 0;
 
-    lua_pushnil(L);  
-    while (lua_next(L, idx_overloads) != 0)
+    for (int i = 0; i < static_cast<int>(overload_set->entries.size()); ++i)
     {
-        LUABRIDGE_ASSERT(lua_istable(L, -1));
+        const auto& entry = overload_set->entries[i];
 
-        lua_rawgeti(L, -1, 1);
-        LUABRIDGE_ASSERT(lua_isnumber(L, -1));
-
-        const int overload_arity = static_cast<int>(lua_tointeger(L, -1));
-        if (overload_arity >= 0 && overload_arity != effective_args)
+        if (entry.arity >= 0 && entry.arity != effective_args)
         {
-            
-            lua_pushfstring(L, "Skipped overload #%d with unmatched arity of %d instead of %d", nerrors, overload_arity, effective_args);
+            lua_pushfstring(L, "Skipped overload #%d with unmatched arity of %d instead of %d", i, entry.arity, effective_args);
             lua_rawseti(L, idx_errors, ++nerrors);
-
-            lua_pop(L, 2); 
             continue;
         }
 
-        lua_pop(L, 1); 
+        if (entry.checker != nullptr && !entry.checker(L, start_arg))
+        {
+            lua_pushfstring(L, "Skipped overload #%d with unmatched argument types", i);
+            lua_rawseti(L, idx_errors, ++nerrors);
+            continue;
+        }
 
-        lua_pushnumber(L, 2);
-        lua_gettable(L, -2);
+        lua_rawgeti(L, idx_funcs, i + 1);
         LUABRIDGE_ASSERT(lua_isfunction(L, -1));
 
-        for (int i = 1; i <= nargs; ++i)
-            lua_pushvalue(L, i);
+        for (int j = 1; j <= nargs; ++j)
+            lua_pushvalue(L, j);
 
         const int err = lua_pcall(L, nargs, LUA_MULTRET, 0);
         if (err == LUABRIDGE_LUA_OK)
         {
             
-            return lua_gettop(L) - nargs - 4; 
+            return lua_gettop(L) - nargs - 2;
         }
         else if (err == LUA_ERRRUN)
         {
@@ -7492,10 +7606,8 @@ inline int try_overload_functions(lua_State* L)
         }
         else
         {
-            return lua_error_x(L);  
+            return lua_error_x(L); 
         }
-
-        lua_pop(L, 1); 
     }
 
     lua_Debug debug;
@@ -8192,11 +8304,11 @@ struct destructor_forwarder
 
     void operator()(lua_State* L)
     {
-        auto* value = Userdata::get<T>(L, -1, false);
-        if (value == nullptr)
-            raise_lua_error(L, "invalid object destruction");
+        auto value = Userdata::get<T>(L, -1, false);
+        if (! value)
+            raise_lua_error(L, "%s", value.error_cstr());
 
-        std::invoke(m_func, value);
+        std::invoke(m_func, *value);
     }
 
 private:
@@ -8970,6 +9082,39 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             return LuaRef(*this).rawget(key);
         }
 
+        template <class T>
+        T unsafeRawgetField(const char* key) const
+        {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+            luaL_checkstack(m_L, 3, detail::error_lua_stack_overflow);
+#endif
+
+            push(m_L);
+            lua_pushstring(m_L, key);
+            lua_rawget(m_L, -2);
+
+            auto result = Stack<T>::get(m_L, -1);
+            lua_pop(m_L, 2);
+
+            return result.value();
+        }
+
+        template <class T>
+        void unsafeRawsetField(const char* key, T&& value) const
+        {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+            luaL_checkstack(m_L, 3, detail::error_lua_stack_overflow);
+#endif
+
+            push(m_L);
+            lua_pushstring(m_L, key);
+            [[maybe_unused]] const auto pushed = Stack<std::decay_t<T>>::push(m_L, std::forward<T>(value));
+            LUABRIDGE_ASSERT(static_cast<bool>(pushed));
+
+            lua_rawset(m_L, -3);
+            lua_pop(m_L, 1);
+        }
+
     private:
         int m_tableRef = LUA_NOREF;
         int m_keyRef = LUA_NOREF;
@@ -9450,6 +9595,17 @@ namespace luabridge {
 
 namespace detail {
 
+template <class F>
+bool is_handler_valid(const F& f) noexcept
+{
+    if constexpr (std::is_pointer_v<remove_cvref_t<F>>)
+        return f != nullptr;
+    else if constexpr (std::is_constructible_v<bool, remove_cvref_t<F>>)
+        return static_cast<bool>(f);
+    else
+        return true;
+}
+
 template <class T>
 struct IsTuple : std::false_type
 {
@@ -9522,14 +9678,22 @@ TypeResult<R> decodeCallResult(lua_State* L, int firstResultIndex, int numReturn
 template <class R, class Ref, class F, class... Args>
 TypeResult<R> callWithHandler(const Ref& object, F&& errorHandler, Args&&... args)
 {
-    static constexpr bool isValidHandler = !std::is_same_v<detail::remove_cvref_t<F>, detail::remove_cvref_t<decltype(std::ignore)>>;
+    static_assert(std::is_same_v<detail::remove_cvref_t<F>, detail::remove_cvref_t<decltype(std::ignore)>> || std::is_invocable_r_v<int, F, lua_State*>);
+
+    static constexpr bool isValidHandler =
+        !std::is_same_v<detail::remove_cvref_t<F>, detail::remove_cvref_t<decltype(std::ignore)>>;
 
     lua_State* L = object.state();
     const StackRestore stackRestore(L);
     const int initialTop = lua_gettop(L);
 
+    bool hasHandler = false;
     if constexpr (isValidHandler)
-        detail::push_function(L, std::forward<F>(errorHandler), "");
+    {
+        hasHandler = detail::is_handler_valid(errorHandler);
+        if (hasHandler)
+            detail::push_function(L, std::forward<F>(errorHandler), "");
+    }
 
     object.push();
 
@@ -9539,7 +9703,7 @@ TypeResult<R> callWithHandler(const Ref& object, F&& errorHandler, Args&&... arg
             return result.error();
     }
 
-    const int messageHandlerIndex = isValidHandler ? (initialTop + 1) : 0;
+    const int messageHandlerIndex = hasHandler ? (initialTop + 1) : 0;
     const int code = lua_pcall(L, sizeof...(Args), LUA_MULTRET, messageHandlerIndex);
     if (code != LUABRIDGE_LUA_OK)
     {
@@ -9557,7 +9721,7 @@ TypeResult<R> callWithHandler(const Ref& object, F&& errorHandler, Args&&... arg
         return ec;
     }
 
-    if constexpr (isValidHandler)
+    if (hasHandler)
         lua_remove(L, initialTop + 1);
 
     const int firstResultIndex = initialTop + 1;
@@ -9918,8 +10082,6 @@ class Namespace : public detail::Registrar
         s = s + message;
 
         luaL_error(L, "%s", s.c_str());
-
-        return 0;
     }
 #endif
 
@@ -10286,29 +10448,39 @@ class Namespace : public detail::Registrar
             else
             {
                 
-                lua_createtable(L, static_cast<int>(sizeof...(Functions)), 0); 
+                auto* overload_set_unaligned = lua_newuserdata_aligned<detail::OverloadSet>(L);
+                auto* overload_set = align<detail::OverloadSet>(overload_set_unaligned);
+
+                ([&]
+                {
+                    detail::OverloadEntry entry;
+                    if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
+                    {
+                        entry.arity = -1;
+                        entry.checker = nullptr;
+                    }
+                    else
+                    {
+                        using ArgsPack = detail::function_arguments_t<Functions>;
+                        entry.arity = static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>);
+                        entry.checker = &detail::overload_type_checker<ArgsPack>;
+                    }
+                    overload_set->entries.push_back(entry);
+
+                } (), ...);
+
+                lua_createtable(L, static_cast<int>(sizeof...(Functions)), 0);
 
                 int idx = 1;
 
                 ([&]
                 {
-                    lua_createtable(L, 2, 0); 
-                    lua_pushinteger(L, 1);
-                    if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
-                        lua_pushinteger(L, -1);
-                    else
-                        lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
-                    lua_settable(L, -3);
-                    lua_pushinteger(L, 2);
                     detail::push_function(L, std::move(functions), name);
-                    lua_settable(L, -3);
-
-                    lua_rawseti(L, -2, idx);
-                    ++idx;
+                    lua_rawseti(L, -2, idx++);
 
                 } (), ...);
 
-                lua_pushcclosure_x(L, &detail::try_overload_functions<false>, name, 1);
+                lua_pushcclosure_x(L, &detail::try_overload_functions<false>, name, 2);
             }
 
             rawsetfield(L, -2, name);
@@ -10452,6 +10624,39 @@ class Namespace : public detail::Registrar
                 
                 if constexpr (detail::const_functions_count<T, Functions...> > 0)
                 {
+                    
+                    auto* overload_set_const_unaligned = lua_newuserdata_aligned<detail::OverloadSet>(L);
+                    auto* overload_set_const = align<detail::OverloadSet>(overload_set_const_unaligned);
+
+                    ([&]
+                    {
+                        if (!detail::is_const_function<T, Functions>)
+                            return;
+
+                        detail::OverloadEntry entry;
+                        if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
+                        {
+                            entry.arity = -1;
+                            entry.checker = nullptr;
+                        }
+                        else if constexpr (detail::is_proxy_member_function_v<T, Functions>)
+                        {
+                            using ArgsPack = detail::remove_first_type_t<detail::function_arguments_t<Functions>>;
+                            entry.arity = static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>);
+                            entry.checker = &detail::overload_type_checker<ArgsPack>;
+                        }
+                        else
+                        {
+                            using ArgsPack = detail::function_arguments_t<Functions>;
+                            entry.arity = static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>);
+                            entry.checker = &detail::overload_type_checker<ArgsPack>;
+                        }
+                        overload_set_const->entries.push_back(entry);
+
+                    } (), ...);
+
+                    LUABRIDGE_ASSERT(!overload_set_const->entries.empty());
+
                     lua_createtable(L, static_cast<int>(detail::const_functions_count<T, Functions...>), 0);
 
                     int idx = 1;
@@ -10461,25 +10666,12 @@ class Namespace : public detail::Registrar
                         if (!detail::is_const_function<T, Functions>)
                             return;
 
-                        lua_createtable(L, 2, 0); 
-                        lua_pushinteger(L, 1);
-                        if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
-                            lua_pushinteger(L, -1);
-                        else
-                            lua_pushinteger(L, static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>));
-                        lua_settable(L, -3);
-                        lua_pushinteger(L, 2);
                         detail::push_member_function<T>(L, std::move(functions), name);
-                        lua_settable(L, -3);
-
-                        lua_rawseti(L, -2, idx);
-                        ++idx;
+                        lua_rawseti(L, -2, idx++);
 
                     } (), ...);
 
-                    LUABRIDGE_ASSERT(idx > 1);
-
-                    lua_pushcclosure_x(L, &detail::try_overload_functions<true>, name, 1);
+                    lua_pushcclosure_x(L, &detail::try_overload_functions<true>, name, 2);
                     lua_pushvalue(L, -1); 
                     rawsetfield(L, -4, name); 
                     rawsetfield(L, -4, name); 
@@ -10487,6 +10679,39 @@ class Namespace : public detail::Registrar
 
                 if constexpr (detail::non_const_functions_count<T, Functions...> > 0)
                 {
+                    
+                    auto* overload_set_nonconst_unaligned = lua_newuserdata_aligned<detail::OverloadSet>(L);
+                    auto* overload_set_nonconst = align<detail::OverloadSet>(overload_set_nonconst_unaligned);
+
+                    ([&]
+                    {
+                        if (detail::is_const_function<T, Functions>)
+                            return;
+
+                        detail::OverloadEntry entry;
+                        if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
+                        {
+                            entry.arity = -1;
+                            entry.checker = nullptr;
+                        }
+                        else if constexpr (detail::is_proxy_member_function_v<T, Functions>)
+                        {
+                            using ArgsPack = detail::remove_first_type_t<detail::function_arguments_t<Functions>>;
+                            entry.arity = static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>);
+                            entry.checker = &detail::overload_type_checker<ArgsPack>;
+                        }
+                        else
+                        {
+                            using ArgsPack = detail::function_arguments_t<Functions>;
+                            entry.arity = static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>);
+                            entry.checker = &detail::overload_type_checker<ArgsPack>;
+                        }
+                        overload_set_nonconst->entries.push_back(entry);
+
+                    } (), ...);
+
+                    LUABRIDGE_ASSERT(!overload_set_nonconst->entries.empty());
+
                     lua_createtable(L, static_cast<int>(detail::non_const_functions_count<T, Functions...>), 0);
 
                     int idx = 1;
@@ -10496,25 +10721,12 @@ class Namespace : public detail::Registrar
                         if (detail::is_const_function<T, Functions>)
                             return;
 
-                        lua_createtable(L, 2, 0); 
-                        lua_pushinteger(L, 1);
-                        if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
-                            lua_pushinteger(L, -1);
-                        else
-                            lua_pushinteger(L, static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>));
-                        lua_settable(L, -3);
-                        lua_pushinteger(L, 2);
                         detail::push_member_function<T>(L, std::move(functions), name);
-                        lua_settable(L, -3);
-
-                        lua_rawseti(L, -2, idx);
-                        ++idx;
+                        lua_rawseti(L, -2, idx++);
 
                     } (), ...);
 
-                    LUABRIDGE_ASSERT(idx > 1);
-
-                    lua_pushcclosure_x(L, &detail::try_overload_functions<true>, name, 1);
+                    lua_pushcclosure_x(L, &detail::try_overload_functions<true>, name, 2);
                     rawsetfield(L, -3, name); 
                 }
             }
@@ -10539,25 +10751,31 @@ class Namespace : public detail::Registrar
             else
             {
                 
-                lua_createtable(L, static_cast<int>(sizeof...(Functions)), 0); 
+                auto* overload_set_unaligned = lua_newuserdata_aligned<detail::OverloadSet>(L);
+                auto* overload_set = align<detail::OverloadSet>(overload_set_unaligned);
+
+                ([&]
+                {
+                    using ArgsPack = detail::function_arguments_t<Functions>;
+                    detail::OverloadEntry entry;
+                    entry.arity = static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>);
+                    entry.checker = &detail::overload_type_checker<ArgsPack>;
+                    overload_set->entries.push_back(entry);
+
+                } (), ...);
+
+                lua_createtable(L, static_cast<int>(sizeof...(Functions)), 0);
 
                 int idx = 1;
 
                 ([&]
                 {
-                    lua_createtable(L, 2, 0); 
-                    lua_pushinteger(L, 1);
-                    lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
-                    lua_settable(L, -3);
-                    lua_pushinteger(L, 2);
                     lua_pushcclosure_x(L, &detail::constructor_placement_proxy<T, detail::function_arguments_t<Functions>>, className, 0);
-                    lua_settable(L, -3);
-                    lua_rawseti(L, -2, idx);
-                    ++idx;
+                    lua_rawseti(L, -2, idx++);
 
                 } (), ...);
 
-                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, className, 1);
+                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, className, 2);
             }
 
             rawsetfield(L, -2, "__call");
@@ -10588,7 +10806,29 @@ class Namespace : public detail::Registrar
             else
             {
                 
-                lua_createtable(L, static_cast<int>(sizeof...(Functions)), 0); 
+                auto* overload_set_unaligned = lua_newuserdata_aligned<detail::OverloadSet>(L);
+                auto* overload_set = align<detail::OverloadSet>(overload_set_unaligned);
+
+                ([&]
+                {
+                    detail::OverloadEntry entry;
+                    if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
+                    {
+                        entry.arity = -1;
+                        entry.checker = nullptr;
+                    }
+                    else
+                    {
+                        
+                        using ArgsPack = detail::remove_first_type_t<detail::function_arguments_t<Functions>>;
+                        entry.arity = static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>) - 1;
+                        entry.checker = &detail::overload_type_checker<ArgsPack>;
+                    }
+                    overload_set->entries.push_back(entry);
+
+                } (), ...);
+
+                lua_createtable(L, static_cast<int>(sizeof...(Functions)), 0);
 
                 int idx = 1;
 
@@ -10596,23 +10836,13 @@ class Namespace : public detail::Registrar
                 {
                     using F = detail::constructor_forwarder<T, Functions>;
 
-                    lua_createtable(L, 2, 0); 
-                    lua_pushinteger(L, 1);
-                    if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
-                        lua_pushinteger(L, -1);
-                    else
-                        lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>) - 1); 
-                    lua_settable(L, -3);
-                    lua_pushinteger(L, 2);
                     lua_newuserdata_aligned<F>(L, F(std::move(functions)));
                     lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, className, 1);
-                    lua_settable(L, -3);
-                    lua_rawseti(L, -2, idx);
-                    ++idx;
+                    lua_rawseti(L, -2, idx++);
 
                 } (), ...);
 
-                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, className, 1);
+                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, className, 2);
             }
 
             rawsetfield(L, -2, "__call"); 
@@ -10637,25 +10867,31 @@ class Namespace : public detail::Registrar
             else
             {
                 
-                lua_createtable(L, static_cast<int>(sizeof...(Functions)), 0); 
+                auto* overload_set_unaligned = lua_newuserdata_aligned<detail::OverloadSet>(L);
+                auto* overload_set = align<detail::OverloadSet>(overload_set_unaligned);
+
+                ([&]
+                {
+                    using ArgsPack = detail::function_arguments_t<Functions>;
+                    detail::OverloadEntry entry;
+                    entry.arity = static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>);
+                    entry.checker = &detail::overload_type_checker<ArgsPack>;
+                    overload_set->entries.push_back(entry);
+
+                } (), ...);
+
+                lua_createtable(L, static_cast<int>(sizeof...(Functions)), 0);
 
                 int idx = 1;
 
                 ([&]
                 {
-                    lua_createtable(L, 2, 0); 
-                    lua_pushinteger(L, 1);
-                    lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
-                    lua_settable(L, -3);
-                    lua_pushinteger(L, 2);
                     lua_pushcclosure_x(L, &detail::constructor_container_proxy<C, detail::function_arguments_t<Functions>>, className, 0);
-                    lua_settable(L, -3);
-                    lua_rawseti(L, -2, idx);
-                    ++idx;
+                    lua_rawseti(L, -2, idx++);
 
                 } (), ...);
 
-                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, className, 1);
+                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, className, 2);
             }
 
             rawsetfield(L, -2, "__call");
@@ -10685,7 +10921,28 @@ class Namespace : public detail::Registrar
             else
             {
                 
-                lua_createtable(L, static_cast<int>(sizeof...(Functions)), 0); 
+                auto* overload_set_unaligned = lua_newuserdata_aligned<detail::OverloadSet>(L);
+                auto* overload_set = align<detail::OverloadSet>(overload_set_unaligned);
+
+                ([&]
+                {
+                    detail::OverloadEntry entry;
+                    if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
+                    {
+                        entry.arity = -1;
+                        entry.checker = nullptr;
+                    }
+                    else
+                    {
+                        using ArgsPack = detail::function_arguments_t<Functions>;
+                        entry.arity = static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>);
+                        entry.checker = &detail::overload_type_checker<ArgsPack>;
+                    }
+                    overload_set->entries.push_back(entry);
+
+                } (), ...);
+
+                lua_createtable(L, static_cast<int>(sizeof...(Functions)), 0);
 
                 int idx = 1;
 
@@ -10693,23 +10950,13 @@ class Namespace : public detail::Registrar
                 {
                     using F = detail::container_forwarder<C, Functions>;
 
-                    lua_createtable(L, 2, 0); 
-                    lua_pushinteger(L, 1);
-                    if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
-                        lua_pushinteger(L, -1);
-                    else
-                        lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
-                    lua_settable(L, -3);
-                    lua_pushinteger(L, 2);
                     lua_newuserdata_aligned<F>(L, F(std::move(functions)));
                     lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, className, 1);
-                    lua_settable(L, -3);
-                    lua_rawseti(L, -2, idx);
-                    ++idx;
+                    lua_rawseti(L, -2, idx++);
 
                 } (), ...);
 
-                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, className, 1);
+                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, className, 2);
             }
 
             rawsetfield(L, -2, "__call"); 
@@ -11113,29 +11360,39 @@ public:
         else
         {
             
-            lua_createtable(L, static_cast<int>(sizeof...(Functions)), 0); 
+            auto* overload_set_unaligned = lua_newuserdata_aligned<detail::OverloadSet>(L);
+            auto* overload_set = align<detail::OverloadSet>(overload_set_unaligned);
+
+            ([&]
+            {
+                detail::OverloadEntry entry;
+                if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
+                {
+                    entry.arity = -1;
+                    entry.checker = nullptr;
+                }
+                else
+                {
+                    using ArgsPack = detail::function_arguments_t<Functions>;
+                    entry.arity = static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>);
+                    entry.checker = &detail::overload_type_checker<ArgsPack>;
+                }
+                overload_set->entries.push_back(entry);
+
+            } (), ...);
+
+            lua_createtable(L, static_cast<int>(sizeof...(Functions)), 0);
 
             int idx = 1;
 
             ([&]
             {
-                lua_createtable(L, 2, 0); 
-                lua_pushinteger(L, 1);
-                if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
-                    lua_pushinteger(L, -1);
-                else
-                    lua_pushinteger(L, static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>));
-                lua_settable(L, -3);
-                lua_pushinteger(L, 2);
                 detail::push_function(L, std::move(functions), name);
-                lua_settable(L, -3);
-
-                lua_rawseti(L, -2, idx);
-                ++idx;
+                lua_rawseti(L, -2, idx++);
 
             } (), ...);
 
-            lua_pushcclosure_x(L, &detail::try_overload_functions<false>, name, 1);
+            lua_pushcclosure_x(L, &detail::try_overload_functions<false>, name, 2);
         }
 
         rawsetfield(L, -2, name);

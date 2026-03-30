@@ -533,6 +533,112 @@ TEST_F(LuaRefTests, CallableWithHandler)
     EXPECT_TRUE(errorMessage.find("we failed badly") != std::string::npos);
 }
 
+TEST_F(LuaRefTests, CallableWithHandlerAsIntToBoolValuedFunction)
+{
+    runLua("function f(x) return x <= 1 end");
+    auto f = luabridge::getGlobal(L, "f");
+    EXPECT_TRUE(f.isCallable());
+    
+    bool calledHandler = false;
+    std::string errorMessage;
+    auto handler = [&](lua_State*) -> int
+    {
+        calledHandler = true;
+
+        if (auto msg = lua_tostring(L, 1))
+            errorMessage = msg;
+
+        return 0;
+    };
+
+    auto result = f.callWithHandler<bool>(handler, 2);
+    ASSERT_TRUE(result);
+    EXPECT_FALSE(calledHandler);
+    EXPECT_FALSE(result.value());
+}
+
+TEST_F(LuaRefTests, CallableWithStdFunction)
+{
+    runLua("function f(x) error('we failed ' .. x) end");
+    auto f = luabridge::getGlobal(L, "f");
+    EXPECT_TRUE(f.isCallable());
+
+    bool calledHandler = false;
+    std::string errorMessage;
+    auto handler = [&](lua_State*) -> int
+    {
+        calledHandler = true;
+
+        if (auto msg = lua_tostring(L, 1))
+            errorMessage = msg;
+
+        return 0;
+    };
+
+    std::function<int(lua_State*)> pHandler = handler;
+
+    EXPECT_FALSE(f.callWithHandler(pHandler, "badly"));
+    EXPECT_TRUE(calledHandler);
+    EXPECT_TRUE(errorMessage.find("we failed badly") != std::string::npos);
+}
+
+TEST_F(LuaRefTests, CallableWithNullifiedStdFunction)
+{
+    runLua("function f(x) error('we failed ' .. x) end");
+    auto f = luabridge::getGlobal(L, "f");
+    EXPECT_TRUE(f.isCallable());
+
+    std::function<int(lua_State*)> pHandler = nullptr;
+    EXPECT_FALSE(f.callWithHandler(pHandler, "badly"));
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_ANY_THROW(f.callWithHandler(pHandler, "badly").throw_on_error());
+#endif
+}
+
+TEST_F(LuaRefTests, CallableWithCFunction)
+{
+    runLua("function f(x) error('we failed ' .. x) end");
+    auto f = luabridge::getGlobal(L, "f");
+    EXPECT_TRUE(f.isCallable());
+
+    lua_CFunction pHandler = +[](lua_State* L) { return 0; };
+    EXPECT_FALSE(f.callWithHandler(pHandler, "badly"));
+}
+
+TEST_F(LuaRefTests, CallableWithNullCFunction)
+{
+    runLua("function f(x) error('we failed ' .. x) end");
+    auto f = luabridge::getGlobal(L, "f");
+    EXPECT_TRUE(f.isCallable());
+
+    lua_CFunction pHandler = nullptr;
+    EXPECT_FALSE(f.callWithHandler(pHandler, "badly"));
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_ANY_THROW(f.callWithHandler(pHandler, "badly").throw_on_error());
+#endif
+}
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+TEST_F(LuaRefTests, CallableWithThrowingHandler)
+{
+    runLua("function f(x) error('we failed ' .. x) end");
+    auto f = luabridge::getGlobal(L, "f");
+    EXPECT_TRUE(f.isCallable());
+
+    bool calledHandler = false;
+    auto handler = [&](lua_State*) -> int
+    {
+        calledHandler = true;
+        return 0;
+    };
+
+    EXPECT_ANY_THROW(f.callWithHandler(handler, "badly").throw_on_error());
+    EXPECT_TRUE(calledHandler);
+}
+#endif
+
 TEST_F(LuaRefTests, CallableWrapper)
 {
     runLua("function sum(a, b) return a + b end");
