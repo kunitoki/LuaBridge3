@@ -159,16 +159,22 @@ inline bool is_metamethod(std::string_view method_name)
     return result != metamethods.end() && *result == method_name;
 }
 
-/**
- * @brief Make super method name.
- */
-inline std::string make_super_method_name(const char* name)
+inline void rawset_super_method(lua_State* L, int tableIndex, const char* key)
 {
-    LUABRIDGE_ASSERT(name != nullptr);
+    LUABRIDGE_ASSERT(key != nullptr);
 
-    return (std::string_view(name).find("_") == 0u)
-        ? (std::string("super") + name)
-        : (std::string("super_") + name);
+    tableIndex = lua_absindex(L, tableIndex);
+
+    // Stack before: ..., value
+    if (key[0] == '_')
+        lua_pushliteral(L, "super"); // Stack: ..., value, "super"
+    else
+        lua_pushliteral(L, "super_"); // Stack: ..., value, "super_"
+
+    lua_pushstring(L, key); // Stack: ..., value, prefix, key
+    lua_concat(L, 2); // Stack: ..., value, super_key
+    lua_insert(L, -2); // Stack: ..., super_key, value
+    lua_rawset(L, tableIndex); // Pops key/value. Stack: ...
 }
 
 //=================================================================================================
@@ -789,9 +795,7 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
 
         const int mtIndex = lua_absindex(L, -2);
         const int origClassTableIndex = lua_absindex(L, -1);
-        const std::string superMethodName = make_super_method_name(key);
-
-        const auto process_metatable = [L, key, &superMethodName, origClassTableIndex](int candidateMtIndex)
+        const auto process_metatable = [L, key, origClassTableIndex](int candidateMtIndex)
         {
             push_class_or_const_table(L, candidateMtIndex); // Stack: ..., candidate_ct | nil
             if (! lua_istable(L, -1))
@@ -819,7 +823,7 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
             if (! options.test(allowOverridingMethods))
                 luaL_error(L, "immutable member '%s'", key);
 
-            rawsetfield(L, origClassTableIndex, superMethodName.c_str()); // Stack: ..., candidate_ct
+            rawset_super_method(L, origClassTableIndex, key); // Stack: ..., candidate_ct
             lua_pop(L, 1); // Stack: ...
             return true;
         };
@@ -894,7 +898,7 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
         if (! options.test(allowOverridingMethods))
             luaL_error(L, "immutable member '%s'", key);
 
-        rawsetfield(L, -2, make_super_method_name(key).c_str()); // Stack: ..., candidate_ct
+        rawset_super_method(L, -2, key); // Stack: ..., candidate_ct
         lua_pop(L, 1); // Stack: ...
         return true;
     };
