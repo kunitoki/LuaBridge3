@@ -9595,6 +9595,17 @@ namespace luabridge {
 
 namespace detail {
 
+template <class F>
+bool is_handler_valid(const F& f) noexcept
+{
+    if constexpr (std::is_pointer_v<remove_cvref_t<F>>)
+        return f != nullptr;
+    else if constexpr (std::is_constructible_v<bool, remove_cvref_t<F>>)
+        return static_cast<bool>(f);
+    else
+        return true;
+}
+
 template <class T>
 struct IsTuple : std::false_type
 {
@@ -9667,14 +9678,22 @@ TypeResult<R> decodeCallResult(lua_State* L, int firstResultIndex, int numReturn
 template <class R, class Ref, class F, class... Args>
 TypeResult<R> callWithHandler(const Ref& object, F&& errorHandler, Args&&... args)
 {
-    static constexpr bool isValidHandler = !std::is_same_v<detail::remove_cvref_t<F>, detail::remove_cvref_t<decltype(std::ignore)>>;
+    static_assert(std::is_same_v<detail::remove_cvref_t<F>, detail::remove_cvref_t<decltype(std::ignore)>> || std::is_invocable_r_v<int, F, lua_State*>);
+
+    static constexpr bool isValidHandler =
+        !std::is_same_v<detail::remove_cvref_t<F>, detail::remove_cvref_t<decltype(std::ignore)>>;
 
     lua_State* L = object.state();
     const StackRestore stackRestore(L);
     const int initialTop = lua_gettop(L);
 
+    bool hasHandler = false;
     if constexpr (isValidHandler)
-        detail::push_function(L, std::forward<F>(errorHandler), "");
+    {
+        hasHandler = detail::is_handler_valid(errorHandler);
+        if (hasHandler)
+            detail::push_function(L, std::forward<F>(errorHandler), "");
+    }
 
     object.push();
 
@@ -9684,7 +9703,7 @@ TypeResult<R> callWithHandler(const Ref& object, F&& errorHandler, Args&&... arg
             return result.error();
     }
 
-    const int messageHandlerIndex = isValidHandler ? (initialTop + 1) : 0;
+    const int messageHandlerIndex = hasHandler ? (initialTop + 1) : 0;
     const int code = lua_pcall(L, sizeof...(Args), LUA_MULTRET, messageHandlerIndex);
     if (code != LUABRIDGE_LUA_OK)
     {
@@ -9702,7 +9721,7 @@ TypeResult<R> callWithHandler(const Ref& object, F&& errorHandler, Args&&... arg
         return ec;
     }
 
-    if constexpr (isValidHandler)
+    if (hasHandler)
         lua_remove(L, initialTop + 1);
 
     const int firstResultIndex = initialTop + 1;
