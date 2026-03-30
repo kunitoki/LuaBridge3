@@ -617,6 +617,25 @@ TEST_F(LuaRefTests, CallableWithNullCFunction)
 #endif
 }
 
+#if LUABRIDGE_HAS_EXCEPTIONS
+TEST_F(LuaRefTests, CallableWithThrowingHandler)
+{
+    runLua("function f(x) error('we failed ' .. x) end");
+    auto f = luabridge::getGlobal(L, "f");
+    EXPECT_TRUE(f.isCallable());
+
+    bool calledHandler = false;
+    auto handler = [&](lua_State*) -> int
+    {
+        calledHandler = true;
+        return 0;
+    };
+
+    EXPECT_ANY_THROW(f.callWithHandler(handler, "badly").throw_on_error());
+    EXPECT_TRUE(calledHandler);
+}
+#endif
+
 TEST_F(LuaRefTests, CallableWrapper)
 {
     runLua("function sum(a, b) return a + b end");
