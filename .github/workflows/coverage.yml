@@ -491,9 +491,9 @@ jobs:
         working-directory: ${{runner.workspace}}/build
         run: lcov2xml coverage/merged.info -o coverage/cobertura.xml
 
-      - name: Convert to Coverage TXT
-        working-directory: ${{runner.workspace}}/build
-        run: python3 ${{runner.workspace}}/cobertura.py coverage/cobertura.info coverage/coverage.txt
+      #- name: Convert to Coverage TXT
+      #  working-directory: ${{runner.workspace}}/build
+      #  run: python3 ${{runner.workspace}}/cobertura.py coverage/cobertura.info coverage/coverage.txt
 
       - name: Upload Cobertura XML
         uses: actions/upload-artifact@v4
@@ -501,11 +501,11 @@ jobs:
           name: cobertura-coverage
           path: ${{runner.workspace}}/build/coverage/cobertura.xml
 
-      - name: Upload Coverage TXT
-        uses: actions/upload-artifact@v4
-        with:
-          name: text-coverage
-          path: ${{runner.workspace}}/build/coverage/coverage.txt
+      #- name: Upload Coverage TXT
+      #  uses: actions/upload-artifact@v4
+      #  with:
+      #    name: text-coverage
+      #    path: ${{runner.workspace}}/build/coverage/coverage.txt
 
       - name: Coveralls
         uses: coverallsapp/github-action@master
