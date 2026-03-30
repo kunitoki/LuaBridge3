@@ -5,6 +5,13 @@
 
 #include "TestBase.h"
 
+#include "LuaBridge/Array.h"
+#include "LuaBridge/List.h"
+#include "LuaBridge/Map.h"
+#include "LuaBridge/Set.h"
+#include "LuaBridge/UnorderedMap.h"
+#include "LuaBridge/Vector.h"
+
 namespace {
 struct Unregistered {};
 } // namespace
@@ -2076,11 +2083,11 @@ TEST_F(StackTests, IntArrayType)
     EXPECT_FALSE(luabridge::isInstance<std::string_view>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::string>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::tuple<int>>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::vector<int>>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::optional<char>>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::optional<const char*>>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::optional<std::string_view>>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::optional<std::string>>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<std::vector<int>>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<int[10]>(L, -1));
 }
 
@@ -2130,11 +2137,11 @@ TEST_F(StackTests, ConstIntArrayType)
     EXPECT_FALSE(luabridge::isInstance<std::string_view>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::string>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::tuple<int>>(L, -1));
-    EXPECT_FALSE(luabridge::isInstance<std::vector<int>>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::optional<int>>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::optional<const char*>>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::optional<std::string_view>>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::optional<std::string>>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<std::vector<int>>(L, -1));
     EXPECT_TRUE(luabridge::isInstance<const int[10]>(L, -1));
 }
 
@@ -2597,6 +2604,278 @@ TEST_F(StackTests, ConstVoidPointerStackOverflow)
     const void* ptr = reinterpret_cast<const void*>(static_cast<std::uintptr_t>(0xdead1984ll));
 
     ASSERT_FALSE(luabridge::push(L, ptr));
+}
+
+TEST_F(StackTests, VoidPointerGetNil)
+{
+    lua_pushnil(L);
+
+    {
+        auto result = luabridge::get<void*>(L, -1);
+        ASSERT_TRUE(result);
+        EXPECT_EQ(nullptr, *result);
+    }
+
+    {
+        auto result = luabridge::get<const void*>(L, -1);
+        ASSERT_TRUE(result);
+        EXPECT_EQ(nullptr, *result);
+    }
+}
+
+TEST_F(StackTests, LongLongType)
+{
+    long long value = 42LL;
+
+    ASSERT_TRUE(luabridge::push(L, value));
+
+    auto result = luabridge::get<long long>(L, -1);
+    ASSERT_TRUE(result);
+    EXPECT_EQ(value, *result);
+
+    EXPECT_TRUE(luabridge::isInstance<long long>(L, -1));
+}
+
+TEST_F(StackTests, LongLongStackOverflow)
+{
+    exhaustStackSpace();
+
+    ASSERT_FALSE(luabridge::push(L, 42LL));
+}
+
+TEST_F(StackTests, LongLongInvalidType)
+{
+    (void)luabridge::Stack<std::string_view>::push(L, "not_a_number");
+
+    auto result = luabridge::Stack<long long>::get(L, -1);
+    ASSERT_FALSE(result);
+    EXPECT_EQ(luabridge::ErrorCode::InvalidTypeCast, result.error());
+}
+
+TEST_F(StackTests, LongLongNotFittingGet)
+{
+    // Push a non-integer float - tointeger returns isValid=0, can't represent as long long
+    lua_pushnumber(L, 1.5);
+
+    auto result = luabridge::Stack<long long>::get(L, -1);
+    ASSERT_FALSE(result);
+    EXPECT_EQ(luabridge::ErrorCode::IntegerDoesntFitIntoLuaInteger, result.error());
+}
+
+TEST_F(StackTests, LongLongNotFittingPush)
+{
+    if constexpr (sizeof(long long) > sizeof(lua_Integer))
+    {
+        long long value = static_cast<long long>(std::numeric_limits<lua_Integer>::max()) + 1LL;
+        auto result = luabridge::push(L, value);
+        ASSERT_FALSE(result);
+        EXPECT_EQ(luabridge::ErrorCode::IntegerDoesntFitIntoLuaInteger, result.error());
+    }
+}
+
+TEST_F(StackTests, UlongLongNotFittingPush)
+{
+    if constexpr (sizeof(unsigned long long) == sizeof(lua_Integer) && !std::is_unsigned_v<lua_Integer>)
+    {
+        // Value > LLONG_MAX can't fit in signed lua_Integer
+        auto result = luabridge::push(L, 9223372036854775808ull);
+        ASSERT_FALSE(result);
+        EXPECT_EQ(luabridge::ErrorCode::IntegerDoesntFitIntoLuaInteger, result.error());
+    }
+}
+
+TEST_F(StackTests, UlongLongType)
+{
+    unsigned long long value = 42ULL;
+
+    ASSERT_TRUE(luabridge::push(L, value));
+
+    auto result = luabridge::get<unsigned long long>(L, -1);
+    ASSERT_TRUE(result);
+    EXPECT_EQ(value, *result);
+
+    EXPECT_TRUE(luabridge::isInstance<unsigned long long>(L, -1));
+}
+
+TEST_F(StackTests, UlongLongStackOverflow)
+{
+    exhaustStackSpace();
+
+    ASSERT_FALSE(luabridge::push(L, 42ULL));
+}
+
+TEST_F(StackTests, UlongLongInvalidType)
+{
+    (void)luabridge::Stack<std::string_view>::push(L, "not_a_number");
+
+    auto result = luabridge::Stack<unsigned long long>::get(L, -1);
+    ASSERT_FALSE(result);
+    EXPECT_EQ(luabridge::ErrorCode::InvalidTypeCast, result.error());
+}
+
+TEST_F(StackTests, UnsignedIntNotFittingGet)
+{
+    // Push a negative number - can't fit in unsigned int
+    lua_pushinteger(L, -1);
+
+    auto result = luabridge::Stack<unsigned int>::get(L, -1);
+    ASSERT_FALSE(result);
+    EXPECT_EQ(luabridge::ErrorCode::IntegerDoesntFitIntoLuaInteger, result.error());
+}
+
+TEST_F(StackTests, LongNotFittingGet)
+{
+    if constexpr (sizeof(long) < sizeof(lua_Integer))
+    {
+        // Push a value larger than LONG_MAX
+        lua_pushinteger(L, static_cast<lua_Integer>(std::numeric_limits<long>::max()) + 1);
+
+        auto result = luabridge::Stack<long>::get(L, -1);
+        ASSERT_FALSE(result);
+        EXPECT_EQ(luabridge::ErrorCode::IntegerDoesntFitIntoLuaInteger, result.error());
+    }
+}
+
+TEST_F(StackTests, UnsignedLongInvalidType)
+{
+    (void)luabridge::Stack<std::string_view>::push(L, "not_a_number");
+
+    auto result = luabridge::Stack<unsigned long>::get(L, -1);
+    ASSERT_FALSE(result);
+    EXPECT_EQ(luabridge::ErrorCode::InvalidTypeCast, result.error());
+}
+
+#if !LUABRIDGE_STRICT_STACK_CONVERSIONS
+TEST_F(StackTests, StringGetFromNumberStackOverflow)
+{
+    // Push a number (will trigger string coercion path in non-strict mode)
+    lua_pushnumber(L, 42.0);
+
+    exhaustStackSpace();
+
+    // In non-strict mode, get<string> tries lua_pushvalue which fails on overflow
+    auto result = luabridge::Stack<std::string>::get(L, -1);
+    ASSERT_FALSE(result);
+    EXPECT_EQ(luabridge::ErrorCode::LuaStackOverflow, result.error());
+}
+#endif
+
+TEST_F(StackTests, FloatNotFittingGet)
+{
+    // Push lua_Number::max which doesn't fit in float
+    (void)luabridge::push(L, std::numeric_limits<lua_Number>::max());
+
+    auto result = luabridge::Stack<float>::get(L, -1);
+    ASSERT_FALSE(result);
+    EXPECT_EQ(luabridge::ErrorCode::FloatingPointDoesntFitIntoLuaNumber, result.error());
+}
+
+TEST_F(StackTests, OptionalNulloptStackOverflow)
+{
+    exhaustStackSpace();
+
+    std::optional<int> value = std::nullopt;
+    ASSERT_FALSE(luabridge::push(L, value));
+}
+
+TEST_F(StackTests, OptionalGetInnerError)
+{
+    // Push a string (not nil, but can't be converted to int)
+    (void)luabridge::Stack<std::string_view>::push(L, "not_a_number");
+
+    auto result = luabridge::Stack<std::optional<int>>::get(L, -1);
+    ASSERT_FALSE(result);
+    EXPECT_EQ(luabridge::ErrorCode::InvalidTypeCast, result.error());
+}
+
+TEST_F(StackTests, PairGetNonTable)
+{
+    lua_pushnumber(L, 42.0);
+
+    auto result = luabridge::Stack<std::pair<int, int>>::get(L, -1);
+    ASSERT_FALSE(result);
+    EXPECT_EQ(luabridge::ErrorCode::InvalidTypeCast, result.error());
+}
+
+TEST_F(StackTests, PairGetFirstElementError)
+{
+    // Push pair<string, string> but try to get as pair<int, string>
+    auto value = std::make_pair(std::string("not_int"), std::string("second"));
+    ASSERT_TRUE(luabridge::push(L, value));
+
+    auto result = luabridge::Stack<std::pair<int, std::string>>::get(L, -1);
+    ASSERT_FALSE(result);
+    EXPECT_EQ(luabridge::ErrorCode::InvalidTypeCast, result.error());
+}
+
+TEST_F(StackTests, TupleGetNonTable)
+{
+    lua_pushnumber(L, 42.0);
+
+    auto result = luabridge::Stack<std::tuple<int, int>>::get(L, -1);
+    ASSERT_FALSE(result);
+    EXPECT_EQ(luabridge::ErrorCode::InvalidTypeCast, result.error());
+}
+
+TEST_F(StackTests, TupleGetFirstElementError)
+{
+    // Push tuple<string, string> but try to get as tuple<int, string>
+    auto value = std::make_tuple(std::string("not_int"), std::string("second"));
+    ASSERT_TRUE(luabridge::push(L, value));
+
+    auto result = luabridge::Stack<std::tuple<int, std::string>>::get(L, -1);
+    ASSERT_FALSE(result);
+    EXPECT_EQ(luabridge::ErrorCode::InvalidTypeCast, result.error());
+}
+
+TEST_F(StackTests, ErrorCodeMessages)
+{
+    EXPECT_STREQ("The class is not registered in LuaBridge",
+        luabridge::makeErrorCode(luabridge::ErrorCode::ClassNotRegistered).message().c_str());
+
+    EXPECT_STREQ("The lua stack has overflow",
+        luabridge::makeErrorCode(luabridge::ErrorCode::LuaStackOverflow).message().c_str());
+
+    EXPECT_STREQ("The lua function invocation raised an error",
+        luabridge::makeErrorCode(luabridge::ErrorCode::LuaFunctionCallFailed).message().c_str());
+
+    EXPECT_STREQ("The native integer can't fit inside a lua integer",
+        luabridge::makeErrorCode(luabridge::ErrorCode::IntegerDoesntFitIntoLuaInteger).message().c_str());
+
+    EXPECT_STREQ("The native floating point can't fit inside a lua number",
+        luabridge::makeErrorCode(luabridge::ErrorCode::FloatingPointDoesntFitIntoLuaNumber).message().c_str());
+
+    EXPECT_STREQ("The lua object can't be cast to desired type",
+        luabridge::makeErrorCode(luabridge::ErrorCode::InvalidTypeCast).message().c_str());
+
+    EXPECT_STREQ("The lua table has different size than expected",
+        luabridge::makeErrorCode(luabridge::ErrorCode::InvalidTableSizeInCast).message().c_str());
+
+    // Default case: an unknown error code value
+    EXPECT_STREQ("Unknown error",
+        luabridge::detail::ErrorCategory::getInstance().message(9999).c_str());
+}
+
+TEST_F(StackTests, GetGlobalTyped)
+{
+    // Test the template getGlobal<T> from Globals.h (not the LuaRef version from LuaRef.h)
+    lua_pushinteger(L, 42);
+    lua_setglobal(L, "test_int_global");
+
+    auto result = luabridge::getGlobal<int>(L, "test_int_global");
+    ASSERT_TRUE(result);
+    EXPECT_EQ(42, *result);
+}
+
+TEST_F(StackTests, SetGlobalFailure)
+{
+    struct Unregistered2 {};
+
+    // setGlobal should return false when push fails (non-exception mode only)
+#if !LUABRIDGE_HAS_EXCEPTIONS
+    bool ok = luabridge::setGlobal(L, Unregistered2{}, "test_var");
+    EXPECT_FALSE(ok);
+#endif
 }
 
 TEST_F(StackTests, ResultCheck)

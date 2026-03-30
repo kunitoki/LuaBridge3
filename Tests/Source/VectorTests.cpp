@@ -119,6 +119,50 @@ TEST_F(VectorTests, PassFromLua)
     ASSERT_EQ(std::vector<Data>({-3, 4}), result<std::vector<Data>>());
 }
 
+TEST_F(VectorTests, GetNonTable)
+{
+    lua_pushnumber(L, 42.0);
+
+    auto result = luabridge::Stack<std::vector<int>>::get(L, -1);
+    ASSERT_FALSE(result);
+    EXPECT_EQ(luabridge::ErrorCode::InvalidTypeCast, result.error());
+}
+
+TEST_F(VectorTests, GetWithInvalidItem)
+{
+    lua_createtable(L, 2, 0);
+    lua_pushinteger(L, 1);
+    lua_pushstring(L, "not_an_int");
+    lua_settable(L, -3);
+    lua_pushinteger(L, 2);
+    lua_pushstring(L, "also_not_an_int");
+    lua_settable(L, -3);
+
+    auto result = luabridge::Stack<std::vector<int>>::get(L, -1);
+    ASSERT_FALSE(result);
+    EXPECT_EQ(luabridge::ErrorCode::InvalidTypeCast, result.error());
+}
+
+TEST_F(VectorTests, IsInstance)
+{
+    ASSERT_TRUE((luabridge::push(L, std::vector<int>{ 1, 2, 3 })));
+    EXPECT_TRUE(luabridge::isInstance<std::vector<int>>(L, -1));
+
+    lua_pop(L, 1);
+
+    ASSERT_TRUE((luabridge::push(L, 1)));
+    EXPECT_FALSE(luabridge::isInstance<std::vector<int>>(L, -1));
+}
+
+TEST_F(VectorTests, StackOverflow)
+{
+    exhaustStackSpace();
+
+    std::vector<int> value{ 1, 2, 3 };
+
+    ASSERT_FALSE(luabridge::push(L, value));
+}
+
 #if !LUABRIDGE_HAS_EXCEPTIONS
 TEST_F(VectorTests, PushUnregisteredWithNoExceptionsShouldFailButRestoreStack)
 {

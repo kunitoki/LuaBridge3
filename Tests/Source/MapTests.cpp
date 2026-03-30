@@ -71,6 +71,27 @@ struct MapTests : TestBase
 {
 };
 
+TEST_F(MapTests, GetNonTable)
+{
+    lua_pushnumber(L, 42.0);
+
+    auto result = luabridge::Stack<std::map<int, int>>::get(L, -1);
+    ASSERT_FALSE(result);
+    EXPECT_EQ(luabridge::ErrorCode::InvalidTypeCast, result.error());
+}
+
+TEST_F(MapTests, GetWithInvalidValue)
+{
+    lua_createtable(L, 0, 1);
+    lua_pushinteger(L, 1);
+    lua_pushstring(L, "not_an_int");
+    lua_settable(L, -3);
+
+    auto result = luabridge::Stack<std::map<int, int>>::get(L, -1);
+    ASSERT_FALSE(result);
+    EXPECT_EQ(luabridge::ErrorCode::InvalidTypeCast, result.error());
+}
+
 TEST_F(MapTests, LuaRef)
 {
     {

@@ -53,6 +53,20 @@ TEST_F(IteratorTests, DictionaryIteration)
     ASSERT_EQ(expected, actual);
 }
 
+TEST_F(IteratorTests, IncrementPastEnd)
+{
+    runLua("result = {1, 2, 3}");
+
+    luabridge::Iterator it(result());
+    while (!it.isNil())
+        ++it;
+
+    // Now at end (isNil() == true) - incrementing should be a no-op
+    EXPECT_TRUE(it.isNil());
+    ++it;
+    EXPECT_TRUE(it.isNil());
+}
+
 TEST_F(IteratorTests, SequenceIteration)
 {
     runLua("result = {"

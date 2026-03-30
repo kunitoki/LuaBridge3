@@ -71,6 +71,15 @@ struct SetTests : TestBase
 {
 };
 
+TEST_F(SetTests, GetNonTable)
+{
+    lua_pushnumber(L, 42.0);
+
+    auto result = luabridge::Stack<std::set<int>>::get(L, -1);
+    ASSERT_FALSE(result);
+    EXPECT_EQ(luabridge::ErrorCode::InvalidTypeCast, result.error());
+}
+
 TEST_F(SetTests, LuaRef)
 {
     {
