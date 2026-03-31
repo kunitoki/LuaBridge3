@@ -1331,3 +1331,132 @@ TEST_F(LuaRefTests, ComparisonOperatorPushFailure)
         EXPECT_FALSE(ref.rawequal(huge));
     }
 }
+
+TEST_F(LuaRefTests, TableItemCopyWithKeyRef)
+{
+    // Covers LuaRef.h:757-758 - copy constructor path when other.m_keyRef != LUA_NOREF
+    runLua("result = { [\"outer\"] = { value = 99 } }");
+
+    std::string key = "outer";
+    auto item = result()[key]; // creates TableItem with m_keyRef (not m_keyLiteral)
+    auto itemCopy = item;      // exercises lines 757-758
+
+    auto val = itemCopy["value"];
+    EXPECT_EQ(99, luabridge::cast<int>(val).valueOr(0));
+}
+
+TEST_F(LuaRefTests, TableItemCopyStackOverflow)
+{
+    // Covers LuaRef.h:748 - early return in TableItem copy constructor when stack is exhausted
+    runLua("result = { [\"k\"] = 1 }");
+    std::string key = "k";
+    auto item = result()[key];
+    exhaustStackSpace();
+    auto itemCopy = item; // should not crash; m_tableRef stays LUA_NOREF
+    lua_settop(L, 0);
+}
+
+TEST_F(LuaRefTests, TableItemAssignStackOverflow)
+{
+    // Covers LuaRef.h:794 - early return in TableItem::operator= when stack is exhausted
+    runLua("result = { key = 0 }");
+    auto item = result()["key"];
+    exhaustStackSpace();
+    item = 42; // should silently return *this without modifying the table
+    lua_settop(L, 0);
+}
+
+TEST_F(LuaRefTests, TableItemRawsetStackOverflow)
+{
+    // Covers LuaRef.h:837 - early return in TableItem::rawset when stack is exhausted
+    runLua("result = { key = 0 }");
+    auto item = result()["key"];
+    exhaustStackSpace();
+    item.rawset(42); // should silently return *this without modifying the table
+    lua_settop(L, 0);
+}
+
+TEST_F(LuaRefTests, TableItemPushStackOverflow)
+{
+    // Covers LuaRef.h:880 - early return in TableItem::push when stack is exhausted
+    runLua("result = { key = 1 }");
+    auto item = result()["key"];
+    exhaustStackSpace();
+    const int topBefore = lua_gettop(L);
+    item.push(L); // should silently return without pushing
+    EXPECT_EQ(topBefore, lua_gettop(L));
+    lua_settop(L, 0);
+}
+
+TEST_F(LuaRefTests, LuaRefFromStackOverflow)
+{
+    // Covers LuaRef.h:1048 - early return in LuaRef(L, index, FromStack) when stack is exhausted
+    lua_pushinteger(L, 7);
+    exhaustStackSpace();
+    auto ref = luabridge::LuaRef::fromStack(L, -1);
+    EXPECT_FALSE(ref.isValid());
+    lua_settop(L, 0);
+}
+
+TEST_F(LuaRefTests, TableItemAssignKeyRefPushFailure)
+{
+    // Covers LuaRef.h:812 - return *this in operator= key-ref path when Stack push fails
+    if constexpr (sizeof(long double) > sizeof(lua_Number))
+    {
+        runLua("result = { [\"k\"] = 0 }");
+        std::string key = "k";
+        auto item = result()[key]; // TableItem with m_keyRef
+        long double huge = std::numeric_limits<long double>::max();
+        item = huge; // push fails - early return at line 812
+    }
+}
+
+TEST_F(LuaRefTests, TableItemRawsetLiteralPushFailure)
+{
+    // Covers LuaRef.h:848 - return *this in rawset literal path when Stack push fails
+    if constexpr (sizeof(long double) > sizeof(lua_Number))
+    {
+        runLua("result = { key = 0 }");
+        auto item = result()["key"]; // TableItem with m_keyLiteral
+        long double huge = std::numeric_limits<long double>::max();
+        item.rawset(huge); // push fails - early return at line 848
+    }
+}
+
+TEST_F(LuaRefTests, TableItemRawsetKeyRefPushFailure)
+{
+    // Covers LuaRef.h:857 - return *this in rawset key-ref path when Stack push fails
+    if constexpr (sizeof(long double) > sizeof(lua_Number))
+    {
+        runLua("result = { [\"k\"] = 0 }");
+        std::string key = "k";
+        auto item = result()[key]; // TableItem with m_keyRef
+        long double huge = std::numeric_limits<long double>::max();
+        item.rawset(huge); // push fails - early return at line 857
+    }
+}
+
+TEST_F(LuaRefTests, TableItemOperatorIndexKeyPushFailure)
+{
+    // Covers LuaRef.h:918 - lua_pushnil fallback in TableItem::operator[] when key push fails
+    if constexpr (sizeof(long double) > sizeof(lua_Number))
+    {
+        runLua("result = { [\"k\"] = {} }");
+        std::string key = "k";
+        auto item = result()[key]; // TableItem
+        long double huge = std::numeric_limits<long double>::max();
+        auto child = item[huge]; // key push fails -> lua_pushnil used as key
+        (void)child;
+    }
+}
+
+TEST_F(LuaRefTests, LuaRefConstructorPushFailure)
+{
+    // Covers LuaRef.h:1085 - early return in LuaRef(L, v) template constructor when push fails
+    if constexpr (sizeof(long double) > sizeof(lua_Number))
+    {
+        long double huge = std::numeric_limits<long double>::max();
+        luabridge::LuaRef ref(L, huge); // push fails - early return at line 1085
+        EXPECT_FALSE(ref.isValid());
+    }
+}

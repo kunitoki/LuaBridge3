@@ -2745,6 +2745,22 @@ TEST_F(StackTests, UnsignedLongInvalidType)
     EXPECT_EQ(luabridge::ErrorCode::InvalidTypeCast, result.error());
 }
 
+TEST_F(StackTests, UnsignedLongNotFittingGet)
+{
+    lua_pushnumber(L, 18446744073709551616.0);
+    auto r = luabridge::Stack<unsigned long>::get(L, -1);
+    ASSERT_FALSE(r);
+    EXPECT_EQ(luabridge::ErrorCode::IntegerDoesntFitIntoLuaInteger, r.error());
+}
+
+TEST_F(StackTests, UlongLongNotFittingGet)
+{
+    lua_pushnumber(L, 18446744073709551616.0);
+    auto r = luabridge::Stack<unsigned long long>::get(L, -1);
+    ASSERT_FALSE(r);
+    EXPECT_EQ(luabridge::ErrorCode::IntegerDoesntFitIntoLuaInteger, r.error());
+}
+
 #if !LUABRIDGE_STRICT_STACK_CONVERSIONS
 TEST_F(StackTests, StringGetFromNumberStackOverflow)
 {
@@ -2768,6 +2784,14 @@ TEST_F(StackTests, FloatNotFittingGet)
     auto result = luabridge::Stack<float>::get(L, -1);
     ASSERT_FALSE(result);
     EXPECT_EQ(luabridge::ErrorCode::FloatingPointDoesntFitIntoLuaNumber, result.error());
+}
+
+TEST_F(StackTests, ConstCharPtrGetNil)
+{
+    lua_pushnil(L);
+    auto r = luabridge::Stack<const char*>::get(L, -1);
+    ASSERT_TRUE(r);
+    EXPECT_EQ(nullptr, *r);
 }
 
 TEST_F(StackTests, OptionalNulloptStackOverflow)
