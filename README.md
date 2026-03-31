@@ -34,6 +34,7 @@ LuaBridge3 is usable from a compliant C++17 compiler and offers the following fe
 * Headers-only: No Makefile, no .cpp files, just one `#include` and one header file (optional) !
 * Works with ANY lua version out there (PUC-Lua, LuaJIT, Luau, Ravi, you name it).
 * Simple, light, and nothing else needed.
+* Competitive performance with the fastest C++/Lua binding libraries available.
 * Fast to compile (even in release mode), scaling linearly with the size of your binded code.
 * No macros, settings, or configuration scripts needed.
 * Supports different object lifetime management models.
@@ -44,7 +45,6 @@ LuaBridge3 is usable from a compliant C++17 compiler and offers the following fe
 * Expose C++ classes allowing them to use the flexibility of lua property lookup.
 * Interoperable with most common c++ standard library container types.
 * Written in a clear and easy to debug style.
-* Competitive performance with the fastest C++/Lua binding libraries available.
 
 ## Performance
 
@@ -74,20 +74,31 @@ Bold entries indicate cases where LuaBridge3 outperforms sol2. Lower is better (
 LuaBridge3 offers a set of improvements compared to vanilla LuaBridge:
 
 * The only binder library that works with PUC-Lua as well as LuaJIT, Luau and Ravi, wonderful for game development !
+* Faster runtime execution for most common use cases, playing in the same league as the fastest binders in town.
 * Can work with both c++ exceptions and without (Works with `-fno-exceptions` and `/EHsc-`).
-* Can safely register and use classes exposed across shared library boundaries.
 * Full support for capturing lambdas in all namespace and class methods.
-* Overloaded function support in Namespace functions, Class constructors, functions and static functions.
+* Overloaded functions support in Namespace functions, Class constructors, functions and static functions.
+* Multiple inheritance: `deriveClass<D, A, B, ...>` supports any number of registered base classes.
 * Supports placement allocation or custom allocations/deallocations of C++ classes exposed to lua.
 * Lightweight object creation: allow adding lua tables on the stack and register methods and metamethods in them.
-* Allows for fallback `__index` and `__newindex` metamethods in exposed C++ classes, to support flexible and dynamic C++ classes !
+* Instance metamethods fallbacks via `__index` and `__newindex` in exposed C++ classes.
+* Static metamethod fallbacks via `__index` and `__newindex` in exposed C++ classes on the class static table.
+* Custom destructor hook via `addDestructor` (`__destruct` metamethod) called just before the C++ destructor.
 * Added `std::shared_ptr` to support shared C++/Lua lifetime for types deriving from `std::enable_shared_from_this`.
 * Supports conversion to and from `std::nullptr_t`, `std::byte`, `std::pair`, `std::tuple` and `std::reference_wrapper`.
 * Supports conversion to and from C style arrays of any supported type.
+* `void*` and `const void*` are transparently mapped to Lua lightuserdata.
 * Transparent support of all signed and unsigned integer types up to `int64_t`.
 * Consistent numeric handling and conversions (signed, unsigned and floats) across all lua versions.
+* NaN and Inf values pass through floating-point stack conversions without error.
 * Simplified registration of enum types via the `luabridge::Enum` stack wrapper.
 * Opt-out handling of safe stack space checks (automatically avoids exhausting lua stack space when pushing values!).
+* Optional strict stack conversions via `LUABRIDGE_STRICT_STACK_CONVERSIONS` (e.g. `bool` requires an actual boolean, not any truthy value).
+* Error handler support in Lua calls via `LuaRef::callWithHandler` and `luabridge::callWithHandler`.
+* `newFunction` free function wraps any C++ callable into a Lua function exposed as a `LuaRef`.
+* `LuaFunction<Signature>` provides a strongly-typed callable wrapper around a Lua function.
+* `TypeResult<T>::valueOr(default)` allows safe value extraction with an explicit fallback.
+* Can safely register and use classes exposed across shared library boundaries.
 
 ## Documentation
 

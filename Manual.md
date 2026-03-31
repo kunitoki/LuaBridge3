@@ -29,12 +29,14 @@ Contents
     *   [2.1 - Namespaces](#21---namespaces)
     *   [2.2 - Properties and Functions](#22---properties-and-functions)
     *   [2.3 - Class Objects](#23---class-objects)
+        *   [2.3.1 - Multiple Inheritance](#231---multiple-inheritance)
     *   [2.4 - Property Member Proxies](#24---property-member-proxies)
     *   [2.5 - Function Member Proxies](#25---function-member-proxies)
     *   [2.5.1 - Function Overloading](#251---function-overloading)
     *   [2.6 - Constructors](#26---constructors)
     *   [2.6.1 - Constructor Proxies](#261---constructor-proxies)
     *   [2.6.2 - Constructor Factories](#262---constructor-factories)
+    *   [2.6.3 - Destructors](#263---destructors)
     *   [2.7 - Extending Classes](#27---extending-classes)
         *   [2.7.1 - Extensible Classes](#271---extensible-classes)
         *   [2.7.2 - Index and New Index Metamethods Fallback](#272---index-and-new-index-metamethods-fallback)
@@ -64,6 +66,8 @@ Contents
     *   [4.3 - Calling Lua](#43---calling-lua)
         *   [4.3.1 - Exceptions](#431---exceptions)
         *   [4.3.2 - Class LuaException](#432---class-luaexception)
+        *   [4.3.3 - Calling with Error Handlers](#433---calling-with-error-handlers)
+    *   [4.4 - Wrapping C++ Callables](#44---wrapping-c-callables)
 
 *   [5 - Security](#5---security)
 
@@ -341,8 +345,6 @@ test.bar ("Employee")  -- calls bar with a string
 test.bar (test)        -- error: bar expects a string not a table
 ```
 
-LuaBridge does not support overloaded functions nor is it likely to in the future. Since Lua is dynamically typed, any system that tries to resolve a set of parameters passed from a script will face considerable ambiguity when trying to choose an appropriately matching C++ function signature.
-
 2.3 - Class Objects
 -------------------
 
@@ -413,7 +415,7 @@ luabridge::getGlobalNamespace (L)
 
 Method registration works just like function registration. Virtual methods work normally; no special syntax is needed. const methods are detected and const-correctness is enforced, so if a function returns a const object (or a container holding to a const object) to Lua, that reference to the object will be considered const and only const methods can be called on it. It is possible to register Lua metamethods (except `__gc`). Destructors are registered automatically for each class.
 
-As with regular variables and properties, class properties can be marked read-only by passing false in the second parameter, or omitting the set function. The `deriveClass` takes two template arguments: the class to be registered, and its base class. Inherited methods do not have to be re-declared and will function normally in Lua. If a class has a base class that is **not** registered with Lua, there is no need to declare it as a subclass.
+As with regular variables and properties, class properties can be marked read-only by passing false in the second parameter, or omitting the set function. The `deriveClass` takes a derived class and one or more registered base classes as template arguments. Inherited methods do not have to be re-declared and will function normally in Lua. If a class has a base class that is **not** registered with Lua, there is no need to declare it as a subclass.
 
 Remember that in Lua, the colon operator '`:`' is used for method call syntax:
 
@@ -424,6 +426,51 @@ a.func1 ()  -- error: func1 expects an object of a registered class
 a.func1 (a) -- okay, verbose, this how OOP works in Lua
 a:func1 ()  -- okay, less verbose, equivalent to the previous
 ```
+
+### 2.3.1 - Multiple Inheritance
+
+`deriveClass` supports multiple registered base classes by specifying them as additional template parameters. LuaBridge will traverse all base class hierarchies when resolving member lookups from Lua:
+
+```cpp
+struct A
+{
+  void funcA () { }
+};
+
+struct B
+{
+  void funcB () { }
+};
+
+struct C : public A, public B
+{
+  void funcC () { }
+};
+
+luabridge::getGlobalNamespace (L)
+  .beginNamespace ("test")
+    .beginClass<A> ("A")
+      .addFunction ("funcA", &A::funcA)
+    .endClass ()
+    .beginClass<B> ("B")
+      .addFunction ("funcB", &B::funcB)
+    .endClass ()
+    .deriveClass<C, A, B> ("C")
+      .addFunction ("funcC", &C::funcC)
+    .endClass ()
+  .endNamespace ();
+```
+
+From Lua, all inherited methods are accessible on instances of `C`:
+
+```lua
+local c = test.C ()
+c:funcA ()  -- calls A::funcA via multiple-inheritance lookup
+c:funcB ()  -- calls B::funcB via multiple-inheritance lookup
+c:funcC ()  -- calls C::funcC
+```
+
+Only base classes that are themselves registered with LuaBridge need to be listed as template parameters. If a base class is not registered, it can be omitted from `deriveClass`.
 
 2.4 - Property Member Proxies
 -----------------------------
@@ -733,6 +780,31 @@ a = nil                      -- Remove any reference count
 collectgarbage ("collect")   -- The object is garbage collected using objectFactoryDeallocator
 ```
 
+### 2.6.3 - Destructors
+
+In addition to the automatic `__gc` metamethod that LuaBridge registers for every class (which calls the C++ destructor when Lua garbage-collects the userdata), you can register an extra hook that is called **just before** the destructor runs. This is useful for performing clean-up work in a context where the object is still fully valid.
+
+Use `addDestructor` to register the hook. The callable must accept a `T*` (and optionally a trailing `lua_State*`):
+
+```cpp
+struct Resource
+{
+  ~Resource () { /* cleanup */ }
+};
+
+luabridge::getGlobalNamespace (L)
+  .beginNamespace ("test")
+    .beginClass<Resource> ("Resource")
+      .addDestructor ([] (Resource* r) {
+        // called before ~Resource()
+        std::cout << "Resource about to be destroyed\n";
+      })
+    .endClass ()
+  .endNamespace ();
+```
+
+The `__destruct` metamethod is invoked by Lua's garbage collector before `__gc` calls the C++ destructor. This metamethod is only available on non-Luau builds; Luau already calls `__gc` directly.
+
 2.7 - Extending Classes
 -----------------------
 
@@ -984,7 +1056,8 @@ The Stack template class specializations are used automatically for variables, p
 * `bool`
 * `char`, converted to a string of length one.
 * `const char*`, `std::string_view` and `std::string` all converted to strings.
-* `std::byte`, integers, `float`, `double`, `long double` all converted to `Lua_number`.
+* `std::byte`, integers, `float`, `double`, `long double` all converted to `lua_Number`. Floating-point values including NaN and Inf pass through without error.
+* `void*` and `const void*` mapped to Lua lightuserdata.
 
 User-defined types which are convertible to one of the basic types are possible, simply provide a `luabridge::Stack <>` specialization in the `luabridge` namespace for your user-defined type, modeled after the existing types. For example, here is a specialization for a `juce::String`:
 
@@ -1622,7 +1695,7 @@ luabridge::LuaRef v = luabridge::getGlobal (L, "t");
 
 By default `LuaBridge3` is able to work without exceptions, and it's perfectly compatible with the `-fno-exceptions` or `/EHsc-` flags, which is typically used in games. Even if compiling with exceptions enabled, they are not used internally when calling into lua to convert lua errors, but exceptions are only used in registration code to signal potential issues when registering namespaces, classes and methods. You can use the free function `luabridge::enableExceptions` to enable exceptions once before starting to use any luabridge call, and of course that will work only if the application is compiled with exceptions enabled.
 
-When using the `luabridge::call` or `LuaRef::operator()` no exception should be raised, only if exceptions are disabled in the application or enabled in the application but disabled in luabridge. To control if the lua function invoked has raised a lua error, it is possible to do so by checking the `LuaResult` object that is returned from those functions.
+When using `luabridge::call` or `LuaRef::operator()`, no exception is raised regardless of whether exceptions are enabled in the application. To detect whether the invoked Lua function raised an error, check the `TypeResult<void>` returned by those calls:
 
 ```lua
 function fail ()
@@ -1631,14 +1704,30 @@ end
 ```
 
 ```cpp
-luabridge::LuaRef f (L) = luabridge::getGlobal (L, "fail");
+luabridge::LuaRef f = luabridge::getGlobal (L, "fail");
 
-luabridge::LuaResult result = f ();
+auto result = f ();
 if (! result)
-  std::cerr << result.errorMessage ();
+  std::cerr << result.message ();
 ```
 
-It is also possible that pushing an unregistered class instance into those function will generate an error, that can be trapped using the same mechanism in a `luabridge::LuaResult`:
+To call a Lua function and decode its first return value to a specific C++ type, use the typed `call<R>()` overload:
+
+```lua
+function add (a, b)
+  return a + b
+end
+```
+
+```cpp
+luabridge::LuaRef f = luabridge::getGlobal (L, "add");
+
+auto result = f.call<int> (1, 2);
+if (result)
+  std::cout << *result;  // prints 3
+```
+
+It is also possible that pushing an unregistered class instance into those function will generate an error, that can be trapped using the same mechanism:
 
 ```lua
 function fail (unregistred)
@@ -1649,16 +1738,16 @@ end
 ```cpp
 struct UnregisteredClass {};
 
-luabridge::LuaRef f (L) = luabridge::getGlobal (L, "fail");
+luabridge::LuaRef f = luabridge::getGlobal (L, "fail");
 
 auto argument = UnregisteredClass();
 
-luabridge::LuaResult result = f (argument);
+auto result = f (argument);
 if (! result)
-  std::cerr << result.errorMessage ();
+  std::cerr << result.message ();
 ```
 
-Calling `luabridge::pcall` will not return a `luabridge::LuaResult` but only the status code. It will anyway throw an exception if the return code of `lua_pcall`is not equal `LUA_OK`, and return the error code in case exceptions are disabled.
+Calling `luabridge::pcall` will not return a `TypeResult` but only the raw status code. It will throw an exception if the return code is not `LUA_OK` (when exceptions are enabled), or return the error code otherwise.
 
 When compiling `LuaBridge3` with exceptions disabled, all references to try catch blocks and throws will be removed.
 
@@ -1673,7 +1762,7 @@ end
 ```
 
 ```cpp
-luabridge::LuaRef f (L) = luabridge::getGlobal (L, "fail");
+luabridge::LuaRef f = luabridge::getGlobal (L, "fail");
 
 try
 {
@@ -1684,6 +1773,71 @@ catch (const luabridge::LuaException& e)
   std::cerr << e.what ();
 }
 ```
+
+### 4.3.3 - Calling with Error Handlers
+
+By default, when a Lua error occurs the raw Lua error message is stored in the `TypeResult`. For more detailed diagnostics you can supply a custom message handler (equivalent to the `msgh` parameter of `lua_pcall`). The handler is a C++ callable that receives a `lua_State*`, may inspect the stack, and must return an `int`:
+
+```lua
+function riskyOp ()
+  error ("something went wrong")
+end
+```
+
+```cpp
+luabridge::LuaRef f = luabridge::getGlobal (L, "riskyOp");
+
+auto handler = [] (lua_State* L) -> int {
+  // Augment the error message with a traceback
+  luaL_traceback (L, L, lua_tostring (L, 1), 1);
+  return 1;
+};
+
+auto result = f.callWithHandler (handler);
+if (! result)
+  std::cerr << result.message ();  // includes traceback
+```
+
+The same function is available as a free function:
+
+```cpp
+auto result = luabridge::callWithHandler (f, handler, /* args... */);
+```
+
+4.4 - Wrapping C++ Callables
+-----------------------------
+
+`luabridge::newFunction` (and its equivalent `LuaRef::newFunction`) wraps any C++ callable — a lambda, a function pointer, or a `std::function` — into a Lua function and returns it as a `LuaRef`. This is useful when you need to pass a C++ callback to Lua without going through the namespace/class registration API:
+
+```cpp
+// Create a Lua function that squares its argument
+luabridge::LuaRef square = luabridge::newFunction (L, [] (int x) { return x * x; });
+
+// Store it in a Lua global
+luabridge::setGlobal (L, square, "square");
+```
+
+From Lua:
+```lua
+print (square (5))  -- 25
+```
+
+You can also store such a function in a table or pass it as a callback argument.
+
+### 4.4.1 - LuaFunction\<Signature\>
+
+When you have a `LuaRef` that you know will always be called with fixed argument and return types, `LuaFunction<Signature>` provides a strongly-typed wrapper that avoids repeating the template arguments at every call site:
+
+```cpp
+// Retrieve a Lua function and wrap it with a known signature
+auto add = luabridge::getGlobal (L, "add").callable<int(int, int)>();
+
+auto result = add (3, 4);  // TypeResult<int>
+if (result)
+  std::cout << *result;    // 7
+```
+
+`LuaFunction<Signature>` supports the same `call`, `callWithHandler`, and `isValid` interface as a `LuaRef`. The wrapped `LuaRef` is accessible via `ref()`.
 
 5 - Security
 ============
@@ -1859,11 +2013,19 @@ Namespace getGlobalNamespace (lua_State* L);
 Namespace getNamespaceFromStack (lua_State* L);
 
 /// Invokes a LuaRef if it references a lua callable.
-template <class... Args>
-LuaResult call (const LuaRef& object, Args&&... args)
+template <class R = void, class... Args>
+TypeResult<R> call (const LuaRef& object, Args&&... args);
+
+/// Invokes a LuaRef with a custom Lua error message handler.
+template <class R = void, class F, class... Args>
+TypeResult<R> callWithHandler (const LuaRef& object, F&& errorHandler, Args&&... args);
+
+/// Wraps a C++ callable into a LuaRef representing a Lua function.
+template <class F>
+LuaRef newFunction (lua_State* L, F&& func);
 
 /// Wrapper for lua_pcall, converting lua errors into C++ exceptions if they are enabled.
-int pcall (lua_State* L, int nargs = 0, int nresults = 0, int msgh = 0)
+int pcall (lua_State* L, int nargs = 0, int nresults = 0, int msgh = 0);
 
 /// Return a range iterable view over a lua table.
 Range pairs (const LuaRef& table);
@@ -1902,8 +2064,8 @@ Class Registration - Class<T>
 template <class T>
 Class<T> beginClass (const char* name);
 
-/// Begins derived class registration, returns this class object.
-template <class T, class Base>
+/// Begins derived class registration with one or more base classes, returns this class object.
+template <class T, class Base1, class... Bases>
 Class<T> deriveClass (const char* name);
 
 /// Ends class registration, returns the parent namespace object.
@@ -1933,6 +2095,10 @@ Class<T> addConstructorFrom (Functions... functions);
 /// Registers allocator and deallocators for type T.
 template <class Alloc, class Dealloc>
 Class<T> addFactory (Alloc alloc, Dealloc dealloc);
+
+/// Registers a destructor hook called just before the C++ destructor (__destruct metamethod).
+template <class Function>
+Class<T> addDestructor (Function function);
 ```
 
 ### Member Function Registration
@@ -1973,6 +2139,26 @@ Class<T> addStaticProperty (const char* name, Getter getter);
 /// Registers a static readwrite property with a getter and a setter.
 template <class Getter>
 Class<T> addStaticProperty (const char* name, Getter getter, Setter setter);
+```
+
+### Metamethod Registration
+
+```cpp
+/// Registers a fallback __index handler for instances (called when a key is not found).
+template <class Function>
+Class<T> addIndexMetaMethod (Function function);
+
+/// Registers a fallback __newindex handler for instances (called when a key is not found).
+template <class Function>
+Class<T> addNewIndexMetaMethod (Function function);
+
+/// Registers a fallback __index handler for the static class table.
+template <class Function>
+Class<T> addStaticIndexMetaMethod (Function function);
+
+/// Registers a fallback __newindex handler for the static class table.
+template <class Function>
+Class<T> addStaticNewIndexMetaMethod (Function function);
 ```
 
 Lua Variable Reference - LuaRef
@@ -2085,9 +2271,25 @@ bool append (const Ts&... vs) const;
 /// Return the length of a referred array. This is identical to applying the Lua # operator.
 int length () const;
 
-/// Invoke the lua ref if it references a lua function.
+/// Invoke the lua ref with no expected return value.
 template <class... Args>
-LuaResult call (Args&&... args) const;
+TypeResult<void> operator() (Args&&... args) const;
+
+/// Invoke the lua ref and decode the return value to R.
+template <class R = void, class... Args>
+TypeResult<R> call (Args&&... args) const;
+
+/// Invoke the lua ref with an error handler and decode the return value to R.
+template <class R = void, class F, class... Args>
+TypeResult<R> callWithHandler (F&& errorHandler, Args&&... args) const;
+
+/// Build a strongly-typed callable wrapper from this Lua object.
+template <class Signature>
+LuaFunction<Signature> callable () const;
+
+/// Wrap a C++ callable into a new Lua function returned as a LuaRef.
+template <class F>
+static LuaRef newFunction (lua_State* L, F&& func);
 ```
 
 Lua Nil Special Value - LuaNil
@@ -2097,30 +2299,51 @@ Lua Nil Special Value - LuaNil
 /// LuaNil can be used to construct LuaRef.
 ```
 
-Lua Result Of Function Invocation - LuaResult
----------------------------------------------
+TypeResult<T> — Result of a Call or Cast
+-----------------------------------------
 
 ```cpp
 explicit operator bool() const;
 
-/// Return if the invocation was ok and didn't raise a lua error.
-bool wasOk() const;
+/// Return the contained value (undefined behavior if result holds an error).
+const T& value() const;
 
-/// Return if the invocation did raise a lua error.
-bool hasFailed() const;
+/// Dereference operator — equivalent to value().
+T& operator*();
+
+/// Return the contained value or a default when the result holds an error.
+template <class U>
+T valueOr(U&& defaultValue) const;
 
 /// Return the error code, if any.
-std::error_code errorCode() const;
+std::error_code error() const;
 
-/// Return the error message, if any.
-std::string errorMessage() const;
+/// Return the error message string, if any.
+std::string message() const;
+```
 
-/// Return the number of return values.
-std::size_t size() const;
+Typed Lua Function Wrapper - LuaFunction\<R(Args...)\>
+-------------------------------------------------------
 
-/// Get a return value at a specific index.
-LuaRef operator[](std::size_t index) const;
+```cpp
+/// Construct from a LuaRef.
+explicit LuaFunction (const LuaRef& function);
 
+/// Call the function with the given arguments.
+TypeResult<R> operator() (Args... args) const;
+
+/// Call the function — equivalent to operator().
+TypeResult<R> call (Args... args) const;
+
+/// Call the function with a custom error handler.
+template <class F>
+TypeResult<R> callWithHandler (F&& errorHandler, Args... args) const;
+
+/// Return true if the underlying LuaRef is callable.
+bool isValid () const;
+
+/// Return the underlying LuaRef.
+const LuaRef& ref () const;
 ```
 
 Stack Traits - Stack<T>
