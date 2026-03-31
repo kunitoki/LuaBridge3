@@ -1949,7 +1949,7 @@ inline int try_overload_functions(lua_State* L)
         }
         else
         {
-            return lua_error_x(L); // critical error: rethrow
+            lua_error_x(L); // critical error: rethrow
         }
     }
 
@@ -1965,7 +1965,7 @@ inline int try_overload_functions(lua_State* L)
     }
     lua_concat(L, nerrors * 2 + 1);
 
-    return lua_error_x(L); // throw error message just built
+    lua_error_x(L); // throw error message just built
 }
 
 //=================================================================================================

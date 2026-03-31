@@ -58,6 +58,7 @@ TEST_F(LuaRefTests, TypeCheck)
         EXPECT_NE(0u, result().hash());
     }
 
+#if LUA_VERSION_NUM != 502 // Lua 5.2 hashnum has signed integer overflow UB with float literals
     {
         runLua("result = 3.1");
         EXPECT_EQ(LUA_TNUMBER, result().type());
@@ -68,6 +69,7 @@ TEST_F(LuaRefTests, TypeCheck)
         EXPECT_EQ("3.1", ss.str());
         EXPECT_NE(0u, result().hash());
     }
+#endif
 
     {
         runLua("result = 'abcd'");
@@ -161,10 +163,12 @@ TEST_F(LuaRefTests, ValueAccess)
     ASSERT_EQ(7, result<long long>());
     ASSERT_EQ(7u, result<unsigned long long>());
 
+#if LUA_VERSION_NUM != 502 // Lua 5.2 hashnum has signed integer overflow UB with float literals
     runLua("result = 3.14");
     EXPECT_TRUE(result().isNumber());
     ASSERT_FLOAT_EQ(3.14f, result<float>());
     ASSERT_DOUBLE_EQ(3.14, result<double>());
+#endif
 
     runLua("result = 'D'");
     EXPECT_TRUE(result().isString());
@@ -792,6 +796,7 @@ TEST_F(LuaRefTests, IsInstance)
     EXPECT_FALSE(result().isNil());
     EXPECT_FALSE(result().getClassName());
 
+#if LUA_VERSION_NUM != 502 // Lua 5.2 hashnum has signed integer overflow UB with float literals
     runLua("result = 3.14");
     EXPECT_FALSE(result().isInstance<Base>());
     EXPECT_FALSE(result().isInstance<Derived>());
@@ -801,6 +806,7 @@ TEST_F(LuaRefTests, IsInstance)
     EXPECT_TRUE(result().isNumber());
     EXPECT_FALSE(result().isNil());
     EXPECT_FALSE(result().getClassName());
+#endif
 }
 
 TEST_F(LuaRefTests, Print)
@@ -1317,6 +1323,7 @@ TEST_F(LuaRefTests, ComparisonOperatorPushFailure)
 {
     // Covers LuaRef.h:421 (operator==), 458 (operator<), 485 (operator<=),
     // 511 (operator>), 539 (operator>=), 566 (rawequal) - early return false when rhs push fails
+#if LUA_VERSION_NUM != 502 // Lua 5.2 hashnum has signed integer overflow UB with float literals
     if constexpr (sizeof(long double) > sizeof(lua_Number))
     {
         runLua("result = 1.0");
@@ -1330,6 +1337,7 @@ TEST_F(LuaRefTests, ComparisonOperatorPushFailure)
         EXPECT_FALSE(ref >= huge);
         EXPECT_FALSE(ref.rawequal(huge));
     }
+#endif
 }
 
 TEST_F(LuaRefTests, TableItemCopyWithKeyRef)
