@@ -41,7 +41,7 @@ enum class D
     D_THREE
 };
 
-enum E
+enum E : int
 {
     E_ZERO,
     E_ONE,
@@ -49,7 +49,7 @@ enum E
     E_THREE
 };
 
-enum class F
+enum class F : int
 {
     F_ZERO,
     F_ONE,

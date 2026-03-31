@@ -4,8 +4,8 @@ default:
 generate:
     cmake -G Xcode -B Build .
 
-sanitize:
-    cmake -G Xcode -B Build -DLUABRIDGE_SANITIZE=address .
+sanitizer TYPE='address':
+    cmake -G Xcode -B Build -DLUABRIDGE_SANITIZE={{TYPE}} .
 
 benchmark:
     cmake -G Xcode -B Build -DLUABRIDGE_BENCHMARKS=ON .
