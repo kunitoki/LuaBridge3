@@ -160,12 +160,14 @@ TEST_F(OverloadTests, IntegerTypeFallbackOverloads)
     ASSERT_TRUE(result().isNumber());
     EXPECT_EQ(3, result<int>());
 
+#if LUA_VERSION_NUM > 502
     if constexpr (sizeof(lua_Integer) >= sizeof(int64_t))
     {
         runLua("result = test (2147483648)");
         ASSERT_TRUE(result().isNumber());
         EXPECT_EQ(4, result<int>());
     }
+#endif
 }
 
 TEST_F(OverloadTests, UnregisteredClass)
