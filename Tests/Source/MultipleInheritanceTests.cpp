@@ -584,8 +584,8 @@ TEST_F(MultipleInheritanceTests, MultipleBasesWithCopySemantics)
 
 TEST_F(MultipleInheritanceTests, MultipleInheritanceChainLookup)
 {
-    // Test method resolution through a multi-level inheritance chain
-    // C derives from A and B, E derives from C and A (testing chain lookup through levels)
+    // Test method resolution through a multi-level inheritance chain.
+    // D derives from A and B, E derives from D (transitively getting A's and B's methods).
     luabridge::getGlobalNamespace(L)
         .beginClass<A>("A")
             .addConstructor<void(*)()>()
@@ -595,18 +595,15 @@ TEST_F(MultipleInheritanceTests, MultipleInheritanceChainLookup)
             .addConstructor<void(*)()>()
             .addFunction("methodB", &B::methodB)
         .endClass()
-        .deriveClass<C, A, B>("C")
+        .deriveClass<D, A, B>("D")
             .addConstructor<void(*)()>()
         .endClass()
-        .deriveClass<E, C, A>("E")  // E derives from C (which derives from A,B) and A
+        .deriveClass<E, D>("E")
             .addConstructor<void(*)()>()
         .endClass();
 
     runLua(R"(
         local e = E()
-        -- Methods should resolve through the inheritance chain:
-        -- E -> C -> A,B and E -> A
-        -- methodA and methodB should both be accessible
         result = e:methodA() + e:methodB()
     )");
 

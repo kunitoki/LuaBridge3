@@ -42,7 +42,7 @@ std::optional<std::filesystem::path> getExecutablePath()
 {
 #if _WIN32
     TCHAR path[MAX_PATH];
-    auto pathLength = GetModuleFileName(NULL, path, MAX_PATH);
+    auto pathLength = GetModuleFileName(nullptr, path, MAX_PATH);
     if (pathLength > 0)
         return std::filesystem::canonical(std::string_view(path, static_cast<std::size_t>(pathLength)));
 

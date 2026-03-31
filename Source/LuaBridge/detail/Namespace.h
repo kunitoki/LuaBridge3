@@ -37,6 +37,26 @@ namespace luabridge {
  */
 namespace detail {
 
+struct BaseClassInfo
+{
+    const void* staticKey;
+    const void* classKey;
+    lua_Integer castOffset;
+};
+
+template <class Derived, class Base>
+lua_Integer computeCastOffset() noexcept
+{
+    static_assert(std::is_base_of_v<Base, Derived>);
+
+    alignas(Derived) std::byte buf[sizeof(Derived)] = {};
+
+    auto* derived = reinterpret_cast<Derived*>(buf);
+    auto* base = static_cast<Base*>(derived); // implicit upcast, purely pointer arithmetic
+
+    return static_cast<lua_Integer>(reinterpret_cast<char*>(base) - reinterpret_cast<char*>(derived));
+}
+
 class Registrar
 {
 protected:
@@ -489,7 +509,7 @@ class Namespace : public detail::Registrar
          * @param parent A parent namespace object.
          * @param staticKey Key where the class is stored.
         */
-        Class(const char* name, Namespace parent, std::initializer_list<const void*> staticKeys, Options options)
+        Class(const char* name, Namespace parent, std::initializer_list<detail::BaseClassInfo> bases, Options options)
             : ClassBase(name, std::move(parent))
         {
             LUABRIDGE_ASSERT(name != nullptr);
@@ -533,36 +553,81 @@ class Namespace : public detail::Registrar
 
             lua_newtable(L); // Stack: ns, co, cl, st, cl parents
             const int clParentsIndex = lua_absindex(L, -1);
-            lua_newtable(L); // Stack: ns, co, cl, st, cl parents, visited
+            lua_newtable(L); // Stack: ns, co, cl, st, cl parents, cast table
+            const int castTableIndex = lua_absindex(L, -1);
+            lua_newtable(L); // Stack: ns, co, cl, st, cl parents, cast table, visited
             const int visitedIndex = lua_absindex(L, -1);
 
-            for (const auto* staticKey : staticKeys)
+            for (const detail::BaseClassInfo& base : bases)
             {
-                lua_rawgetp_x(L, LUA_REGISTRYINDEX, staticKey); // Stack: ..., visited, base st | nil
+                lua_rawgetp_x(L, LUA_REGISTRYINDEX, base.staticKey); // Stack: ..., visited, base st | nil
                 if (! lua_istable(L, -1))
                 {
-                    lua_pop(L, 2); // Stack: ns, co, cl, st, cl parents
-                    lua_pop(L, 1); // Stack: ns, co, cl, st
+                    lua_pop(L, 4); // pop (nil), visited, cast table, cl parents. Stack: ns, co, cl, st
 
                     throw_or_assert<std::logic_error>("Base class is not registered");
                     return;
                 }
 
-                lua_rawgetp_x(L, -1, detail::getClassKey()); // Stack: ..., visited, base st, base cl
+                lua_rawgetp_x(L, -1, detail::getClassKey()); // Stack: ..., visited, base st, base cl | nil
                 if (! lua_istable(L, -1))
                 {
-                    lua_pop(L, 3); // Stack: ns, co, cl, st, cl parents
-                    lua_pop(L, 1); // Stack: ns, co, cl, st
+                    lua_pop(L, 5); // pop (nil), base st, visited, cast table, cl parents. Stack: ns, co, cl, st
 
                     throw_or_assert<std::logic_error>("Base class is not registered");
                     return;
                 }
 
                 appendParentList(L, clParentsIndex, visitedIndex, -1);
-                lua_pop(L, 2); // Stack: ns, co, cl, st, cl parents, visited
+
+                // Store the direct pointer adjustment offset for this base class
+                lua_pushlightuserdata(L, const_cast<void*>(base.classKey));
+                lua_pushinteger(L, base.castOffset);
+                lua_rawset(L, castTableIndex);
+
+                // Compose and propagate ancestor offsets from the base's own cast table.
+                // offset(T → ancestor) = offset(T → base) + offset(base → ancestor)
+                lua_rawgetp_x(L, -1, detail::getCastTableKey()); // Stack: ..., base st, base cl, base cast table | nil
+                if (lua_istable(L, -1))
+                {
+                    lua_pushnil(L);
+                    while (lua_next(L, -2) != 0)
+                    {
+                        // Stack: ..., base cast table, ancestor key, ancestor offset
+                        const lua_Integer ancestorOffset = lua_tointeger(L, -1);
+
+                        lua_pushvalue(L, -2); // duplicate ancestor key to check presence
+                        lua_rawget(L, castTableIndex);
+                        const bool alreadyPresent = ! lua_isnil(L, -1);
+                        lua_pop(L, 1);
+
+                        if (! alreadyPresent)
+                        {
+                            lua_pushvalue(L, -2); // push ancestor key
+                            lua_pushinteger(L, base.castOffset + ancestorOffset);
+                            lua_rawset(L, castTableIndex);
+                        }
+
+                        lua_pop(L, 1); // pop ancestor offset; ancestor key stays for next()
+                    }
+                    lua_pop(L, 1); // pop base cast table
+                }
+                else
+                {
+                    lua_pop(L, 1); // pop nil
+                }
+
+                lua_pop(L, 2); // pop base cl and base st. Stack: ..., cast table, visited
             }
 
-            lua_pop(L, 1); // Stack: ns, co, cl, st, cl parents
+            lua_pop(L, 1); // pop visited. Stack: ns, co, cl, st, cl parents, cast table
+
+            // Store the cast table in both class and const metatables
+            lua_pushvalue(L, castTableIndex);
+            lua_rawsetp_x(L, clIndex, detail::getCastTableKey()); // cl[castTableKey] = cast table
+            lua_pushvalue(L, castTableIndex);
+            lua_rawsetp_x(L, coIndex, detail::getCastTableKey()); // co[castTableKey] = cast table
+            lua_pop(L, 1); // pop cast table. Stack: ns, co, cl, st, cl parents
 
             lua_createtable(L, get_length(L, clParentsIndex), 0); // Stack: ns, co, cl, st, cl parents, co parents
             const int coParentsIndex = lua_absindex(L, -1);
@@ -1879,9 +1944,22 @@ public:
     template <class Derived, class Base1, class... Bases>
     Class<Derived> deriveClass(const char* name, Options options = defaultOptions)
     {
+        static_assert(std::is_base_of_v<Base1, Derived>, "Derived must inherit from Base1");
+        static_assert((std::is_base_of_v<Bases, Derived> && ...), "Derived must inherit from all specified base classes");
+
         assertIsActive();
-        return Class<Derived>(name, std::move(*this),
-            {detail::getStaticRegistryKey<Base1>(), detail::getStaticRegistryKey<Bases>()...}, options);
+        return Class<Derived>(name, std::move(*this), {
+            detail::BaseClassInfo{
+                detail::getStaticRegistryKey<Base1>(),
+                detail::getClassRegistryKey<Base1>(),
+                detail::computeCastOffset<Derived, Base1>()
+            },
+            detail::BaseClassInfo{
+                detail::getStaticRegistryKey<Bases>(),
+                detail::getClassRegistryKey<Bases>(),
+                detail::computeCastOffset<Derived, Bases>()
+            }...
+        }, options);
     }
     
 private:

@@ -2625,7 +2625,7 @@ TEST_F(StackTests, VoidPointerGetNil)
 
 TEST_F(StackTests, LongLongType)
 {
-    long long value = 42LL;
+    long long value = 42ll;
 
     ASSERT_TRUE(luabridge::push(L, value));
 
@@ -2640,7 +2640,7 @@ TEST_F(StackTests, LongLongStackOverflow)
 {
     exhaustStackSpace();
 
-    ASSERT_FALSE(luabridge::push(L, 42LL));
+    ASSERT_FALSE(luabridge::push(L, 42ll));
 }
 
 TEST_F(StackTests, LongLongInvalidType)
@@ -2666,7 +2666,7 @@ TEST_F(StackTests, LongLongNotFittingPush)
 {
     if constexpr (sizeof(long long) > sizeof(lua_Integer))
     {
-        long long value = static_cast<long long>(std::numeric_limits<lua_Integer>::max()) + 1LL;
+        long long value = static_cast<long long>(std::numeric_limits<lua_Integer>::max()) + 1ull;
         auto result = luabridge::push(L, value);
         ASSERT_FALSE(result);
         EXPECT_EQ(luabridge::ErrorCode::IntegerDoesntFitIntoLuaInteger, result.error());
@@ -2686,7 +2686,7 @@ TEST_F(StackTests, UlongLongNotFittingPush)
 
 TEST_F(StackTests, UlongLongType)
 {
-    unsigned long long value = 42ULL;
+    unsigned long long value = 42ull;
 
     ASSERT_TRUE(luabridge::push(L, value));
 
@@ -2701,7 +2701,7 @@ TEST_F(StackTests, UlongLongStackOverflow)
 {
     exhaustStackSpace();
 
-    ASSERT_FALSE(luabridge::push(L, 42ULL));
+    ASSERT_FALSE(luabridge::push(L, 42ull));
 }
 
 TEST_F(StackTests, UlongLongInvalidType)
@@ -2728,7 +2728,7 @@ TEST_F(StackTests, LongNotFittingGet)
     if constexpr (sizeof(long) < sizeof(lua_Integer))
     {
         // Push a value larger than LONG_MAX
-        lua_pushinteger(L, static_cast<lua_Integer>(std::numeric_limits<long>::max()) + 1);
+        lua_pushinteger(L, static_cast<lua_Integer>(static_cast<unsigned long>(std::numeric_limits<long>::max()) + 1u));
 
         auto result = luabridge::Stack<long>::get(L, -1);
         ASSERT_FALSE(result);
