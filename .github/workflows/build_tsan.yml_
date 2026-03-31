@@ -1,4 +1,4 @@
-name: Build TSAN
+name: TSAN
 
 on:
   push:

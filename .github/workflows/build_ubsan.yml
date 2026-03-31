@@ -1,4 +1,4 @@
-name: Build UBSAN
+name: UBSAN
 
 on:
   push:
