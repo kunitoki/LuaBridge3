@@ -72,6 +72,12 @@
 #define LUABRIDGE_IF_NO_EXCEPTIONS(...) __VA_ARGS__
 #endif
 
+#if defined(__clang__) || defined(__GNUC__)
+#define LUABRIDGE_NO_SANITIZE(x) __attribute__((no_sanitize(x)))
+#else
+#define LUABRIDGE_NO_SANITIZE(x)
+#endif
+
 #if defined(LUAU_FASTMATH_BEGIN)
 #define LUABRIDGE_ON_LUAU 1
 #elif defined(LUAJIT_VERSION)
