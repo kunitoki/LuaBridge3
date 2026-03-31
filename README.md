@@ -13,7 +13,6 @@
 [![Linux](https://github.com/kunitoki/LuaBridge3/workflows/Build%20Linux/badge.svg?branch=master)](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_linux.yml)
 [![UBSAN](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_ubsan.yml/badge.svg?branch=master)](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_ubsan.yml)
 [![ASAN](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_asan.yml/badge.svg?branch=master)](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_asan.yml)
-[![TSAN](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_tsan.yml/badge.svg?branch=master)](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_tsan.yml)
 
 ## Code Coverage
 [![Coverage Status](https://coveralls.io/repos/github/kunitoki/LuaBridge3/badge.svg?branch=master&kill_cache=1)](https://coveralls.io/github/kunitoki/LuaBridge3?branch=master)
