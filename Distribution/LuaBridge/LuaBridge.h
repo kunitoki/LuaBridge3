@@ -2788,6 +2788,11 @@ template <class T, auto = typeName<T>().find_first_of('.')>
     return reinterpret_cast<void*>(0xdad);
 }
 
+[[nodiscard]] inline const void* getCastTableKey() noexcept
+{
+    return reinterpret_cast<void*>(0xca57);
+}
+
 [[nodiscard]] inline const void* getIndexFallbackKey()
 {
     return reinterpret_cast<void*>(0x81ca);
@@ -3118,7 +3123,7 @@ private:
         lua_rawgetp_x(L, LUA_REGISTRYINDEX, registryClassKey); 
         const bool classIsRegistered = lua_istable(L, -1);
 
-        const char* expected = "unregistered class";
+        [[maybe_unused]] const char* expected = "unregistered class";
         if (classIsRegistered)
         {
             lua_rawgetp_x(L, -1, getTypeKey()); 
@@ -3302,7 +3307,26 @@ public:
         if (! clazz)
             return clazz.error();
 
-        return static_cast<T*>((*clazz)->getPointer());
+        void* rawPtr = (*clazz)->getPointer();
+
+        if (lua_getmetatable(L, absIndex) && lua_istable(L, -1))
+        {
+            lua_rawgetp_x(L, -1, detail::getCastTableKey()); 
+            if (lua_istable(L, -1))
+            {
+                lua_rawgetp_x(L, -1, classId); 
+                if (! lua_isnil(L, -1))
+                {
+                    const lua_Integer offset = lua_tointeger(L, -1);
+                    lua_pop(L, 3);
+                    return reinterpret_cast<T*>(static_cast<char*>(rawPtr) + static_cast<ptrdiff_t>(offset));
+                }
+                lua_pop(L, 1); 
+            }
+            lua_pop(L, 2); 
+        }
+
+        return static_cast<T*>(rawPtr);
     }
 
     template <class T>
@@ -5428,7 +5452,9 @@ inline void dumpTable(lua_State* L, int index, unsigned maxDepth = 1, unsigned l
 
 inline void dumpValue(lua_State* L, int index, unsigned maxDepth = 1, unsigned level = 0, bool newLine = true, std::ostream& stream = std::cerr)
 {
-    const int type = lua_type(L, index);
+    const int stackTop = lua_gettop(L);
+    const int absIndex = (index > 0) ? index : (index < 0 ? stackTop + index + 1 : 0);
+    const int type = (absIndex < 1 || absIndex > stackTop) ? LUA_TNONE : lua_type(L, index);
     switch (type)
     {
     case LUA_TNIL:
@@ -7824,7 +7850,7 @@ bool overload_check_one_arg(lua_State* L, int& idx)
 template <class ArgsPack, std::size_t... I>
 bool overload_check_args_impl(lua_State* L, int start, std::index_sequence<I...>)
 {
-    int idx = start;
+    [[maybe_unused]] int idx = start;
     return (overload_check_one_arg<std::tuple_element_t<I, ArgsPack>>(L, idx) && ...);
 }
 
@@ -10282,6 +10308,26 @@ namespace luabridge {
 
 namespace detail {
 
+struct BaseClassInfo
+{
+    const void* staticKey;
+    const void* classKey;
+    lua_Integer castOffset;
+};
+
+template <class Derived, class Base>
+lua_Integer computeCastOffset() noexcept
+{
+    static_assert(std::is_base_of_v<Base, Derived>);
+
+    alignas(Derived) std::byte buf[sizeof(Derived)] = {};
+
+    auto* derived = reinterpret_cast<Derived*>(buf);
+    auto* base = static_cast<Base*>(derived); 
+
+    return static_cast<lua_Integer>(reinterpret_cast<char*>(base) - reinterpret_cast<char*>(derived));
+}
+
 class Registrar
 {
 protected:
@@ -10664,7 +10710,7 @@ class Namespace : public detail::Registrar
             }
         }
 
-        Class(const char* name, Namespace parent, std::initializer_list<const void*> staticKeys, Options options)
+        Class(const char* name, Namespace parent, std::initializer_list<detail::BaseClassInfo> bases, Options options)
             : ClassBase(name, std::move(parent))
         {
             LUABRIDGE_ASSERT(name != nullptr);
@@ -10709,15 +10755,16 @@ class Namespace : public detail::Registrar
             lua_newtable(L); 
             const int clParentsIndex = lua_absindex(L, -1);
             lua_newtable(L); 
+            const int castTableIndex = lua_absindex(L, -1);
+            lua_newtable(L); 
             const int visitedIndex = lua_absindex(L, -1);
 
-            for (const auto* staticKey : staticKeys)
+            for (const detail::BaseClassInfo& base : bases)
             {
-                lua_rawgetp_x(L, LUA_REGISTRYINDEX, staticKey); 
+                lua_rawgetp_x(L, LUA_REGISTRYINDEX, base.staticKey); 
                 if (! lua_istable(L, -1))
                 {
-                    lua_pop(L, 2); 
-                    lua_pop(L, 1); 
+                    lua_pop(L, 4); 
 
                     throw_or_assert<std::logic_error>("Base class is not registered");
                     return;
@@ -10726,17 +10773,57 @@ class Namespace : public detail::Registrar
                 lua_rawgetp_x(L, -1, detail::getClassKey()); 
                 if (! lua_istable(L, -1))
                 {
-                    lua_pop(L, 3); 
-                    lua_pop(L, 1); 
+                    lua_pop(L, 5); 
 
                     throw_or_assert<std::logic_error>("Base class is not registered");
                     return;
                 }
 
                 appendParentList(L, clParentsIndex, visitedIndex, -1);
+
+                lua_pushlightuserdata(L, const_cast<void*>(base.classKey));
+                lua_pushinteger(L, base.castOffset);
+                lua_rawset(L, castTableIndex);
+
+                lua_rawgetp_x(L, -1, detail::getCastTableKey()); 
+                if (lua_istable(L, -1))
+                {
+                    lua_pushnil(L);
+                    while (lua_next(L, -2) != 0)
+                    {
+                        
+                        const lua_Integer ancestorOffset = lua_tointeger(L, -1);
+
+                        lua_pushvalue(L, -2); 
+                        lua_rawget(L, castTableIndex);
+                        const bool alreadyPresent = ! lua_isnil(L, -1);
+                        lua_pop(L, 1);
+
+                        if (! alreadyPresent)
+                        {
+                            lua_pushvalue(L, -2); 
+                            lua_pushinteger(L, base.castOffset + ancestorOffset);
+                            lua_rawset(L, castTableIndex);
+                        }
+
+                        lua_pop(L, 1); 
+                    }
+                    lua_pop(L, 1); 
+                }
+                else
+                {
+                    lua_pop(L, 1); 
+                }
+
                 lua_pop(L, 2); 
             }
 
+            lua_pop(L, 1); 
+
+            lua_pushvalue(L, castTableIndex);
+            lua_rawsetp_x(L, clIndex, detail::getCastTableKey()); 
+            lua_pushvalue(L, castTableIndex);
+            lua_rawsetp_x(L, coIndex, detail::getCastTableKey()); 
             lua_pop(L, 1); 
 
             lua_createtable(L, get_length(L, clParentsIndex), 0); 
@@ -11813,9 +11900,22 @@ public:
     template <class Derived, class Base1, class... Bases>
     Class<Derived> deriveClass(const char* name, Options options = defaultOptions)
     {
+        static_assert(std::is_base_of_v<Base1, Derived>, "Derived must inherit from Base1");
+        static_assert((std::is_base_of_v<Bases, Derived> && ...), "Derived must inherit from all specified base classes");
+
         assertIsActive();
-        return Class<Derived>(name, std::move(*this),
-            {detail::getStaticRegistryKey<Base1>(), detail::getStaticRegistryKey<Bases>()...}, options);
+        return Class<Derived>(name, std::move(*this), {
+            detail::BaseClassInfo{
+                detail::getStaticRegistryKey<Base1>(),
+                detail::getClassRegistryKey<Base1>(),
+                detail::computeCastOffset<Derived, Base1>()
+            },
+            detail::BaseClassInfo{
+                detail::getStaticRegistryKey<Bases>(),
+                detail::getClassRegistryKey<Bases>(),
+                detail::computeCastOffset<Derived, Bases>()
+            }...
+        }, options);
     }
     
 private:
