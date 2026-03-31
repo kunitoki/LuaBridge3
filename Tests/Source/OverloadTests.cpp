@@ -160,7 +160,7 @@ TEST_F(OverloadTests, IntegerTypeFallbackOverloads)
     ASSERT_TRUE(result().isNumber());
     EXPECT_EQ(3, result<int>());
 
-#if LUA_VERSION_NUM > 502
+#if ! LUABRIDGE_ON_LUAU && LUA_VERSION_NUM > 502
     if constexpr (sizeof(lua_Integer) >= sizeof(int64_t))
     {
         runLua("result = test (2147483648)");

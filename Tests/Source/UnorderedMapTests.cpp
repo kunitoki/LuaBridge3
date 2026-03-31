@@ -133,6 +133,7 @@ TEST_F(UnorderedMapTests, StackOverflow)
 
 TEST_F(UnorderedMapTests, LuaRef)
 {
+#if !defined(LUABRIDGE_TEST_LUA_VERSION) || LUABRIDGE_TEST_LUA_VERSION > 502  
     {
         runLua("result = {[false] = true, a = 'abc', [1] = 5, [3.14] = -1.1}");
 
@@ -150,6 +151,7 @@ TEST_F(UnorderedMapTests, LuaRef)
         ASSERT_EQ(expected, actual);
         ASSERT_EQ(expected, result<Map>());
     }
+#endif
 
     {
         runLua("result = {'a', 'b', 'c'}");

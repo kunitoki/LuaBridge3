@@ -118,6 +118,7 @@ TEST_F(MapTests, LuaRef)
         EXPECT_EQ(expected, result<Map>());
     }
 
+#if !defined(LUABRIDGE_TEST_LUA_VERSION) || LUABRIDGE_TEST_LUA_VERSION > 502
     {
         using Map = std::map<luabridge::LuaRef, luabridge::LuaRef>;
 
@@ -138,6 +139,7 @@ TEST_F(MapTests, LuaRef)
 
         EXPECT_EQ(expected, result<Map>());
     }
+#endif
 }
 
 TEST_F(MapTests, CastToMap)
