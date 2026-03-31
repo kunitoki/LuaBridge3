@@ -1852,7 +1852,7 @@ bool overload_check_one_arg(lua_State* L, int& idx)
 template <class ArgsPack, std::size_t... I>
 bool overload_check_args_impl(lua_State* L, int start, std::index_sequence<I...>)
 {
-    int idx = start;
+    [[maybe_unused]] int idx = start;
     return (overload_check_one_arg<std::tuple_element_t<I, ArgsPack>>(L, idx) && ...);
 }
 
