@@ -97,7 +97,7 @@ private:
         lua_rawgetp_x(L, LUA_REGISTRYINDEX, registryClassKey); // Stack: registry metatable (rt) | nil
         const bool classIsRegistered = lua_istable(L, -1);
 
-        const char* expected = "unregistered class";
+        [[maybe_unused]] const char* expected = "unregistered class";
         if (classIsRegistered)
         {
             lua_rawgetp_x(L, -1, getTypeKey()); // Stack: rt, registry type
