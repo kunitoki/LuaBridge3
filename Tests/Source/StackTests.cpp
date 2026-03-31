@@ -2913,7 +2913,30 @@ TEST_F(StackTests, TypeResultValueOr)
     EXPECT_EQ(42, result2.valueOr(1337));
 }
 
+TEST_F(StackTests, ArrayPushElementFailure)
+{
+    // When pushing a fixed-size array, if an element push fails the error is
+    // propagated immediately (Stack.h:1330).
+    if constexpr (sizeof(long double) > sizeof(lua_Number))
+    {
+        long double arr[2] = { std::numeric_limits<long double>::max(), 1.0L };
+        auto result = luabridge::push(L, arr);
+        ASSERT_FALSE(result);
+        EXPECT_EQ(luabridge::ErrorCode::FloatingPointDoesntFitIntoLuaNumber, result.error());
+    }
+}
+
 #if LUABRIDGE_HAS_EXCEPTIONS
+TEST_F(StackTests, PcallFailureThrowsException)
+{
+    luabridge::lua_pushcfunction_x(L, [](lua_State* L) -> int {
+        luaL_error(L, "deliberate error");
+        return 0;
+    }, "");
+
+    EXPECT_THROW(luabridge::pcall(L, 0, 0), luabridge::LuaException);
+}
+
 TEST_F(StackTests, ResultThrowOnError)
 {
     exhaustStackSpace();

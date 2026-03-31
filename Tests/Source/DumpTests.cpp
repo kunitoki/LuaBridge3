@@ -303,6 +303,21 @@ TEST_F(DumpTests, DumpTableDirectWithNewLine)
     }
 }
 
+TEST_F(DumpTests, DumpNone)
+{
+    std::stringstream ss;
+
+    // Index 0 is invalid in Lua; dumpValue treats out-of-range indices as LUA_TNONE,
+    // falling through to the default case in its switch statement.
+    luabridge::dumpValue(L, 0, 0, 0, false, ss);
+    EXPECT_FALSE(ss.str().empty());
+
+    ss.clear();
+    ss.str("");
+    luabridge::dumpValue(L, 0, 0, 0, true, ss);
+    EXPECT_TRUE(ss.str().find("\n") != std::string::npos);
+}
+
 TEST_F(DumpTests, DumpState)
 {
     std::stringstream ss;

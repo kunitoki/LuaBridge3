@@ -731,3 +731,19 @@ TEST_F(NamespaceTests, FastCallFunctions)
 }
 
 #endif // _M_IX86
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+TEST_F(NamespaceTests, EndGlobalNamespaceThrows)
+{
+    // endNamespace() on the global namespace is a logic error (Namespace.h:1663-1665).
+    EXPECT_THROW(luabridge::getGlobalNamespace(L).endNamespace(), std::logic_error);
+}
+
+TEST_F(NamespaceTests, AddPropertyGetterSetterOnGlobalThrows)
+{
+    // addProperty(getter, setter) on the global namespace is a logic error (Namespace.h:1754-1758).
+    EXPECT_THROW(
+        luabridge::getGlobalNamespace(L).addProperty("p", [] { return 1; }, [](int) {}),
+        std::logic_error);
+}
+#endif

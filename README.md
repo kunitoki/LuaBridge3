@@ -6,6 +6,15 @@
 </a>
 <br>
 
+## Status
+
+![Build MacOS](https://github.com/kunitoki/LuaBridge3/workflows/Build%20MacOS/badge.svg?branch=master)
+![Build Windows](https://github.com/kunitoki/LuaBridge3/workflows/Build%20Windows/badge.svg?branch=master)
+![Build Linux](https://github.com/kunitoki/LuaBridge3/workflows/Build%20Linux/badge.svg?branch=master)
+
+## Code Coverage
+[![Coverage Status](https://coveralls.io/repos/github/kunitoki/LuaBridge3/badge.svg?branch=master&kill_cache=1)](https://coveralls.io/github/kunitoki/LuaBridge3?branch=master)
+
 # LuaBridge 3.0
 
 [LuaBridge3](https://github.com/kunitoki/LuaBridge3) is a lightweight and dependency-free library for mapping data,
@@ -76,15 +85,6 @@ LuaBridge3 offers a set of improvements compared to vanilla LuaBridge:
 * Consistent numeric handling and conversions (signed, unsigned and floats) across all lua versions.
 * Simplified registration of enum types via the `luabridge::Enum` stack wrapper.
 * Opt-out handling of safe stack space checks (automatically avoids exhausting lua stack space when pushing values!).
-
-## Status
-
-![Build MacOS](https://github.com/kunitoki/LuaBridge3/workflows/Build%20MacOS/badge.svg?branch=master)
-![Build Windows](https://github.com/kunitoki/LuaBridge3/workflows/Build%20Windows/badge.svg?branch=master)
-![Build Linux](https://github.com/kunitoki/LuaBridge3/workflows/Build%20Linux/badge.svg?branch=master)
-
-## Code Coverage
-[![Coverage Status](https://coveralls.io/repos/github/kunitoki/LuaBridge3/badge.svg?branch=master&kill_cache=1)](https://coveralls.io/github/kunitoki/LuaBridge3?branch=master)
 
 ## Documentation
 

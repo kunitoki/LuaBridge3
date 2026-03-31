@@ -127,6 +127,18 @@ TEST_F(EnumTests, RegisteredStackInvalidValue)
     EXPECT_TRUE(luabridge::get<F>(L, 1));
 }
 
+TEST_F(EnumTests, RegisteredStackGetNonNumber)
+{
+    // When the Lua value is not a number, the underlying Stack<int>::get fails,
+    // causing Enum::get to return result.error() at Enum.h:42.
+    lua_pushstring(L, "not_a_number");
+
+    EXPECT_FALSE(luabridge::get<C>(L, 1)); // constrained enum: underlying get fails
+    EXPECT_FALSE(luabridge::get<D>(L, 1));
+    EXPECT_FALSE(luabridge::get<E>(L, 1)); // unconstrained enum: same underlying failure
+    EXPECT_FALSE(luabridge::get<F>(L, 1));
+}
+
 TEST_F(EnumTests, MethodTakingEnum)
 {
     luabridge::getGlobalNamespace(L)
