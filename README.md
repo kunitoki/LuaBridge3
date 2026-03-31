@@ -8,9 +8,12 @@
 
 ## Status
 
-![Build MacOS](https://github.com/kunitoki/LuaBridge3/workflows/Build%20MacOS/badge.svg?branch=master)
-![Build Windows](https://github.com/kunitoki/LuaBridge3/workflows/Build%20Windows/badge.svg?branch=master)
-![Build Linux](https://github.com/kunitoki/LuaBridge3/workflows/Build%20Linux/badge.svg?branch=master)
+[![MacOS](https://github.com/kunitoki/LuaBridge3/workflows/Build%20MacOS/badge.svg?branch=master)](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_macos.yml)
+[![Windows](https://github.com/kunitoki/LuaBridge3/workflows/Build%20Windows/badge.svg?branch=master)](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_windows.yml)
+[![Linux](https://github.com/kunitoki/LuaBridge3/workflows/Build%20Linux/badge.svg?branch=master)](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_linux.yml)
+[![UBSAN](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_ubsan.yml/badge.svg?branch=master)](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_ubsan.yml)
+[![ASAN](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_asan.yml/badge.svg?branch=master)](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_asan.yml)
+[![TSAN](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_tsan.yml/badge.svg?branch=master)](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_tsan.yml)
 
 ## Code Coverage
 [![Coverage Status](https://coveralls.io/repos/github/kunitoki/LuaBridge3/badge.svg?branch=master&kill_cache=1)](https://coveralls.io/github/kunitoki/LuaBridge3?branch=master)
