@@ -1,21 +1,25 @@
-<a href="https://kunitoki.github.io/LuaBridge3">
-<img height="118" src="https://github.com/kunitoki/LuaBridge3/blob/master/logo.png?raw=true">
-</a>
-<a href="https://lua.org">
-<img height="118" src="https://github.com/kunitoki/LuaBridge3/blob/master/lua.png?raw=true">
-</a>
-<br>
+<p float="left">
+  <a href="https://kunitoki.github.io/LuaBridge3">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="./Images/logo-dark.png">
+      <img height="118" src="./Images/logo-bright.png">
+    </picture>
+  </a>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <a href="https://lua.org">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="./Images/lua-dark.png">
+      <img height="118" src="./Images/lua-bright.png">
+    </picture>
+  </a>
+</p>
 
-## Status
-
+[![Coverage Status](https://coveralls.io/repos/github/kunitoki/LuaBridge3/badge.svg?branch=master&kill_cache=1)](https://coveralls.io/github/kunitoki/LuaBridge3?branch=master)
 [![MacOS](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_macos.yml/badge.svg?branch=master)](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_macos.yml)
 [![Windows](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_windows.yml/badge.svg?branch=master)](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_windows.yml)
 [![Linux](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_linux.yml/badge.svg?branch=master)](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_linux.yml)
 [![UBSAN](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_ubsan.yml/badge.svg?branch=master)](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_ubsan.yml)
 [![ASAN](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_asan.yml/badge.svg?branch=master)](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_asan.yml)
-
-## Code Coverage
-[![Coverage Status](https://coveralls.io/repos/github/kunitoki/LuaBridge3/badge.svg?branch=master&kill_cache=1)](https://coveralls.io/github/kunitoki/LuaBridge3?branch=master)
 
 # LuaBridge 3.0
 
@@ -126,7 +130,7 @@ To update the vcpkg port, we need to know the hash of the commit and the sha512 
 Starting from the commit hash that needs to be published, download the archived artifact and get the sha512 of it:
 
 ```bash
-COMMIT_HASH="0e17140276d215e98764813078f48731125e4784"
+COMMIT_HASH=$(git rev-parse HEAD)
 
 wget https://github.com/kunitoki/LuaBridge3/archive/${COMMIT_HASH}.tar.gz
 
