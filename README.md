@@ -8,9 +8,9 @@
 
 ## Status
 
-[![MacOS](https://github.com/kunitoki/LuaBridge3/workflows/Build%20MacOS/badge.svg?branch=master)](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_macos.yml)
-[![Windows](https://github.com/kunitoki/LuaBridge3/workflows/Build%20Windows/badge.svg?branch=master)](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_windows.yml)
-[![Linux](https://github.com/kunitoki/LuaBridge3/workflows/Build%20Linux/badge.svg?branch=master)](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_linux.yml)
+[![MacOS](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_macos.yml/badge.svg?branch=master)](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_macos.yml)
+[![Windows](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_windows.yml/badge.svg?branch=master)](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_windows.yml)
+[![Linux](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_linux.yml/badge.svg?branch=master)](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_linux.yml)
 [![UBSAN](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_ubsan.yml/badge.svg?branch=master)](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_ubsan.yml)
 [![ASAN](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_asan.yml/badge.svg?branch=master)](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_asan.yml)
 
