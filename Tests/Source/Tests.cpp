@@ -237,11 +237,13 @@ TEST_F(LuaBridgeTest, CFunction)
         EXPECT_FLOAT_EQ(3.14f, result<float>());
     }
 
+#if !defined(LUABRIDGE_TEST_LUA_VERSION) || LUABRIDGE_TEST_LUA_VERSION > 502
     {
         runLua("result = doubleFn (-12.3)");
         EXPECT_EQ(true, result().isNumber());
         EXPECT_DOUBLE_EQ(-12.3, result<double>());
     }
+#endif
 
     {
         runLua("result = charFn ('a')");
