@@ -106,6 +106,7 @@ TEST_F(SetTests, LuaRef)
         EXPECT_EQ(expected, result<Set>());
     }
 
+#if !defined(LUABRIDGE_TEST_LUA_VERSION) || LUABRIDGE_TEST_LUA_VERSION > 502
     {
         using Set = std::set<luabridge::LuaRef>;
 
@@ -128,6 +129,7 @@ TEST_F(SetTests, LuaRef)
 
         EXPECT_EQ(expected, result<Set>());
     }
+#endif
 }
 
 TEST_F(SetTests, CastToSet)

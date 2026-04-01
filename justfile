@@ -1,10 +1,11 @@
+
 default:
     @just -l
 
 generate:
     cmake -G Xcode -B Build .
 
-sanitizer TYPE='address':
+sanitize TYPE='address':
     cmake -G Xcode -B Build -DLUABRIDGE_SANITIZE={{TYPE}} .
 
 benchmark:
