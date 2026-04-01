@@ -51,7 +51,7 @@ jobs:
     - name: Build Lua ${{ matrix.lua.version }}
       working-directory: ${{runner.workspace}}/build
       run: |
-        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
+        cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target \
           LuaBridgeTests${{ matrix.lua.suffix }} \
           LuaBridgeTests${{ matrix.lua.suffix }}LuaC \
           LuaBridgeTests${{ matrix.lua.suffix }}Noexcept \
@@ -88,7 +88,7 @@ jobs:
     - name: Build LuaJIT
       working-directory: ${{runner.workspace}}/build
       run: |
-        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
+        cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target \
           LuaBridgeTestsLuaJIT \
           LuaBridgeTestsLuaJITNoexcept
 
@@ -118,7 +118,7 @@ jobs:
 
     - name: Build Luau
       working-directory: ${{runner.workspace}}/build
-      run: cmake --build . --config $BUILD_TYPE --parallel 4 --target LuaBridgeTestsLuau
+      run: cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target LuaBridgeTestsLuau
 
     - name: Test Luau
       working-directory: ${{runner.workspace}}/build/Tests
@@ -144,7 +144,7 @@ jobs:
 
     - name: Build Ravi
       working-directory: ${{runner.workspace}}/build
-      run: cmake --build . --config $BUILD_TYPE --parallel 4 --target LuaBridgeTestsRavi
+      run: cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target LuaBridgeTestsRavi
 
     - name: Test Ravi
       working-directory: ${{runner.workspace}}/build/Tests
