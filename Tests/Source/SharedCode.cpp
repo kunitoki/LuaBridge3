@@ -6,8 +6,6 @@
 #include "LuaBridge/LuaBridge.h"
 
 namespace xyz {
-ISharedClass::ISharedClass() = default;
-ISharedClass::~ISharedClass() = default;
 
 class SharedClass : public ISharedClass
 {

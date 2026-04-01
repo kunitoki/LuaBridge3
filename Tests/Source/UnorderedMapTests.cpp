@@ -78,8 +78,62 @@ std::unordered_map<Data, Data> processPointers(const std::unordered_map<Data, co
 }
 } // namespace
 
+TEST_F(UnorderedMapTests, GetNonTable)
+{
+    lua_pushnumber(L, 42.0);
+
+    auto result = luabridge::Stack<std::unordered_map<int, int>>::get(L, -1);
+    ASSERT_FALSE(result);
+    EXPECT_EQ(luabridge::ErrorCode::InvalidTypeCast, result.error());
+}
+
+TEST_F(UnorderedMapTests, GetWithInvalidValue)
+{
+    lua_createtable(L, 0, 1);
+    lua_pushinteger(L, 1);
+    lua_pushstring(L, "not_an_int");
+    lua_settable(L, -3);
+
+    auto result = luabridge::Stack<std::unordered_map<int, int>>::get(L, -1);
+    ASSERT_FALSE(result);
+    EXPECT_EQ(luabridge::ErrorCode::InvalidTypeCast, result.error());
+}
+
+TEST_F(UnorderedMapTests, GetWithInvalidKey)
+{
+    lua_createtable(L, 0, 1);
+    lua_pushstring(L, "string_key");
+    lua_pushinteger(L, 42);
+    lua_settable(L, -3);
+
+    auto result = luabridge::Stack<std::unordered_map<int, int>>::get(L, -1);
+    ASSERT_FALSE(result);
+    EXPECT_EQ(luabridge::ErrorCode::InvalidTypeCast, result.error());
+}
+
+TEST_F(UnorderedMapTests, IsInstance)
+{
+    ASSERT_TRUE((luabridge::push(L, std::unordered_map<std::string, int>{ { "x", 1 }, { "y", 2 } })));
+    EXPECT_TRUE((luabridge::isInstance<std::unordered_map<std::string, int>>(L, -1)));
+
+    lua_pop(L, 1);
+
+    ASSERT_TRUE((luabridge::push(L, 1)));
+    EXPECT_FALSE((luabridge::isInstance<std::unordered_map<std::string, int>>(L, -1)));
+}
+
+TEST_F(UnorderedMapTests, StackOverflow)
+{
+    exhaustStackSpace();
+
+    std::unordered_map<std::string, int> value{ { "x", 1 }, { "y", 2 } };
+
+    ASSERT_FALSE(luabridge::push(L, value));
+}
+
 TEST_F(UnorderedMapTests, LuaRef)
 {
+#if !defined(LUABRIDGE_TEST_LUA_VERSION) || LUABRIDGE_TEST_LUA_VERSION > 502  
     {
         runLua("result = {[false] = true, a = 'abc', [1] = 5, [3.14] = -1.1}");
 
@@ -97,6 +151,7 @@ TEST_F(UnorderedMapTests, LuaRef)
         ASSERT_EQ(expected, actual);
         ASSERT_EQ(expected, result<Map>());
     }
+#endif
 
     {
         runLua("result = {'a', 'b', 'c'}");

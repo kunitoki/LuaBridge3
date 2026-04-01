@@ -33,7 +33,9 @@ inline void dumpTable(lua_State* L, int index, unsigned maxDepth = 1, unsigned l
  */
 inline void dumpValue(lua_State* L, int index, unsigned maxDepth = 1, unsigned level = 0, bool newLine = true, std::ostream& stream = std::cerr)
 {
-    const int type = lua_type(L, index);
+    const int stackTop = lua_gettop(L);
+    const int absIndex = (index > 0) ? index : (index < 0 ? stackTop + index + 1 : 0);
+    const int type = (absIndex < 1 || absIndex > stackTop) ? LUA_TNONE : lua_type(L, index);
     switch (type)
     {
     case LUA_TNIL:

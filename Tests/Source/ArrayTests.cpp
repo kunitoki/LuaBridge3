@@ -147,6 +147,39 @@ TEST_F(ArrayTests, FailOnWrongSize)
     EXPECT_FALSE((luabridge::isInstance<std::array<lua_Integer, 3>>(L, -1)));
 }
 
+TEST_F(ArrayTests, GetNonTable)
+{
+    lua_pushnumber(L, 42.0);
+
+    auto result = luabridge::Stack<std::array<int, 3>>::get(L, -1);
+    ASSERT_FALSE(result);
+    EXPECT_EQ(luabridge::ErrorCode::InvalidTypeCast, result.error());
+}
+
+TEST_F(ArrayTests, GetWithInvalidItem)
+{
+    lua_createtable(L, 3, 0);
+    for (int i = 1; i <= 3; ++i)
+    {
+        lua_pushinteger(L, i);
+        lua_pushstring(L, "not_an_int");
+        lua_settable(L, -3);
+    }
+
+    auto result = luabridge::Stack<std::array<int, 3>>::get(L, -1);
+    ASSERT_FALSE(result);
+    EXPECT_EQ(luabridge::ErrorCode::InvalidTypeCast, result.error());
+}
+
+TEST_F(ArrayTests, StackOverflow)
+{
+    exhaustStackSpace();
+
+    std::array<int, 3> value{ 1, 2, 3 };
+
+    ASSERT_FALSE(luabridge::push(L, value));
+}
+
 #if !LUABRIDGE_HAS_EXCEPTIONS
 TEST_F(ArrayTests, PushUnregisteredWithNoExceptionsShouldFailButRestoreStack)
 {

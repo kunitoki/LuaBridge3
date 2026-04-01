@@ -70,6 +70,30 @@ struct ListTests : TestBase
 {
 };
 
+TEST_F(ListTests, GetNonTable)
+{
+    lua_pushnumber(L, 42.0);
+
+    auto result = luabridge::Stack<std::list<int>>::get(L, -1);
+    ASSERT_FALSE(result);
+    EXPECT_EQ(luabridge::ErrorCode::InvalidTypeCast, result.error());
+}
+
+TEST_F(ListTests, GetWithInvalidItem)
+{
+    lua_createtable(L, 2, 0);
+    lua_pushinteger(L, 1);
+    lua_pushstring(L, "not_an_int");
+    lua_settable(L, -3);
+    lua_pushinteger(L, 2);
+    lua_pushstring(L, "also_not_an_int");
+    lua_settable(L, -3);
+
+    auto result = luabridge::Stack<std::list<int>>::get(L, -1);
+    ASSERT_FALSE(result);
+    EXPECT_EQ(luabridge::ErrorCode::InvalidTypeCast, result.error());
+}
+
 TEST_F(ListTests, PassToFunction)
 {
     runLua("function foo (list) "

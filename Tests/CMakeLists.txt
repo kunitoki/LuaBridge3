@@ -296,6 +296,33 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
     setup_target_for_coverage (${LUABRIDGE_TEST_NAME} ${SOURCE_LOCATION} LuaBridge)
   endif ()
 
+  if (LUABRIDGE_SANITIZE AND (APPLE OR UNIX))
+    if ("${CMAKE_GENERATOR}" STREQUAL "Xcode")
+      set_target_properties (${LUABRIDGE_TEST_NAME} PROPERTIES XCODE_GENERATE_SCHEME ON)
+      if (LUABRIDGE_SANITIZE STREQUAL "address")
+        set_target_properties (${LUABRIDGE_TEST_NAME} PROPERTIES
+          XCODE_SCHEME_ADDRESS_SANITIZER ON
+          XCODE_SCHEME_ADDRESS_SANITIZER_USE_AFTER_RETURN ON
+          XCODE_SCHEME_ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0:detect_odr_violation=0")
+      elseif (LUABRIDGE_SANITIZE STREQUAL "undefined")
+        set_target_properties (${LUABRIDGE_TEST_NAME} PROPERTIES
+          XCODE_SCHEME_UNDEFINED_BEHAVIOUR_SANITIZER ON)
+      elseif (LUABRIDGE_SANITIZE STREQUAL "thread")
+        set_target_properties (${LUABRIDGE_TEST_NAME} PROPERTIES
+          XCODE_SCHEME_THREAD_SANITIZER ON)
+      endif ()
+    else ()
+      set (LUABRIDGE_SANITIZE_FLAGS -fsanitize=${LUABRIDGE_SANITIZE})
+      if (LUABRIDGE_SANITIZE STREQUAL "address")
+        list (APPEND LUABRIDGE_SANITIZE_FLAGS -fno-omit-frame-pointer)
+      endif ()
+      target_compile_options (${LUABRIDGE_TEST_NAME} PRIVATE ${LUABRIDGE_SANITIZE_FLAGS})
+      target_link_options (${LUABRIDGE_TEST_NAME} PRIVATE -fsanitize=${LUABRIDGE_SANITIZE})
+      target_compile_options (${LUABRIDGE_TESTLIB_NAME} PRIVATE ${LUABRIDGE_SANITIZE_FLAGS})
+      target_link_options (${LUABRIDGE_TESTLIB_NAME} PRIVATE -fsanitize=${LUABRIDGE_SANITIZE})
+    endif ()
+  endif ()
+
   target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}
     ${SOURCE_LOCATION}
@@ -363,6 +390,11 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
   endif ()
 
   add_test(NAME ${LUABRIDGE_TEST_NAME} COMMAND ${LUABRIDGE_TEST_NAME})
+
+  if (UNIX AND LUABRIDGE_SANITIZE STREQUAL "address")
+    set_tests_properties (${LUABRIDGE_TEST_NAME} PROPERTIES
+      ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0:detect_odr_violation=0")
+  endif ()
 
 endmacro (add_test_app)
 

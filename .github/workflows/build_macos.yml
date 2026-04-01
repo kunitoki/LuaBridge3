@@ -1,4 +1,4 @@
-name: Build MacOS
+name: macOS
 
 on:
   push:
@@ -20,8 +20,18 @@ env:
   BUILD_TYPE: Release
 
 jobs:
-  lua51:
+  lua:
     runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        lua:
+          - { version: "5.1", suffix: "51" }
+          - { version: "5.2", suffix: "52" }
+          - { version: "5.3", suffix: "53" }
+          - { version: "5.4", suffix: "54" }
+          - { version: "5.5", suffix: "55" }
+
     steps:
 
     - uses: actions/checkout@v6
@@ -35,150 +45,22 @@ jobs:
       working-directory: ${{runner.workspace}}/build
       run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -G Ninja
 
-    - name: Build Lua 5.1
+    - name: Build Lua ${{ matrix.lua.version }}
       working-directory: ${{runner.workspace}}/build
       run: |
-        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
-          LuaBridgeTests51 \
-          LuaBridgeTests51LuaC \
-          LuaBridgeTests51Noexcept \
-          LuaBridgeTests51LuaCNoexcept
+        cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target \
+          LuaBridgeTests${{ matrix.lua.suffix }} \
+          LuaBridgeTests${{ matrix.lua.suffix }}LuaC \
+          LuaBridgeTests${{ matrix.lua.suffix }}Noexcept \
+          LuaBridgeTests${{ matrix.lua.suffix }}LuaCNoexcept
 
-    - name: Test Lua 5.1
+    - name: Test Lua ${{ matrix.lua.version }}
       working-directory: ${{runner.workspace}}/build/Tests
       run: |
-        ./LuaBridgeTests51
-        ./LuaBridgeTests51LuaC
-        ./LuaBridgeTests51Noexcept
-        ./LuaBridgeTests51LuaCNoexcept
-
-  lua52:
-    runs-on: macos-latest
-    steps:
-
-    - uses: actions/checkout@v6
-      with:
-        submodules: true
-
-    - name: Create Build Environment
-      run: cmake -E make_directory ${{runner.workspace}}/build
-
-    - name: Configure
-      working-directory: ${{runner.workspace}}/build
-      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -G Ninja
-
-    - name: Build Lua 5.2
-      working-directory: ${{runner.workspace}}/build
-      run: |
-        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
-          LuaBridgeTests52 \
-          LuaBridgeTests52LuaC \
-          LuaBridgeTests52Noexcept \
-          LuaBridgeTests52LuaCNoexcept
-
-    - name: Test Lua 5.2
-      working-directory: ${{runner.workspace}}/build/Tests
-      run: |
-        ./LuaBridgeTests52
-        ./LuaBridgeTests52LuaC
-        ./LuaBridgeTests52Noexcept
-        ./LuaBridgeTests52LuaCNoexcept
-
-  lua53:
-    runs-on: macos-latest
-    steps:
-
-    - uses: actions/checkout@v6
-      with:
-        submodules: true
-
-    - name: Create Build Environment
-      run: cmake -E make_directory ${{runner.workspace}}/build
-
-    - name: Configure
-      working-directory: ${{runner.workspace}}/build
-      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -G Ninja
-
-    - name: Build Lua 5.3
-      working-directory: ${{runner.workspace}}/build
-      run: |
-        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
-          LuaBridgeTests53 \
-          LuaBridgeTests53LuaC \
-          LuaBridgeTests53Noexcept \
-          LuaBridgeTests53LuaCNoexcept
-
-    - name: Test Lua 5.3
-      working-directory: ${{runner.workspace}}/build/Tests
-      run: |
-        ./LuaBridgeTests53
-        ./LuaBridgeTests53LuaC
-        ./LuaBridgeTests53Noexcept
-        ./LuaBridgeTests53LuaCNoexcept
-
-  lua54:
-    runs-on: macos-latest
-    steps:
-
-    - uses: actions/checkout@v6
-      with:
-        submodules: true
-
-    - name: Create Build Environment
-      run: cmake -E make_directory ${{runner.workspace}}/build
-
-    - name: Configure
-      working-directory: ${{runner.workspace}}/build
-      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -G Ninja
-
-    - name: Build Lua 5.4
-      working-directory: ${{runner.workspace}}/build
-      run: |
-        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
-          LuaBridgeTests54 \
-          LuaBridgeTests54LuaC \
-          LuaBridgeTests54Noexcept \
-          LuaBridgeTests54LuaCNoexcept
-
-    - name: Test Lua 5.4
-      working-directory: ${{runner.workspace}}/build/Tests
-      run: |
-        ./LuaBridgeTests54
-        ./LuaBridgeTests54LuaC
-        ./LuaBridgeTests54Noexcept
-        ./LuaBridgeTests54LuaCNoexcept
-
-  lua55:
-    runs-on: macos-latest
-    steps:
-
-    - uses: actions/checkout@v6
-      with:
-        submodules: true
-
-    - name: Create Build Environment
-      run: cmake -E make_directory ${{runner.workspace}}/build
-
-    - name: Configure
-      working-directory: ${{runner.workspace}}/build
-      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -G Ninja
-
-    - name: Build Lua 5.5
-      working-directory: ${{runner.workspace}}/build
-      run: |
-        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
-          LuaBridgeTests55 \
-          LuaBridgeTests55LuaC \
-          LuaBridgeTests55Noexcept \
-          LuaBridgeTests55LuaCNoexcept
-
-    - name: Test Lua 5.5
-      working-directory: ${{runner.workspace}}/build/Tests
-      run: |
-        ./LuaBridgeTests55
-        ./LuaBridgeTests55LuaC
-        ./LuaBridgeTests55Noexcept
-        ./LuaBridgeTests55LuaCNoexcept
+        ./LuaBridgeTests${{ matrix.lua.suffix }}
+        ./LuaBridgeTests${{ matrix.lua.suffix }}LuaC
+        ./LuaBridgeTests${{ matrix.lua.suffix }}Noexcept
+        ./LuaBridgeTests${{ matrix.lua.suffix }}LuaCNoexcept
 
   luajit:
     runs-on: macos-latest
@@ -198,7 +80,7 @@ jobs:
     - name: Build LuaJIT
       working-directory: ${{runner.workspace}}/build
       run: |
-        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
+        cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target \
           LuaBridgeTestsLuaJIT \
           LuaBridgeTestsLuaJITNoexcept
 
@@ -225,7 +107,7 @@ jobs:
 
     - name: Build Luau
       working-directory: ${{runner.workspace}}/build
-      run: cmake --build . --config $BUILD_TYPE --parallel 4 --target LuaBridgeTestsLuau
+      run: cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target LuaBridgeTestsLuau
 
     - name: Test Luau
       working-directory: ${{runner.workspace}}/build/Tests
@@ -246,9 +128,9 @@ jobs:
       working-directory: ${{runner.workspace}}/build
       run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -G Ninja
 
-    - name: Build LuaJIT
+    - name: Build Ravi
       working-directory: ${{runner.workspace}}/build
-      run: cmake --build . --config $BUILD_TYPE --parallel 4 --target LuaBridgeTestsRavi
+      run: cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target LuaBridgeTestsRavi
 
     - name: Test Ravi
       working-directory: ${{runner.workspace}}/build/Tests

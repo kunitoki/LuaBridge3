@@ -23,8 +23,8 @@ namespace xyz {
 class LUABRIDGE_TEST_SHARED_API ISharedClass
 {
 public:
-    ISharedClass();
-    virtual ~ISharedClass();
+    ISharedClass() = default;
+    virtual ~ISharedClass() = default;
 
     virtual int publicMethod(const std::string& s) const = 0;
 };

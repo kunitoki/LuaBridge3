@@ -72,6 +72,12 @@
 #define LUABRIDGE_IF_NO_EXCEPTIONS(...) __VA_ARGS__
 #endif
 
+#if defined(__clang__) || defined(__GNUC__)
+#define LUABRIDGE_NO_SANITIZE(x) __attribute__((no_sanitize(x)))
+#else
+#define LUABRIDGE_NO_SANITIZE(x)
+#endif
+
 #if defined(LUAU_FASTMATH_BEGIN)
 #define LUABRIDGE_ON_LUAU 1
 #elif defined(LUAJIT_VERSION)
@@ -118,6 +124,417 @@
 
 
 // End File: Source/LuaBridge/detail/Config.h
+
+// Begin File: Source/LuaBridge/detail/FuncTraits.h
+
+namespace luabridge {
+namespace detail {
+
+[[noreturn]] inline void unreachable()
+{
+#if defined(__GNUC__) 
+    __builtin_unreachable();
+#elif defined(_MSC_VER) 
+    __assume(false);
+#endif
+}
+
+template< class T >
+struct remove_cvref
+{
+    typedef std::remove_cv_t<std::remove_reference_t<T>> type;
+};
+
+template <class T>
+using remove_cvref_t = typename remove_cvref<T>::type;
+
+template <bool IsMember, bool IsConst, class R, class... Args>
+struct function_traits_base
+{
+    using result_type = R;
+
+    using argument_types = std::tuple<Args...>;
+
+    static constexpr auto arity = sizeof...(Args);
+
+    static constexpr auto is_member = IsMember;
+
+    static constexpr auto is_const = IsConst;
+};
+
+template <class, bool Enable>
+struct function_traits_impl;
+
+template <class R, class... Args>
+struct function_traits_impl<R(Args...), true> : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class R, class... Args>
+struct function_traits_impl<R (*)(Args...), true> : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (C::*)(Args...), true> : function_traits_base<true, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (C::*)(Args...) const, true> : function_traits_base<true, true, R, Args...>
+{
+};
+
+template <class R, class... Args>
+struct function_traits_impl<R(Args...) noexcept, true> : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class R, class... Args>
+struct function_traits_impl<R (*)(Args...) noexcept, true> : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (C::*)(Args...) noexcept, true> : function_traits_base<true, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (C::*)(Args...) const noexcept, true> : function_traits_base<true, true, R, Args...>
+{
+};
+
+#if defined(_MSC_VER) && defined(_M_IX86) 
+inline static constexpr bool is_stdcall_default_calling_convention = std::is_same_v<void __stdcall(), void()>;
+inline static constexpr bool is_fastcall_default_calling_convention = std::is_same_v<void __fastcall(), void()>;
+
+template <class R, class... Args>
+struct function_traits_impl<R __stdcall(Args...), !is_stdcall_default_calling_convention> : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class R, class... Args>
+struct function_traits_impl<R (__stdcall *)(Args...), !is_stdcall_default_calling_convention> : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (__stdcall C::*)(Args...), true> : function_traits_base<true, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (__stdcall C::*)(Args...) const, true> : function_traits_base<true, true, R, Args...>
+{
+};
+
+template <class R, class... Args>
+struct function_traits_impl<R __stdcall(Args...) noexcept, !is_stdcall_default_calling_convention> : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class R, class... Args>
+struct function_traits_impl<R (__stdcall *)(Args...) noexcept, !is_stdcall_default_calling_convention> : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (__stdcall C::*)(Args...) noexcept, true> : function_traits_base<true, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (__stdcall C::*)(Args...) const noexcept, true> : function_traits_base<true, true, R, Args...>
+{
+};
+
+template <class R, class... Args>
+struct function_traits_impl<R __fastcall(Args...), !is_fastcall_default_calling_convention> : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class R, class... Args>
+struct function_traits_impl<R (__fastcall *)(Args...), !is_fastcall_default_calling_convention> : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (__fastcall C::*)(Args...), true> : function_traits_base<true, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (__fastcall C::*)(Args...) const, true> : function_traits_base<true, true, R, Args...>
+{
+};
+
+template <class R, class... Args>
+struct function_traits_impl<R __fastcall(Args...) noexcept, !is_fastcall_default_calling_convention> : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class R, class... Args>
+struct function_traits_impl<R (__fastcall *)(Args...) noexcept, !is_fastcall_default_calling_convention> : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (__fastcall C::*)(Args...) noexcept, true> : function_traits_base<true, false, R, Args...>
+{
+};
+
+template <class C, class R, class... Args>
+struct function_traits_impl<R (__fastcall C::*)(Args...) const noexcept, true> : function_traits_base<true, true, R, Args...>
+{
+};
+#endif
+
+template <class F>
+struct functor_traits_impl : function_traits_impl<decltype(&F::operator()), true>
+{
+};
+
+template <class F>
+struct function_traits : std::conditional_t<std::is_class_v<F>,
+                                            detail::functor_traits_impl<F>,
+                                            detail::function_traits_impl<F, true>>
+{
+};
+
+template <std::size_t I, class F, class = void>
+struct function_argument_or_void
+{
+    using type = void;
+};
+
+template <std::size_t I, class F>
+struct function_argument_or_void<I, F, std::enable_if_t<I < std::tuple_size_v<typename function_traits<F>::argument_types>>>
+{
+    using type = std::tuple_element_t<I, typename function_traits<F>::argument_types>;
+};
+
+template <std::size_t I, class F>
+using function_argument_or_void_t = typename function_argument_or_void<I, F>::type;
+
+template <class F>
+using function_result_t = typename function_traits<F>::result_type;
+
+template <std::size_t I, class F>
+using function_argument_t = std::tuple_element_t<I, typename function_traits<F>::argument_types>;
+
+template <class F>
+using function_arguments_t = typename function_traits<F>::argument_types;
+
+template <class F>
+static constexpr std::size_t function_arity_v = function_traits<F>::arity;
+
+template <class F>
+static constexpr bool function_is_member_v = function_traits<F>::is_member;
+
+template <class F>
+static constexpr bool function_is_const_v = function_traits<F>::is_const;
+
+template <class T, class = void>
+struct is_callable
+{
+    static constexpr bool value = false;
+};
+
+template <class T>
+struct is_callable<T, std::void_t<decltype(&T::operator())>>
+{
+    static constexpr bool value = true;
+};
+
+template <class T>
+struct is_callable<T, std::enable_if_t<std::is_pointer_v<T> && std::is_function_v<std::remove_pointer_t<T>>>>
+{
+    static constexpr bool value = true;
+};
+
+template <class T>
+struct is_callable<T, std::enable_if_t<std::is_member_function_pointer_v<T>>>
+{
+    static constexpr bool value = true;
+};
+
+template <class T>
+inline static constexpr bool is_callable_v = is_callable<T>::value;
+
+template <class T>
+struct is_const_member_function_pointer
+{
+    static constexpr bool value = false;
+};
+
+template <class T, class R, class... Args>
+struct is_const_member_function_pointer<R (T::*)(Args...)>
+{
+    static constexpr bool value = false;
+};
+
+template <class T, class R, class... Args>
+struct is_const_member_function_pointer<R (T::*)(Args...) const>
+{
+    static constexpr bool value = true;
+};
+
+template <class T, class R, class... Args>
+struct is_const_member_function_pointer<R (T::*)(Args...) noexcept>
+{
+    static constexpr bool value = false;
+};
+
+template <class T, class R, class... Args>
+struct is_const_member_function_pointer<R (T::*)(Args...) const noexcept>
+{
+    static constexpr bool value = true;
+};
+
+template <class T>
+inline static constexpr bool is_const_member_function_pointer_v = is_const_member_function_pointer<T>::value;
+
+template <class T>
+struct is_cfunction_pointer
+{
+    static constexpr bool value = false;
+};
+
+template <>
+struct is_cfunction_pointer<int (*)(lua_State*)>
+{
+    static constexpr bool value = true;
+};
+
+template <class T>
+inline static constexpr bool is_cfunction_pointer_v = is_cfunction_pointer<T>::value;
+
+template <class T>
+struct is_member_cfunction_pointer
+{
+    static constexpr bool value = false;
+};
+
+template <class T>
+struct is_member_cfunction_pointer<int (T::*)(lua_State*)>
+{
+    static constexpr bool value = true;
+};
+
+template <class T>
+struct is_member_cfunction_pointer<int (T::*)(lua_State*) const>
+{
+    static constexpr bool value = true;
+};
+
+template <class T>
+inline static constexpr bool is_member_cfunction_pointer_v = is_member_cfunction_pointer<T>::value;
+
+template <class T>
+struct is_const_member_cfunction_pointer
+{
+    static constexpr bool value = false;
+};
+
+template <class T>
+struct is_const_member_cfunction_pointer<int (T::*)(lua_State*)>
+{
+    static constexpr bool value = false;
+};
+
+template <class T>
+struct is_const_member_cfunction_pointer<int (T::*)(lua_State*) const>
+{
+    static constexpr bool value = true;
+};
+
+template <class T>
+inline static constexpr bool is_const_member_cfunction_pointer_v = is_const_member_cfunction_pointer<T>::value;
+
+template <class T>
+inline static constexpr bool is_any_cfunction_pointer_v = is_cfunction_pointer_v<T> || is_member_cfunction_pointer_v<T>;
+
+template <class T, class F>
+inline static constexpr bool is_proxy_member_function_v =
+    !std::is_member_function_pointer_v<F> &&
+    std::is_same_v<T, remove_cvref_t<std::remove_pointer_t<function_argument_or_void_t<0, F>>>>;
+
+template <class T, class F>
+inline static constexpr bool is_const_proxy_function_v =
+    is_proxy_member_function_v<T, F> &&
+    std::is_const_v<std::remove_reference_t<std::remove_pointer_t<function_argument_or_void_t<0, F>>>>;
+
+template <class, class>
+struct function_arity_excluding
+{
+};
+
+template < class... Ts, class ExclusionType>
+struct function_arity_excluding<std::tuple<Ts...>, ExclusionType>
+    : std::integral_constant<std::size_t, (0 + ... + (std::is_same_v<std::decay_t<Ts>, ExclusionType> ? 0 : 1))>
+{
+};
+
+template <class F, class ExclusionType>
+inline static constexpr std::size_t function_arity_excluding_v = function_arity_excluding<function_arguments_t<F>, ExclusionType>::value;
+
+template <class, class, class, class, class = void>
+struct member_function_arity_excluding
+{
+};
+
+template <class T, class F, class... Ts, class ExclusionType>
+struct member_function_arity_excluding<T, F, std::tuple<Ts...>, ExclusionType, std::enable_if_t<!is_proxy_member_function_v<T, F>>>
+    : std::integral_constant<std::size_t, (0 + ... + (std::is_same_v<std::decay_t<Ts>, ExclusionType> ? 0 : 1))>
+{
+};
+
+template <class T, class F, class... Ts, class ExclusionType>
+struct member_function_arity_excluding<T, F, std::tuple<Ts...>, ExclusionType, std::enable_if_t<is_proxy_member_function_v<T, F>>>
+    : std::integral_constant<std::size_t, (0 + ... + (std::is_same_v<std::decay_t<Ts>, ExclusionType> ? 0 : 1)) - 1>
+{
+};
+
+template <class T, class F, class ExclusionType>
+inline static constexpr std::size_t member_function_arity_excluding_v = member_function_arity_excluding<T, F, function_arguments_t<F>, ExclusionType>::value;
+
+template <class T, class F>
+static constexpr bool is_const_function =
+    detail::is_const_member_function_pointer_v<F> ||
+        (detail::function_arity_v<F> > 0 && detail::is_const_proxy_function_v<T, F>);
+
+template <class T, class... Fs>
+inline static constexpr std::size_t const_functions_count = (0 + ... + (is_const_function<T, Fs> ? 1 : 0));
+
+template <class T, class... Fs>
+inline static constexpr std::size_t non_const_functions_count = (0 + ... + (is_const_function<T, Fs> ? 0 : 1));
+
+template <class... Types>
+constexpr auto tupleize(Types&&... types)
+{
+    return std::tuple<Types...>(std::forward<Types>(types)...);
+}
+
+template <class T>
+struct remove_first_type
+{
+};
+
+template <class T, class... Ts>
+struct remove_first_type<std::tuple<T, Ts...>>
+{
+    using type = std::tuple<Ts...>;
+};
+
+template <class T>
+using remove_first_type_t = typename remove_first_type<T>::type;
+
+} 
+} 
+
+
+// End File: Source/LuaBridge/detail/FuncTraits.h
 
 // Begin File: Source/LuaBridge/detail/LuaHelpers.h
 
@@ -232,10 +649,9 @@ inline void lua_pushcclosure_x(lua_State* L, lua_CFunction fn, const char* debug
     lua_pushcclosure(L, fn, debugname, n);
 }
 
-inline int lua_error_x(lua_State* L)
+[[noreturn]] inline void lua_error_x(lua_State* L)
 {
     lua_error(L);
-    return 0;
 }
 
 inline int lua_getstack_x(lua_State* L, int level, lua_Debug* ar)
@@ -282,9 +698,11 @@ inline void lua_pushcclosure_x(lua_State* L, lua_CFunction fn, const char* debug
     lua_pushcclosure(L, fn, n);
 }
 
-inline int lua_error_x(lua_State* L)
+[[noreturn]] inline void lua_error_x(lua_State* L)
 {
-    return lua_error(L);
+    lua_error(L);
+
+    detail::unreachable();
 }
 
 inline int lua_getstack_x(lua_State* L, int level, lua_Debug* ar)
@@ -357,7 +775,7 @@ inline lua_Integer to_integerx(lua_State* L, int idx, int* isnum)
     if (ok)
     {
         if (n < static_cast<lua_Number>(std::numeric_limits<lua_Integer>::min()) ||
-            n > static_cast<lua_Number>(std::numeric_limits<lua_Integer>::max()))
+            n >= -static_cast<lua_Number>(std::numeric_limits<lua_Integer>::min()))
         {
             if (isnum)
                 *isnum = 0;
@@ -603,7 +1021,7 @@ void* lua_newuserdata_aligned(lua_State* L, Args&&... args)
     return pointer;
 }
 
-inline int raise_lua_error(lua_State* L, const char* fmt, ...)
+[[noreturn]] inline void raise_lua_error(lua_State* L, const char* fmt, ...)
 {
     va_list argp;
     va_start(argp, fmt);
@@ -614,7 +1032,7 @@ inline int raise_lua_error(lua_State* L, const char* fmt, ...)
     if (message != nullptr)
     {
         if (auto str = std::string_view(message); !str.empty() && str[0] == '[')
-            return lua_error_x(L);
+            lua_error_x(L);
     }
 
     bool pushed_error = false;
@@ -646,7 +1064,7 @@ inline int raise_lua_error(lua_State* L, const char* fmt, ...)
     lua_remove(L, -3);
     lua_concat(L, 2);
 
-    return lua_error_x(L);
+    lua_error_x(L);
 }
 
 template <class U = lua_Integer, class T>
@@ -2788,6 +3206,11 @@ template <class T, auto = typeName<T>().find_first_of('.')>
     return reinterpret_cast<void*>(0xdad);
 }
 
+[[nodiscard]] inline const void* getCastTableKey() noexcept
+{
+    return reinterpret_cast<void*>(0xca57);
+}
+
 [[nodiscard]] inline const void* getIndexFallbackKey()
 {
     return reinterpret_cast<void*>(0x81ca);
@@ -2964,7 +3387,7 @@ private:
         catch (const std::exception& e)
         {
             lua_pushstring(L, e.what());
-            return lua_error_x(L);
+            lua_error_x(L);
         }
     }
 #endif
@@ -3118,7 +3541,7 @@ private:
         lua_rawgetp_x(L, LUA_REGISTRYINDEX, registryClassKey); 
         const bool classIsRegistered = lua_istable(L, -1);
 
-        const char* expected = "unregistered class";
+        [[maybe_unused]] const char* expected = "unregistered class";
         if (classIsRegistered)
         {
             lua_rawgetp_x(L, -1, getTypeKey()); 
@@ -3302,7 +3725,26 @@ public:
         if (! clazz)
             return clazz.error();
 
-        return static_cast<T*>((*clazz)->getPointer());
+        void* rawPtr = (*clazz)->getPointer();
+
+        if (lua_getmetatable(L, absIndex) && lua_istable(L, -1))
+        {
+            lua_rawgetp_x(L, -1, detail::getCastTableKey()); 
+            if (lua_istable(L, -1))
+            {
+                lua_rawgetp_x(L, -1, classId); 
+                if (! lua_isnil(L, -1))
+                {
+                    const lua_Integer offset = lua_tointeger(L, -1);
+                    lua_pop(L, 3);
+                    return reinterpret_cast<T*>(static_cast<char*>(rawPtr) + static_cast<ptrdiff_t>(offset));
+                }
+                lua_pop(L, 1); 
+            }
+            lua_pop(L, 2); 
+        }
+
+        return static_cast<T*>(rawPtr);
     }
 
     template <class T>
@@ -5428,7 +5870,9 @@ inline void dumpTable(lua_State* L, int index, unsigned maxDepth = 1, unsigned l
 
 inline void dumpValue(lua_State* L, int index, unsigned maxDepth = 1, unsigned level = 0, bool newLine = true, std::ostream& stream = std::cerr)
 {
-    const int type = lua_type(L, index);
+    const int stackTop = lua_gettop(L);
+    const int absIndex = (index > 0) ? index : (index < 0 ? stackTop + index + 1 : 0);
+    const int type = (absIndex < 1 || absIndex > stackTop) ? LUA_TNONE : lua_type(L, index);
     switch (type)
     {
     case LUA_TNIL:
@@ -5614,417 +6058,6 @@ struct Stack<std::list<T>>
 
 
 // End File: Source/LuaBridge/List.h
-
-// Begin File: Source/LuaBridge/detail/FuncTraits.h
-
-namespace luabridge {
-namespace detail {
-
-[[noreturn]] inline void unreachable()
-{
-#if defined(__GNUC__) 
-    __builtin_unreachable();
-#elif defined(_MSC_VER) 
-    __assume(false);
-#endif
-}
-
-template< class T >
-struct remove_cvref
-{
-    typedef std::remove_cv_t<std::remove_reference_t<T>> type;
-};
-
-template <class T>
-using remove_cvref_t = typename remove_cvref<T>::type;
-
-template <bool IsMember, bool IsConst, class R, class... Args>
-struct function_traits_base
-{
-    using result_type = R;
-
-    using argument_types = std::tuple<Args...>;
-
-    static constexpr auto arity = sizeof...(Args);
-
-    static constexpr auto is_member = IsMember;
-
-    static constexpr auto is_const = IsConst;
-};
-
-template <class, bool Enable>
-struct function_traits_impl;
-
-template <class R, class... Args>
-struct function_traits_impl<R(Args...), true> : function_traits_base<false, false, R, Args...>
-{
-};
-
-template <class R, class... Args>
-struct function_traits_impl<R (*)(Args...), true> : function_traits_base<false, false, R, Args...>
-{
-};
-
-template <class C, class R, class... Args>
-struct function_traits_impl<R (C::*)(Args...), true> : function_traits_base<true, false, R, Args...>
-{
-};
-
-template <class C, class R, class... Args>
-struct function_traits_impl<R (C::*)(Args...) const, true> : function_traits_base<true, true, R, Args...>
-{
-};
-
-template <class R, class... Args>
-struct function_traits_impl<R(Args...) noexcept, true> : function_traits_base<false, false, R, Args...>
-{
-};
-
-template <class R, class... Args>
-struct function_traits_impl<R (*)(Args...) noexcept, true> : function_traits_base<false, false, R, Args...>
-{
-};
-
-template <class C, class R, class... Args>
-struct function_traits_impl<R (C::*)(Args...) noexcept, true> : function_traits_base<true, false, R, Args...>
-{
-};
-
-template <class C, class R, class... Args>
-struct function_traits_impl<R (C::*)(Args...) const noexcept, true> : function_traits_base<true, true, R, Args...>
-{
-};
-
-#if defined(_MSC_VER) && defined(_M_IX86) 
-inline static constexpr bool is_stdcall_default_calling_convention = std::is_same_v<void __stdcall(), void()>;
-inline static constexpr bool is_fastcall_default_calling_convention = std::is_same_v<void __fastcall(), void()>;
-
-template <class R, class... Args>
-struct function_traits_impl<R __stdcall(Args...), !is_stdcall_default_calling_convention> : function_traits_base<false, false, R, Args...>
-{
-};
-
-template <class R, class... Args>
-struct function_traits_impl<R (__stdcall *)(Args...), !is_stdcall_default_calling_convention> : function_traits_base<false, false, R, Args...>
-{
-};
-
-template <class C, class R, class... Args>
-struct function_traits_impl<R (__stdcall C::*)(Args...), true> : function_traits_base<true, false, R, Args...>
-{
-};
-
-template <class C, class R, class... Args>
-struct function_traits_impl<R (__stdcall C::*)(Args...) const, true> : function_traits_base<true, true, R, Args...>
-{
-};
-
-template <class R, class... Args>
-struct function_traits_impl<R __stdcall(Args...) noexcept, !is_stdcall_default_calling_convention> : function_traits_base<false, false, R, Args...>
-{
-};
-
-template <class R, class... Args>
-struct function_traits_impl<R (__stdcall *)(Args...) noexcept, !is_stdcall_default_calling_convention> : function_traits_base<false, false, R, Args...>
-{
-};
-
-template <class C, class R, class... Args>
-struct function_traits_impl<R (__stdcall C::*)(Args...) noexcept, true> : function_traits_base<true, false, R, Args...>
-{
-};
-
-template <class C, class R, class... Args>
-struct function_traits_impl<R (__stdcall C::*)(Args...) const noexcept, true> : function_traits_base<true, true, R, Args...>
-{
-};
-
-template <class R, class... Args>
-struct function_traits_impl<R __fastcall(Args...), !is_fastcall_default_calling_convention> : function_traits_base<false, false, R, Args...>
-{
-};
-
-template <class R, class... Args>
-struct function_traits_impl<R (__fastcall *)(Args...), !is_fastcall_default_calling_convention> : function_traits_base<false, false, R, Args...>
-{
-};
-
-template <class C, class R, class... Args>
-struct function_traits_impl<R (__fastcall C::*)(Args...), true> : function_traits_base<true, false, R, Args...>
-{
-};
-
-template <class C, class R, class... Args>
-struct function_traits_impl<R (__fastcall C::*)(Args...) const, true> : function_traits_base<true, true, R, Args...>
-{
-};
-
-template <class R, class... Args>
-struct function_traits_impl<R __fastcall(Args...) noexcept, !is_fastcall_default_calling_convention> : function_traits_base<false, false, R, Args...>
-{
-};
-
-template <class R, class... Args>
-struct function_traits_impl<R (__fastcall *)(Args...) noexcept, !is_fastcall_default_calling_convention> : function_traits_base<false, false, R, Args...>
-{
-};
-
-template <class C, class R, class... Args>
-struct function_traits_impl<R (__fastcall C::*)(Args...) noexcept, true> : function_traits_base<true, false, R, Args...>
-{
-};
-
-template <class C, class R, class... Args>
-struct function_traits_impl<R (__fastcall C::*)(Args...) const noexcept, true> : function_traits_base<true, true, R, Args...>
-{
-};
-#endif
-
-template <class F>
-struct functor_traits_impl : function_traits_impl<decltype(&F::operator()), true>
-{
-};
-
-template <class F>
-struct function_traits : std::conditional_t<std::is_class_v<F>,
-                                            detail::functor_traits_impl<F>,
-                                            detail::function_traits_impl<F, true>>
-{
-};
-
-template <std::size_t I, class F, class = void>
-struct function_argument_or_void
-{
-    using type = void;
-};
-
-template <std::size_t I, class F>
-struct function_argument_or_void<I, F, std::enable_if_t<I < std::tuple_size_v<typename function_traits<F>::argument_types>>>
-{
-    using type = std::tuple_element_t<I, typename function_traits<F>::argument_types>;
-};
-
-template <std::size_t I, class F>
-using function_argument_or_void_t = typename function_argument_or_void<I, F>::type;
-
-template <class F>
-using function_result_t = typename function_traits<F>::result_type;
-
-template <std::size_t I, class F>
-using function_argument_t = std::tuple_element_t<I, typename function_traits<F>::argument_types>;
-
-template <class F>
-using function_arguments_t = typename function_traits<F>::argument_types;
-
-template <class F>
-static constexpr std::size_t function_arity_v = function_traits<F>::arity;
-
-template <class F>
-static constexpr bool function_is_member_v = function_traits<F>::is_member;
-
-template <class F>
-static constexpr bool function_is_const_v = function_traits<F>::is_const;
-
-template <class T, class = void>
-struct is_callable
-{
-    static constexpr bool value = false;
-};
-
-template <class T>
-struct is_callable<T, std::void_t<decltype(&T::operator())>>
-{
-    static constexpr bool value = true;
-};
-
-template <class T>
-struct is_callable<T, std::enable_if_t<std::is_pointer_v<T> && std::is_function_v<std::remove_pointer_t<T>>>>
-{
-    static constexpr bool value = true;
-};
-
-template <class T>
-struct is_callable<T, std::enable_if_t<std::is_member_function_pointer_v<T>>>
-{
-    static constexpr bool value = true;
-};
-
-template <class T>
-inline static constexpr bool is_callable_v = is_callable<T>::value;
-
-template <class T>
-struct is_const_member_function_pointer
-{
-    static constexpr bool value = false;
-};
-
-template <class T, class R, class... Args>
-struct is_const_member_function_pointer<R (T::*)(Args...)>
-{
-    static constexpr bool value = false;
-};
-
-template <class T, class R, class... Args>
-struct is_const_member_function_pointer<R (T::*)(Args...) const>
-{
-    static constexpr bool value = true;
-};
-
-template <class T, class R, class... Args>
-struct is_const_member_function_pointer<R (T::*)(Args...) noexcept>
-{
-    static constexpr bool value = false;
-};
-
-template <class T, class R, class... Args>
-struct is_const_member_function_pointer<R (T::*)(Args...) const noexcept>
-{
-    static constexpr bool value = true;
-};
-
-template <class T>
-inline static constexpr bool is_const_member_function_pointer_v = is_const_member_function_pointer<T>::value;
-
-template <class T>
-struct is_cfunction_pointer
-{
-    static constexpr bool value = false;
-};
-
-template <>
-struct is_cfunction_pointer<int (*)(lua_State*)>
-{
-    static constexpr bool value = true;
-};
-
-template <class T>
-inline static constexpr bool is_cfunction_pointer_v = is_cfunction_pointer<T>::value;
-
-template <class T>
-struct is_member_cfunction_pointer
-{
-    static constexpr bool value = false;
-};
-
-template <class T>
-struct is_member_cfunction_pointer<int (T::*)(lua_State*)>
-{
-    static constexpr bool value = true;
-};
-
-template <class T>
-struct is_member_cfunction_pointer<int (T::*)(lua_State*) const>
-{
-    static constexpr bool value = true;
-};
-
-template <class T>
-inline static constexpr bool is_member_cfunction_pointer_v = is_member_cfunction_pointer<T>::value;
-
-template <class T>
-struct is_const_member_cfunction_pointer
-{
-    static constexpr bool value = false;
-};
-
-template <class T>
-struct is_const_member_cfunction_pointer<int (T::*)(lua_State*)>
-{
-    static constexpr bool value = false;
-};
-
-template <class T>
-struct is_const_member_cfunction_pointer<int (T::*)(lua_State*) const>
-{
-    static constexpr bool value = true;
-};
-
-template <class T>
-inline static constexpr bool is_const_member_cfunction_pointer_v = is_const_member_cfunction_pointer<T>::value;
-
-template <class T>
-inline static constexpr bool is_any_cfunction_pointer_v = is_cfunction_pointer_v<T> || is_member_cfunction_pointer_v<T>;
-
-template <class T, class F>
-inline static constexpr bool is_proxy_member_function_v =
-    !std::is_member_function_pointer_v<F> &&
-    std::is_same_v<T, remove_cvref_t<std::remove_pointer_t<function_argument_or_void_t<0, F>>>>;
-
-template <class T, class F>
-inline static constexpr bool is_const_proxy_function_v =
-    is_proxy_member_function_v<T, F> &&
-    std::is_const_v<std::remove_reference_t<std::remove_pointer_t<function_argument_or_void_t<0, F>>>>;
-
-template <class, class>
-struct function_arity_excluding
-{
-};
-
-template < class... Ts, class ExclusionType>
-struct function_arity_excluding<std::tuple<Ts...>, ExclusionType>
-    : std::integral_constant<std::size_t, (0 + ... + (std::is_same_v<std::decay_t<Ts>, ExclusionType> ? 0 : 1))>
-{
-};
-
-template <class F, class ExclusionType>
-inline static constexpr std::size_t function_arity_excluding_v = function_arity_excluding<function_arguments_t<F>, ExclusionType>::value;
-
-template <class, class, class, class, class = void>
-struct member_function_arity_excluding
-{
-};
-
-template <class T, class F, class... Ts, class ExclusionType>
-struct member_function_arity_excluding<T, F, std::tuple<Ts...>, ExclusionType, std::enable_if_t<!is_proxy_member_function_v<T, F>>>
-    : std::integral_constant<std::size_t, (0 + ... + (std::is_same_v<std::decay_t<Ts>, ExclusionType> ? 0 : 1))>
-{
-};
-
-template <class T, class F, class... Ts, class ExclusionType>
-struct member_function_arity_excluding<T, F, std::tuple<Ts...>, ExclusionType, std::enable_if_t<is_proxy_member_function_v<T, F>>>
-    : std::integral_constant<std::size_t, (0 + ... + (std::is_same_v<std::decay_t<Ts>, ExclusionType> ? 0 : 1)) - 1>
-{
-};
-
-template <class T, class F, class ExclusionType>
-inline static constexpr std::size_t member_function_arity_excluding_v = member_function_arity_excluding<T, F, function_arguments_t<F>, ExclusionType>::value;
-
-template <class T, class F>
-static constexpr bool is_const_function =
-    detail::is_const_member_function_pointer_v<F> ||
-        (detail::function_arity_v<F> > 0 && detail::is_const_proxy_function_v<T, F>);
-
-template <class T, class... Fs>
-inline static constexpr std::size_t const_functions_count = (0 + ... + (is_const_function<T, Fs> ? 1 : 0));
-
-template <class T, class... Fs>
-inline static constexpr std::size_t non_const_functions_count = (0 + ... + (is_const_function<T, Fs> ? 0 : 1));
-
-template <class... Types>
-constexpr auto tupleize(Types&&... types)
-{
-    return std::tuple<Types...>(std::forward<Types>(types)...);
-}
-
-template <class T>
-struct remove_first_type
-{
-};
-
-template <class T, class... Ts>
-struct remove_first_type<std::tuple<T, Ts...>>
-{
-    using type = std::tuple<Ts...>;
-};
-
-template <class T>
-using remove_first_type_t = typename remove_first_type<T>::type;
-
-} 
-} 
-
-
-// End File: Source/LuaBridge/detail/FuncTraits.h
 
 // Begin File: Source/LuaBridge/detail/FlagSet.h
 
@@ -7824,7 +7857,7 @@ bool overload_check_one_arg(lua_State* L, int& idx)
 template <class ArgsPack, std::size_t... I>
 bool overload_check_args_impl(lua_State* L, int start, std::index_sequence<I...>)
 {
-    int idx = start;
+    [[maybe_unused]] int idx = start;
     return (overload_check_one_arg<std::tuple_element_t<I, ArgsPack>>(L, idx) && ...);
 }
 
@@ -7896,7 +7929,7 @@ inline int try_overload_functions(lua_State* L)
         }
         else
         {
-            return lua_error_x(L); 
+            lua_error_x(L); 
         }
     }
 
@@ -7911,7 +7944,7 @@ inline int try_overload_functions(lua_State* L)
     }
     lua_concat(L, nerrors * 2 + 1);
 
-    return lua_error_x(L); 
+    lua_error_x(L); 
 }
 
 inline void push_function(lua_State* L, lua_CFunction fp, const char* debugname)
@@ -10282,6 +10315,26 @@ namespace luabridge {
 
 namespace detail {
 
+struct BaseClassInfo
+{
+    const void* staticKey;
+    const void* classKey;
+    lua_Integer castOffset;
+};
+
+template <class Derived, class Base>
+lua_Integer computeCastOffset() noexcept
+{
+    static_assert(std::is_base_of_v<Base, Derived>);
+
+    alignas(Derived) std::byte buf[sizeof(Derived)] = {};
+
+    auto* derived = reinterpret_cast<Derived*>(buf);
+    auto* base = static_cast<Base*>(derived); 
+
+    return static_cast<lua_Integer>(reinterpret_cast<char*>(base) - reinterpret_cast<char*>(derived));
+}
+
 class Registrar
 {
 protected:
@@ -10664,7 +10717,7 @@ class Namespace : public detail::Registrar
             }
         }
 
-        Class(const char* name, Namespace parent, std::initializer_list<const void*> staticKeys, Options options)
+        Class(const char* name, Namespace parent, std::initializer_list<detail::BaseClassInfo> bases, Options options)
             : ClassBase(name, std::move(parent))
         {
             LUABRIDGE_ASSERT(name != nullptr);
@@ -10709,15 +10762,16 @@ class Namespace : public detail::Registrar
             lua_newtable(L); 
             const int clParentsIndex = lua_absindex(L, -1);
             lua_newtable(L); 
+            const int castTableIndex = lua_absindex(L, -1);
+            lua_newtable(L); 
             const int visitedIndex = lua_absindex(L, -1);
 
-            for (const auto* staticKey : staticKeys)
+            for (const detail::BaseClassInfo& base : bases)
             {
-                lua_rawgetp_x(L, LUA_REGISTRYINDEX, staticKey); 
+                lua_rawgetp_x(L, LUA_REGISTRYINDEX, base.staticKey); 
                 if (! lua_istable(L, -1))
                 {
-                    lua_pop(L, 2); 
-                    lua_pop(L, 1); 
+                    lua_pop(L, 4); 
 
                     throw_or_assert<std::logic_error>("Base class is not registered");
                     return;
@@ -10726,17 +10780,57 @@ class Namespace : public detail::Registrar
                 lua_rawgetp_x(L, -1, detail::getClassKey()); 
                 if (! lua_istable(L, -1))
                 {
-                    lua_pop(L, 3); 
-                    lua_pop(L, 1); 
+                    lua_pop(L, 5); 
 
                     throw_or_assert<std::logic_error>("Base class is not registered");
                     return;
                 }
 
                 appendParentList(L, clParentsIndex, visitedIndex, -1);
+
+                lua_pushlightuserdata(L, const_cast<void*>(base.classKey));
+                lua_pushinteger(L, base.castOffset);
+                lua_rawset(L, castTableIndex);
+
+                lua_rawgetp_x(L, -1, detail::getCastTableKey()); 
+                if (lua_istable(L, -1))
+                {
+                    lua_pushnil(L);
+                    while (lua_next(L, -2) != 0)
+                    {
+                        
+                        const lua_Integer ancestorOffset = lua_tointeger(L, -1);
+
+                        lua_pushvalue(L, -2); 
+                        lua_rawget(L, castTableIndex);
+                        const bool alreadyPresent = ! lua_isnil(L, -1);
+                        lua_pop(L, 1);
+
+                        if (! alreadyPresent)
+                        {
+                            lua_pushvalue(L, -2); 
+                            lua_pushinteger(L, base.castOffset + ancestorOffset);
+                            lua_rawset(L, castTableIndex);
+                        }
+
+                        lua_pop(L, 1); 
+                    }
+                    lua_pop(L, 1); 
+                }
+                else
+                {
+                    lua_pop(L, 1); 
+                }
+
                 lua_pop(L, 2); 
             }
 
+            lua_pop(L, 1); 
+
+            lua_pushvalue(L, castTableIndex);
+            lua_rawsetp_x(L, clIndex, detail::getCastTableKey()); 
+            lua_pushvalue(L, castTableIndex);
+            lua_rawsetp_x(L, coIndex, detail::getCastTableKey()); 
             lua_pop(L, 1); 
 
             lua_createtable(L, get_length(L, clParentsIndex), 0); 
@@ -11813,9 +11907,22 @@ public:
     template <class Derived, class Base1, class... Bases>
     Class<Derived> deriveClass(const char* name, Options options = defaultOptions)
     {
+        static_assert(std::is_base_of_v<Base1, Derived>, "Derived must inherit from Base1");
+        static_assert((std::is_base_of_v<Bases, Derived> && ...), "Derived must inherit from all specified base classes");
+
         assertIsActive();
-        return Class<Derived>(name, std::move(*this),
-            {detail::getStaticRegistryKey<Base1>(), detail::getStaticRegistryKey<Bases>()...}, options);
+        return Class<Derived>(name, std::move(*this), {
+            detail::BaseClassInfo{
+                detail::getStaticRegistryKey<Base1>(),
+                detail::getClassRegistryKey<Base1>(),
+                detail::computeCastOffset<Derived, Base1>()
+            },
+            detail::BaseClassInfo{
+                detail::getStaticRegistryKey<Bases>(),
+                detail::getClassRegistryKey<Bases>(),
+                detail::computeCastOffset<Derived, Bases>()
+            }...
+        }, options);
     }
     
 private:

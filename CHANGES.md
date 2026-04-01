@@ -16,23 +16,36 @@
 * Breaking Change: Removed `Class<T>::addStaticCFunction`, it was just an alias for `Class<T>::addStaticFunction`.
 * Allow specifying a non virtual base class method when declaring class members (functions or variables) not exposed in the inherited class.
 * Allow using capturing lambdas in `Namespace::addFunction`, `Namespace::addProperty`, `Class<T>::addFunction`, `Class<T>::addStaticFunction`, `Class<T>::addProperty` and `Class<T>::addStaticProperty`.
-* Added support for specifying factory functor in `Class<T>::addConstructor` to do placement new of the object instance.
+* Added multiple inheritance support: `deriveClass` now accepts more than one registered base class (e.g. `deriveClass<D, A, B>`).
 * Added `Namespace::addVariable` to allow adding a modifiable value by copy into the namespace without incurring in function calls or metatables generation.
-* Added `getNamespaceFromStack` function to construct a namespace object from a table on the stack.
-* Added `registerMainThread` function especially useful when using lua 5.1 to register the main lua thread.
+* Added `luabridge::callWithHandler` free function and `LuaRef::callWithHandler` member to provide a custom Lua message handler during `lua_pcall`.
+* Added `luabridge::newFunction` free function and `LuaRef::newFunction` static method to wrap any C++ callable into a Lua function exposed as a `LuaRef`.
+* Added `luabridge::getNamespaceFromStack` function to construct a namespace object from a table on the stack.
+* Added `luabridge::registerMainThread` function especially useful when using lua 5.1 to register the main lua thread.
 * Added `std::shared_ptr` support for types intrusively deriving from `std::enable_shared_from_this`.
+* Added `Class<T>::addConstructor` support for specifying factory functor to do placement new of the object instance.
+* Added `Class<T>::addDestructor` to register a custom `__destruct` metamethod hook invoked just before the C++ destructor runs.
 * Added `Class<T>::addFunction` overload taking a `lua_CFunction` as if it were a member.
 * Added `Class<T>::addIndexMetaMethod` to allow register `__index` metamethod fallback on a registered class.
 * Added `Class<T>::addNewIndexMetaMethod` to allow register `__newindex` metamethod fallback on a registered class.
+* Added `Class<T>::addStaticIndexMetaMethod` for fallback `__index` handling on the static class table.
+* Added `Class<T>::addStaticNewIndexMetaMethod` for fallback `__newindex` handling on the static class table.
 * Added `LuaRef::isValid` to check when the reference is a LUA_NOREF.
 * Added `LuaRef::isCallable` to check when the reference is a function or has a `__call` metamethod.
 * Added `LuaException::state` to return the `lua_State` associated with the exception.
+* Added `void*` and `const void*` stack specializations mapped transparently to Lua lightuserdata.
 * Added support for `std::byte` as stack value type.
 * Added support for `std::string_view` as stack value type.
 * Added support for `std::tuple` as stack value type.
 * Added support for `std::optional` as stack value type.
 * Added support for `std::set` as stack value type by using `LuaBridge/Set.h`.
 * Added support to `LuaRef` for being hashed with `std::hash` (`LuaRef` properly usable in `std::unordered_map`).
+* Added `LuaRef::append` and variadic `LuaRef::append(vs...)` to append values to a Lua sequence table using `lua_rawseti`.
+* Added `LuaRef::call<R>()` now returns a strongly-typed `TypeResult<R>` instead of a generic `LuaResult`; `LuaRef::operator()` returns `TypeResult<void>`.
+* Added `LUABRIDGE_STRICT_STACK_CONVERSIONS` compile-time flag to enforce strict type-safe stack conversions (`bool` requires `LUA_TBOOLEAN`, `std::string` requires `LUA_TSTRING`).
+* Added `LuaFunction<Signature>` strongly-typed wrapper class for invoking Lua functions with compile-time argument and return-type checking.
+* Added `TypeResult<T>::valueOr(default)` to extract the contained value or return a fallback when a cast fails.
+* Added `allowOverridingMethods` class option to permit Lua scripts to override C++ methods registered in an extensible class.
 * Added single header amalgamated distribution file, to simplify including in projects.
 * Added more asserts for functions and property names.
 * Renamed `luabridge::Nil` to `luabridge::LuaNil` to allow including LuaBridge in Obj-C sources.
@@ -42,6 +55,8 @@
 * Removed `TypeList` from loki, using parameter packs and `std::tuple` with `std::apply`.
 * Removed juce traces from unit tests, simplified unit tests runs.
 * Changed all generic functions in `LuaRef` and `TableItem` to accept arguments by const reference instead of by copy.
+* Fixed `Stack<bool>::get` to properly require `LUA_TBOOLEAN` when `LUABRIDGE_STRICT_STACK_CONVERSIONS` is enabled; without the flag, legacy `lua_toboolean` semantics are preserved.
+* Fixed floating-point `Stack<T>::push`, `get`, and `isInstance` to correctly allow NaN and Inf values to pass through without error.
 * Fixed issue when `LuaRef::cast<>` fails with exceptions enabled, popping from the now empty stack could trigger the panic handler twice.
 * Fixed unaligned access in user allocated member pointers in 64bit machines reported by ASAN.
 * Fixed access of `LuaRef` in garbage collected `lua_thread`.
@@ -49,7 +64,7 @@
 * Included testing against Ravi VM
 * Bumped lua 5.2.x in unit tests from lua 5.2.0 to 5.2.4.
 * Bumped lua 5.4.x in unit tests from lua 5.4.1 to 5.4.8.
-* Run against lua 5.3.6 and 5.5.0 in unit tests.
+* Added Lua 5.3.6 and 5.5.0 in unit tests.
 * Run against PUC-Lua, Luau, LuaJIT and Ravi in CI.
 * Converted the manual from html to markdown.
 * Small improvements to code and doxygen comments readability.

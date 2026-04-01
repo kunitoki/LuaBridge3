@@ -159,7 +159,7 @@ private:
         catch (const std::exception& e)
         {
             lua_pushstring(L, e.what());
-            return lua_error_x(L);
+            lua_error_x(L);
         }
     }
 #endif

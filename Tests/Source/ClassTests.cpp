@@ -3456,3 +3456,67 @@ TEST_F(ClassTests, BugWithSharedPtrPropertyGetterFromClassNotDerivingFromSharedF
     EXPECT_TRUE(runLua("result = bar.getAsFunction()"));
     EXPECT_TRUE(runLua("result = bar.getAsProperty"));
 }
+
+namespace {
+struct CoverageBase
+{
+    int value = 42;
+    int getValue() const { return value; }
+};
+
+struct CoverageDerived : CoverageBase
+{
+};
+} // namespace
+
+TEST_F(ClassTests, DerivedClassAccessesParentProperty)
+{
+    // Covers CFunctions.h:476-477, 511 - parent propget table lookup in index_metamethod
+    // Derived is registered without any properties; accessing "value" traverses parent list
+    // and finds it in Base's propget table (lines 491-504) or continues iteration (476-477, 511)
+    luabridge::getGlobalNamespace(L)
+        .beginClass<CoverageBase>("CoverageBase")
+            .addProperty("value", &CoverageBase::value)
+        .endClass()
+        .deriveClass<CoverageDerived, CoverageBase>("CoverageDerived")
+            .addConstructor<void (*)()>()
+        .endClass();
+
+    EXPECT_TRUE(runLua("result = CoverageDerived().value"));
+    EXPECT_EQ(42, result<int>());
+}
+
+TEST_F(ClassTests, DerivedClassAccessesMetamethodNameReturnsNil)
+{
+    // Covers CFunctions.h:381-382 - metamethod name protection in index_metamethod
+    // Derived class uses complex index_metamethod (not simple); accessing "__index"
+    // triggers the is_metamethod guard and returns nil
+    luabridge::getGlobalNamespace(L)
+        .beginClass<CoverageBase>("CoverageBase")
+        .endClass()
+        .deriveClass<CoverageDerived, CoverageBase>("CoverageDerived")
+            .addConstructor<void (*)()>()
+        .endClass();
+
+    EXPECT_TRUE(runLua("result = CoverageDerived().__index"));
+    EXPECT_TRUE(result().isNil());
+}
+
+TEST_F(ClassTests, StaticClassAccessReturnsMethodFromConstTable)
+{
+    // Covers CFunctions.h:613 - in index_metamethod_simple<false> (static path),
+    // upvalue[2] (const/methods table) lookup returns a non-nil value
+    struct SimpleClass
+    {
+        int getValue() const { return 7; }
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<SimpleClass>("SimpleClass")
+            .addFunction("getValue", &SimpleClass::getValue)
+        .endClass();
+
+    // Accessing SimpleClass.getValue (through class table, static path) hits upvalue[2]
+    EXPECT_TRUE(runLua("result = type(SimpleClass.getValue)"));
+    EXPECT_EQ("function", result<std::string>());
+}

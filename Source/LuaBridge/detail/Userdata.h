@@ -97,7 +97,7 @@ private:
         lua_rawgetp_x(L, LUA_REGISTRYINDEX, registryClassKey); // Stack: registry metatable (rt) | nil
         const bool classIsRegistered = lua_istable(L, -1);
 
-        const char* expected = "unregistered class";
+        [[maybe_unused]] const char* expected = "unregistered class";
         if (classIsRegistered)
         {
             lua_rawgetp_x(L, -1, getTypeKey()); // Stack: rt, registry type
@@ -318,7 +318,28 @@ public:
         if (! clazz)
             return clazz.error();
 
-        return static_cast<T*>((*clazz)->getPointer());
+        void* rawPtr = (*clazz)->getPointer();
+
+        // For multiple inheritance, apply the stored byte offset so that the raw derived
+        // pointer is correctly adjusted to point to the T subobject within it.
+        if (lua_getmetatable(L, absIndex) && lua_istable(L, -1))
+        {
+            lua_rawgetp_x(L, -1, detail::getCastTableKey()); // Stack: ..., mt, cast table | nil
+            if (lua_istable(L, -1))
+            {
+                lua_rawgetp_x(L, -1, classId); // Stack: ..., mt, cast table, offset | nil
+                if (! lua_isnil(L, -1))
+                {
+                    const lua_Integer offset = lua_tointeger(L, -1);
+                    lua_pop(L, 3);
+                    return reinterpret_cast<T*>(static_cast<char*>(rawPtr) + static_cast<ptrdiff_t>(offset));
+                }
+                lua_pop(L, 1); // pop nil
+            }
+            lua_pop(L, 2); // pop cast table (or nil) and mt
+        }
+
+        return static_cast<T*>(rawPtr);
     }
 
     template <class T>

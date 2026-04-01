@@ -1,0 +1,68 @@
+name: TSAN
+
+on:
+  push:
+    paths:
+      - "**/workflows/build_tsan.yml"
+      - "**/Source/**"
+      - "**/Tests/**"
+      - "**/ThirdParty/**"
+      - "**/CMakeLists.txt"
+      - "**/.gitmodules"
+      - "!**/*.md"
+      - "!**/*.txt"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  BUILD_TYPE: RelWithDebInfo
+
+jobs:
+  lua:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        lua:
+          - { version: "5.1", suffix: "51" }
+          - { version: "5.2", suffix: "52" }
+          - { version: "5.3", suffix: "53" }
+          - { version: "5.4", suffix: "54" }
+          - { version: "5.5", suffix: "55" }
+
+    steps:
+
+    - uses: actions/checkout@v6
+      with:
+        submodules: true
+
+    - name: Install Dependencies
+      run: sudo apt-get -y install ninja-build
+
+    - name: Create Build Environment
+      run: cmake -E make_directory ${{runner.workspace}}/build
+
+    - name: Configure
+      working-directory: ${{runner.workspace}}/build
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DLUABRIDGE_SANITIZE=thread -G Ninja
+
+    - name: Build Lua ${{ matrix.lua.version }}
+      working-directory: ${{runner.workspace}}/build
+      run: |
+        cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target \
+          LuaBridgeTests${{ matrix.lua.suffix }} \
+          LuaBridgeTests${{ matrix.lua.suffix }}LuaC \
+          LuaBridgeTests${{ matrix.lua.suffix }}Noexcept \
+          LuaBridgeTests${{ matrix.lua.suffix }}LuaCNoexcept
+
+    - name: Test Lua ${{ matrix.lua.version }}
+      working-directory: ${{runner.workspace}}/build/Tests
+      env:
+        TSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+      run: |
+        ./LuaBridgeTests${{ matrix.lua.suffix }}
+        ./LuaBridgeTests${{ matrix.lua.suffix }}LuaC
+        ./LuaBridgeTests${{ matrix.lua.suffix }}Noexcept
+        ./LuaBridgeTests${{ matrix.lua.suffix }}LuaCNoexcept

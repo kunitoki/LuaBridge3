@@ -1852,7 +1852,7 @@ bool overload_check_one_arg(lua_State* L, int& idx)
 template <class ArgsPack, std::size_t... I>
 bool overload_check_args_impl(lua_State* L, int start, std::index_sequence<I...>)
 {
-    int idx = start;
+    [[maybe_unused]] int idx = start;
     return (overload_check_one_arg<std::tuple_element_t<I, ArgsPack>>(L, idx) && ...);
 }
 
@@ -1949,7 +1949,7 @@ inline int try_overload_functions(lua_State* L)
         }
         else
         {
-            return lua_error_x(L); // critical error: rethrow
+            lua_error_x(L); // critical error: rethrow
         }
     }
 
@@ -1965,7 +1965,7 @@ inline int try_overload_functions(lua_State* L)
     }
     lua_concat(L, nerrors * 2 + 1);
 
-    return lua_error_x(L); // throw error message just built
+    lua_error_x(L); // throw error message just built
 }
 
 //=================================================================================================

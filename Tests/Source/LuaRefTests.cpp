@@ -58,6 +58,7 @@ TEST_F(LuaRefTests, TypeCheck)
         EXPECT_NE(0u, result().hash());
     }
 
+#if LUA_VERSION_NUM != 502 // Lua 5.2 hashnum has signed integer overflow UB with float literals
     {
         runLua("result = 3.1");
         EXPECT_EQ(LUA_TNUMBER, result().type());
@@ -68,6 +69,7 @@ TEST_F(LuaRefTests, TypeCheck)
         EXPECT_EQ("3.1", ss.str());
         EXPECT_NE(0u, result().hash());
     }
+#endif
 
     {
         runLua("result = 'abcd'");
@@ -161,10 +163,12 @@ TEST_F(LuaRefTests, ValueAccess)
     ASSERT_EQ(7, result<long long>());
     ASSERT_EQ(7u, result<unsigned long long>());
 
+#if LUA_VERSION_NUM != 502 // Lua 5.2 hashnum has signed integer overflow UB with float literals
     runLua("result = 3.14");
     EXPECT_TRUE(result().isNumber());
     ASSERT_FLOAT_EQ(3.14f, result<float>());
     ASSERT_DOUBLE_EQ(3.14, result<double>());
+#endif
 
     runLua("result = 'D'");
     EXPECT_TRUE(result().isString());
@@ -792,6 +796,7 @@ TEST_F(LuaRefTests, IsInstance)
     EXPECT_FALSE(result().isNil());
     EXPECT_FALSE(result().getClassName());
 
+#if LUA_VERSION_NUM != 502 // Lua 5.2 hashnum has signed integer overflow UB with float literals
     runLua("result = 3.14");
     EXPECT_FALSE(result().isInstance<Base>());
     EXPECT_FALSE(result().isInstance<Derived>());
@@ -801,6 +806,7 @@ TEST_F(LuaRefTests, IsInstance)
     EXPECT_TRUE(result().isNumber());
     EXPECT_FALSE(result().isNil());
     EXPECT_FALSE(result().getClassName());
+#endif
 }
 
 TEST_F(LuaRefTests, Print)
@@ -1159,4 +1165,306 @@ TEST_F(LuaRefTests, TableItemOperatorIndexAdoptPathAndRawRoundTrip)
     auto nested = childAgain.unsafeRawgetField<int>("nested");
     EXPECT_EQ(1234, nested);
     EXPECT_EQ(stackTopBefore, lua_gettop(L));
+}
+
+TEST_F(LuaRefTests, GetClassNameNoMetatable)
+{
+    // A raw userdata with no metatable causes lua_getmetatable to return 0,
+    // hitting the early-return nullopt at LuaRef.h:311.
+    lua_newuserdata(L, 100);
+    auto ref = luabridge::LuaRef::fromStack(L); // fromStack pops the userdata
+
+    EXPECT_FALSE(ref.getClassName());
+}
+
+TEST_F(LuaRefTests, CallReturningTupleSuccess)
+{
+    // Exercises the success path of decodeTupleResult (Invoke.h:63).
+    runLua("result = function() return 42, 'hello' end");
+    auto r = result().call<std::tuple<int, std::string>>();
+    ASSERT_TRUE(r);
+    EXPECT_EQ(42, std::get<0>(*r));
+    EXPECT_EQ("hello", std::get<1>(*r));
+}
+
+TEST_F(LuaRefTests, CallReturningTupleWrongType)
+{
+    // Exercises the error path of decodeTupleResult (Invoke.h:58-59):
+    // the first returned value cannot be converted to int.
+    runLua("result = function() return 'not_an_int', 'hello' end");
+    auto r = result().call<std::tuple<int, std::string>>();
+    EXPECT_FALSE(r);
+}
+
+TEST_F(LuaRefTests, ToStringStackOverflow)
+{
+    // Exercises the early return in LuaRefBase::tostring (LuaRef.h:117)
+    // when the Lua stack is exhausted.
+    runLua("result = 42");
+    auto ref = result(); // capture ref before exhausting the stack
+    exhaustStackSpace();
+    std::string s = ref.tostring();
+    EXPECT_TRUE(s.empty());
+    lua_settop(L, 0); // restore stack so ref's destructor can call luaL_unref safely
+}
+
+TEST_F(LuaRefTests, GetMetatableOnNil)
+{
+    // Covers LuaRef.h:391 - early return when the ref is nil
+    // Use LuaRef(L) which creates an invalid (nil-like) ref without touching the Lua stack
+    luabridge::LuaRef nilRef(L);
+
+    EXPECT_TRUE(nilRef.isNil());
+    auto mt = nilRef.getMetatable();
+    EXPECT_TRUE(mt.isNil());
+}
+
+TEST_F(LuaRefTests, NewTableStackOverflow)
+{
+    // Covers LuaRef.h:1184-1185 - early return when stack is exhausted
+    exhaustStackSpace();
+    auto t = luabridge::LuaRef::newTable(L);
+    EXPECT_FALSE(t.isValid());
+}
+
+TEST_F(LuaRefTests, NewFunctionStackOverflow)
+{
+    // Covers LuaRef.h:1208-1209 - early return when stack is exhausted
+    exhaustStackSpace();
+    auto f = luabridge::LuaRef::newFunction(L, [](lua_State*) -> int { return 0; });
+    EXPECT_FALSE(f.isValid());
+}
+
+TEST_F(LuaRefTests, GetGlobalStackOverflow)
+{
+    // Covers LuaRef.h:1230-1231 - early return when stack is exhausted
+    exhaustStackSpace();
+    auto g = luabridge::LuaRef::getGlobal(L, "print");
+    EXPECT_FALSE(g.isValid());
+}
+
+TEST_F(LuaRefTests, PushStackOverflow)
+{
+    // Covers LuaRef.h:1338-1339 - early return in push() when stack is exhausted
+    runLua("result = 42");
+    auto ref = result();
+    exhaustStackSpace();
+    // push() should silently return without pushing
+    const int topBefore = lua_gettop(L);
+    ref.push(L);
+    EXPECT_EQ(topBefore, lua_gettop(L));
+    lua_settop(L, 0); // restore stack so ref's destructor can call luaL_unref safely
+}
+
+TEST_F(LuaRefTests, SetFieldPushFailure)
+{
+    // Covers LuaRef.h:1466-1467 - setField returns false when value push fails
+    if constexpr (sizeof(long double) > sizeof(lua_Number))
+    {
+        runLua("result = {}");
+        auto t = result();
+        long double huge = std::numeric_limits<long double>::max();
+        EXPECT_FALSE(t.setField("key", huge));
+    }
+}
+
+TEST_F(LuaRefTests, RawSetFieldPushFailure)
+{
+    // Covers LuaRef.h:1510-1511 - rawsetField returns false when value push fails
+    if constexpr (sizeof(long double) > sizeof(lua_Number))
+    {
+        runLua("result = {}");
+        auto t = result();
+        long double huge = std::numeric_limits<long double>::max();
+        EXPECT_FALSE(t.rawsetField("key", huge));
+    }
+}
+
+TEST_F(LuaRefTests, RawGetPushFailure)
+{
+    // Covers LuaRef.h:1419-1420 - rawget returns nil LuaRef when key push fails
+    if constexpr (sizeof(long double) > sizeof(lua_Number))
+    {
+        runLua("result = {}");
+        auto t = result();
+        long double huge = std::numeric_limits<long double>::max();
+        auto r = t.rawget(huge);
+        EXPECT_TRUE(r.isNil());
+    }
+}
+
+TEST_F(LuaRefTests, OperatorIndexPushFailure)
+{
+    // Covers LuaRef.h:1390-1391 - operator[] returns default TableItem when key push fails
+    if constexpr (sizeof(long double) > sizeof(lua_Number))
+    {
+        runLua("result = {}");
+        auto t = result();
+        long double huge = std::numeric_limits<long double>::max();
+        // The subscript with a failing push returns a default TableItem
+        auto item = t[huge];
+        (void)item; // just ensure we don't crash
+    }
+}
+
+TEST_F(LuaRefTests, AppendPushFailure)
+{
+    // Covers LuaRef.h:611-612 - append returns false when element push fails
+    if constexpr (sizeof(long double) > sizeof(lua_Number))
+    {
+        runLua("result = {}");
+        auto t = result();
+        long double huge = std::numeric_limits<long double>::max();
+        EXPECT_FALSE(t.append(huge));
+    }
+}
+
+TEST_F(LuaRefTests, ComparisonOperatorPushFailure)
+{
+    // Covers LuaRef.h:421 (operator==), 458 (operator<), 485 (operator<=),
+    // 511 (operator>), 539 (operator>=), 566 (rawequal) - early return false when rhs push fails
+#if LUA_VERSION_NUM != 502 // Lua 5.2 hashnum has signed integer overflow UB with float literals
+    if constexpr (sizeof(long double) > sizeof(lua_Number))
+    {
+        runLua("result = 1.0");
+        auto ref = result();
+        long double huge = std::numeric_limits<long double>::max();
+
+        EXPECT_FALSE(ref == huge);
+        EXPECT_FALSE(ref < huge);
+        EXPECT_FALSE(ref <= huge);
+        EXPECT_FALSE(ref > huge);
+        EXPECT_FALSE(ref >= huge);
+        EXPECT_FALSE(ref.rawequal(huge));
+    }
+#endif
+}
+
+TEST_F(LuaRefTests, TableItemCopyWithKeyRef)
+{
+    // Covers LuaRef.h:757-758 - copy constructor path when other.m_keyRef != LUA_NOREF
+    runLua("result = { [\"outer\"] = { value = 99 } }");
+
+    std::string key = "outer";
+    auto item = result()[key]; // creates TableItem with m_keyRef (not m_keyLiteral)
+    auto itemCopy = item;      // exercises lines 757-758
+
+    auto val = itemCopy["value"];
+    EXPECT_EQ(99, luabridge::cast<int>(val).valueOr(0));
+}
+
+TEST_F(LuaRefTests, TableItemCopyStackOverflow)
+{
+    // Covers LuaRef.h:748 - early return in TableItem copy constructor when stack is exhausted
+    runLua("result = { [\"k\"] = 1 }");
+    std::string key = "k";
+    auto item = result()[key];
+    exhaustStackSpace();
+    auto itemCopy = item; // should not crash; m_tableRef stays LUA_NOREF
+    lua_settop(L, 0);
+}
+
+TEST_F(LuaRefTests, TableItemAssignStackOverflow)
+{
+    // Covers LuaRef.h:794 - early return in TableItem::operator= when stack is exhausted
+    runLua("result = { key = 0 }");
+    auto item = result()["key"];
+    exhaustStackSpace();
+    item = 42; // should silently return *this without modifying the table
+    lua_settop(L, 0);
+}
+
+TEST_F(LuaRefTests, TableItemRawsetStackOverflow)
+{
+    // Covers LuaRef.h:837 - early return in TableItem::rawset when stack is exhausted
+    runLua("result = { key = 0 }");
+    auto item = result()["key"];
+    exhaustStackSpace();
+    item.rawset(42); // should silently return *this without modifying the table
+    lua_settop(L, 0);
+}
+
+TEST_F(LuaRefTests, TableItemPushStackOverflow)
+{
+    // Covers LuaRef.h:880 - early return in TableItem::push when stack is exhausted
+    runLua("result = { key = 1 }");
+    auto item = result()["key"];
+    exhaustStackSpace();
+    const int topBefore = lua_gettop(L);
+    item.push(L); // should silently return without pushing
+    EXPECT_EQ(topBefore, lua_gettop(L));
+    lua_settop(L, 0);
+}
+
+TEST_F(LuaRefTests, LuaRefFromStackOverflow)
+{
+    // Covers LuaRef.h:1048 - early return in LuaRef(L, index, FromStack) when stack is exhausted
+    lua_pushinteger(L, 7);
+    exhaustStackSpace();
+    auto ref = luabridge::LuaRef::fromStack(L, -1);
+    EXPECT_FALSE(ref.isValid());
+    lua_settop(L, 0);
+}
+
+TEST_F(LuaRefTests, TableItemAssignKeyRefPushFailure)
+{
+    // Covers LuaRef.h:812 - return *this in operator= key-ref path when Stack push fails
+    if constexpr (sizeof(long double) > sizeof(lua_Number))
+    {
+        runLua("result = { [\"k\"] = 0 }");
+        std::string key = "k";
+        auto item = result()[key]; // TableItem with m_keyRef
+        long double huge = std::numeric_limits<long double>::max();
+        item = huge; // push fails - early return at line 812
+    }
+}
+
+TEST_F(LuaRefTests, TableItemRawsetLiteralPushFailure)
+{
+    // Covers LuaRef.h:848 - return *this in rawset literal path when Stack push fails
+    if constexpr (sizeof(long double) > sizeof(lua_Number))
+    {
+        runLua("result = { key = 0 }");
+        auto item = result()["key"]; // TableItem with m_keyLiteral
+        long double huge = std::numeric_limits<long double>::max();
+        item.rawset(huge); // push fails - early return at line 848
+    }
+}
+
+TEST_F(LuaRefTests, TableItemRawsetKeyRefPushFailure)
+{
+    // Covers LuaRef.h:857 - return *this in rawset key-ref path when Stack push fails
+    if constexpr (sizeof(long double) > sizeof(lua_Number))
+    {
+        runLua("result = { [\"k\"] = 0 }");
+        std::string key = "k";
+        auto item = result()[key]; // TableItem with m_keyRef
+        long double huge = std::numeric_limits<long double>::max();
+        item.rawset(huge); // push fails - early return at line 857
+    }
+}
+
+TEST_F(LuaRefTests, TableItemOperatorIndexKeyPushFailure)
+{
+    // Covers LuaRef.h:918 - lua_pushnil fallback in TableItem::operator[] when key push fails
+    if constexpr (sizeof(long double) > sizeof(lua_Number))
+    {
+        runLua("result = { [\"k\"] = {} }");
+        std::string key = "k";
+        auto item = result()[key]; // TableItem
+        long double huge = std::numeric_limits<long double>::max();
+        auto child = item[huge]; // key push fails -> lua_pushnil used as key
+        (void)child;
+    }
+}
+
+TEST_F(LuaRefTests, LuaRefConstructorPushFailure)
+{
+    // Covers LuaRef.h:1085 - early return in LuaRef(L, v) template constructor when push fails
+    if constexpr (sizeof(long double) > sizeof(lua_Number))
+    {
+        long double huge = std::numeric_limits<long double>::max();
+        luabridge::LuaRef ref(L, huge); // push fails - early return at line 1085
+        EXPECT_FALSE(ref.isValid());
+    }
 }

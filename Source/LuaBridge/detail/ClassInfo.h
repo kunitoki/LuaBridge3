@@ -148,6 +148,18 @@ template <class T, auto = typeName<T>().find_first_of('.')>
 
 //=================================================================================================
 /**
+ * @brief The key of a cast offset table in a derived class metatable.
+ *
+ * Maps base class registry keys to byte offsets for pointer adjustment when converting
+ * a derived class pointer to a base class pointer in multiple inheritance scenarios.
+ */
+[[nodiscard]] inline const void* getCastTableKey() noexcept
+{
+    return reinterpret_cast<void*>(0xca57);
+}
+
+//=================================================================================================
+/**
  * The key of the index fall back in another metatable.
  */
 [[nodiscard]] inline const void* getIndexFallbackKey()

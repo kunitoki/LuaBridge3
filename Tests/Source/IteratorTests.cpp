@@ -53,6 +53,20 @@ TEST_F(IteratorTests, DictionaryIteration)
     ASSERT_EQ(expected, actual);
 }
 
+TEST_F(IteratorTests, IncrementPastEnd)
+{
+    runLua("result = {1, 2, 3}");
+
+    luabridge::Iterator it(result());
+    while (!it.isNil())
+        ++it;
+
+    // Now at end (isNil() == true) - incrementing should be a no-op
+    EXPECT_TRUE(it.isNil());
+    ++it;
+    EXPECT_TRUE(it.isNil());
+}
+
 TEST_F(IteratorTests, SequenceIteration)
 {
     runLua("result = {"
@@ -94,4 +108,20 @@ TEST_F(IteratorTests, SequenceIteration)
     }
 
     ASSERT_EQ(expected, actual);
+}
+
+TEST_F(IteratorTests, StackOverflowDuringIteration)
+{
+    // Covers Iterator.h:138-140 - stack overflow path in Iterator::next()
+    runLua("result = {1, 2, 3}");
+
+    luabridge::Iterator it(result());
+    ASSERT_FALSE(it.isNil()); // iterator starts valid
+
+    exhaustStackSpace();
+
+    ++it; // next() will fail lua_checkstack and set key/value to nil
+    EXPECT_TRUE(it.isNil());
+
+    lua_settop(L, 0);
 }

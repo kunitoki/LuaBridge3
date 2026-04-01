@@ -273,6 +273,51 @@ TEST_F(DumpTests, DumpTable)
     }
 }
 
+TEST_F(DumpTests, DumpTableDirectWithNewLine)
+{
+    {
+        std::stringstream ss;
+
+        lua_newtable(L);
+        lua_pushliteral(L, "key");
+        lua_pushliteral(L, "value");
+        lua_settable(L, -3);
+
+        // Call dumpTable directly with newLine=true - covers trailing newline (line 134)
+        luabridge::dumpTable(L, -1, 1, 0, true, ss);
+        EXPECT_TRUE(ss.str().find("table@") == 0);
+        EXPECT_TRUE(ss.str().find("\"key\": \"value\",") != std::string::npos);
+        EXPECT_TRUE(ss.str().find("\n") != std::string::npos);
+        EXPECT_EQ('\n', ss.str().back());
+    }
+
+    {
+        std::stringstream ss;
+
+        lua_newtable(L);
+
+        // Call dumpTable with level > maxDepth and newLine=true - covers early-return newline (line 98)
+        luabridge::dumpTable(L, -1, 0, 1, true, ss);
+        EXPECT_TRUE(ss.str().find("table@") == 0);
+        EXPECT_EQ('\n', ss.str().back());
+    }
+}
+
+TEST_F(DumpTests, DumpNone)
+{
+    std::stringstream ss;
+
+    // Index 0 is invalid in Lua; dumpValue treats out-of-range indices as LUA_TNONE,
+    // falling through to the default case in its switch statement.
+    luabridge::dumpValue(L, 0, 0, 0, false, ss);
+    EXPECT_FALSE(ss.str().empty());
+
+    ss.clear();
+    ss.str("");
+    luabridge::dumpValue(L, 0, 0, 0, true, ss);
+    EXPECT_TRUE(ss.str().find("\n") != std::string::npos);
+}
+
 TEST_F(DumpTests, DumpState)
 {
     std::stringstream ss;
