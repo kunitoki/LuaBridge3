@@ -26,13 +26,16 @@ if (LUABRIDGE_BENCHMARK_WITH_SOL3)
         sol2
         GIT_REPOSITORY ${LUABRIDGE_SOL2_GIT_REPOSITORY}
         GIT_TAG ${LUABRIDGE_SOL2_GIT_TAG})
-    FetchContent_MakeAvailable(sol2)
+    FetchContent_GetProperties(sol2)
+    if (NOT sol2_POPULATED)
+        FetchContent_Populate(sol2)
+    endif()
 
     # Work around a sol2 optional<T&>::emplace bug on recent Apple Clang toolchains.
     set(SOL2_OPTIONAL_IMPL "${sol2_SOURCE_DIR}/include/sol/optional_implementation.hpp")
     if (EXISTS "${SOL2_OPTIONAL_IMPL}")
         file(READ "${SOL2_OPTIONAL_IMPL}" SOL2_OPTIONAL_IMPL_CONTENT)
-        set(SOL2_OPTIONAL_REFBLOCK_OLD "\t\ttemplate <class... Args>\n\t\tT& emplace(Args&&... args) noexcept {\n\t\t\tstatic_assert(std::is_constructible<T, Args&&...>::value, \"T must be constructible with Args\");\n\n\t\t\t*this = nullopt;\n\t\t\tthis->construct(std::forward<Args>(args)...);\n\t\t\treturn *m_value;\n\t\t}\n")
+        set(SOL2_OPTIONAL_REFBLOCK_OLD "\t\ttemplate <class... Args>\n\t\tT& emplace(Args&&... args) noexcept {\n\t\t\tstatic_assert(std::is_constructible<T, Args&&...>::value, \"T must be constructible with Args\");\n\n\t\t\t*this = nullopt;\n\t\t\tthis->construct(std::forward<Args>(args)...);\n\t\t}\n")
         string(FIND "${SOL2_OPTIONAL_IMPL_CONTENT}" "${SOL2_OPTIONAL_REFBLOCK_OLD}" SOL2_PATCH_NEEDLE_POS)
         if (NOT SOL2_PATCH_NEEDLE_POS EQUAL -1)
             set(SOL2_OPTIONAL_REFBLOCK_NEW "\t\ttemplate <class... Args>\n\t\tT& emplace(Args&&... args) noexcept {\n\t\t\tstatic_assert(std::is_constructible<T, Args&&...>::value, \"T must be constructible with Args\");\n\n\t\t\t*this = nullopt;\n\t\t\tint emplace_workaround[] = { 0, ((*this = std::forward<Args>(args)), 0)... };\n\t\t\t(void) emplace_workaround;\n\t\t\treturn *m_value;\n\t\t}\n")
