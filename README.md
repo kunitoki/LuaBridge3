@@ -62,7 +62,7 @@ LuaBridge3 is usable from a compliant C++17 compiler and offers the following fe
 
 LuaBridge3 has been heavily optimized and now competes directly with [sol2](https://github.com/ThePhD/sol2) — one of the fastest C++/Lua binding libraries — across most workloads.
 
-[Benchmarks](./Images/benchmarks.png)
+![Benchmarks](./Images/benchmarks.png)
 
 ## Improvements Over Vanilla LuaBridge
 
