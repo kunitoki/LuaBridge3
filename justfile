@@ -19,7 +19,7 @@ benchmark:
     @just plot
 
 plot:
-    python3 Benchmarks/plot_benchmarks.py --input Build/LuaBridge3Benchmark.json Build/LuaBridgeVanillaBenchmark.json Build/Sol3Benchmark.json --output Images/benchmarks.png
+    python3.14 Benchmarks/plot_benchmarks.py --input Build/LuaBridge3Benchmark.json Build/LuaBridgeVanillaBenchmark.json Build/Sol3Benchmark.json --output Images/benchmarks.png
 
 clean:
     rm -rf Build

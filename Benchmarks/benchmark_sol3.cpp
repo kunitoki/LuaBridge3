@@ -325,7 +325,31 @@ void multi_return_measure(benchmark::State& state)
 
 void base_derived_measure(benchmark::State& state)
 {
-    setSkipped(state, "base_derived_measure not implemented yet for sol3 Google Benchmark port");
+    sol::state lua;
+
+    lua.new_usertype<ComplexBaseA>("ComplexBaseA",
+        "a_func", &ComplexBaseA::a_func,
+        "a", &ComplexBaseA::a);
+
+    lua.new_usertype<ComplexBaseB>("ComplexBaseB",
+        "b_func", &ComplexBaseB::b_func,
+        "b", &ComplexBaseB::b);
+
+    lua.new_usertype<ComplexAB>("ComplexAB",
+        sol::base_classes, sol::bases<ComplexBaseA, ComplexBaseB>(),
+        "ab_func", &ComplexAB::ab_func,
+        "ab", &ComplexAB::ab);
+
+    ComplexAB ab;
+    lua["b"] = &ab;
+
+    lua.script("function call_base() return b:a_func() + b:b_func() end");
+
+    for (auto _ : state)
+    {
+        (void) _;
+        lua["call_base"]();
+    }
 }
 
 void optional_success_measure(benchmark::State& state)
@@ -392,7 +416,26 @@ void return_userdata_measure(benchmark::State& state)
 
 void implicit_inheritance_measure(benchmark::State& state)
 {
-    setSkipped(state, "implicit_inheritance_measure not implemented yet for sol3 Google Benchmark port");
+    sol::state lua;
+
+    lua.new_usertype<ComplexBaseA>("ComplexBaseA",
+        "a_func", &ComplexBaseA::a_func);
+
+    lua.new_usertype<ComplexAB>("ComplexAB",
+        sol::constructors<ComplexAB()>(),
+        sol::base_classes, sol::bases<ComplexBaseA>(),
+        "ab_func", &ComplexAB::ab_func);
+
+    lua.set_function("call_a", +[](ComplexBaseA* obj) -> double { return obj->a_func(); });
+
+    lua.script("obj = ComplexAB.new()");
+    lua.script("function test_implicit() return call_a(obj) end");
+
+    for (auto _ : state)
+    {
+        (void) _;
+        lua["test_implicit"]();
+    }
 }
 
 } // namespace
