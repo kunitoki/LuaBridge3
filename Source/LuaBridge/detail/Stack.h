@@ -26,6 +26,31 @@
 #include <utility>
 
 namespace luabridge {
+namespace detail {
+template <class T>
+struct IsTuple : std::false_type
+{
+};
+
+template <class... Ts>
+struct IsTuple<std::tuple<Ts...>> : std::true_type
+{
+};
+
+template <class Tuple, std::size_t... Is>
+Result pushTupleImpl(lua_State* L, const Tuple& value, std::index_sequence<Is...>)
+{
+    Result result;
+    ((result = Stack<std::decay_t<std::tuple_element_t<Is, Tuple>>>::push(L, std::get<Is>(value)), bool(result)) && ...);
+    return result;
+}
+
+template <class... Ts>
+Result pushTuple(lua_State* L, const std::tuple<Ts...>& value)
+{
+    return pushTupleImpl(L, value, std::index_sequence_for<Ts...>{});
+}
+} // namespace detail
 
 //=================================================================================================
 /**

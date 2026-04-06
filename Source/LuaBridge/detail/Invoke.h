@@ -31,16 +31,6 @@ bool is_handler_valid(const F& f) noexcept
         return true;
 }
 
-template <class T>
-struct IsTuple : std::false_type
-{
-};
-
-template <class... Ts>
-struct IsTuple<std::tuple<Ts...>> : std::true_type
-{
-};
-
 template <class Tuple, std::size_t... Indices>
 TypeResult<Tuple> decodeTupleResult(lua_State* L, int firstResultIndex, std::index_sequence<Indices...>)
 {
@@ -80,8 +70,7 @@ TypeResult<R> decodeCallResult(lua_State* L, int firstResultIndex, int numReturn
 
         return {};
     }
-    else
-    if constexpr (IsTuple<R>::value)
+    else if constexpr (IsTuple<R>::value)
     {
         constexpr auto expectedSize = static_cast<int>(std::tuple_size_v<R>);
         if (numReturnedValues != expectedSize)

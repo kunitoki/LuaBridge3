@@ -1507,13 +1507,21 @@ struct function
     static int call(lua_State* L, F&& func)
     {
         Result result;
+        int numResults = 1;
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
 #endif
-        result = Stack<ReturnType>::push(L, invoke_callable_from_stack<ArgsPack, Start>(L, std::forward<F>(func)));
-
+            if constexpr (detail::IsTuple<ReturnType>::value)
+            {
+                numResults = static_cast<int>(std::tuple_size_v<ReturnType>);
+                result = detail::pushTuple(L, invoke_callable_from_stack<ArgsPack, Start>(L, std::forward<F>(func)));
+            }
+            else
+            {
+                result = Stack<ReturnType>::push(L, invoke_callable_from_stack<ArgsPack, Start>(L, std::forward<F>(func)));
+            }
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
@@ -1525,20 +1533,28 @@ struct function
         if (! result)
             raise_lua_error(L, "%s", result.error_cstr());
 
-        return 1;
+        return numResults;
     }
 
     template <class T, class F>
     static int call(lua_State* L, T* ptr, F&& func)
     {
         Result result;
+        int numResults = 1;
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
 #endif
-        result = Stack<ReturnType>::push(L, invoke_member_callable_from_stack<ArgsPack, Start>(L, ptr, std::forward<F>(func)));
-
+            if constexpr (detail::IsTuple<ReturnType>::value)
+            {
+                numResults = static_cast<int>(std::tuple_size_v<ReturnType>);
+                result = detail::pushTuple(L, invoke_member_callable_from_stack<ArgsPack, Start>(L, ptr, std::forward<F>(func)));
+            }
+            else
+            {
+                result = Stack<ReturnType>::push(L, invoke_member_callable_from_stack<ArgsPack, Start>(L, ptr, std::forward<F>(func)));
+            }
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
@@ -1550,7 +1566,51 @@ struct function
         if (! result)
             raise_lua_error(L, "%s", result.error_cstr());
 
-        return 1;
+        return numResults;
+    }
+};
+
+template <class ArgsPack, std::size_t Start>
+struct function<std::tuple<>, ArgsPack, Start>
+{
+    template <class F>
+    static int call(lua_State* L, F&& func)
+    {
+#if LUABRIDGE_HAS_EXCEPTIONS
+        try
+        {
+#endif
+        invoke_callable_from_stack<ArgsPack, Start>(L, std::forward<F>(func));
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        }
+        catch (const std::exception& e)
+        {
+            raise_lua_error(L, "%s", e.what());
+        }
+#endif
+
+        return 0;
+    }
+
+    template <class T, class F>
+    static int call(lua_State* L, T* ptr, F&& func)
+    {
+#if LUABRIDGE_HAS_EXCEPTIONS
+        try
+        {
+#endif
+        invoke_member_callable_from_stack<ArgsPack, Start>(L, ptr, std::forward<F>(func));
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        }
+        catch (const std::exception& e)
+        {
+            raise_lua_error(L, "%s", e.what());
+        }
+#endif
+
+        return 0;
     }
 };
 
