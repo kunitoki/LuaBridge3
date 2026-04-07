@@ -3432,6 +3432,18 @@ static inline constexpr bool is_base_of_template_v = is_base_of_template<T, C>::
 template <class... Args>
 constexpr bool dependent_false = false;
 
+template <class T>
+struct is_tuple : std::false_type
+{
+};
+
+template <class... Ts>
+struct is_tuple<std::tuple<Ts...>> : std::true_type
+{
+};
+
+template <class T>
+constexpr bool is_tuple_v = is_tuple<T>::value;
 } 
 
 template <class T>
@@ -3706,19 +3718,28 @@ public:
         const auto classId = detail::getClassRegistryKey<T>();
         const auto constId = detail::getConstRegistryKey<T>();
 
-        if (lua_getmetatable(L, absIndex) && lua_istable(L, -1))
+        if (lua_getmetatable(L, absIndex)) 
         {
-            lua_rawgetp_x(L, -1, detail::getTypeIdentityKey());
-            const void* identity = lua_touserdata(L, -1);
-            lua_pop(L, 1);
-
-            if (identity == classId || (canBeConst && identity == constId))
+            lua_rawgetp_x(L, LUA_REGISTRYINDEX, classId); 
+            if (lua_rawequal(L, -2, -1))
             {
-                lua_pop(L, 1);
+                lua_pop(L, 2);
                 return static_cast<T*>(static_cast<Userdata*>(lua_touserdata(L, absIndex))->getPointer());
             }
+            lua_pop(L, 1); 
 
-            lua_pop(L, 1);
+            if (canBeConst)
+            {
+                lua_rawgetp_x(L, LUA_REGISTRYINDEX, constId); 
+                if (lua_rawequal(L, -2, -1))
+                {
+                    lua_pop(L, 2);
+                    return static_cast<T*>(static_cast<Userdata*>(lua_touserdata(L, absIndex))->getPointer());
+                }
+                lua_pop(L, 1); 
+            }
+
+            lua_pop(L, 1); 
         }
 
         auto clazz = getClass(L, absIndex, constId, classId, canBeConst);
@@ -6273,6 +6294,20 @@ auto pop_arguments(lua_State* L, std::tuple<Types...>& t)
     return pop_arguments<Start, Index + 1, Types...>(L, t);
 }
 
+template <class Tuple, std::size_t... Is>
+Result push_tuple_impl(lua_State* L, const Tuple& value, std::index_sequence<Is...>)
+{
+    Result result;
+    (void)((result = Stack<std::decay_t<std::tuple_element_t<Is, Tuple>>>::push(L, std::get<Is>(value)), bool(result)) && ...);
+    return result;
+}
+
+template <class... Ts>
+Result push_tuple(lua_State* L, const std::tuple<Ts...>& value)
+{
+    return push_tuple_impl(L, value, std::index_sequence_for<Ts...>{});
+}
+
 template <class T = void, class... Args>
 constexpr auto make_array(Args&&... args)
 {
@@ -7567,13 +7602,21 @@ struct function
     static int call(lua_State* L, F&& func)
     {
         Result result;
+        int numResults = 1;
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
 #endif
-        result = Stack<ReturnType>::push(L, invoke_callable_from_stack<ArgsPack, Start>(L, std::forward<F>(func)));
-
+            if constexpr (detail::is_tuple_v<ReturnType>)
+            {
+                numResults = static_cast<int>(std::tuple_size_v<ReturnType>);
+                result = detail::push_tuple(L, invoke_callable_from_stack<ArgsPack, Start>(L, std::forward<F>(func)));
+            }
+            else
+            {
+                result = Stack<ReturnType>::push(L, invoke_callable_from_stack<ArgsPack, Start>(L, std::forward<F>(func)));
+            }
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
@@ -7585,20 +7628,28 @@ struct function
         if (! result)
             raise_lua_error(L, "%s", result.error_cstr());
 
-        return 1;
+        return numResults;
     }
 
     template <class T, class F>
     static int call(lua_State* L, T* ptr, F&& func)
     {
         Result result;
+        int numResults = 1;
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
 #endif
-        result = Stack<ReturnType>::push(L, invoke_member_callable_from_stack<ArgsPack, Start>(L, ptr, std::forward<F>(func)));
-
+            if constexpr (detail::is_tuple_v<ReturnType>)
+            {
+                numResults = static_cast<int>(std::tuple_size_v<ReturnType>);
+                result = detail::push_tuple(L, invoke_member_callable_from_stack<ArgsPack, Start>(L, ptr, std::forward<F>(func)));
+            }
+            else
+            {
+                result = Stack<ReturnType>::push(L, invoke_member_callable_from_stack<ArgsPack, Start>(L, ptr, std::forward<F>(func)));
+            }
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
@@ -7610,7 +7661,51 @@ struct function
         if (! result)
             raise_lua_error(L, "%s", result.error_cstr());
 
-        return 1;
+        return numResults;
+    }
+};
+
+template <class ArgsPack, std::size_t Start>
+struct function<std::tuple<>, ArgsPack, Start> : function<void, ArgsPack, Start>
+{
+    template <class F>
+    static int call(lua_State* L, F&& func)
+    {
+#if LUABRIDGE_HAS_EXCEPTIONS
+        try
+        {
+#endif
+        invoke_callable_from_stack<ArgsPack, Start>(L, std::forward<F>(func));
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        }
+        catch (const std::exception& e)
+        {
+            raise_lua_error(L, "%s", e.what());
+        }
+#endif
+
+        return 0;
+    }
+
+    template <class T, class F>
+    static int call(lua_State* L, T* ptr, F&& func)
+    {
+#if LUABRIDGE_HAS_EXCEPTIONS
+        try
+        {
+#endif
+        invoke_member_callable_from_stack<ArgsPack, Start>(L, ptr, std::forward<F>(func));
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        }
+        catch (const std::exception& e)
+        {
+            raise_lua_error(L, "%s", e.what());
+        }
+#endif
+
+        return 0;
     }
 };
 
@@ -9929,18 +10024,8 @@ bool is_handler_valid(const F& f) noexcept
         return true;
 }
 
-template <class T>
-struct IsTuple : std::false_type
-{
-};
-
-template <class... Ts>
-struct IsTuple<std::tuple<Ts...>> : std::true_type
-{
-};
-
 template <class Tuple, std::size_t... Indices>
-TypeResult<Tuple> decodeTupleResult(lua_State* L, int firstResultIndex, std::index_sequence<Indices...>)
+TypeResult<Tuple> decode_tuple_result(lua_State* L, int first_result_index, std::index_sequence<Indices...>)
 {
     Tuple value;
     std::error_code ec;
@@ -9950,7 +10035,7 @@ TypeResult<Tuple> decodeTupleResult(lua_State* L, int firstResultIndex, std::ind
         {
             using ElementType = std::tuple_element_t<Indices, Tuple>;
 
-            auto element = Stack<ElementType>::get(L, firstResultIndex + static_cast<int>(Indices));
+            auto element = Stack<ElementType>::get(L, first_result_index + static_cast<int>(Indices));
             if (! element)
             {
                 ec = element.error();
@@ -9969,30 +10054,29 @@ TypeResult<Tuple> decodeTupleResult(lua_State* L, int firstResultIndex, std::ind
 }
 
 template <class R>
-TypeResult<R> decodeCallResult(lua_State* L, int firstResultIndex, int numReturnedValues)
+TypeResult<R> decode_call_result(lua_State* L, int first_result_index, int num_returned_values)
 {
     if constexpr (std::is_same_v<R, void> || std::is_same_v<R, std::tuple<>>)
     {
-        if (numReturnedValues != 0)
+        if (num_returned_values != 0)
             return makeErrorCode(ErrorCode::InvalidTableSizeInCast);
 
         return {};
     }
-    else
-    if constexpr (IsTuple<R>::value)
+    else if constexpr (is_tuple_v<R>)
     {
-        constexpr auto expectedSize = static_cast<int>(std::tuple_size_v<R>);
-        if (numReturnedValues != expectedSize)
+        constexpr auto expected_size = static_cast<int>(std::tuple_size_v<R>);
+        if (num_returned_values != expected_size)
             return makeErrorCode(ErrorCode::InvalidTableSizeInCast);
 
-        return decodeTupleResult<R>(L, firstResultIndex, std::make_index_sequence<std::tuple_size_v<R>>{});
+        return decode_tuple_result<R>(L, first_result_index, std::make_index_sequence<expected_size>{});
     }
     else
     {
-        if (numReturnedValues < 1)
+        if (num_returned_values < 1)
             return makeErrorCode(ErrorCode::InvalidTypeCast);
 
-        return Stack<R>::get(L, firstResultIndex);
+        return Stack<R>::get(L, first_result_index);
     }
 }
 
@@ -10049,7 +10133,7 @@ TypeResult<R> callWithHandler(const Ref& object, F&& errorHandler, Args&&... arg
 
     const int firstResultIndex = initialTop + 1;
     const int numReturnedValues = lua_gettop(L) - initialTop;
-    return detail::decodeCallResult<R>(L, firstResultIndex, numReturnedValues);
+    return detail::decode_call_result<R>(L, firstResultIndex, numReturnedValues);
 }
 
 template <class Ref, class F, class... Args>

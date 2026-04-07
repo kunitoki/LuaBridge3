@@ -26,3 +26,4 @@ clean:
 
 amalgamate:
     uv run amalgamate.py
+
