@@ -33,6 +33,7 @@ Contents
     *   [2.4 - Property Member Proxies](#24---property-member-proxies)
     *   [2.5 - Function Member Proxies](#25---function-member-proxies)
     *   [2.5.1 - Function Overloading](#251---function-overloading)
+    *   [2.5.2 - Parameter Name Hints](#252---parameter-name-hints)
     *   [2.6 - Constructors](#26---constructors)
     *   [2.6.1 - Constructor Proxies](#261---constructor-proxies)
     *   [2.6.2 - Constructor Factories](#262---constructor-factories)
@@ -50,6 +51,13 @@ Contents
         *   [2.9.3 - Class Coroutines - Static and Member](#293---class-coroutines----static-and-member)
         *   [2.9.4 - LuaCoroutine - Awaiting a Lua Thread from C++](#294---luacoroutine----awaiting-a-lua-thread-from-c)
         *   [2.9.5 - Limitations](#295---limitations)
+
+*   [2.10 - Inspecting Registrations](#210---inspecting-registrations)
+
+    *   [2.10.1 - inspect\<T\> and inspectNamespace](#2101---inspectT-and-inspectnamespace)
+    *   [2.10.2 - Visitor API](#2102---visitor-api)
+    *   [2.10.3 - ConsoleVisitor](#2103---consolevisitor)
+    *   [2.10.4 - Enabling Full Type Information (LUABRIDGE_ENABLE_REFLECT)](#2104---enabling-full-type-information-luabridge_enable_reflect)
 
 *   [3 - Passing Objects](#3---passing-objects)
 
@@ -84,6 +92,7 @@ Contents
     * [6.3 - LUABRIDGE_SAFE_LUA_C_EXCEPTION_HANDLING](#63---luabridge-safe-c-exception-handling)
     * [6.4 - LUABRIDGE_RAISE_UNREGISTERED_CLASS_USAGE](#64---luabridge-raise-unregistered-class-usage)
     * [6.5 - LUABRIDGE_HAS_CXX20_COROUTINES / LUABRIDGE_DISABLE_CXX20_COROUTINES](#65---luabridge-has-cxx20-coroutines--luabridge-disable-cxx20-coroutines)
+    * [6.6 - LUABRIDGE_ENABLE_REFLECT](#66---luabridge-enable-reflect)
 
 *   [Appendix - API Reference](#appendix---api-reference)
 
@@ -658,6 +667,40 @@ luabridge::getGlobalNamespace (L)
 It's possible to mix lambdas, function pointers and member functions in overload creation. Providing a `lua_Cfunction` as last method will ensure it can be reached in case no other overload is successfully executed, kind of like a "catch all" method.
 
 Special attention needs to be given to the order (priority) of the overloads, based on the number and type of the arguments. Better to place first the overloads that can be called more frequently, and putting "stronger" types first: for example when having an overload taking an `int` and an overload taking `float`, as lua is not able to distinguish between them properly (until lua 5.4) the first overload will always be called.
+
+### 2.5.2 - Parameter Name Hints
+
+When `LUABRIDGE_ENABLE_REFLECT` is defined (see [6.6](#66---luabridge-enable-reflect)), LuaBridge captures the C++ type names of function parameters at compile time. You can additionally attach human-readable **parameter name hints** to any function using `luabridge::withHints`. These names are stored alongside the function and become available through the [Inspection API](#210---inspecting-registrations).
+
+```cpp
+#define LUABRIDGE_ENABLE_REFLECT
+#include <LuaBridge/LuaBridge.h>
+#include <LuaBridge/Inspect.h>
+
+struct Enemy
+{
+    void attack(Enemy* target, float damage);
+    void move(float x, float y, float z);
+};
+
+luabridge::getGlobalNamespace(L)
+    .beginNamespace("game")
+        .beginClass<Enemy>("Enemy")
+            .addFunction("attack", luabridge::withHints(&Enemy::attack, "target", "damage"))
+            .addFunction("move",   luabridge::withHints(&Enemy::move,   "x", "y", "z"))
+        .endClass()
+    .endNamespace();
+```
+
+`withHints` is transparent: it forwards all function-trait queries to the wrapped function, so it can be used anywhere a plain function pointer is accepted — including overloaded registrations:
+
+```cpp
+.addFunction("rotate",
+    luabridge::withHints(luabridge::overload<float>(&Vec::rotate),        "degrees"),
+    luabridge::withHints(luabridge::overload<const Quat&>(&Vec::rotate),  "quaternion"))
+```
+
+When `LUABRIDGE_ENABLE_REFLECT` is **not** defined, `withHints` is still accepted by the compiler and correctly strips the wrapper — the hints are simply ignored at runtime so there is no overhead.
 
 2.6 - Constructors
 ------------------
@@ -1427,6 +1470,134 @@ print(f())         -- -1 (done)
 * **Multi-value yield:** `co_yield` sends exactly one value per suspension. Use `std::tuple` or a struct if multiple values are needed.
 * **Thread safety:** Coroutine frames must be driven from a single OS thread.
 
+2.10 - Inspecting Registrations
+================================
+
+LuaBridge3 can introspect its own registration tables at runtime, making it straightforward to generate documentation, build IDE auto-complete databases, produce TypeScript type declarations, or validate that a binding matches an expected schema.
+
+The inspection API lives in the **optional** header `<LuaBridge/Inspect.h>`, which must be included separately and **requires** `LUABRIDGE_ENABLE_REFLECT` to be defined (see [6.6](#66---luabridge-enable-reflect)).
+
+```cpp
+#define LUABRIDGE_ENABLE_REFLECT
+#include <LuaBridge/LuaBridge.h>
+#include <LuaBridge/Inspect.h>
+```
+
+### 2.10.1 - inspect\<T\> and inspectNamespace
+
+Two top-level free functions collect inspection data without traversing any Lua tables from user code:
+
+**`inspect<T>(L)`** — returns a `ClassInspectInfo` for the single registered class `T`. Returns an empty struct if `T` has not been registered.
+
+```cpp
+auto info = luabridge::inspect<Enemy>(L);
+std::cout << info.name << "\n"; // "Enemy"
+for (const auto& m : info.members)
+    std::cout << "  " << m.name << "\n";
+```
+
+**`inspectNamespace(L, name)`** — returns a `NamespaceInspectInfo` for the given namespace. Pass `nullptr` or an empty string to inspect the global namespace `_G`. Dotted paths are supported.
+
+```cpp
+auto ns  = luabridge::inspectNamespace(L, "game");       // top-level namespace
+auto sub = luabridge::inspectNamespace(L, "game.util");  // nested namespace
+auto g   = luabridge::inspectNamespace(L);               // global namespace (_G)
+```
+
+The returned structures are plain data — they are independent copies that do not hold references to the Lua state:
+
+| Type | Fields |
+|------|--------|
+| `NamespaceInspectInfo` | `name`, `freeMembers`, `classes`, `subNamespaces` |
+| `ClassInspectInfo` | `name`, `baseClasses`, `members` |
+| `MemberInfo` | `name`, `kind` (`MemberKind`), `overloads` |
+| `OverloadInfo` | `returnType`, `params` (`vector<ParamInfo>`), `isConst` |
+| `ParamInfo` | `typeName`, `hint` |
+
+`MemberKind` is an enum with the following values:
+
+```cpp
+enum class MemberKind
+{
+    Method,
+    StaticMethod,
+    Property,
+    ReadOnlyProperty,
+    StaticProperty,
+    StaticReadOnlyProperty,
+    Constructor,
+    Metamethod,
+};
+```
+
+`returnType` and `typeName` are populated only when `LUABRIDGE_ENABLE_REFLECT` is defined. `hint` is populated when the function was registered with `luabridge::withHints` (see [2.5.2](#252---parameter-name-hints)).
+
+### 2.10.2 - Visitor API
+
+For namespace-wide traversal, a visitor-pattern API is provided. Derive from `InspectVisitor` and override only the callbacks you need:
+
+```cpp
+class InspectVisitor
+{
+public:
+    virtual void beginNamespace(const NamespaceInspectInfo& ns) {}
+    virtual void endNamespace  (const NamespaceInspectInfo& ns) {}
+    virtual void visitFreeMember(const NamespaceInspectInfo& ns, const MemberInfo& m) {}
+
+    virtual void beginClass(const ClassInspectInfo& cls) {}
+    virtual void endClass  (const ClassInspectInfo& cls) {}
+    virtual void visitMember(const ClassInspectInfo& cls, const MemberInfo& m) {}
+};
+```
+
+Drive a visitor over a pre-collected `NamespaceInspectInfo` using `accept`, or use the convenience wrapper `inspectAccept` that collects and visits in one call:
+
+```cpp
+// Option A: collect once, visit multiple times
+auto ns = luabridge::inspectNamespace(L, "game");
+MyVisitor v;
+luabridge::accept(ns, v);
+
+// Option B: collect and visit in a single call
+luabridge::inspectAccept(L, "game", v);
+```
+
+The traversal order for `accept` is:
+1. `beginNamespace`
+2. `visitFreeMember` for each free function / namespace-level property
+3. Recursive traversal of each class (begin → members → end)
+4. Recursive traversal of each sub-namespace
+5. `endNamespace`
+
+### 2.10.3 - ConsoleVisitor
+
+LuaBridge provides a ready-made visitor, `ConsoleVisitor`, that prints a TypeScript-style declaration to any `std::ostream` (defaults to `std::cerr`):
+
+```cpp
+luabridge::ConsoleVisitor printer(std::cout);
+luabridge::inspectAccept(L, "game", printer);
+```
+
+Example output for a `game` namespace containing an `Enemy` class:
+
+```
+namespace game {
+    class Enemy {
+        constructor(p1: any);
+        attack(target: Enemy, damage: float): void;
+        move(x: float, y: float, z: float): void;
+        readonly hp: int;
+        static create(p1: float, p2: float): Enemy;
+    }
+}
+```
+
+Type names and parameter names are filled in when `LUABRIDGE_ENABLE_REFLECT` is active and `withHints` was used during registration. Without reflection the output uses `any` for unknown types and `p1`, `p2`, … as placeholder parameter names.
+
+### 2.10.4 - Enabling Full Type Information (LUABRIDGE_ENABLE_REFLECT)
+
+See [6.6 - LUABRIDGE_ENABLE_REFLECT](#66---luabridge-enable-reflect) for the compile-time flag that activates C++ type-name capture. When the flag is off, the inspection API still works — it just reports empty strings for type names. The `withHints` parameter name hints work regardless of the flag.
+
 3 - Passing Objects
 ===================
 
@@ -2171,6 +2342,28 @@ You can also override the detection result explicitly:
 
 Attempting to use coroutine integration on Lua 5.1, LuaJIT, or Luau will emit a compile-time `#error` unless `LUABRIDGE_DISABLE_COROUTINE_INTEGRATION` is also defined.
 
+6.6 - LUABRIDGE_ENABLE_REFLECT
+-------------------------------
+
+**Default: not defined (disabled)**
+
+When defined, LuaBridge captures the C++ type names of function parameters and return types at compile time using `typeid`. This information is stored alongside the function in the Lua registry and is retrieved by the [Inspection API](#210---inspecting-registrations) to populate `OverloadInfo::returnType` and `ParamInfo::typeName`.
+
+Enable reflection by defining the macro **before** including any LuaBridge header:
+
+```cpp
+#define LUABRIDGE_ENABLE_REFLECT
+#include <LuaBridge/LuaBridge.h>
+#include <LuaBridge/Inspect.h>  // optional: only needed when using the inspection API
+```
+
+> **Note:** `Inspect.h` unconditionally requires `LUABRIDGE_ENABLE_REFLECT` and will emit a `#error` if the macro is not defined. You may use `withHints` (see [2.5.2](#252---parameter-name-hints)) without including `Inspect.h`.
+
+When `LUABRIDGE_ENABLE_REFLECT` is not defined:
+* `withHints` parameter name hints are still stored and available through inspection.
+* `OverloadInfo::returnType` and `ParamInfo::typeName` are empty strings.
+* The `Inspect.h` header cannot be included.
+
 Appendix - API Reference
 ========================
 
@@ -2609,4 +2802,110 @@ int lua_resume_x(lua_State* L, lua_State* from, int nargs, int* nresults = nullp
 
 /// Returns true if the current C function can yield via lua_yieldk.
 bool lua_isyieldable_x(lua_State* L);
+```
+
+Registration Inspection (requires `LUABRIDGE_ENABLE_REFLECT`, `<LuaBridge/Inspect.h>`)
+---------------------------------------------------------------------------------------
+
+```cpp
+/// Kind of a registered member.
+enum class MemberKind
+{
+    Method,
+    StaticMethod,
+    Property,
+    ReadOnlyProperty,
+    StaticProperty,
+    StaticReadOnlyProperty,
+    Constructor,
+    Metamethod,
+};
+
+/// Type and optional name hint for one Lua-visible parameter of an overload.
+struct ParamInfo
+{
+    std::string typeName; ///< C++ type name (e.g. "float", "int", "MyClass"). Empty if unavailable.
+    std::string hint;     ///< Optional user-provided name (e.g. "damage"). Empty if not provided.
+};
+
+/// Type information for one overload of a registered function or constructor.
+struct OverloadInfo
+{
+    std::string returnType;        ///< C++ return type name. Empty if unavailable.
+    std::vector<ParamInfo> params; ///< One entry per Lua-visible parameter.
+    bool isConst = false;          ///< True when this is a const member function.
+};
+
+/// Information about one registered member (method, property, constructor, …).
+struct MemberInfo
+{
+    std::string name;
+    MemberKind kind = MemberKind::Method;
+    std::vector<OverloadInfo> overloads; ///< At least 1 entry; may contain empty OverloadInfo.
+};
+
+/// Inspection result for one registered class.
+struct ClassInspectInfo
+{
+    std::string name;
+    std::vector<std::string> baseClasses; ///< Names of all registered ancestor classes.
+    std::vector<MemberInfo> members;
+
+    void accept(InspectVisitor& v) const;
+};
+
+/// Inspection result for a namespace (may contain classes and sub-namespaces).
+struct NamespaceInspectInfo
+{
+    std::string name;
+    std::vector<MemberInfo> freeMembers;        ///< Free functions and namespace-level properties.
+    std::vector<ClassInspectInfo> classes;
+    std::vector<NamespaceInspectInfo> subNamespaces;
+
+    void accept(InspectVisitor& v) const;
+};
+
+/// Visitor interface for traversing an inspection result tree.
+class InspectVisitor
+{
+public:
+    virtual void beginNamespace(const NamespaceInspectInfo& ns) {}
+    virtual void endNamespace  (const NamespaceInspectInfo& ns) {}
+    virtual void visitFreeMember(const NamespaceInspectInfo& ns, const MemberInfo& m) {}
+
+    virtual void beginClass(const ClassInspectInfo& cls) {}
+    virtual void endClass  (const ClassInspectInfo& cls) {}
+    virtual void visitMember(const ClassInspectInfo& cls, const MemberInfo& m) {}
+};
+
+/// Built-in visitor that emits TypeScript-style pseudo-declarations to an ostream.
+class ConsoleVisitor : public InspectVisitor
+{
+public:
+    explicit ConsoleVisitor(std::ostream& out = std::cerr);
+    // overrides all six InspectVisitor methods
+};
+
+/// Inspect a single registered class by its C++ type.
+/// Returns an empty ClassInspectInfo if T is not registered.
+template <class T>
+[[nodiscard]] ClassInspectInfo inspect(lua_State* L);
+
+/// Inspect a namespace by name. Pass nullptr or "" for the global namespace.
+/// Supports dotted paths (e.g. "Outer.Inner").
+/// Returns an empty NamespaceInspectInfo if the name is not found.
+[[nodiscard]] NamespaceInspectInfo inspectNamespace(lua_State* L, const char* namespaceName = nullptr);
+
+/// Traverse a NamespaceInspectInfo with a visitor.
+void accept(const NamespaceInspectInfo& ns, InspectVisitor& v);
+void accept(const ClassInspectInfo& cls,    InspectVisitor& v);
+
+/// Collect inspection data for a namespace and drive a visitor over it (convenience wrapper).
+void inspectAccept(lua_State* L, const char* namespaceName, InspectVisitor& visitor);
+
+/// Attach Lua parameter name hints to a function for use with addFunction / addStaticFunction.
+/// Works with and without LUABRIDGE_ENABLE_REFLECT. Hints are stored at runtime; type capture
+/// requires the macro.
+template <class F, class... Names>
+[[nodiscard]] FunctionWithHints<std::decay_t<F>> withHints(F&& func, Names&&... paramNames);
 ```
