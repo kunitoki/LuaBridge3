@@ -126,9 +126,10 @@ jobs:
 
     - name: Build Luau
       working-directory: ${{runner.workspace}}/build
-      run: cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target \
-        LuaBridgeTestsLuau \
-        LuaBridgeTestsLuauReflect
+      run: |
+        cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target \
+          LuaBridgeTestsLuau \
+          LuaBridgeTestsLuauReflect
 
     - name: Test Luau
       working-directory: ${{runner.workspace}}/build/Tests
@@ -156,9 +157,10 @@ jobs:
 
     - name: Build Ravi
       working-directory: ${{runner.workspace}}/build
-      run: cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target \
-        LuaBridgeTestsRavi \
-        LuaBridgeTestsRaviReflect
+      run: |
+        cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target \
+          LuaBridgeTestsRavi \
+          LuaBridgeTestsRaviReflect
 
     - name: Test Ravi
       working-directory: ${{runner.workspace}}/build/Tests
