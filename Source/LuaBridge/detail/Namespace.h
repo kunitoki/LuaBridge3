@@ -1900,6 +1900,34 @@ public:
         return *this;
     }
 
+#if LUABRIDGE_HAS_CXX20_COROUTINES
+    //=============================================================================================
+    /**
+     * @brief Add a C++20 coroutine function to this namespace.
+     *
+     * The factory must be a callable returning CppCoroutine<R>. When Lua calls the registered
+     * function, a new C++ coroutine is created and run; co_yield sends values to the Lua caller
+     * and co_return sends the final return value.
+     *
+     * @param name    The function name to register.
+     * @param factory A callable returning CppCoroutine<R>.
+     *
+     * @returns This namespace registration object.
+     */
+    template <class F>
+    auto addCoroutine(const char* name, F factory)
+        -> std::enable_if_t<detail::is_cpp_coroutine_factory_v<F>, Namespace&>
+    {
+        LUABRIDGE_ASSERT(name != nullptr);
+        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
+
+        detail::push_coroutine_function(L, std::move(factory), name);
+        rawsetfield(L, -2, name);
+
+        return *this;
+    }
+#endif // LUABRIDGE_HAS_CXX20_COROUTINES
+
     //=============================================================================================
     /**
      * @brief Open a new or existing table as namespace for registrations.

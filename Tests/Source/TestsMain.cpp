@@ -4,13 +4,13 @@
 
 #include <gtest/gtest.h>
 
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
 #include <backward.hpp>
 #endif
 
 int main(int argc, char** argv)
 {
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
     backward::SignalHandling sh;
 #endif
 

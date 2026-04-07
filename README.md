@@ -35,8 +35,11 @@
 [LuaBridge3](https://github.com/kunitoki/LuaBridge3) is a lightweight and dependency-free library for mapping data,
 functions, and classes back and forth between C++ and [Lua](http://wwww.lua.org) (a powerful,
 fast, lightweight, embeddable scripting language). LuaBridge has been tested
-and works with Lua 5.1.5, 5.2.4, 5.3.6, 5.4.8 and 5.5.0 as well as [LuaJit](https://luajit.org/) 2.1 onwards
-and for the first time also with [Luau](https://luau-lang.org/) 0.713 onwards and [Ravi](https://github.com/dibyendumajumdar/ravi) 1.0-beta11.
+and works with:
+* [PUC-Lua](https://lua.org) 5.1.5, 5.2.4, 5.3.6, 5.4.8 and 5.5.0
+* [LuaJit](https://luajit.org/) 2.1
+* [Luau](https://luau-lang.org/) 0.713
+* [Ravi](https://github.com/dibyendumajumdar/ravi) 1.0-beta11
 
 ## Features
 
@@ -87,6 +90,7 @@ LuaBridge3 offers a set of improvements compared to vanilla LuaBridge:
 * Consistent numeric handling and conversions (signed, unsigned and floats) across all lua versions.
 * NaN and Inf values pass through floating-point stack conversions without error.
 * Simplified registration of enum types via the `luabridge::Enum` stack wrapper.
+* C++20 coroutine integration via `addCoroutine()` and `CppCoroutine<R>`; await Lua threads from C++ with `LuaCoroutine`.
 * Opt-out handling of safe stack space checks (automatically avoids exhausting lua stack space when pushing values!).
 * Optional strict stack conversions via `LUABRIDGE_STRICT_STACK_CONVERSIONS` (e.g. `bool` requires an actual boolean, not any truthy value).
 * Error handler support in Lua calls via `LuaRef::callWithHandler` and `luabridge::callWithHandler`.

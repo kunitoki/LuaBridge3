@@ -44,6 +44,11 @@ Contents
     *   [2.8 - Lua Stack](#28---lua-stack)
         *   [2.8.1 - Enums](#281---enums)
         *   [2.8.2 - lua_State](#282---lua_state)
+    *   [2.9 - C++20 Coroutine Integration](#29---c20-coroutine-integration)
+        *   [2.9.1 - CppCoroutine\<R\> — Generators callable from Lua](#291---cppcoroutiner----generators-callable-from-lua)
+        *   [2.9.2 - Accepting Arguments](#292---accepting-arguments)
+        *   [2.9.3 - LuaCoroutine — Awaiting a Lua Thread from C++](#293---luacoroutine----awaiting-a-lua-thread-from-c)
+        *   [2.9.4 - Limitations](#294---limitations)
 
 *   [3 - Passing Objects](#3---passing-objects)
 
@@ -77,6 +82,7 @@ Contents
     * [6.2 - LUABRIDGE_STRICT_STACK_CONVERSIONS](#62---luabridge-strict-stack-conversions)
     * [6.3 - LUABRIDGE_SAFE_LUA_C_EXCEPTION_HANDLING](#63---luabridge-safe-c-exception-handling)
     * [6.4 - LUABRIDGE_RAISE_UNREGISTERED_CLASS_USAGE](#64---luabridge-raise-unregistered-class-usage)
+    * [6.5 - LUABRIDGE_HAS_CXX20_COROUTINES / LUABRIDGE_DISABLE_CXX20_COROUTINES](#65---luabridge-has-cxx20-coroutines--luabridge-disable-cxx20-coroutines)
 
 *   [Appendix - API Reference](#appendix---api-reference)
 
@@ -1245,6 +1251,113 @@ When the script calls `useStateAndArgs`, it passes only the integer and string p
 
 The same is applicable for properties.
 
+2.9 - C++20 Coroutine Integration
+----------------------------------
+
+LuaBridge3 provides first-class interoperability between C++20 coroutines and Lua coroutines, available when compiling with C++20 or later and Lua 5.2+ (requires `lua_yieldk`). The feature is guarded by `LUABRIDGE_HAS_CXX20_COROUTINES`, which is detected automatically and can be suppressed with `LUABRIDGE_DISABLE_CXX20_COROUTINES`.
+
+> **Note:** C++20 coroutine integration is not supported on Lua 5.1, LuaJIT, or Luau (those targets lack a public `lua_yieldk` equivalent).
+
+### 2.9.1 - CppCoroutine\<R\> — Generators callable from Lua
+
+`luabridge::CppCoroutine<R>` is a coroutine return type that bridges C++20 coroutines with Lua's `coroutine.wrap` / `coroutine.resume` API. A function returning `CppCoroutine<R>` can use `co_yield` to suspend and pass a value back to Lua, and `co_return` to finish and return a final value.
+
+Register via `Namespace::addCoroutine`:
+
+```cpp
+luabridge::getGlobalNamespace(L)
+    .addCoroutine("range", [](int from, int to) -> luabridge::CppCoroutine<int>
+    {
+        for (int i = from; i <= to; ++i)
+            co_yield i;
+        co_return -1;  // sentinel value when the range is exhausted
+    });
+```
+
+From Lua, use `coroutine.wrap` to create a callable iterator:
+
+```lua
+local gen = coroutine.wrap(range)
+local v = gen(1, 5)   -- first call passes arguments; yields 1
+while v ~= -1 do
+    print(v)          -- 1, 2, 3, 4, 5
+    v = gen()         -- subsequent calls resume without arguments
+end
+```
+
+`CppCoroutine<void>` is also supported for coroutines that produce no values:
+
+```cpp
+.addCoroutine("doWork", []() -> luabridge::CppCoroutine<void>
+{
+    performStep1();
+    co_return;
+});
+```
+
+An abandoned coroutine (one that goes out of scope in Lua without being fully consumed) is automatically cleaned up by the Lua garbage collector — no manual resource management is needed.
+
+### 2.9.2 - Accepting Arguments
+
+The factory lambda receives the Lua call arguments on first invocation. A `lua_State*` parameter, if present, must be the **first** parameter and receives the running Lua thread:
+
+```cpp
+.addCoroutine("adder", [](int a, int b) -> luabridge::CppCoroutine<int>
+{
+    co_yield a + b;   // first resume yields the sum
+    co_return a * b;  // second resume returns the product
+});
+```
+
+```lua
+local f = coroutine.wrap(adder)
+print(f(3, 4))   -- 7   (yield: 3+4)
+print(f())       -- 12  (return: 3*4)
+```
+
+Multiple independent instances of the same coroutine factory can run concurrently — each call to `coroutine.wrap(name)` creates a separate C++ coroutine frame:
+
+```lua
+local a = coroutine.wrap(adder)
+local b = coroutine.wrap(adder)
+a(1, 2)   -- independent from b
+b(10, 20)
+```
+
+### 2.9.3 - LuaCoroutine — Awaiting a Lua Thread from C++
+
+`luabridge::LuaCoroutine` is an awaitable that can be used inside a `CppCoroutine` body to resume a child Lua thread synchronously. It runs the child thread to its first yield or return and gives back the status and the number of values the child left on its stack:
+
+```cpp
+.addCoroutine("driver", [](lua_State* L) -> luabridge::CppCoroutine<int>
+{
+    // Spawn a child Lua thread and anchor it in the registry so the GC
+    // doesn't collect it while we hold a pointer to it.
+    lua_State* child = lua_newthread(L);
+    int ref = luaL_ref(L, LUA_REGISTRYINDEX);  // pops thread from L's stack
+
+    lua_getglobal(child, "luaGenerator");
+
+    // Resume the child synchronously; suspends this C++ coroutine until done.
+    auto [status, nresults] = co_await luabridge::LuaCoroutine{ child, L };
+
+    int value = (nresults > 0) ? static_cast<int>(lua_tointeger(child, -nresults)) : 0;
+
+    luaL_unref(L, LUA_REGISTRYINDEX, ref);
+    co_return value;
+});
+```
+
+`LuaCoroutine` always completes synchronously (no external event loop is required). The `status` field contains `LUA_YIELD` if the child yielded or `LUA_OK` if it returned normally.
+
+### 2.9.4 - Limitations
+
+* **Lua version:** Requires Lua 5.2+ (`lua_yieldk`). Not supported on Lua 5.1, LuaJIT, or Luau.
+* **C++ version:** Requires C++20 (`<coroutine>`). Non-coroutine features continue to work under C++17.
+* **Multi-value yield:** `co_yield` sends exactly one value per suspension. Use `std::tuple` or a struct if multiple values are needed.
+* **Thread safety:** Coroutine frames must be driven from a single OS thread.
+* **Instance methods:** `addCoroutine` is available on `Namespace`; registering coroutine-returning member functions on `Class<T>` is not yet supported.
+
 3 - Passing Objects
 ===================
 
@@ -1965,6 +2078,30 @@ Override the default when you need fine-grained control:
 #include <LuaBridge/LuaBridge.h>
 ```
 
+6.5 - LUABRIDGE_HAS_CXX20_COROUTINES / LUABRIDGE_DISABLE_CXX20_COROUTINES
+--------------------------------------------------------------------------
+
+**`LUABRIDGE_HAS_CXX20_COROUTINES` — auto-detected, override allowed**
+
+LuaBridge3 automatically enables C++20 coroutine support when it detects a C++20 compiler (`__cplusplus >= 202002L` or MSVC `_HAS_CXX20`). The macro is set to `1` when the feature is active and `0` otherwise.
+
+You can force the feature **off** by defining `LUABRIDGE_DISABLE_CXX20_COROUTINES` before including any LuaBridge header:
+
+```cpp
+#define LUABRIDGE_DISABLE_CXX20_COROUTINES
+#include <LuaBridge/LuaBridge.h>
+```
+
+You can also override the detection result explicitly:
+
+```cpp
+#define LUABRIDGE_HAS_CXX20_COROUTINES 0   // force off
+#define LUABRIDGE_HAS_CXX20_COROUTINES 1   // force on (must actually have C++20)
+#include <LuaBridge/LuaBridge.h>
+```
+
+Attempting to use coroutine integration on Lua 5.1, LuaJIT, or Luau will emit a compile-time `#error` unless `LUABRIDGE_DISABLE_COROUTINE_INTEGRATION` is also defined.
+
 Appendix - API Reference
 ========================
 
@@ -2359,4 +2496,37 @@ TypeResult<T> get (lua_State* L, int index);
 
 /// Checks if the Lua value at the index is convertible into the C++ value of the type T.
 bool isInstance (lua_State* L, int index);
+```
+
+C++20 Coroutine Types (requires `LUABRIDGE_HAS_CXX20_COROUTINES`)
+-----------------------------------------------------------------
+
+```cpp
+/// Coroutine return type for C++ generators callable from Lua.
+/// R may be any LuaBridge-registered type, or void.
+template <class R>
+struct CppCoroutine;
+
+/// Awaitable wrapper for a Lua thread. Use inside a CppCoroutine body with co_await.
+/// Resumes the child thread synchronously and returns {status, nresults}.
+class LuaCoroutine
+{
+public:
+    /// thread  — the Lua thread to resume.
+    /// from    — the calling Lua state (typically L inside the coroutine body).
+    LuaCoroutine(lua_State* thread, lua_State* from = nullptr) noexcept;
+
+    std::pair<int, int> await_resume() noexcept; // returns {status, nresults}
+};
+
+/// Register a CppCoroutine factory in a namespace (available on Namespace).
+/// F must be a callable whose return type is CppCoroutine<R>.
+template <class F>
+Namespace& addCoroutine(const char* name, F factory);
+
+/// Portable lua_resume wrapper — fills *nresults on all Lua versions (5.1–5.5).
+int lua_resume_x(lua_State* L, lua_State* from, int nargs, int* nresults = nullptr);
+
+/// Returns true if the current C function can yield via lua_yieldk.
+bool lua_isyieldable_x(lua_State* L);
 ```

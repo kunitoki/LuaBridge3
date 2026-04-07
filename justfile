@@ -3,13 +3,13 @@ default:
     @just -l
 
 generate:
-    cmake -G Xcode -B Build .
+    cmake -G Xcode -B Build -DLUABRIDGE_BENCHMARKS=ON .
 
 sanitize TYPE='address':
     cmake -G Xcode -B Build -DLUABRIDGE_SANITIZE={{TYPE}} .
 
 benchmark:
-    cmake -G Xcode -B Build -DLUABRIDGE_BENCHMARKS=ON .
+    @just generate
     cmake --build Build --config Release --target LuaBridge3Benchmark -j8
     cmake --build Build --config Release --target LuaBridgeVanillaBenchmark -j8
     cmake --build Build --config Release --target Sol3Benchmark -j8
@@ -19,10 +19,10 @@ benchmark:
     @just plot
 
 plot:
-    python3.14 Benchmarks/plot_benchmarks.py --input Build/LuaBridge3Benchmark.json Build/LuaBridgeVanillaBenchmark.json Build/Sol3Benchmark.json --output Images/benchmarks.png
+    uv run --with-requirements Benchmarks/requirements.txt Benchmarks/plot_benchmarks.py --input Build/*.json --output Images/benchmarks.png
 
 clean:
     rm -rf Build
 
 amalgamate:
-    python3 amalgamate.py
+    uv run amalgamate.py

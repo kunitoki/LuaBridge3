@@ -12,6 +12,20 @@
 #error LuaBridge 3 requires a compliant C++17 compiler, or C++17 has not been enabled !
 #endif
 
+/**
+ * @brief Enable C++20 coroutine integration with Lua coroutines.
+ *
+ * Requires C++20 and Lua 5.2+ (lua_yieldk). Not supported on Lua 5.1, LuaJIT, or Luau.
+ * Define LUABRIDGE_DISABLE_CXX20_COROUTINES to force-disable even when C++20 is available.
+ */
+#if !defined(LUABRIDGE_HAS_CXX20_COROUTINES)
+#if !defined(LUABRIDGE_DISABLE_CXX20_COROUTINES) && (__cplusplus >= 202002L || (defined(_MSC_VER) && _HAS_CXX20))
+#define LUABRIDGE_HAS_CXX20_COROUTINES 1
+#else
+#define LUABRIDGE_HAS_CXX20_COROUTINES 0
+#endif
+#endif
+
 #if !defined(LUABRIDGE_HAS_EXCEPTIONS)
 #if defined(_MSC_VER)
 #if _CPPUNWIND || _HAS_EXCEPTIONS
