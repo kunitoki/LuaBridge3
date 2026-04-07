@@ -15,6 +15,7 @@ set (LUABRIDGE_DETAIL_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/CFunctions.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/ClassInfo.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Config.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Coroutine.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Enum.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Errors.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/detail/Expected.h

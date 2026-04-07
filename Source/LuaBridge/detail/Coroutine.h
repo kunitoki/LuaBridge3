@@ -355,6 +355,8 @@ int do_yield(lua_State* L, int nresults, int frame_abs_idx)
 [[noreturn]] inline void raise_from_exception(lua_State* L, int frame_abs_idx, std::exception_ptr ex)
 {
     lua_settop(L, frame_abs_idx - 1); // pop frame (and any value above it) — GC will collect it
+
+#if LUABRIDGE_HAS_EXCEPTIONS
     try
     {
         std::rethrow_exception(ex);
@@ -365,8 +367,13 @@ int do_yield(lua_State* L, int nresults, int frame_abs_idx)
     }
     catch (...)
     {
+#endif
+
         raise_lua_error(L, "unknown exception in C++ coroutine");
+
+#if LUABRIDGE_HAS_EXCEPTIONS
     }
+#endif
 }
 
 //=================================================================================================
