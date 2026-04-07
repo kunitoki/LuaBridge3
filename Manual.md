@@ -2365,7 +2365,7 @@ Enable reflection by defining the macro **before** including any LuaBridge heade
 > **Note:** `Inspect.h` unconditionally requires `LUABRIDGE_ENABLE_REFLECT` and will emit a `#error` if the macro is not defined. You may use `withHints` (see [2.5.2](#252---parameter-name-hints)) without including `Inspect.h`.
 
 When `LUABRIDGE_ENABLE_REFLECT` is not defined:
-* `withHints` parameter name hints are still stored and available through inspection.
+* `withHints` parameter name hints are ignored and are not available through inspection.
 * `OverloadInfo::returnType` and `ParamInfo::typeName` are empty strings.
 * The `Inspect.h` header cannot be included.
 
