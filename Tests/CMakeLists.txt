@@ -33,6 +33,7 @@ set (LUABRIDGE_TEST_SOURCE_FILES
   Source/ClassTests.cpp
   Source/CoroutineTests.cpp
   Source/DumpTests.cpp
+  Source/InspectTests.cpp
   Source/EnumTests.cpp
   Source/ExceptionTests.cpp
   Source/FlagSetTests.cpp
@@ -285,6 +286,7 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
 
     target_compile_definitions (${LUABRIDGE_TESTLIB_NAME} PRIVATE
       LUABRIDGE_TEST_SHARED_EXPORT=1
+      LUABRIDGE_ENABLE_REFLECT=1
       ${LUABRIDGE_DEFINES})
 
     target_include_directories (${LUABRIDGE_TESTLIB_NAME} PRIVATE
@@ -386,9 +388,12 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
       set (LUABRIDGE_TEST_SHARED_LIBRARY "lib${LUABRIDGE_TESTLIB_NAME}.so")
     endif ()
     target_compile_definitions (${LUABRIDGE_TEST_NAME} PRIVATE
+      LUABRIDGE_ENABLE_REFLECT=1
       LUABRIDGE_TEST_SHARED_LIBRARY="${LUABRIDGE_TEST_SHARED_LIBRARY}"
       LUABRIDGE_TEST_SHARED_EXPORT=0)
   endif ()
+
+  target_compile_definitions (${LUABRIDGE_TEST_NAME} PRIVATE LUABRIDGE_ENABLE_REFLECT=1)
 
   if (NOT ${LUABRIDGE_EXCEPTIONS})
     target_compile_definitions (${LUABRIDGE_TEST_NAME} PRIVATE LUA_USE_LONGJMP=1)

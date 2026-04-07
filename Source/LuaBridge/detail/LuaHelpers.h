@@ -565,6 +565,57 @@ void* lua_newuserdata_aligned(lua_State* L, Args&&... args)
 }
 
 /**
+ * @brief Portable wrapper for lua_resume that normalises calling convention differences
+ * across Lua 5.1/LuaJIT (no from, no nresults), 5.2-5.3 (from but no nresults), and 5.4+ (from + nresults).
+ *
+ * @param L      The coroutine thread to resume.
+ * @param from   The thread doing the resuming (may be nullptr on older Lua).
+ * @param nargs  Number of arguments on L's stack to pass to the resumed function.
+ * @param nresults Output: number of values on L's stack after resume (yielded or returned).
+ *                 For Lua 5.4+, filled directly by lua_resume. For older versions, computed via lua_gettop.
+ * @returns LUA_OK, LUA_YIELD, or an error code.
+ */
+inline int lua_resume_x(lua_State* L, lua_State* from, int nargs, int* nresults = nullptr)
+{
+#if LUABRIDGE_ON_LUAJIT || LUA_VERSION_NUM == 501
+    unused(from);
+    int status = lua_resume(L, nargs);
+    if (nresults)
+        *nresults = lua_gettop(L);
+    return status;
+#elif LUABRIDGE_ON_LUAU || LUABRIDGE_ON_RAVI || LUA_VERSION_NUM < 504
+    int status = lua_resume(L, from, nargs);
+    if (nresults)
+        *nresults = lua_gettop(L);
+    return status;
+#else
+    int nr = 0;
+    int status = lua_resume(L, from, nargs, &nr);
+    if (nresults)
+        *nresults = nr;
+    return status;
+#endif
+}
+
+/**
+ * @brief Returns true if the currently running C function can yield via lua_yieldk.
+ *
+ * Returns false on Lua 5.1, LuaJIT, and Luau where lua_yieldk is unavailable.
+ */
+inline bool lua_isyieldable_x(lua_State* L)
+{
+#if LUABRIDGE_ON_LUAJIT || LUA_VERSION_NUM == 501 || LUABRIDGE_ON_LUAU
+    unused(L);
+    return false;
+#elif LUA_VERSION_NUM < 503
+    unused(L);
+    return true; // lua_yieldk exists in 5.2; assume yieldable when reached
+#else
+    return lua_isyieldable(L) != 0;
+#endif
+}
+
+/**
  * @brief Safe error able to walk backwards for error reporting correctly.
  */
 [[noreturn]] inline void raise_lua_error(lua_State* L, const char* fmt, ...)
@@ -700,57 +751,6 @@ bool is_floating_point_representable_by(lua_State* L, int index)
     const auto value = tonumber(L, index, &isValid);
 
     return isValid ? is_floating_point_representable_by<U>(value) : false;
-}
-
-/**
- * @brief Portable wrapper for lua_resume that normalises calling convention differences
- * across Lua 5.1/LuaJIT (no from, no nresults), 5.2-5.3 (from but no nresults), and 5.4+ (from + nresults).
- *
- * @param L      The coroutine thread to resume.
- * @param from   The thread doing the resuming (may be nullptr on older Lua).
- * @param nargs  Number of arguments on L's stack to pass to the resumed function.
- * @param nresults Output: number of values on L's stack after resume (yielded or returned).
- *                 For Lua 5.4+, filled directly by lua_resume. For older versions, computed via lua_gettop.
- * @returns LUA_OK, LUA_YIELD, or an error code.
- */
-inline int lua_resume_x(lua_State* L, lua_State* from, int nargs, int* nresults = nullptr)
-{
-#if LUABRIDGE_ON_LUAJIT || LUA_VERSION_NUM == 501
-    unused(from);
-    int status = lua_resume(L, nargs);
-    if (nresults)
-        *nresults = lua_gettop(L);
-    return status;
-#elif LUABRIDGE_ON_LUAU || LUABRIDGE_ON_RAVI || LUA_VERSION_NUM < 504
-    int status = lua_resume(L, from, nargs);
-    if (nresults)
-        *nresults = lua_gettop(L);
-    return status;
-#else
-    int nr = 0;
-    int status = lua_resume(L, from, nargs, &nr);
-    if (nresults)
-        *nresults = nr;
-    return status;
-#endif
-}
-
-/**
- * @brief Returns true if the currently running C function can yield via lua_yieldk.
- *
- * Returns false on Lua 5.1, LuaJIT, and Luau where lua_yieldk is unavailable.
- */
-inline bool lua_isyieldable_x(lua_State* L)
-{
-#if LUABRIDGE_ON_LUAJIT || LUA_VERSION_NUM == 501 || LUABRIDGE_ON_LUAU
-    unused(L);
-    return false;
-#elif LUA_VERSION_NUM < 503
-    unused(L);
-    return true; // lua_yieldk exists in 5.2; assume yieldable when reached
-#else
-    return lua_isyieldable(L) != 0;
-#endif
 }
 
 } // namespace luabridge

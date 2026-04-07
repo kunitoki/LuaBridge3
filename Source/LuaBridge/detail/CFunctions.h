@@ -1897,6 +1897,12 @@ struct OverloadEntry
 
     int arity;           // -1 for variadic (lua_CFunction): always attempt
     TypeChecker checker; // nullptr for variadic: skip type pre-checking
+
+#if defined(LUABRIDGE_ENABLE_REFLECT)
+    std::string returnType;                ///< C++ return type name (from detail::typeName)
+    std::vector<std::string> paramTypes;   ///< C++ parameter type names (excluding lua_State*)
+    std::vector<std::string> paramHints;   ///< Optional user-provided parameter names (from withHints)
+#endif
 };
 
 /**
