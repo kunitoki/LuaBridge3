@@ -9,7 +9,9 @@
 #include "detail/LuaHelpers.h"
 
 #include <iostream>
+#include <map>
 #include <set>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -335,13 +337,33 @@ inline ClassInspectInfo inspectClassFromStaticTable(lua_State* L, int stIdx)
     }
     lua_pop(L, 1);
 
+    // Collect instance property type names (may be absent if not registered with type info)
+    std::map<std::string, std::string> instPropTypes;
+    lua_rawgetp_x(L, clIdx, getPropTypeKey());
+    if (lua_istable(L, -1))
+    {
+        int ptIdx = lua_absindex(L, -1);
+        for (const auto& k : instPropget)
+        {
+            lua_getfield(L, ptIdx, k.c_str());
+            if (lua_isstring(L, -1))
+                instPropTypes[k] = lua_tostring(L, -1);
+            lua_pop(L, 1);
+        }
+    }
+    lua_pop(L, 1);
+
     // 4. Emit instance properties
     for (const auto& propName : instPropget)
     {
         MemberInfo m;
         m.name = propName;
         m.kind = instPropsetReal.count(propName) ? MemberKind::Property : MemberKind::ReadOnlyProperty;
-        m.overloads.push_back(OverloadInfo{});
+        OverloadInfo ov;
+        auto it = instPropTypes.find(propName);
+        if (it != instPropTypes.end())
+            ov.returnType = it->second;
+        m.overloads.push_back(std::move(ov));
         cls.members.push_back(std::move(m));
     }
 
@@ -398,13 +420,33 @@ inline ClassInspectInfo inspectClassFromStaticTable(lua_State* L, int stIdx)
     }
     lua_pop(L, 1);
 
+    // Collect static property type names
+    std::map<std::string, std::string> stPropTypes;
+    lua_rawgetp_x(L, mtIdx, getPropTypeKey());
+    if (lua_istable(L, -1))
+    {
+        int ptIdx = lua_absindex(L, -1);
+        for (const auto& k : stPropget)
+        {
+            lua_getfield(L, ptIdx, k.c_str());
+            if (lua_isstring(L, -1))
+                stPropTypes[k] = lua_tostring(L, -1);
+            lua_pop(L, 1);
+        }
+    }
+    lua_pop(L, 1);
+
     // 7. Emit static properties
     for (const auto& propName : stPropget)
     {
         MemberInfo m;
         m.name = propName;
         m.kind = stPropsetReal.count(propName) ? MemberKind::StaticProperty : MemberKind::StaticReadOnlyProperty;
-        m.overloads.push_back(OverloadInfo{});
+        OverloadInfo ov;
+        auto it = stPropTypes.find(propName);
+        if (it != stPropTypes.end())
+            ov.returnType = it->second;
+        m.overloads.push_back(std::move(ov));
         cls.members.push_back(std::move(m));
     }
 
@@ -467,6 +509,22 @@ inline NamespaceInspectInfo inspectNamespaceTable(lua_State* L, int nsIdx, std::
         nsPropsetTableIdx = lua_absindex(L, -1);
     // leave propset table on stack; we pop it after the loop
 
+    // Collect namespace property type names
+    std::map<std::string, std::string> nsPropTypes;
+    lua_rawgetp_x(L, nsIdx, getPropTypeKey());
+    if (lua_istable(L, -1))
+    {
+        int ptIdx = lua_absindex(L, -1);
+        for (const auto& k : nsPropget)
+        {
+            lua_getfield(L, ptIdx, k.c_str());
+            if (lua_isstring(L, -1))
+                nsPropTypes[k] = lua_tostring(L, -1);
+            lua_pop(L, 1);
+        }
+    }
+    lua_pop(L, 1); // pop proptype table or nil
+
     for (const auto& propName : nsPropget)
     {
         MemberInfo m;
@@ -487,7 +545,11 @@ inline NamespaceInspectInfo inspectNamespaceTable(lua_State* L, int nsIdx, std::
         }
 
         m.kind = isReadOnly ? MemberKind::ReadOnlyProperty : MemberKind::Property;
-        m.overloads.push_back(OverloadInfo{});
+        OverloadInfo ov;
+        auto it = nsPropTypes.find(propName);
+        if (it != nsPropTypes.end())
+            ov.returnType = it->second;
+        m.overloads.push_back(std::move(ov));
         info.freeMembers.push_back(std::move(m));
     }
 
@@ -850,7 +912,7 @@ public:
 
         for (const auto& ov : m.overloads)
         {
-            emitParams(ov.params);
+            emitParamsTo(out_, ov.params);
             if (!ov.returnType.empty() && ov.returnType != "void")
                 out_ << "---@return " << luaType(ov.returnType) << "\n";
         }
@@ -873,96 +935,101 @@ public:
                 out_ << ", " << cls.baseClasses[i];
         }
         out_ << "\n";
-
-        // Emit fields for properties in the class body annotation
-        // (will be added in visitMember below, but need the class annotation open)
+        methodBuf_.str({});
+        methodBuf_.clear();
     }
 
     void endClass([[maybe_unused]] const ClassInspectInfo& cls) override
     {
-        out_ << "local " << curClass_ << " = {}\n\n";
+        out_ << "local " << curClass_ << " = {}\n";
+        const std::string methods = methodBuf_.str();
+        if (!methods.empty())
+            out_ << "\n" << methods;
+        else
+            out_ << "\n";
         curClass_.clear();
     }
 
     void visitMember(const ClassInspectInfo& cls, const MemberInfo& m) override
     {
+        auto propType = [&]() -> std::string {
+            if (!m.overloads.empty() && !m.overloads[0].returnType.empty())
+                return luaType(m.overloads[0].returnType);
+            return "any";
+        };
+
         switch (m.kind)
         {
         case MemberKind::Property:
-            out_ << "---@field " << m.name << " any\n";
+            out_ << "---@field " << m.name << " " << propType() << "\n";
             break;
+
         case MemberKind::ReadOnlyProperty:
-            out_ << "---@field " << m.name << " any # readonly\n";
+            out_ << "---@field " << m.name << " " << propType() << " # readonly\n";
             break;
+
         case MemberKind::StaticProperty:
-            out_ << "---@field " << m.name << " any\n";
+            out_ << "---@field " << m.name << " " << propType() << "\n";
             break;
+
         case MemberKind::StaticReadOnlyProperty:
-            out_ << "---@field " << m.name << " any # readonly\n";
+            out_ << "---@field " << m.name << " " << propType() << " # readonly\n";
             break;
+
         case MemberKind::Constructor:
         {
-            out_ << "\n";
-            for (std::size_t i = 0; i < m.overloads.size(); ++i)
-            {
-                const auto& ov = m.overloads[i];
-                if (i == 0)
-                {
-                    emitParams(ov.params);
-                    out_ << "---@return " << cls.name << "\n";
-                    out_ << "function " << cls.name << ".new(" << paramNames(ov.params) << ") end\n";
-                }
-                else
-                {
-                    out_ << "---@overload fun(" << overloadParams(ov.params) << "): " << cls.name << "\n";
-                }
-            }
+            // Represent the constructor as @overload annotations before the local declaration.
+            // LuaBridge constructors are called as ClassName(args), not ClassName.new(args).
+            std::string qname = qualifiedName(cls.name);
+            for (const auto& ov : m.overloads)
+                out_ << "---@overload fun(" << overloadParams(ov.params) << "): " << qname << "\n";
             break;
         }
+
         case MemberKind::Method:
         {
-            out_ << "\n";
+            std::string qname = qualifiedName(cls.name);
             for (std::size_t i = 0; i < m.overloads.size(); ++i)
             {
                 const auto& ov = m.overloads[i];
                 if (i == 0)
                 {
-                    emitParams(ov.params, /*hasSelf=*/true);
+                    emitParamsTo(methodBuf_, ov.params, /*hasSelf=*/true, qname);
                     if (!ov.returnType.empty() && ov.returnType != "void")
-                        out_ << "---@return " << luaType(ov.returnType) << "\n";
-                    out_ << "function " << cls.name << ":" << m.name
-                         << "(" << paramNames(ov.params) << ") end\n";
+                        methodBuf_ << "---@return " << luaType(ov.returnType) << "\n";
+                    methodBuf_ << "function " << qname << ":" << m.name << "(" << paramNames(ov.params) << ") end\n\n";
                 }
                 else
                 {
-                    out_ << "---@overload fun(self: " << cls.name << ", " << overloadParams(ov.params) << ")"
-                         << (ov.returnType.empty() ? "" : (": " + luaType(ov.returnType))) << "\n";
+                    methodBuf_ << "---@overload fun(self: " << qname << ", " << overloadParams(ov.params) << ")"
+                               << (ov.returnType.empty() ? "" : (": " + luaType(ov.returnType))) << "\n";
                 }
             }
             break;
         }
+
         case MemberKind::StaticMethod:
         {
-            out_ << "\n";
+            std::string qname = qualifiedName(cls.name);
             for (std::size_t i = 0; i < m.overloads.size(); ++i)
             {
                 const auto& ov = m.overloads[i];
                 if (i == 0)
                 {
-                    emitParams(ov.params);
+                    emitParamsTo(methodBuf_, ov.params);
                     if (!ov.returnType.empty() && ov.returnType != "void")
-                        out_ << "---@return " << luaType(ov.returnType) << "\n";
-                    out_ << "function " << cls.name << "." << m.name
-                         << "(" << paramNames(ov.params) << ") end\n";
+                        methodBuf_ << "---@return " << luaType(ov.returnType) << "\n";
+                    methodBuf_ << "function " << qname << "." << m.name << "(" << paramNames(ov.params) << ") end\n\n";
                 }
                 else
                 {
-                    out_ << "---@overload fun(" << overloadParams(ov.params) << ")"
-                         << (ov.returnType.empty() ? "" : (": " + luaType(ov.returnType))) << "\n";
+                    methodBuf_ << "---@overload fun(" << overloadParams(ov.params) << ")"
+                               << (ov.returnType.empty() ? "" : (": " + luaType(ov.returnType))) << "\n";
                 }
             }
             break;
         }
+
         default:
             break;
         }
@@ -973,15 +1040,20 @@ private:
     static std::string luaType(const std::string& cppType)
     {
         if (cppType == "void") return "nil";
+
         if (cppType == "bool") return "boolean";
+
         if (cppType == "int" || cppType == "long" || cppType == "short" ||
             cppType == "unsigned int" || cppType == "unsigned long" ||
             cppType == "unsigned short" || cppType == "int64_t" || cppType == "uint64_t" ||
             cppType == "int32_t" || cppType == "uint32_t" || cppType == "size_t")
             return "integer";
+
         if (cppType == "float" || cppType == "double") return "number";
+
         if (cppType == "std::string" || cppType == "const char *" || cppType == "const char*")
             return "string";
+
         return cppType.empty() ? "any" : cppType;
     }
 
@@ -1007,6 +1079,7 @@ private:
         for (std::size_t i = 0; i < params.size(); ++i)
         {
             if (i) s += ", ";
+
             const auto& p = params[i];
             std::string pname = p.hint.empty() ? ("p" + std::to_string(i + 1)) : p.hint;
             s += pname + ": " + luaType(p.typeName.empty() ? "any" : p.typeName);
@@ -1014,20 +1087,23 @@ private:
         return s;
     }
 
-    void emitParams(const std::vector<ParamInfo>& params, bool hasSelf = false) const
+    static void emitParamsTo(std::ostream& os, const std::vector<ParamInfo>& params,
+                             bool hasSelf = false, const std::string& selfType = {})
     {
         if (hasSelf)
-            out_ << "---@param self " << curClass_ << "\n";
+            os << "---@param self " << selfType << "\n";
+
         for (std::size_t i = 0; i < params.size(); ++i)
         {
             const auto& p = params[i];
             std::string pname = p.hint.empty() ? ("p" + std::to_string(i + 1)) : p.hint;
             std::string ptype = p.typeName.empty() ? "any" : luaType(p.typeName);
-            out_ << "---@param " << pname << " " << ptype << "\n";
+            os << "---@param " << pname << " " << ptype << "\n";
         }
     }
 
     std::ostream& out_;
+    std::ostringstream methodBuf_;
     std::string ns_;
     std::string curClass_;
 };
@@ -1049,14 +1125,16 @@ public:
 
     void beginNamespace(const NamespaceInspectInfo& ns) override
     {
-        if (ns.name != "_G")
-            out_ << "local " << ns.name << " = {}\n\n";
+        curNs_ = (ns.name == "_G") ? "" : ns.name;
+        if (!curNs_.empty())
+            out_ << "local " << curNs_ << " = {}\n\n";
     }
 
     void endNamespace(const NamespaceInspectInfo& ns) override
     {
         if (ns.name != "_G")
             out_ << "return " << ns.name << "\n";
+        curNs_.clear();
     }
 
     void visitFreeMember(const NamespaceInspectInfo& ns, const MemberInfo& m) override
@@ -1074,8 +1152,9 @@ public:
     void beginClass(const ClassInspectInfo& cls) override
     {
         curClass_ = cls.name;
-        out_ << cls.name << " = {}\n";
-        out_ << cls.name << ".__index = " << cls.name << "\n\n";
+        std::string qname = curNs_.empty() ? cls.name : (curNs_ + "." + cls.name);
+        out_ << qname << " = {}\n";
+        out_ << qname << ".__index = " << qname << "\n\n";
     }
 
     void endClass([[maybe_unused]] const ClassInspectInfo& cls) override
@@ -1089,28 +1168,35 @@ public:
         if (m.overloads.empty())
             return;
 
+        std::string qname = curNs_.empty() ? curClass_ : (curNs_ + "." + curClass_);
+
         switch (m.kind)
         {
         case MemberKind::Constructor:
-            out_ << "function " << curClass_ << ".new("
-                 << paramNames(m.overloads[0].params) << ")\n"
-                 << "    return setmetatable({}, " << curClass_ << ")\n"
-                 << "end\n\n";
+            // LuaBridge constructors are called as ClassName(args) via __call metamethod.
+            out_ << "setmetatable(" << qname << ", {__call = function(t";
+            if (!m.overloads[0].params.empty())
+                out_ << ", " << paramNames(m.overloads[0].params);
+            out_ << ")\n    return setmetatable({}, t)\nend})\n\n";
             break;
+
         case MemberKind::Method:
-            out_ << "function " << curClass_ << ":" << m.name
-                 << "(" << paramNames(m.overloads[0].params) << ") end\n";
+            out_ << "function " << qname << ":" << m.name
+                 << "(" << paramNames(m.overloads[0].params) << ") end\n\n";
             break;
+
         case MemberKind::StaticMethod:
-            out_ << "function " << curClass_ << "." << m.name
-                 << "(" << paramNames(m.overloads[0].params) << ") end\n";
+            out_ << "function " << qname << "." << m.name
+                 << "(" << paramNames(m.overloads[0].params) << ") end\n\n";
             break;
+
         case MemberKind::Property:
         case MemberKind::ReadOnlyProperty:
         case MemberKind::StaticProperty:
         case MemberKind::StaticReadOnlyProperty:
             // Properties are part of the table, no explicit function needed
             break;
+
         default:
             break;
         }
@@ -1129,117 +1215,8 @@ private:
     }
 
     std::ostream& out_;
+    std::string curNs_;
     std::string curClass_;
-};
-
-//=================================================================================================
-/**
- * @brief Visitor that emits a JSON representation of the inspection tree.
- */
-class JsonVisitor : public InspectVisitor
-{
-public:
-    explicit JsonVisitor(std::ostream& out)
-        : out_(out)
-    {
-    }
-
-    void beginNamespace(const NamespaceInspectInfo& ns) override
-    {
-        if (depth_ == 0) out_ << "{\n";
-        indent(); out_ << "\"name\": \"" << escape(ns.name) << "\",\n";
-        indent(); out_ << "\"freeMembers\": [],\n";
-        indent(); out_ << "\"classes\": [\n";
-        ++depth_;
-        firstClass_ = true;
-    }
-
-    void endNamespace([[maybe_unused]] const NamespaceInspectInfo& ns) override
-    {
-        --depth_;
-        out_ << "\n";
-        indent(); out_ << "]\n";
-        if (depth_ == 0) out_ << "}\n";
-    }
-
-    void beginClass(const ClassInspectInfo& cls) override
-    {
-        if (!firstClass_) out_ << ",\n";
-        firstClass_ = false;
-        indent(); out_ << "{\n";
-        ++depth_;
-        indent(); out_ << "\"name\": \"" << escape(cls.name) << "\",\n";
-        indent(); out_ << "\"bases\": [";
-        for (std::size_t i = 0; i < cls.baseClasses.size(); ++i)
-        {
-            if (i) out_ << ", ";
-            out_ << "\"" << escape(cls.baseClasses[i]) << "\"";
-        }
-        out_ << "],\n";
-        indent(); out_ << "\"members\": [\n";
-        ++depth_;
-        firstMember_ = true;
-    }
-
-    void endClass([[maybe_unused]] const ClassInspectInfo& cls) override
-    {
-        --depth_;
-        out_ << "\n";
-        indent(); out_ << "]\n";
-        --depth_;
-        indent(); out_ << "}";
-    }
-
-    void visitMember([[maybe_unused]] const ClassInspectInfo& cls, const MemberInfo& m) override
-    {
-        if (!firstMember_) out_ << ",\n";
-        firstMember_ = false;
-        indent();
-        out_ << "{ \"name\": \"" << escape(m.name) << "\""
-             << ", \"kind\": \"" << kindStr(m.kind) << "\""
-             << ", \"overloads\": " << m.overloads.size()
-             << " }";
-    }
-
-private:
-    void indent() const
-    {
-        for (int i = 0; i < depth_; ++i)
-            out_ << "  ";
-    }
-
-    static std::string escape(const std::string& s)
-    {
-        std::string out;
-        for (char c : s)
-        {
-            if (c == '"') out += "\\\"";
-            else if (c == '\\') out += "\\\\";
-            else out += c;
-        }
-        return out;
-    }
-
-    static const char* kindStr(MemberKind k)
-    {
-        switch (k)
-        {
-        case MemberKind::Method: return "method";
-        case MemberKind::StaticMethod: return "static_method";
-        case MemberKind::Property: return "property";
-        case MemberKind::ReadOnlyProperty: return "readonly_property";
-        case MemberKind::StaticProperty: return "static_property";
-        case MemberKind::StaticReadOnlyProperty: return "static_readonly_property";
-        case MemberKind::Constructor: return "constructor";
-        case MemberKind::Metamethod: return "metamethod";
-        default: return "unknown";
-        }
-    }
-
-    std::ostream& out_;
-    int depth_ = 0;
-    bool firstClass_ = true;
-    bool firstMember_ = true;
 };
 
 //=================================================================================================

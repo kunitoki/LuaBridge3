@@ -547,5 +547,35 @@ struct remove_first_type<std::tuple<T, Ts...>>
 template <class T>
 using remove_first_type_t = typename remove_first_type<T>::type;
 
+//=================================================================================================
+/**
+ * @brief Deduces the value type of a property getter.
+ *
+ * Handles member object pointers (T C::*), callable getters (member functions, free
+ * functions, lambdas), and falls back to void for anything else.
+ */
+template <class Getter, class = void>
+struct getter_return_type
+{
+    using type = void;
+};
+
+// Member object pointer: T C::*  (not a function member pointer)
+template <class T, class C>
+struct getter_return_type<T C::*, std::enable_if_t<std::is_member_object_pointer_v<T C::*>>>
+{
+    using type = std::remove_const_t<T>;
+};
+
+// Callable getter (member function pointer, free function pointer, lambda/functor)
+template <class Getter>
+struct getter_return_type<Getter, std::enable_if_t<is_callable_v<Getter>>>
+{
+    using type = remove_cvref_t<function_result_t<Getter>>;
+};
+
+template <class Getter>
+using getter_return_t = typename getter_return_type<Getter>::type;
+
 } // namespace detail
 } // namespace luabridge

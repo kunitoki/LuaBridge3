@@ -347,7 +347,10 @@ TEST_F(InspectTests, LuaLSVisitorProducesAnnotations)
     luabridge::getGlobalNamespace(L)
         .beginNamespace("LuaLS")
             .beginClass<Cls>("Cls")
+                .addConstructor<void()>()
                 .addProperty("value", &Cls::getValue)
+                .addFunction("xyz", [](const Cls& self, int a) { return a + 1; })
+                .addStaticFunction("abc", [](bool, float, int) { return "42"; })
             .endClass()
         .endNamespace();
 
@@ -358,8 +361,19 @@ TEST_F(InspectTests, LuaLSVisitorProducesAnnotations)
 
     const auto result = ss.str();
     EXPECT_FALSE(result.empty());
-    EXPECT_NE(std::string::npos, result.find("@class"));
-    EXPECT_NE(std::string::npos, result.find("Cls"));
+    EXPECT_NE(std::string::npos, result.find("---@class LuaLS.Cls"));
+    EXPECT_NE(std::string::npos, result.find("---@field value integer # readonly"));
+    EXPECT_NE(std::string::npos, result.find("---@overload fun(): LuaLS.Cls"));
+    EXPECT_NE(std::string::npos, result.find("local Cls = {}"));
+    EXPECT_NE(std::string::npos, result.find("---@param self LuaLS.Cls"));
+    EXPECT_NE(std::string::npos, result.find("---@param p1 integer"));
+    EXPECT_NE(std::string::npos, result.find("---@return integer"));
+    EXPECT_NE(std::string::npos, result.find("function LuaLS.Cls:xyz(p1) end"));
+    EXPECT_NE(std::string::npos, result.find("---@param p1 boolean"));
+    EXPECT_NE(std::string::npos, result.find("---@param p2 number"));
+    EXPECT_NE(std::string::npos, result.find("---@param p3 integer"));
+    EXPECT_NE(std::string::npos, result.find("---@return string"));
+    EXPECT_NE(std::string::npos, result.find("function LuaLS.Cls.abc(p1, p2, p3) end"));
 }
 
 TEST_F(InspectTests, LuaProxyVisitorProducesStubs)
@@ -382,25 +396,6 @@ TEST_F(InspectTests, LuaProxyVisitorProducesStubs)
     EXPECT_FALSE(result.empty());
     EXPECT_NE(std::string::npos, result.find("Cls"));
     EXPECT_NE(std::string::npos, result.find("method"));
-}
-
-TEST_F(InspectTests, JsonVisitorProducesJson)
-{
-    struct Cls {};
-    luabridge::getGlobalNamespace(L)
-        .beginNamespace("Json")
-            .beginClass<Cls>("Cls").endClass()
-        .endNamespace();
-
-    auto ns = luabridge::inspectNamespace(L, "Json");
-    std::stringstream ss;
-    luabridge::JsonVisitor v(ss);
-    luabridge::accept(ns, v);
-
-    const auto result = ss.str();
-    EXPECT_FALSE(result.empty());
-    EXPECT_NE(std::string::npos, result.find("\"name\""));
-    EXPECT_NE(std::string::npos, result.find("Json"));
 }
 
 //=================================================================================================

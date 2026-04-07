@@ -709,6 +709,9 @@ class Namespace : public detail::Registrar
             detail::push_property_readonly(L, name); // Stack: co, cl, st, function
             detail::add_property_setter(L, name, -2); // Stack: co, cl, st
 
+            using RetType = detail::getter_return_t<Getter>;
+            detail::add_property_type(L, name, std::string(detail::typeName<RetType>()).c_str(), -1); // st
+
             return *this;
         }
 
@@ -723,6 +726,9 @@ class Namespace : public detail::Registrar
 
             detail::push_property_setter(L, std::move(set), name); // Stack: co, cl, st, function
             detail::add_property_setter(L, name, -2); // Stack: co, cl, st
+
+            using RetType = detail::getter_return_t<Getter>;
+            detail::add_property_type(L, name, std::string(detail::typeName<RetType>()).c_str(), -1); // st
 
             return *this;
         }
@@ -926,6 +932,9 @@ class Namespace : public detail::Registrar
             detail::push_property_readonly(L, name); // Stack: co, cl, st, function
             detail::add_property_setter(L, name, -3); // Stack: co, cl, st
 
+            using RetType = detail::getter_return_t<Getter>;
+            detail::add_property_type(L, name, std::string(detail::typeName<RetType>()).c_str(), -2); // cl
+
             return *this;
         }
 
@@ -942,6 +951,9 @@ class Namespace : public detail::Registrar
 
             detail::push_class_property_setter<T>(L, std::move(setter), name); // Stack: co, cl, st, setter
             detail::add_property_setter(L, name, -3); // Stack: co, cl, st
+
+            using RetType = detail::getter_return_t<Getter>;
+            detail::add_property_type(L, name, std::string(detail::typeName<RetType>()).c_str(), -2); // cl
 
             return *this;
         }
@@ -2034,6 +2046,9 @@ public:
         detail::push_property_readonly(L, name); // Stack: ns, function
         detail::add_property_setter(L, name, -2); // Stack: ns
 
+        using RetType = detail::getter_return_t<Getter>;
+        detail::add_property_type(L, name, std::string(detail::typeName<RetType>()).c_str(), -1); // ns
+
         return *this;
     }
 
@@ -2064,6 +2079,9 @@ public:
 
         detail::push_property_setter(L, std::move(setter), name); // Stack: ns, setter
         detail::add_property_setter(L, name, -2); // Stack: ns
+
+        using RetType = detail::getter_return_t<Getter>;
+        detail::add_property_type(L, name, std::string(detail::typeName<RetType>()).c_str(), -1); // ns
 
         return *this;
     }

@@ -1392,6 +1392,38 @@ inline void add_property_getter(lua_State* L, const char* name, int tableIndex)
 }
 
 //=================================================================================================
+/**
+ * @brief Store a property's C++ type name string in a side-table for inspection/tooling.
+ *
+ * Creates the side-table (keyed by getPropTypeKey()) on demand inside the table at tableIndex.
+ * A no-op when typeName is null or empty.
+ */
+inline void add_property_type(lua_State* L, const char* name, const char* typeName, int tableIndex)
+{
+#if LUABRIDGE_SAFE_STACK_CHECKS
+    luaL_checkstack(L, 3, detail::error_lua_stack_overflow);
+#endif
+
+    if (!typeName || typeName[0] == '\0')
+        return;
+
+    tableIndex = lua_absindex(L, tableIndex);
+
+    lua_rawgetp_x(L, tableIndex, getPropTypeKey()); // Stack: ..., proptype (or nil)
+    if (lua_isnil(L, -1))
+    {
+        lua_pop(L, 1);
+        lua_createtable(L, 0, 4);
+        lua_pushvalue(L, -1);
+        lua_rawsetp_x(L, tableIndex, getPropTypeKey());
+    }
+    // Stack: ..., proptype
+    lua_pushstring(L, typeName);
+    rawsetfield(L, -2, name);
+    lua_pop(L, 1); // pop proptype
+}
+
+//=================================================================================================
 
 template <class T, class C = void>
 struct property_setter;
