@@ -4,10 +4,6 @@
 
 #pragma once
 
-#if ! LUABRIDGE_ENABLE_REFLECT
-#error "This header is only for use when LUABRIDGE_ENABLE_REFLECT is active."
-#endif
-
 #include "detail/CFunctions.h"
 #include "detail/ClassInfo.h"
 #include "detail/LuaHelpers.h"
@@ -627,6 +623,7 @@ inline NamespaceInspectInfo inspectNamespaceTable(lua_State* L, int nsIdx, std::
 template <class T>
 [[nodiscard]] ClassInspectInfo inspect(lua_State* L)
 {
+#if LUABRIDGE_ENABLE_REFLECT
     // Load the class table (cl) directly from the Lua registry
     lua_rawgetp_x(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>());
     if (!lua_istable(L, -1))
@@ -664,6 +661,10 @@ template <class T>
     // Stack: ..., cl
     lua_pop(L, 1); // pop cl
     return result;
+#else
+    unused(L);
+    return {};
+#endif
 }
 
 //=================================================================================================
@@ -677,6 +678,7 @@ template <class T>
  */
 [[nodiscard]] inline NamespaceInspectInfo inspectNamespace(lua_State* L, const char* namespaceName = nullptr)
 {
+#if LUABRIDGE_ENABLE_REFLECT
     if (namespaceName == nullptr || namespaceName[0] == '\0')
     {
         lua_getglobal(L, "_G");
@@ -729,6 +731,10 @@ template <class T>
     auto result = detail::inspectNamespaceTable(L, -1, label);
     lua_pop(L, 1);
     return result;
+#else
+    unused(L, namespaceName);
+    return {};
+#endif
 }
 
 //=================================================================================================
@@ -737,8 +743,12 @@ template <class T>
  */
 inline void inspectAccept(lua_State* L, const char* namespaceName, InspectVisitor& visitor)
 {
+#if LUABRIDGE_ENABLE_REFLECT
     auto ns = inspectNamespace(L, namespaceName);
     accept(ns, visitor);
+#else
+    unused(L, namespaceName, visitor);
+#endif
 }
 
 //=================================================================================================
@@ -1240,196 +1250,19 @@ private:
 
 //=================================================================================================
 /**
- * @brief Visitor that builds a structured Lua table on the Lua stack.
- *
- * After calling accept() with this visitor, the stack top is a table with structure:
- * @code
- * {
- *   name = "MyNS",
- *   freeMembers = { {name=…, kind=…, overloads=…}, … },
- *   classes = {
- *     { name=…, bases={…}, members={ {name=…, kind=…, overloads=N}, … } },
- *     …
- *   },
- *   subNamespaces = { … }
- * }
- * @endcode
- */
-class LuaTableVisitor : public InspectVisitor
-{
-public:
-    explicit LuaTableVisitor(lua_State* L)
-        : L_(L)
-    {
-    }
-
-    void beginNamespace(const NamespaceInspectInfo& ns) override
-    {
-        lua_newtable(L_); // the namespace table
-        lua_pushstring(L_, ns.name.c_str());
-        lua_setfield(L_, -2, "name");
-
-        lua_newtable(L_);
-        lua_setfield(L_, -2, "freeMembers");
-
-        lua_newtable(L_);
-        lua_setfield(L_, -2, "classes");
-
-        lua_newtable(L_);
-        lua_setfield(L_, -2, "subNamespaces");
-
-        nsStack_.push_back({});
-    }
-
-    void endNamespace([[maybe_unused]] const NamespaceInspectInfo& ns) override
-    {
-        nsStack_.pop_back();
-
-        if (!nsStack_.empty())
-        {
-            // Sub-namespace table is on top; store it in the parent's "subNamespaces" array.
-            // Stack: [..., parent_ns_table, sub_ns_table]
-            lua_getfield(L_, -2, "subNamespaces");         // [..., parent_ns_table, sub_ns_table, subNS_array]
-            lua_pushvalue(L_, -2);                         // [..., parent_ns_table, sub_ns_table, subNS_array, sub_ns_table]
-            lua_rawseti(L_, -2, nsStack_.back().subNsIdx++); // store sub_ns_table into subNS_array
-            lua_pop(L_, 2);                                // pop subNS_array + sub_ns_table
-            // Stack: [..., parent_ns_table]
-        }
-    }
-
-    void visitFreeMember([[maybe_unused]] const NamespaceInspectInfo& ns, const MemberInfo& m) override
-    {
-        lua_getfield(L_, -1, "freeMembers");
-        pushMemberInfo(m);
-        lua_rawseti(L_, -2, nsStack_.back().freeMemberIdx++);
-        lua_pop(L_, 1);
-    }
-
-    void beginClass(const ClassInspectInfo& cls) override
-    {
-        lua_newtable(L_);
-        lua_pushstring(L_, cls.name.c_str());
-        lua_setfield(L_, -2, "name");
-
-        lua_newtable(L_);
-        for (std::size_t i = 0; i < cls.baseClasses.size(); ++i)
-        {
-            lua_pushstring(L_, cls.baseClasses[i].c_str());
-            lua_rawseti(L_, -2, static_cast<int>(i + 1));
-        }
-        lua_setfield(L_, -2, "bases");
-
-        lua_newtable(L_);
-        lua_setfield(L_, -2, "members");
-        memberIdx_ = 1;
-    }
-
-    void endClass([[maybe_unused]] const ClassInspectInfo& cls) override
-    {
-        // class table is on top; store it in the namespace's "classes" array
-        lua_getfield(L_, -2, "classes");
-        lua_pushvalue(L_, -2);
-        lua_rawseti(L_, -2, nsStack_.back().classIdx++);
-        lua_pop(L_, 2); // pop classes table + class table
-    }
-
-    void visitMember([[maybe_unused]] const ClassInspectInfo& cls, const MemberInfo& m) override
-    {
-        lua_getfield(L_, -1, "members");
-        pushMemberInfo(m);
-        lua_rawseti(L_, -2, memberIdx_++);
-        lua_pop(L_, 1);
-    }
-
-private:
-    struct NsState
-    {
-        int freeMemberIdx = 1;
-        int classIdx = 1;
-        int subNsIdx = 1;
-    };
-
-    void pushMemberInfo(const MemberInfo& m)
-    {
-        lua_newtable(L_);
-        lua_pushstring(L_, m.name.c_str());
-        lua_setfield(L_, -2, "name");
-        lua_pushstring(L_, kindStr(m.kind));
-        lua_setfield(L_, -2, "kind");
-        lua_pushinteger(L_, static_cast<lua_Integer>(m.overloads.size()));
-        lua_setfield(L_, -2, "overloads");
-
-        // Emit overload details when type info is available
-        lua_newtable(L_);
-        for (std::size_t i = 0; i < m.overloads.size(); ++i)
-        {
-            const auto& ov = m.overloads[i];
-            lua_newtable(L_);
-            lua_pushstring(L_, ov.returnType.c_str());
-            lua_setfield(L_, -2, "returnType");
-
-            lua_newtable(L_);
-            for (std::size_t j = 0; j < ov.params.size(); ++j)
-            {
-                lua_newtable(L_);
-                lua_pushstring(L_, ov.params[j].typeName.c_str());
-                lua_setfield(L_, -2, "type");
-                lua_pushstring(L_, ov.params[j].hint.c_str());
-                lua_setfield(L_, -2, "hint");
-                lua_rawseti(L_, -2, static_cast<int>(j + 1));
-            }
-            lua_setfield(L_, -2, "params");
-            lua_rawseti(L_, -2, static_cast<int>(i + 1));
-        }
-        lua_setfield(L_, -2, "overloadDetails");
-    }
-
-    static const char* kindStr(MemberKind k)
-    {
-        switch (k)
-        {
-        case MemberKind::Method: return "method";
-        case MemberKind::StaticMethod: return "static_method";
-        case MemberKind::Property: return "property";
-        case MemberKind::ReadOnlyProperty: return "readonly_property";
-        case MemberKind::StaticProperty: return "static_property";
-        case MemberKind::StaticReadOnlyProperty: return "static_readonly_property";
-        case MemberKind::Constructor: return "constructor";
-        case MemberKind::Metamethod: return "metamethod";
-        default: return "unknown";
-        }
-    }
-
-    lua_State* L_;
-    std::vector<NsState> nsStack_;
-    int memberIdx_ = 1;
-};
-
-//=================================================================================================
-/**
  * @brief Print a TypeScript-style inspection of a namespace to an ostream.
  *
  * Convenience wrapper around ConsoleVisitor.
  */
 inline void inspectPrint(lua_State* L, const char* namespaceName = nullptr, std::ostream& stream = std::cerr)
 {
+#if LUABRIDGE_ENABLE_REFLECT
     auto ns = inspectNamespace(L, namespaceName);
     ConsoleVisitor v(stream);
     accept(ns, v);
-}
-
-//=================================================================================================
-/**
- * @brief Push a structured Lua table describing a namespace onto the Lua stack.
- *
- * Convenience wrapper around LuaTableVisitor.
- * Pushes exactly 1 value (the result table).
- */
-inline void inspectToLua(lua_State* L, const char* namespaceName = nullptr)
-{
-    auto ns = inspectNamespace(L, namespaceName);
-    LuaTableVisitor v(L);
-    accept(ns, v);
+#else
+    unused(L, namespaceName, stream);
+#endif
 }
 
 } // namespace luabridge

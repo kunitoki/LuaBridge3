@@ -676,7 +676,7 @@ When `LUABRIDGE_ENABLE_REFLECT` is defined (see [7.6](#76---luabridge-enable-ref
 ```cpp
 #define LUABRIDGE_ENABLE_REFLECT
 #include <LuaBridge/LuaBridge.h>
-#include <LuaBridge/Inspect.h>
+#include <LuaBridge/Inspect.h>  // source headers only; omit when using the amalgama
 
 struct Enemy
 {
@@ -2109,12 +2109,19 @@ luabridge::getGlobalNamespace (L)
 
 LuaBridge3 can introspect its own registration tables at runtime, making it straightforward to generate documentation, build IDE auto-complete databases, produce TypeScript type declarations, or validate that a binding matches an expected schema.
 
-The inspection API lives in the **optional** header `<LuaBridge/Inspect.h>`, which must be included separately and **requires** `LUABRIDGE_ENABLE_REFLECT` to be defined (see [7.6](#76---luabridge-enable-reflect)).
+The inspection API lives in the **optional** header `<LuaBridge/Inspect.h>`. When using the individual source headers, it must be included separately after `<LuaBridge/LuaBridge.h>`. When using the single-file amalgama (`Distribution/LuaBridge/LuaBridge.h`), `Inspect.h` is already embedded and no separate include is needed.
+
+Define `LUABRIDGE_ENABLE_REFLECT` before any LuaBridge header to enable C++ type-name capture (see [7.6](#76---luabridge-enable-reflect)). The inspection API works without it — type names will simply be empty strings.
 
 ```cpp
-#define LUABRIDGE_ENABLE_REFLECT
+// Source headers: include Inspect.h separately (optional)
+#define LUABRIDGE_ENABLE_REFLECT   // optional: enables type-name capture
 #include <LuaBridge/LuaBridge.h>
 #include <LuaBridge/Inspect.h>
+
+// Amalgama: Inspect.h is already embedded — no separate include needed
+#define LUABRIDGE_ENABLE_REFLECT   // optional: enables type-name capture
+#include <LuaBridge/LuaBridge.h>
 ```
 
 6.1 - inspect\<T\> and inspectNamespace
@@ -2357,17 +2364,21 @@ When defined, LuaBridge captures the C++ type names of function parameters and r
 Enable reflection by defining the macro **before** including any LuaBridge header:
 
 ```cpp
+// Source headers
 #define LUABRIDGE_ENABLE_REFLECT
 #include <LuaBridge/LuaBridge.h>
 #include <LuaBridge/Inspect.h>  // optional: only needed when using the inspection API
+
+// Amalgama (Inspect.h is already embedded — no separate include needed)
+#define LUABRIDGE_ENABLE_REFLECT
+#include <LuaBridge/LuaBridge.h>
 ```
 
-> **Note:** `Inspect.h` unconditionally requires `LUABRIDGE_ENABLE_REFLECT` and will emit a `#error` if the macro is not defined. You may use `withHints` (see [2.5.2](#252---parameter-name-hints)) without including `Inspect.h`.
+> **Note:** `Inspect.h` does **not** require `LUABRIDGE_ENABLE_REFLECT` — it can always be included. Without the macro the inspection API still works; it just reports empty strings for type names. You may also use `withHints` (see [2.5.2](#252---parameter-name-hints)) without including `Inspect.h`.
 
 When `LUABRIDGE_ENABLE_REFLECT` is not defined:
 * `withHints` parameter name hints are ignored and are not available through inspection.
 * `OverloadInfo::returnType` and `ParamInfo::typeName` are empty strings.
-* The `Inspect.h` header cannot be included.
 
 Appendix - API Reference
 ========================
@@ -2809,7 +2820,7 @@ int lua_resume_x(lua_State* L, lua_State* from, int nargs, int* nresults = nullp
 bool lua_isyieldable_x(lua_State* L);
 ```
 
-Registration Inspection (requires `LUABRIDGE_ENABLE_REFLECT`, `<LuaBridge/Inspect.h>`)
+Registration Inspection (`<LuaBridge/Inspect.h>`, enhanced by `LUABRIDGE_ENABLE_REFLECT`)
 ---------------------------------------------------------------------------------------
 
 ```cpp
