@@ -71,7 +71,14 @@ source_group ("Source Files" FILES ${LUABRIDGE_TEST_SOURCE_FILES})
 
 # ====================================================== Lua C
 
-set (LUABRIDGE_LUA_C_DEFINES "LUABRIDGE_SAFE_LUA_C_EXCEPTION_HANDLING=1")
+set (LUABRIDGE_LUA_DEFAULT_DEFINES)
+
+set (LUABRIDGE_LUA_CPP_DEFINES
+  ${LUABRIDGE_LUA_DEFAULT_DEFINES})
+
+set (LUABRIDGE_LUA_C_DEFINES
+  ${LUABRIDGE_LUA_DEFAULT_DEFINES}
+  -DLUABRIDGE_SAFE_LUA_C_EXCEPTION_HANDLING=1)
 
 # ====================================================== Lua 5.1
 
@@ -199,63 +206,45 @@ function (setup_target_for_coverage TARGET_NAME SOURCE_LOCATION SOURCE_PACKAGE)
 endfunction ()
 
 function (setup_coverage_single_target)
+  set (LUABRIDGE_COVERAGE_TARGETS)
+
+  foreach (LUA_VERSION_SUFFIX IN ITEMS 51 52 53 54 55)
+    foreach (TEST_VARIANT IN ITEMS "" "Noexcept" "Reflect" "ReflectNoexcept" "LuaC" "LuaCNoexcept")
+      list (APPEND LUABRIDGE_COVERAGE_TARGETS "LuaBridgeTests${LUA_VERSION_SUFFIX}${TEST_VARIANT}")
+    endforeach ()
+  endforeach ()
+
+  list (APPEND LUABRIDGE_COVERAGE_TARGETS
+    LuaBridgeTestsLuau
+    LuaBridgeTestsLuauReflect)
+
+  if (NOT EMSCRIPTEN)
+    list (APPEND LUABRIDGE_COVERAGE_TARGETS
+      LuaBridgeTestsLuaJIT
+      LuaBridgeTestsLuaJITNoexcept
+      LuaBridgeTestsLuaJITReflect
+      LuaBridgeTestsLuaJITReflectNoexcept
+      LuaBridgeTestsRavi
+      LuaBridgeTestsRaviReflect)
+  endif ()
+
+  set (LUABRIDGE_COVERAGE_INFO_FILES)
+  set (LUABRIDGE_COVERAGE_MERGE_ARGS)
+  foreach (COVERAGE_TARGET IN LISTS LUABRIDGE_COVERAGE_TARGETS)
+    list (APPEND LUABRIDGE_COVERAGE_INFO_FILES "coverage/${COVERAGE_TARGET}.info")
+    list (APPEND LUABRIDGE_COVERAGE_MERGE_ARGS -a "coverage/${COVERAGE_TARGET}.info")
+  endforeach ()
+
   add_custom_target (LuaBridgeTestsCoverage
     COMMAND ${CMAKE_COMMAND} -E make_directory coverage_html
     COMMAND ${CMAKE_COMMAND} -E rm -Rf coverage_html/*
     COMMAND ${CMAKE_COMMAND} -E rm -f coverage/Merged.info
     COMMAND ${LCOV_EXECUTABLE}
-      -a "coverage/LuaBridgeTests51.info"
-      -a "coverage/LuaBridgeTests51LuaC.info"
-      -a "coverage/LuaBridgeTests51Noexcept.info"
-      -a "coverage/LuaBridgeTests51LuaCNoexcept.info"
-      -a "coverage/LuaBridgeTests52.info"
-      -a "coverage/LuaBridgeTests52LuaC.info"
-      -a "coverage/LuaBridgeTests52Noexcept.info"
-      -a "coverage/LuaBridgeTests52LuaCNoexcept.info"
-      -a "coverage/LuaBridgeTests53.info"
-      -a "coverage/LuaBridgeTests53LuaC.info"
-      -a "coverage/LuaBridgeTests53Noexcept.info"
-      -a "coverage/LuaBridgeTests53LuaCNoexcept.info"
-      -a "coverage/LuaBridgeTests54.info"
-      -a "coverage/LuaBridgeTests54LuaC.info"
-      -a "coverage/LuaBridgeTests54Noexcept.info"
-      -a "coverage/LuaBridgeTests54LuaCNoexcept.info"
-      -a "coverage/LuaBridgeTests55.info"
-      -a "coverage/LuaBridgeTests55LuaC.info"
-      -a "coverage/LuaBridgeTests55Noexcept.info"
-      -a "coverage/LuaBridgeTests55LuaCNoexcept.info"
-      -a "coverage/LuaBridgeTestsLuaJIT.info"
-      -a "coverage/LuaBridgeTestsLuaJITNoexcept.info"
-      -a "coverage/LuaBridgeTestsLuau.info"
-      -a "coverage/LuaBridgeTestsRavi.info"
+      ${LUABRIDGE_COVERAGE_MERGE_ARGS}
       -o "coverage/Merged.info"
     COMMAND ${GENHTML_EXECUTABLE}
       --rc branch_coverage=1 "coverage/Merged.info" -o "coverage_html"
-    DEPENDS
-      "coverage/LuaBridgeTests51.info"
-      "coverage/LuaBridgeTests51LuaC.info"
-      "coverage/LuaBridgeTests51Noexcept.info"
-      "coverage/LuaBridgeTests51LuaCNoexcept.info"
-      "coverage/LuaBridgeTests52.info"
-      "coverage/LuaBridgeTests52LuaC.info"
-      "coverage/LuaBridgeTests52Noexcept.info"
-      "coverage/LuaBridgeTests52LuaCNoexcept.info"
-      "coverage/LuaBridgeTests53.info"
-      "coverage/LuaBridgeTests53LuaC.info"
-      "coverage/LuaBridgeTests53Noexcept.info"
-      "coverage/LuaBridgeTests53LuaCNoexcept.info"
-      "coverage/LuaBridgeTests54.info"
-      "coverage/LuaBridgeTests54LuaC.info"
-      "coverage/LuaBridgeTests54Noexcept.info"
-      "coverage/LuaBridgeTests54LuaCNoexcept.info"
-      "coverage/LuaBridgeTests55.info"
-      "coverage/LuaBridgeTests55LuaC.info"
-      "coverage/LuaBridgeTests55Noexcept.info"
-      "coverage/LuaBridgeTests55LuaCNoexcept.info"
-      "coverage/LuaBridgeTestsLuaJIT.info"
-      "coverage/LuaBridgeTestsLuaJITNoexcept.info"
-      "coverage/LuaBridgeTestsLuau.info"
-      "coverage/LuaBridgeTestsRavi.info"
+    DEPENDS ${LUABRIDGE_COVERAGE_INFO_FILES}
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     VERBATIM)
 
@@ -286,7 +275,6 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
 
     target_compile_definitions (${LUABRIDGE_TESTLIB_NAME} PRIVATE
       LUABRIDGE_TEST_SHARED_EXPORT=1
-      LUABRIDGE_ENABLE_REFLECT=1
       ${LUABRIDGE_DEFINES})
 
     target_include_directories (${LUABRIDGE_TESTLIB_NAME} PRIVATE
@@ -350,16 +338,18 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
     Source)
 
   if (${LUA_VERSION} STREQUAL "LUAU")
-    target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/VM/include")
-    target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/Ast/include")
-    target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/Compiler/include")
-    target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/Common/include")
+    target_include_directories (${LUABRIDGE_TEST_NAME} PRIVATE
+      "${LUABRIDGE_LUAU_LOCATION}/VM/include"
+      "${LUABRIDGE_LUAU_LOCATION}/Ast/include"
+      "${LUABRIDGE_LUAU_LOCATION}/Compiler/include"
+      "${LUABRIDGE_LUAU_LOCATION}/Common/include")
     target_compile_definitions (${LUABRIDGE_TEST_NAME} PRIVATE LUABRIDGE_TEST_LUAU=1)
     if (LUABRIDGE_BUILD_SHARED_TESTS)
-      target_include_directories (${LUABRIDGE_TESTLIB_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/VM/include")
-      target_include_directories (${LUABRIDGE_TESTLIB_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/Ast/include")
-      target_include_directories (${LUABRIDGE_TESTLIB_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/Compiler/include")
-      target_include_directories (${LUABRIDGE_TESTLIB_NAME} PRIVATE "${LUABRIDGE_LUAU_LOCATION}/Common/include")
+      target_include_directories (${LUABRIDGE_TESTLIB_NAME} PRIVATE
+        "${LUABRIDGE_LUAU_LOCATION}/VM/include"
+        "${LUABRIDGE_LUAU_LOCATION}/Ast/include"
+        "${LUABRIDGE_LUAU_LOCATION}/Compiler/include"
+        "${LUABRIDGE_LUAU_LOCATION}/Common/include")
       target_compile_definitions (${LUABRIDGE_TESTLIB_NAME} PRIVATE LUABRIDGE_TEST_LUAU=1)
     endif ()
   elseif (${LUA_VERSION} STREQUAL "LUAJIT")
@@ -388,12 +378,10 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
       set (LUABRIDGE_TEST_SHARED_LIBRARY "lib${LUABRIDGE_TESTLIB_NAME}.so")
     endif ()
     target_compile_definitions (${LUABRIDGE_TEST_NAME} PRIVATE
-      LUABRIDGE_ENABLE_REFLECT=1
       LUABRIDGE_TEST_SHARED_LIBRARY="${LUABRIDGE_TEST_SHARED_LIBRARY}"
-      LUABRIDGE_TEST_SHARED_EXPORT=0)
+      LUABRIDGE_TEST_SHARED_EXPORT=0
+      ${LUABRIDGE_DEFINES})
   endif ()
-
-  target_compile_definitions (${LUABRIDGE_TEST_NAME} PRIVATE LUABRIDGE_ENABLE_REFLECT=1)
 
   if (NOT ${LUABRIDGE_EXCEPTIONS})
     target_compile_definitions (${LUABRIDGE_TEST_NAME} PRIVATE LUA_USE_LONGJMP=1)
@@ -438,43 +426,57 @@ endmacro (add_test_app)
 
 # ====================================================== Real Unit Tests
 
-add_test_app (LuaBridgeTests51 501 "${LUABRIDGE_TEST_LUA51_FILES}" 1 "" "")
+add_test_app (LuaBridgeTests51 501 "${LUABRIDGE_TEST_LUA51_FILES}" 1 "${LUABRIDGE_LUA_CPP_DEFINES}" "")
+add_test_app (LuaBridgeTests51Noexcept 501 "${LUABRIDGE_TEST_LUA51_FILES}" 0 "${LUABRIDGE_LUA_CPP_DEFINES}" "")
+add_test_app (LuaBridgeTests51Reflect 501 "${LUABRIDGE_TEST_LUA51_FILES}" 1 "-DLUABRIDGE_ENABLE_REFLECT=1;${LUABRIDGE_LUA_CPP_DEFINES}" "")
+add_test_app (LuaBridgeTests51ReflectNoexcept 501 "${LUABRIDGE_TEST_LUA51_FILES}" 0 "-DLUABRIDGE_ENABLE_REFLECT=1;${LUABRIDGE_LUA_CPP_DEFINES}" "")
 add_test_app (LuaBridgeTests51LuaC 501 "${LUABRIDGE_TEST_LUA51_C_FILES}" 1 "${LUABRIDGE_LUA_C_DEFINES}" "")
-add_test_app (LuaBridgeTests51Noexcept 501 "${LUABRIDGE_TEST_LUA51_FILES}" 0 "" "")
 add_test_app (LuaBridgeTests51LuaCNoexcept 501 "${LUABRIDGE_TEST_LUA51_C_FILES}" 0 "${LUABRIDGE_LUA_C_DEFINES}" "")
 
-add_test_app (LuaBridgeTests52 502 "${LUABRIDGE_TEST_LUA52_FILES}" 1 "" "")
+add_test_app (LuaBridgeTests52 502 "${LUABRIDGE_TEST_LUA52_FILES}" 1 "${LUABRIDGE_LUA_CPP_DEFINES}" "")
+add_test_app (LuaBridgeTests52Noexcept 502 "${LUABRIDGE_TEST_LUA52_FILES}" 0 "${LUABRIDGE_LUA_CPP_DEFINES}" "")
+add_test_app (LuaBridgeTests52Reflect 502 "${LUABRIDGE_TEST_LUA52_FILES}" 1 "-DLUABRIDGE_ENABLE_REFLECT=1;${LUABRIDGE_LUA_CPP_DEFINES}" "")
+add_test_app (LuaBridgeTests52ReflectNoexcept 502 "${LUABRIDGE_TEST_LUA52_FILES}" 0 "-DLUABRIDGE_ENABLE_REFLECT=1;${LUABRIDGE_LUA_CPP_DEFINES}" "")
 add_test_app (LuaBridgeTests52LuaC 502 "${LUABRIDGE_TEST_LUA52_C_FILES}" 1 "${LUABRIDGE_LUA_C_DEFINES}" "")
-add_test_app (LuaBridgeTests52Noexcept 502 "${LUABRIDGE_TEST_LUA52_FILES}" 0 "" "")
 add_test_app (LuaBridgeTests52LuaCNoexcept 502 "${LUABRIDGE_TEST_LUA52_C_FILES}" 0 "${LUABRIDGE_LUA_C_DEFINES}" "")
 
-add_test_app (LuaBridgeTests53 503 "${LUABRIDGE_TEST_LUA53_FILES}" 1 "" "")
+add_test_app (LuaBridgeTests53 503 "${LUABRIDGE_TEST_LUA53_FILES}" 1 "${LUABRIDGE_LUA_CPP_DEFINES}" "")
+add_test_app (LuaBridgeTests53Noexcept 503 "${LUABRIDGE_TEST_LUA53_FILES}" 0 "${LUABRIDGE_LUA_CPP_DEFINES}" "")
+add_test_app (LuaBridgeTests53Reflect 503 "${LUABRIDGE_TEST_LUA53_FILES}" 1 "-DLUABRIDGE_ENABLE_REFLECT=1;${LUABRIDGE_LUA_CPP_DEFINES}" "")
+add_test_app (LuaBridgeTests53ReflectNoexcept 503 "${LUABRIDGE_TEST_LUA53_FILES}" 0 "-DLUABRIDGE_ENABLE_REFLECT=1;${LUABRIDGE_LUA_CPP_DEFINES}" "")
 add_test_app (LuaBridgeTests53LuaC 503 "${LUABRIDGE_TEST_LUA53_C_FILES}" 1 "${LUABRIDGE_LUA_C_DEFINES}" "")
-add_test_app (LuaBridgeTests53Noexcept 503 "${LUABRIDGE_TEST_LUA53_FILES}" 0 "" "")
 add_test_app (LuaBridgeTests53LuaCNoexcept 503 "${LUABRIDGE_TEST_LUA53_C_FILES}" 0 "${LUABRIDGE_LUA_C_DEFINES}" "")
 
-add_test_app (LuaBridgeTests54 504 "${LUABRIDGE_TEST_LUA54_FILES}" 1 "" "")
+add_test_app (LuaBridgeTests54 504 "${LUABRIDGE_TEST_LUA54_FILES}" 1 "${LUABRIDGE_LUA_CPP_DEFINES}" "")
+add_test_app (LuaBridgeTests54Noexcept 504 "${LUABRIDGE_TEST_LUA54_FILES}" 0 "${LUABRIDGE_LUA_CPP_DEFINES}" "")
+add_test_app (LuaBridgeTests54Reflect 504 "${LUABRIDGE_TEST_LUA54_FILES}" 1 "-DLUABRIDGE_ENABLE_REFLECT=1;${LUABRIDGE_LUA_CPP_DEFINES}" "")
+add_test_app (LuaBridgeTests54ReflectNoexcept 504 "${LUABRIDGE_TEST_LUA54_FILES}" 0 "-DLUABRIDGE_ENABLE_REFLECT=1;${LUABRIDGE_LUA_CPP_DEFINES}" "")
 add_test_app (LuaBridgeTests54LuaC 504 "${LUABRIDGE_TEST_LUA54_C_FILES}" 1 "${LUABRIDGE_LUA_C_DEFINES}" "")
-add_test_app (LuaBridgeTests54Noexcept 504 "${LUABRIDGE_TEST_LUA54_FILES}" 0 "" "")
 add_test_app (LuaBridgeTests54LuaCNoexcept 504 "${LUABRIDGE_TEST_LUA54_C_FILES}" 0 "${LUABRIDGE_LUA_C_DEFINES}" "")
 
-add_test_app (LuaBridgeTests55 505 "${LUABRIDGE_TEST_LUA55_FILES}" 1 "" "")
+add_test_app (LuaBridgeTests55 505 "${LUABRIDGE_TEST_LUA55_FILES}" 1 "${LUABRIDGE_LUA_CPP_DEFINES}" "")
+add_test_app (LuaBridgeTests55Noexcept 505 "${LUABRIDGE_TEST_LUA55_FILES}" 0 "${LUABRIDGE_LUA_CPP_DEFINES}" "")
+add_test_app (LuaBridgeTests55Reflect 505 "${LUABRIDGE_TEST_LUA55_FILES}" 1 "-DLUABRIDGE_ENABLE_REFLECT=1;${LUABRIDGE_LUA_CPP_DEFINES}" "")
+add_test_app (LuaBridgeTests55ReflectNoexcept 505 "${LUABRIDGE_TEST_LUA55_FILES}" 0 "-DLUABRIDGE_ENABLE_REFLECT=1;${LUABRIDGE_LUA_CPP_DEFINES}" "")
 add_test_app (LuaBridgeTests55LuaC 505 "${LUABRIDGE_TEST_LUA55_C_FILES}" 1 "${LUABRIDGE_LUA_C_DEFINES}" "")
-add_test_app (LuaBridgeTests55Noexcept 505 "${LUABRIDGE_TEST_LUA55_FILES}" 0 "" "")
 add_test_app (LuaBridgeTests55LuaCNoexcept 505 "${LUABRIDGE_TEST_LUA55_C_FILES}" 0 "${LUABRIDGE_LUA_C_DEFINES}" "")
 
-if (NOT EMSCRIPTEN)
-  add_test_app (LuaBridgeTestsLuaJIT "LUAJIT" "${LUABRIDGE_TEST_LUAJIT_FILES}" 1 "" "liblua-static")
-  add_test_app (LuaBridgeTestsLuaJITNoexcept "LUAJIT" "${LUABRIDGE_TEST_LUAJIT_FILES}" 0 "" "liblua-static")
-endif ()
-
-add_test_app (LuaBridgeTestsLuau "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 1 "" "")
-#add_test_app (LuaBridgeTestsLuauNoexcept "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 0 "" "")
+add_test_app (LuaBridgeTestsLuau "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 1 "${LUABRIDGE_LUA_CPP_DEFINES}" "")
+#add_test_app (LuaBridgeTestsLuauNoexcept "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 0 "${LUABRIDGE_LUA_CPP_DEFINES}" "")
+add_test_app (LuaBridgeTestsLuauReflect "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 1 "-DLUABRIDGE_ENABLE_REFLECT=1;${LUABRIDGE_LUA_CPP_DEFINES}" "")
+#add_test_app (LuaBridgeTestsLuauReflectNoexcept "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 0 "-DLUABRIDGE_ENABLE_REFLECT=1;${LUABRIDGE_LUA_CPP_DEFINES}" "")
 
 if (NOT EMSCRIPTEN)
+  add_test_app (LuaBridgeTestsLuaJIT "LUAJIT" "${LUABRIDGE_TEST_LUAJIT_FILES}" 1 "${LUABRIDGE_LUA_CPP_DEFINES}" "liblua-static")
+  add_test_app (LuaBridgeTestsLuaJITNoexcept "LUAJIT" "${LUABRIDGE_TEST_LUAJIT_FILES}" 0 "${LUABRIDGE_LUA_CPP_DEFINES}" "liblua-static")
+  add_test_app (LuaBridgeTestsLuaJITReflect "LUAJIT" "${LUABRIDGE_TEST_LUAJIT_FILES}" 1 "-DLUABRIDGE_ENABLE_REFLECT=1;${LUABRIDGE_LUA_CPP_DEFINES}" "liblua-static")
+  add_test_app (LuaBridgeTestsLuaJITReflectNoexcept "LUAJIT" "${LUABRIDGE_TEST_LUAJIT_FILES}" 0 "-DLUABRIDGE_ENABLE_REFLECT=1;${LUABRIDGE_LUA_CPP_DEFINES}" "liblua-static")
+
   add_test_app (LuaBridgeTestsRavi "RAVI" "${LUABRIDGE_TEST_RAVI_FILES}" 1 "${LUABRIDGE_LUA_C_DEFINES}" "libravi")
+  #add_test_app (LuaBridgeTestsRaviNoexcept "RAVI" "${LUABRIDGE_TEST_RAVI_FILES}" 0 "${LUABRIDGE_LUA_C_DEFINES}" "libravi")
+  add_test_app (LuaBridgeTestsRaviReflect "RAVI" "${LUABRIDGE_TEST_RAVI_FILES}" 1 "-DLUABRIDGE_ENABLE_REFLECT=1;${LUABRIDGE_LUA_C_DEFINES}" "libravi")
+  #add_test_app (LuaBridgeTestsRaviReflectNoexcept "RAVI" "${LUABRIDGE_TEST_RAVI_FILES}" 0 "-DLUABRIDGE_ENABLE_REFLECT=1;${LUABRIDGE_LUA_C_DEFINES}" "libravi")
 endif ()
-#add_test_app (LuaBridgeTestsRaviNoexcept "RAVI" "${LUABRIDGE_TEST_RAVI_FILES}" 0 "" "libravi")
 
 if (LUABRIDGE_COVERAGE)
   setup_coverage_single_target ()

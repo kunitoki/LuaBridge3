@@ -7738,35 +7738,35 @@ struct function<void, ArgsPack, Start>
     }
 };
 
-template <class F, class T>
+template <class F, class T, int UV = 1>
 int invoke_member_function(lua_State* L)
 {
     using FnTraits = function_traits<F>;
 
-    LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
+    LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(UV)));
 
     auto ptr = Userdata::get<T>(L, 1, false);
     if (! ptr)
         raise_lua_error(L, "%s", ptr.error_cstr());
 
-    const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
+    const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(UV)));
     LUABRIDGE_ASSERT(func != nullptr);
 
     return function<typename FnTraits::result_type, typename FnTraits::argument_types, 2>::call(L, *ptr, func);
 }
 
-template <class F, class T>
+template <class F, class T, int UV = 1>
 int invoke_const_member_function(lua_State* L)
 {
     using FnTraits = function_traits<F>;
 
-    LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
+    LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(UV)));
 
     auto ptr = Userdata::get<T>(L, 1, true);
     if (! ptr)
         raise_lua_error(L, "%s", ptr.error_cstr());
 
-    const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
+    const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(UV)));
     LUABRIDGE_ASSERT(func != nullptr);
 
     return function<typename FnTraits::result_type, typename FnTraits::argument_types, 2>::call(L, *ptr, func);
@@ -7834,27 +7834,27 @@ int invoke_const_member_cfunction(lua_State* L)
 #endif
 }
 
-template <class F>
+template <class F, int UV = 1>
 int invoke_proxy_function(lua_State* L)
 {
     using FnTraits = function_traits<F>;
 
-    LUABRIDGE_ASSERT(lua_islightuserdata(L, lua_upvalueindex(1)));
+    LUABRIDGE_ASSERT(lua_islightuserdata(L, lua_upvalueindex(UV)));
 
-    auto func = reinterpret_cast<F>(lua_touserdata(L, lua_upvalueindex(1)));
+    auto func = reinterpret_cast<F>(lua_touserdata(L, lua_upvalueindex(UV)));
     LUABRIDGE_ASSERT(func != nullptr);
 
     return function<typename FnTraits::result_type, typename FnTraits::argument_types, 1>::call(L, func);
 }
 
-template <class F>
+template <class F, int UV = 1>
 int invoke_proxy_functor(lua_State* L)
 {
     using FnTraits = function_traits<std::remove_reference_t<F>>;
 
-    LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
+    LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(UV)));
 
-    auto& func = *align<std::remove_reference_t<F>>(lua_touserdata(L, lua_upvalueindex(1)));
+    auto& func = *align<std::remove_reference_t<F>>(lua_touserdata(L, lua_upvalueindex(UV)));
 
     return function<typename FnTraits::result_type, typename FnTraits::argument_types, 1>::call(L, func);
 }
@@ -7879,14 +7879,14 @@ inline int invoke_safe_cfunction(lua_State* L)
 }
 #endif
 
-template <class F>
+template <class F, int UV = 1>
 int invoke_proxy_constructor(lua_State* L)
 {
     using FnTraits = function_traits<F>;
 
-    LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
+    LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(UV)));
 
-    auto& func = *align<F>(lua_touserdata(L, lua_upvalueindex(1)));
+    auto& func = *align<F>(lua_touserdata(L, lua_upvalueindex(UV)));
 
     function<void, typename FnTraits::argument_types, 1>::call(L, func);
 
@@ -7914,7 +7914,7 @@ struct OverloadEntry
     int arity;           
     TypeChecker checker; 
 
-#if defined(LUABRIDGE_ENABLE_REFLECT)
+#if LUABRIDGE_ENABLE_REFLECT
     std::string returnType;                
     std::vector<std::string> paramTypes;   
     std::vector<std::string> paramHints;   
@@ -7923,6 +7923,8 @@ struct OverloadEntry
 
 struct OverloadSet
 {
+    static constexpr uint32_t kMagic = 0x4C425246u; 
+    uint32_t magic = kMagic;
     std::vector<OverloadEntry> entries;
 };
 
@@ -8066,6 +8068,29 @@ inline void push_function(lua_State* L, F&& f, const char* debugname)
 {
     lua_newuserdata_aligned<F>(L, std::forward<F>(f));
     lua_pushcclosure_x(L, &invoke_proxy_functor<F>, debugname, 1);
+}
+
+template <class ReturnType, class... Params>
+inline void push_function_reflect(lua_State* L, ReturnType (*fp)(Params...), const char* debugname)
+{
+    using FnType = ReturnType (*)(Params...);
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType, 2>, debugname, 2);
+}
+
+template <class ReturnType, class... Params>
+inline void push_function_reflect(lua_State* L, ReturnType (*fp)(Params...) noexcept, const char* debugname)
+{
+    using FnType = ReturnType (*)(Params...) noexcept;
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType, 2>, debugname, 2);
+}
+
+template <class F, class = std::enable_if<is_callable_v<F> && !std::is_pointer_v<F> && !std::is_member_function_pointer_v<F>>>
+inline void push_function_reflect(lua_State* L, F&& f, const char* debugname)
+{
+    lua_newuserdata_aligned<F>(L, std::forward<F>(f));
+    lua_pushcclosure_x(L, &invoke_proxy_functor<F, 2>, debugname, 2);
 }
 
 template <class T>
@@ -8228,6 +8253,118 @@ void push_member_function(lua_State* L, int (U::*mfp)(lua_State*) const, const c
 
     new (lua_newuserdata_x<F>(L, sizeof(F))) F(mfp);
     lua_pushcclosure_x(L, &invoke_const_member_cfunction<T>, debugname, 1);
+}
+
+template <class T, class ReturnType, class... Params>
+void push_member_function_reflect(lua_State* L, ReturnType (*fp)(T*, Params...), const char* debugname)
+{
+    using FnType = decltype(fp);
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType, 2>, debugname, 2);
+}
+
+template <class T, class ReturnType, class... Params>
+void push_member_function_reflect(lua_State* L, ReturnType (*fp)(T&, Params...), const char* debugname)
+{
+    using FnType = decltype(fp);
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType, 2>, debugname, 2);
+}
+
+template <class T, class ReturnType, class... Params>
+void push_member_function_reflect(lua_State* L, ReturnType (*fp)(T*, Params...) noexcept, const char* debugname)
+{
+    using FnType = decltype(fp);
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType, 2>, debugname, 2);
+}
+
+template <class T, class ReturnType, class... Params>
+void push_member_function_reflect(lua_State* L, ReturnType (*fp)(T&, Params...) noexcept, const char* debugname)
+{
+    using FnType = decltype(fp);
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType, 2>, debugname, 2);
+}
+
+template <class T, class ReturnType, class... Params>
+void push_member_function_reflect(lua_State* L, ReturnType (*fp)(const T*, Params...), const char* debugname)
+{
+    using FnType = decltype(fp);
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType, 2>, debugname, 2);
+}
+
+template <class T, class ReturnType, class... Params>
+void push_member_function_reflect(lua_State* L, ReturnType (*fp)(const T&, Params...), const char* debugname)
+{
+    using FnType = decltype(fp);
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType, 2>, debugname, 2);
+}
+
+template <class T, class ReturnType, class... Params>
+void push_member_function_reflect(lua_State* L, ReturnType (*fp)(const T*, Params...) noexcept, const char* debugname)
+{
+    using FnType = decltype(fp);
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType, 2>, debugname, 2);
+}
+
+template <class T, class ReturnType, class... Params>
+void push_member_function_reflect(lua_State* L, ReturnType (*fp)(const T&, Params...) noexcept, const char* debugname)
+{
+    using FnType = decltype(fp);
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType, 2>, debugname, 2);
+}
+
+template <class T, class U, class ReturnType, class... Params>
+void push_member_function_reflect(lua_State* L, ReturnType (U::*mfp)(Params...), const char* debugname)
+{
+    static_assert(std::is_same_v<T, U> || std::is_base_of_v<U, T>);
+    using F = decltype(mfp);
+    new (lua_newuserdata_x<F>(L, sizeof(F))) F(mfp);
+    lua_pushcclosure_x(L, &invoke_member_function<F, T, 2>, debugname, 2);
+}
+
+template <class T, class U, class ReturnType, class... Params>
+void push_member_function_reflect(lua_State* L, ReturnType (U::*mfp)(Params...) noexcept, const char* debugname)
+{
+    static_assert(std::is_same_v<T, U> || std::is_base_of_v<U, T>);
+    using F = decltype(mfp);
+    new (lua_newuserdata_x<F>(L, sizeof(F))) F(mfp);
+    lua_pushcclosure_x(L, &invoke_member_function<F, T, 2>, debugname, 2);
+}
+
+template <class T, class U, class ReturnType, class... Params>
+void push_member_function_reflect(lua_State* L, ReturnType (U::*mfp)(Params...) const, const char* debugname)
+{
+    static_assert(std::is_same_v<T, U> || std::is_base_of_v<U, T>);
+    using F = decltype(mfp);
+    new (lua_newuserdata_x<F>(L, sizeof(F))) F(mfp);
+    lua_pushcclosure_x(L, &invoke_const_member_function<F, T, 2>, debugname, 2);
+}
+
+template <class T, class U, class ReturnType, class... Params>
+void push_member_function_reflect(lua_State* L, ReturnType (U::*mfp)(Params...) const noexcept, const char* debugname)
+{
+    static_assert(std::is_same_v<T, U> || std::is_base_of_v<U, T>);
+    using F = decltype(mfp);
+    new (lua_newuserdata_x<F>(L, sizeof(F))) F(mfp);
+    lua_pushcclosure_x(L, &invoke_const_member_function<F, T, 2>, debugname, 2);
+}
+
+template <class T, class F, class = std::enable_if<
+    is_callable_v<F> &&
+        std::is_object_v<F> &&
+        !std::is_pointer_v<F> &&
+        !std::is_member_function_pointer_v<F>>>
+void push_member_function_reflect(lua_State* L, F&& f, const char* debugname)
+{
+    static_assert(std::is_same_v<T, remove_cvref_t<std::remove_pointer_t<function_argument_or_void_t<0, F>>>>);
+    lua_newuserdata_aligned<F>(L, std::forward<F>(f));
+    lua_pushcclosure_x(L, &invoke_proxy_functor<F, 2>, debugname, 2);
 }
 
 template <class T, class = std::enable_if_t<
@@ -8551,16 +8688,30 @@ struct constructor
 {
     static T* construct(const Args& args)
     {
-        auto alloc = [](auto&&... args) { return new T(std::forward<decltype(args)>(args)...); };
-
-        return std::apply(alloc, args);
+        if constexpr (std::is_aggregate_v<T>)
+        {
+            auto alloc = [](auto&&... args) { return new T{std::forward<decltype(args)>(args)...}; };
+            return std::apply(alloc, args);
+        }
+        else
+        {
+            auto alloc = [](auto&&... args) { return new T(std::forward<decltype(args)>(args)...); };
+            return std::apply(alloc, args);
+        }
     }
 
     static T* construct(void* ptr, const Args& args)
     {
-        auto alloc = [ptr](auto&&... args) { return new (ptr) T(std::forward<decltype(args)>(args)...); };
-
-        return std::apply(alloc, args);
+        if constexpr (std::is_aggregate_v<T>)
+        {
+            auto alloc = [ptr](auto&&... args) { return new (ptr) T{std::forward<decltype(args)>(args)...}; };
+            return std::apply(alloc, args);
+        }
+        else
+        {
+            auto alloc = [ptr](auto&&... args) { return new (ptr) T(std::forward<decltype(args)>(args)...); };
+            return std::apply(alloc, args);
+        }
     }
 };
 
@@ -8958,26 +9109,14 @@ inline std::vector<OverloadInfo> getOverloadInfos(lua_State* L, int funcIdx)
         return { OverloadInfo{} };
     }
 
-    bool isOverloadSet = isfulluserdata(L, -1);
-    lua_pop(L, 1); 
-
-    if (!isOverloadSet)
+    OverloadSet* overload_set = nullptr;
+    if (isfulluserdata(L, -1))
     {
-        
-        return { OverloadInfo{} };
+        auto* candidate = align<OverloadSet>(lua_touserdata(L, -1));
+        if (candidate && candidate->magic == OverloadSet::kMagic)
+            overload_set = candidate;
     }
-
-    const char* uv2name = lua_getupvalue(L, funcIdx, 2);
-    bool hasTable = (uv2name != nullptr) && lua_istable(L, -1);
-    if (uv2name != nullptr)
-        lua_pop(L, 1); 
-
-    if (!hasTable)
-        return { OverloadInfo{} };
-
-    lua_getupvalue(L, funcIdx, 1);
-    auto* overload_set = align<OverloadSet>(lua_touserdata(L, -1));
-    lua_pop(L, 1);
+    lua_pop(L, 1); 
 
     if (!overload_set || overload_set->entries.empty())
         return { OverloadInfo{} };
@@ -8989,7 +9128,7 @@ inline std::vector<OverloadInfo> getOverloadInfos(lua_State* L, int funcIdx)
     {
         OverloadInfo info;
 
-#if defined(LUABRIDGE_ENABLE_REFLECT)
+#if LUABRIDGE_ENABLE_REFLECT
         info.returnType = entry.returnType;
         for (std::size_t i = 0; i < entry.paramTypes.size(); ++i)
         {
@@ -9021,7 +9160,7 @@ inline bool isClassStaticTable(lua_State* L, int tableIdx)
     if (!lua_getmetatable(L, tableIdx)) 
         return false;
 
-    lua_rawgetp(L, -1, getClassKey()); 
+    lua_rawgetp_x(L, -1, getClassKey()); 
     bool result = lua_istable(L, -1);
     lua_pop(L, 1); 
 
@@ -9040,25 +9179,25 @@ inline ClassInspectInfo inspectClassFromStaticTable(lua_State* L, int stIdx)
 
     int mtIdx = lua_absindex(L, -1);
 
-    lua_rawgetp(L, mtIdx, getClassKey());
+    lua_rawgetp_x(L, mtIdx, getClassKey());
     int clIdx = lua_absindex(L, -1);
 
     ClassInspectInfo cls;
 
-    lua_rawgetp(L, clIdx, getTypeKey());
+    lua_rawgetp_x(L, clIdx, getTypeKey());
     if (lua_isstring(L, -1))
         cls.name = stripConst(lua_tostring(L, -1));
     lua_pop(L, 1);
 
-    lua_rawgetp(L, clIdx, getParentKey());
+    lua_rawgetp_x(L, clIdx, getParentKey());
     if (lua_istable(L, -1))
     {
         int parIdx = lua_absindex(L, -1);
-        int len = static_cast<int>(luaL_len(L, parIdx));
+        int len = get_length(L, parIdx);
         for (int i = 1; i <= len; ++i)
         {
             lua_rawgeti(L, parIdx, i);
-            lua_rawgetp(L, -1, getTypeKey());
+            lua_rawgetp_x(L, -1, getTypeKey());
             if (lua_isstring(L, -1))
             {
                 std::string baseName = stripConst(lua_tostring(L, -1));
@@ -9071,13 +9210,13 @@ inline ClassInspectInfo inspectClassFromStaticTable(lua_State* L, int stIdx)
     lua_pop(L, 1); 
 
     std::set<std::string> instPropget;
-    lua_rawgetp(L, clIdx, getPropgetKey());
+    lua_rawgetp_x(L, clIdx, getPropgetKey());
     if (lua_istable(L, -1))
         instPropget = collectTableKeys(L, -1);
     lua_pop(L, 1);
 
     std::set<std::string> instPropsetReal;
-    lua_rawgetp(L, clIdx, getPropsetKey());
+    lua_rawgetp_x(L, clIdx, getPropsetKey());
     if (lua_istable(L, -1))
     {
         int psIdx = lua_absindex(L, -1);
@@ -9130,13 +9269,13 @@ inline ClassInspectInfo inspectClassFromStaticTable(lua_State* L, int stIdx)
     }
 
     std::set<std::string> stPropget;
-    lua_rawgetp(L, mtIdx, getPropgetKey());
+    lua_rawgetp_x(L, mtIdx, getPropgetKey());
     if (lua_istable(L, -1))
         stPropget = collectTableKeys(L, -1);
     lua_pop(L, 1);
 
     std::set<std::string> stPropsetReal;
-    lua_rawgetp(L, mtIdx, getPropsetKey());
+    lua_rawgetp_x(L, mtIdx, getPropsetKey());
     if (lua_istable(L, -1))
     {
         int psIdx = lua_absindex(L, -1);
@@ -9165,7 +9304,7 @@ inline ClassInspectInfo inspectClassFromStaticTable(lua_State* L, int stIdx)
 
     static const std::set<std::string> staticSkipKeys{ "__index", "__newindex", "__metatable" };
 
-    lua_rawgetp(L, mtIdx, getClassKey()); 
+    lua_rawgetp_x(L, mtIdx, getClassKey()); 
     lua_pop(L, 1);
 
     lua_pushnil(L);
@@ -9207,13 +9346,13 @@ inline NamespaceInspectInfo inspectNamespaceTable(lua_State* L, int nsIdx, std::
     info.name = std::move(name);
 
     std::set<std::string> nsPropget;
-    lua_rawgetp(L, nsIdx, getPropgetKey());
+    lua_rawgetp_x(L, nsIdx, getPropgetKey());
     if (lua_istable(L, -1))
         nsPropget = collectTableKeys(L, -1);
     lua_pop(L, 1);
 
     int nsPropsetTableIdx = 0;
-    lua_rawgetp(L, nsIdx, getPropsetKey());
+    lua_rawgetp_x(L, nsIdx, getPropsetKey());
     if (lua_istable(L, -1))
         nsPropsetTableIdx = lua_absindex(L, -1);
     
@@ -9301,21 +9440,21 @@ template <class T>
 [[nodiscard]] ClassInspectInfo inspect(lua_State* L)
 {
     
-    lua_rawgetp(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>());
+    lua_rawgetp_x(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>());
     if (!lua_istable(L, -1))
     {
         lua_pop(L, 1);
         return {};
     }
     
-    lua_rawgetp(L, -1, detail::getStaticKey());
+    lua_rawgetp_x(L, -1, detail::getStaticKey());
     if (!lua_istable(L, -1))
     {
         lua_pop(L, 2);
         return {};
     }
     
-    lua_rawgetp(L, -1, detail::getClassKey());
+    lua_rawgetp_x(L, -1, detail::getClassKey());
     const bool isClass = lua_istable(L, -1);
     lua_pop(L, 1);
 
@@ -9335,7 +9474,7 @@ template <class T>
 {
     if (namespaceName == nullptr || namespaceName[0] == '\0')
     {
-        lua_pushglobaltable(L);
+        lua_getglobal(L, "_G");
     }
     else
     {
@@ -9407,19 +9546,16 @@ public:
         ++depth_;
     }
 
-    void endNamespace(const NamespaceInspectInfo& 
-) override
+    void endNamespace([[maybe_unused]] const NamespaceInspectInfo& ns) override
     {
         --depth_;
         indent();
         out_ << "}\n";
     }
 
-    void visitFreeMember(const NamespaceInspectInfo& 
-, const MemberInfo& m) override
+    void visitFreeMember([[maybe_unused]] const NamespaceInspectInfo& ns, const MemberInfo& m) override
     {
-        emitMember(m, 
-"");
+        emitMember(m, "");
     }
 
     void beginClass(const ClassInspectInfo& cls) override
@@ -9439,8 +9575,7 @@ public:
         ++depth_;
     }
 
-    void endClass(const ClassInspectInfo& 
-) override
+    void endClass([[maybe_unused]] const ClassInspectInfo& cls) override
     {
         --depth_;
         indent();
@@ -9480,7 +9615,7 @@ private:
         return ov.returnType.empty() ? "any" : ov.returnType;
     }
 
-    void emitMember(const MemberInfo& m, const std::string& className) const
+    void emitMember(const MemberInfo& m, [[maybe_unused]] const std::string& className) const
     {
         switch (m.kind)
         {
@@ -9510,15 +9645,13 @@ private:
             {
                 indent();
                 if (isStatic) out_ << "static ";
-                out_ << m.name << "(" << paramStr(m.overloads[i]) << "): "
-                     << retStr(m.overloads[i]) << ";\n";
+                out_ << m.name << "(" << paramStr(m.overloads[i]) << "): " << retStr(m.overloads[i]) << ";\n";
             }
             break;
         }
         default:
             break;
         }
-        (void)className;
     }
 
     std::ostream& out_;
@@ -9538,8 +9671,7 @@ public:
         ns_ = ns.name == "_G" ? "" : ns.name;
     }
 
-    void endNamespace(const NamespaceInspectInfo& 
-) override {}
+    void endNamespace([[maybe_unused]] const NamespaceInspectInfo& ns) override {}
 
     void visitFreeMember(const NamespaceInspectInfo& ns, const MemberInfo& m) override
     {
@@ -9552,6 +9684,7 @@ public:
             if (!ov.returnType.empty() && ov.returnType != "void")
                 out_ << "---@return " << luaType(ov.returnType) << "\n";
         }
+
         std::string qual = ns_.empty() ? "" : (ns_ + ".");
         out_ << "function " << qual << m.name << "(";
         if (!m.overloads.empty())
@@ -9573,8 +9706,7 @@ public:
 
     }
 
-    void endClass(const ClassInspectInfo& 
-) override
+    void endClass([[maybe_unused]] const ClassInspectInfo& cls) override
     {
         out_ << "local " << curClass_ << " = {}\n\n";
         curClass_.clear();
@@ -9768,15 +9900,13 @@ public:
         out_ << cls.name << ".__index = " << cls.name << "\n\n";
     }
 
-    void endClass(const ClassInspectInfo& 
-) override
+    void endClass([[maybe_unused]] const ClassInspectInfo& cls) override
     {
         curClass_.clear();
         out_ << "\n";
     }
 
-    void visitMember(const ClassInspectInfo& 
-, const MemberInfo& m) override
+    void visitMember([[maybe_unused]] const ClassInspectInfo& cls, const MemberInfo& m) override
     {
         if (m.overloads.empty())
             return;
@@ -9842,8 +9972,7 @@ public:
         firstClass_ = true;
     }
 
-    void endNamespace(const NamespaceInspectInfo& 
-) override
+    void endNamespace([[maybe_unused]] const NamespaceInspectInfo& ns) override
     {
         --depth_;
         out_ << "\n";
@@ -9870,8 +9999,7 @@ public:
         firstMember_ = true;
     }
 
-    void endClass(const ClassInspectInfo& 
-) override
+    void endClass([[maybe_unused]] const ClassInspectInfo& cls) override
     {
         --depth_;
         out_ << "\n";
@@ -9880,8 +10008,7 @@ public:
         indent(); out_ << "}";
     }
 
-    void visitMember(const ClassInspectInfo& 
-, const MemberInfo& m) override
+    void visitMember([[maybe_unused]] const ClassInspectInfo& cls, const MemberInfo& m) override
     {
         if (!firstMember_) out_ << ",\n";
         firstMember_ = false;
@@ -9960,14 +10087,12 @@ public:
         subNsIdx_ = 1;
     }
 
-    void endNamespace(const NamespaceInspectInfo& 
-) override
+    void endNamespace([[maybe_unused]] const NamespaceInspectInfo& ns) override
     {
         
     }
 
-    void visitFreeMember(const NamespaceInspectInfo& 
-, const MemberInfo& m) override
+    void visitFreeMember([[maybe_unused]] const NamespaceInspectInfo& ns, const MemberInfo& m) override
     {
         lua_getfield(L_, -1, "freeMembers");
         pushMemberInfo(m);
@@ -9994,8 +10119,7 @@ public:
         memberIdx_ = 1;
     }
 
-    void endClass(const ClassInspectInfo& 
-) override
+    void endClass([[maybe_unused]] const ClassInspectInfo& cls) override
     {
         
         lua_getfield(L_, -2, "classes");
@@ -10004,8 +10128,7 @@ public:
         lua_pop(L_, 2); 
     }
 
-    void visitMember(const ClassInspectInfo& 
-, const MemberInfo& m) override
+    void visitMember([[maybe_unused]] const ClassInspectInfo& cls, const MemberInfo& m) override
     {
         lua_getfield(L_, -1, "members");
         pushMemberInfo(m);
@@ -10678,28 +10801,30 @@ template <class F>
 
 #if defined(LUABRIDGE_ENABLE_REFLECT)
 
+template <class Tuple, std::size_t... I>
+void reflect_param_type_names_impl(std::vector<std::string>& result, std::index_sequence<I...>)
+{
+    
+    (
+        [&]()
+        {
+            using ParamT = std::tuple_element_t<I, Tuple>;
+
+            constexpr bool isLuaState =
+                std::is_pointer_v<ParamT> &&
+                std::is_same_v<std::remove_const_t<std::remove_pointer_t<ParamT>>, lua_State>;
+
+            if constexpr (!isLuaState)
+                result.push_back(std::string(typeName<std::remove_cvref_t<ParamT>>()));
+        }(),
+        ...);
+}
+
 template <class Tuple>
 [[nodiscard]] std::vector<std::string> reflect_param_type_names()
 {
     std::vector<std::string> result;
-
-    [&]<std::size_t... I>(std::index_sequence<I...>)
-    {
-        (
-            [&]
-            {
-                using ParamT = std::tuple_element_t<I, Tuple>;
-
-                constexpr bool isLuaState =
-                    std::is_pointer_v<ParamT> &&
-                    std::is_same_v<std::remove_const_t<std::remove_pointer_t<ParamT>>, lua_State>;
-
-                if constexpr (!isLuaState)
-                    result.push_back(std::string(typeName<std::remove_cvref_t<ParamT>>()));
-            }(),
-            ...);
-    }(std::make_index_sequence<std::tuple_size_v<Tuple>>{});
-
+    reflect_param_type_names_impl<Tuple>(result, std::make_index_sequence<std::tuple_size_v<Tuple>>{});
     return result;
 }
 
@@ -12853,35 +12978,31 @@ class Namespace : public detail::Registrar
 
             if constexpr (sizeof...(Functions) == 1)
             {
-#if defined(LUABRIDGE_ENABLE_REFLECT)
+#if LUABRIDGE_ENABLE_REFLECT
                 
                 ([&]
                 {
-                    auto* overload_set_unaligned = lua_newuserdata_aligned<detail::OverloadSet>(L);
-                    auto* overload_set = align<detail::OverloadSet>(overload_set_unaligned);
-
-                    detail::OverloadEntry entry;
                     if constexpr (!detail::is_any_cfunction_pointer_v<Functions>)
                     {
+                        auto* overload_set_unaligned = lua_newuserdata_aligned<detail::OverloadSet>(L);
+                        auto* overload_set = align<detail::OverloadSet>(overload_set_unaligned);
+
+                        detail::OverloadEntry entry;
                         using ArgsPack = detail::function_arguments_t<Functions>;
-                        entry.arity = static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>);
-                        entry.checker = &detail::overload_type_checker<ArgsPack>;
-                        entry.returnType = std::string(detail::typeName<detail::function_result_t<Functions>>());
+                        entry.arity = -1;
+                        entry.checker = nullptr;
+                        entry.returnType = std::string(detail::typeName<std::remove_cvref_t<detail::function_result_t<Functions>>>());
                         entry.paramTypes = detail::reflect_param_type_names<ArgsPack>();
                         if constexpr (detail::is_function_with_hints_v<Functions>)
                             entry.paramHints = functions.hints;
+                        overload_set->entries.push_back(std::move(entry));
+
+                        detail::push_function_reflect(L, detail::get_underlying(std::move(functions)), name);
                     }
                     else
                     {
-                        entry.arity = -1;
-                        entry.checker = nullptr;
+                        detail::push_function(L, detail::get_underlying(std::move(functions)), name);
                     }
-                    overload_set->entries.push_back(std::move(entry));
-
-                    lua_createtable(L, 1, 0);
-                    detail::push_function(L, detail::get_underlying(std::move(functions)), name);
-                    lua_rawseti(L, -2, 1);
-                    lua_pushcclosure_x(L, &detail::try_overload_functions<false>, name, 2);
 
                 } (), ...);
 #else
@@ -12911,8 +13032,8 @@ class Namespace : public detail::Registrar
                         using ArgsPack = detail::function_arguments_t<Functions>;
                         entry.arity = static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>);
                         entry.checker = &detail::overload_type_checker<ArgsPack>;
-#if defined(LUABRIDGE_ENABLE_REFLECT)
-                        entry.returnType = std::string(detail::typeName<detail::function_result_t<Functions>>());
+#if LUABRIDGE_ENABLE_REFLECT
+                        entry.returnType = std::string(detail::typeName<std::remove_cvref_t<detail::function_result_t<Functions>>>());
                         entry.paramTypes = detail::reflect_param_type_names<ArgsPack>();
                         if constexpr (detail::is_function_with_hints_v<Functions>)
                             entry.paramHints = functions.hints;
@@ -13055,46 +13176,43 @@ class Namespace : public detail::Registrar
 
             if constexpr (sizeof...(Functions) == 1)
             {
-#if defined(LUABRIDGE_ENABLE_REFLECT)
+#if LUABRIDGE_ENABLE_REFLECT
                 
                 ([&]
                 {
-                    auto* overload_set_unaligned = lua_newuserdata_aligned<detail::OverloadSet>(L);
-                    auto* overload_set = align<detail::OverloadSet>(overload_set_unaligned);
-
-                    detail::OverloadEntry entry;
                     if constexpr (!detail::is_any_cfunction_pointer_v<Functions>)
                     {
+                        auto* overload_set_unaligned = lua_newuserdata_aligned<detail::OverloadSet>(L);
+                        auto* overload_set = align<detail::OverloadSet>(overload_set_unaligned);
+
+                        detail::OverloadEntry entry;
                         if constexpr (detail::is_proxy_member_function_v<T, Functions>)
                         {
                             using ArgsPack = detail::remove_first_type_t<detail::function_arguments_t<Functions>>;
-                            entry.arity = static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>);
-                            entry.checker = &detail::overload_type_checker<ArgsPack>;
-                            entry.returnType = std::string(detail::typeName<detail::function_result_t<Functions>>());
+                            entry.arity = -1;
+                            entry.checker = nullptr;
+                            entry.returnType = std::string(detail::typeName<std::remove_cvref_t<detail::function_result_t<Functions>>>());
                             entry.paramTypes = detail::reflect_param_type_names<ArgsPack>();
                         }
                         else
                         {
                             using ArgsPack = detail::function_arguments_t<Functions>;
-                            entry.arity = static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>);
-                            entry.checker = &detail::overload_type_checker<ArgsPack>;
-                            entry.returnType = std::string(detail::typeName<detail::function_result_t<Functions>>());
+                            entry.arity = -1;
+                            entry.checker = nullptr;
+                            entry.returnType = std::string(detail::typeName<std::remove_cvref_t<detail::function_result_t<Functions>>>());
                             entry.paramTypes = detail::reflect_param_type_names<ArgsPack>();
                         }
                         if constexpr (detail::is_function_with_hints_v<Functions>)
                             entry.paramHints = functions.hints;
+                        overload_set->entries.push_back(std::move(entry));
+
+                        detail::push_member_function_reflect<T>(L, detail::get_underlying(std::move(functions)), name);
                     }
                     else
                     {
-                        entry.arity = -1;
-                        entry.checker = nullptr;
+                        
+                        detail::push_member_function<T>(L, detail::get_underlying(std::move(functions)), name);
                     }
-                    overload_set->entries.push_back(std::move(entry));
-
-                    lua_createtable(L, 1, 0);
-                    detail::push_member_function<T>(L, detail::get_underlying(std::move(functions)), name);
-                    lua_rawseti(L, -2, 1);
-                    lua_pushcclosure_x(L, &detail::try_overload_functions<true>, name, 2);
 
                 } (), ...);
 #else
@@ -13141,8 +13259,8 @@ class Namespace : public detail::Registrar
                             using ArgsPack = detail::remove_first_type_t<detail::function_arguments_t<Functions>>;
                             entry.arity = static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>);
                             entry.checker = &detail::overload_type_checker<ArgsPack>;
-#if defined(LUABRIDGE_ENABLE_REFLECT)
-                            entry.returnType = std::string(detail::typeName<detail::function_result_t<Functions>>());
+#if LUABRIDGE_ENABLE_REFLECT
+                            entry.returnType = std::string(detail::typeName<std::remove_cvref_t<detail::function_result_t<Functions>>>());
                             entry.paramTypes = detail::reflect_param_type_names<ArgsPack>();
                             if constexpr (detail::is_function_with_hints_v<Functions>)
                                 entry.paramHints = functions.hints;
@@ -13153,8 +13271,8 @@ class Namespace : public detail::Registrar
                             using ArgsPack = detail::function_arguments_t<Functions>;
                             entry.arity = static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>);
                             entry.checker = &detail::overload_type_checker<ArgsPack>;
-#if defined(LUABRIDGE_ENABLE_REFLECT)
-                            entry.returnType = std::string(detail::typeName<detail::function_result_t<Functions>>());
+#if LUABRIDGE_ENABLE_REFLECT
+                            entry.returnType = std::string(detail::typeName<std::remove_cvref_t<detail::function_result_t<Functions>>>());
                             entry.paramTypes = detail::reflect_param_type_names<ArgsPack>();
                             if constexpr (detail::is_function_with_hints_v<Functions>)
                                 entry.paramHints = functions.hints;
@@ -13208,8 +13326,8 @@ class Namespace : public detail::Registrar
                             using ArgsPack = detail::remove_first_type_t<detail::function_arguments_t<Functions>>;
                             entry.arity = static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>);
                             entry.checker = &detail::overload_type_checker<ArgsPack>;
-#if defined(LUABRIDGE_ENABLE_REFLECT)
-                            entry.returnType = std::string(detail::typeName<detail::function_result_t<Functions>>());
+#if LUABRIDGE_ENABLE_REFLECT
+                            entry.returnType = std::string(detail::typeName<std::remove_cvref_t<detail::function_result_t<Functions>>>());
                             entry.paramTypes = detail::reflect_param_type_names<ArgsPack>();
                             if constexpr (detail::is_function_with_hints_v<Functions>)
                                 entry.paramHints = functions.hints;
@@ -13220,8 +13338,8 @@ class Namespace : public detail::Registrar
                             using ArgsPack = detail::function_arguments_t<Functions>;
                             entry.arity = static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>);
                             entry.checker = &detail::overload_type_checker<ArgsPack>;
-#if defined(LUABRIDGE_ENABLE_REFLECT)
-                            entry.returnType = std::string(detail::typeName<detail::function_result_t<Functions>>());
+#if LUABRIDGE_ENABLE_REFLECT
+                            entry.returnType = std::string(detail::typeName<std::remove_cvref_t<detail::function_result_t<Functions>>>());
                             entry.paramTypes = detail::reflect_param_type_names<ArgsPack>();
                             if constexpr (detail::is_function_with_hints_v<Functions>)
                                 entry.paramHints = functions.hints;
@@ -13304,7 +13422,7 @@ class Namespace : public detail::Registrar
 
             if constexpr (sizeof...(Functions) == 1)
             {
-#if defined(LUABRIDGE_ENABLE_REFLECT)
+#if LUABRIDGE_ENABLE_REFLECT
                 
                 ([&]
                 {
@@ -13314,16 +13432,13 @@ class Namespace : public detail::Registrar
                     auto* overload_set = align<detail::OverloadSet>(overload_set_unaligned);
 
                     detail::OverloadEntry entry;
-                    entry.arity = static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>);
-                    entry.checker = &detail::overload_type_checker<ArgsPack>;
+                    entry.arity = -1;
+                    entry.checker = nullptr;
                     entry.returnType = std::string(detail::typeName<T>());
                     entry.paramTypes = detail::reflect_param_type_names<ArgsPack>();
                     overload_set->entries.push_back(std::move(entry));
 
-                    lua_createtable(L, 1, 0);
-                    lua_pushcclosure_x(L, &detail::constructor_placement_proxy<T, ArgsPack>, className, 0);
-                    lua_rawseti(L, -2, 1);
-                    lua_pushcclosure_x(L, &detail::try_overload_functions<true>, className, 2);
+                    lua_pushcclosure_x(L, &detail::constructor_placement_proxy<T, ArgsPack>, className, 1);
 
                 } (), ...);
 #else
@@ -13346,7 +13461,7 @@ class Namespace : public detail::Registrar
                     detail::OverloadEntry entry;
                     entry.arity = static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>);
                     entry.checker = &detail::overload_type_checker<ArgsPack>;
-#if defined(LUABRIDGE_ENABLE_REFLECT)
+#if LUABRIDGE_ENABLE_REFLECT
                     entry.returnType = std::string(detail::typeName<T>());
                     entry.paramTypes = detail::reflect_param_type_names<ArgsPack>();
 #endif
@@ -13389,29 +13504,25 @@ class Namespace : public detail::Registrar
                     using InnerF = detail::unwrap_fn_type_t<Functions>;
                     using F = detail::constructor_forwarder<T, InnerF>;
 
-#if defined(LUABRIDGE_ENABLE_REFLECT)
+#if LUABRIDGE_ENABLE_REFLECT
                     
-                    auto* overload_set_unaligned = lua_newuserdata_aligned<detail::OverloadSet>(L);
-                    auto* overload_set = align<detail::OverloadSet>(overload_set_unaligned);
-
                     {
+                        auto* overload_set_unaligned = lua_newuserdata_aligned<detail::OverloadSet>(L);
+                        auto* overload_set = align<detail::OverloadSet>(overload_set_unaligned);
                         
                         using ArgsPack = detail::remove_first_type_t<detail::function_arguments_t<InnerF>>;
                         detail::OverloadEntry entry;
-                        entry.arity = static_cast<int>(detail::function_arity_excluding_v<InnerF, lua_State*>) - 1;
-                        entry.checker = &detail::overload_type_checker<ArgsPack>;
+                        entry.arity = -1;
+                        entry.checker = nullptr;
                         entry.returnType = std::string(detail::typeName<T>());
                         entry.paramTypes = detail::reflect_param_type_names<ArgsPack>();
                         if constexpr (detail::is_function_with_hints_v<Functions>)
                             entry.paramHints = functions.hints;
                         overload_set->entries.push_back(std::move(entry));
                     }
-
-                    lua_createtable(L, 1, 0);
-                    lua_newuserdata_aligned<F>(L, F(detail::get_underlying(std::move(functions))));
-                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, className, 1);
-                    lua_rawseti(L, -2, 1);
-                    lua_pushcclosure_x(L, &detail::try_overload_functions<true>, className, 2);
+                    
+                    lua_newuserdata_aligned<F>(L, F(detail::get_underlying(std::move(functions)))); 
+                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F, 2>, className, 2);
 #else
                     lua_newuserdata_aligned<F>(L, F(detail::get_underlying(std::move(functions)))); 
                     lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, className, 1); 
@@ -13440,7 +13551,7 @@ class Namespace : public detail::Registrar
                         using ArgsPack = detail::remove_first_type_t<detail::function_arguments_t<InnerF>>;
                         entry.arity = static_cast<int>(detail::function_arity_excluding_v<InnerF, lua_State*>) - 1;
                         entry.checker = &detail::overload_type_checker<ArgsPack>;
-#if defined(LUABRIDGE_ENABLE_REFLECT)
+#if LUABRIDGE_ENABLE_REFLECT
                         entry.returnType = std::string(detail::typeName<T>());
                         entry.paramTypes = detail::reflect_param_type_names<ArgsPack>();
                         if constexpr (detail::is_function_with_hints_v<Functions>)
@@ -13975,35 +14086,32 @@ public:
 
         if constexpr (sizeof...(Functions) == 1)
         {
-#if defined(LUABRIDGE_ENABLE_REFLECT)
+#if LUABRIDGE_ENABLE_REFLECT
             
             ([&]
             {
-                auto* overload_set_unaligned = lua_newuserdata_aligned<detail::OverloadSet>(L);
-                auto* overload_set = align<detail::OverloadSet>(overload_set_unaligned);
-
-                detail::OverloadEntry entry;
                 if constexpr (!detail::is_any_cfunction_pointer_v<Functions>)
                 {
+                    auto* overload_set_unaligned = lua_newuserdata_aligned<detail::OverloadSet>(L);
+                    auto* overload_set = align<detail::OverloadSet>(overload_set_unaligned);
+
+                    detail::OverloadEntry entry;
                     using ArgsPack = detail::function_arguments_t<Functions>;
-                    entry.arity = static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>);
-                    entry.checker = &detail::overload_type_checker<ArgsPack>;
-                    entry.returnType = std::string(detail::typeName<detail::function_result_t<Functions>>());
+                    entry.arity = -1; 
+                    entry.checker = nullptr; 
+                    entry.returnType = std::string(detail::typeName<std::remove_cvref_t<detail::function_result_t<Functions>>>());
                     entry.paramTypes = detail::reflect_param_type_names<ArgsPack>();
                     if constexpr (detail::is_function_with_hints_v<Functions>)
                         entry.paramHints = functions.hints;
+                    overload_set->entries.push_back(std::move(entry));
+
+                    detail::push_function_reflect(L, detail::get_underlying(std::move(functions)), name);
                 }
                 else
                 {
-                    entry.arity = -1;
-                    entry.checker = nullptr;
+                    
+                    detail::push_function(L, detail::get_underlying(std::move(functions)), name);
                 }
-                overload_set->entries.push_back(std::move(entry));
-
-                lua_createtable(L, 1, 0);
-                detail::push_function(L, detail::get_underlying(std::move(functions)), name);
-                lua_rawseti(L, -2, 1);
-                lua_pushcclosure_x(L, &detail::try_overload_functions<false>, name, 2);
 
             } (), ...);
 #else
@@ -14033,8 +14141,8 @@ public:
                     using ArgsPack = detail::function_arguments_t<Functions>;
                     entry.arity = static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>);
                     entry.checker = &detail::overload_type_checker<ArgsPack>;
-#if defined(LUABRIDGE_ENABLE_REFLECT)
-                    entry.returnType = std::string(detail::typeName<detail::function_result_t<Functions>>());
+#if LUABRIDGE_ENABLE_REFLECT
+                    entry.returnType = std::string(detail::typeName<std::remove_cvref_t<detail::function_result_t<Functions>>>());
                     entry.paramTypes = detail::reflect_param_type_names<ArgsPack>();
                     if constexpr (detail::is_function_with_hints_v<Functions>)
                         entry.paramHints = functions.hints;

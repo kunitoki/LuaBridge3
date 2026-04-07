@@ -55,16 +55,20 @@ jobs:
       run: |
         cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target \
           LuaBridgeTests${{ matrix.lua.suffix }} \
+          LuaBridgeTests${{ matrix.lua.suffix }}Reflect \
           LuaBridgeTests${{ matrix.lua.suffix }}LuaC \
           LuaBridgeTests${{ matrix.lua.suffix }}Noexcept \
+          LuaBridgeTests${{ matrix.lua.suffix }}ReflectNoexcept \
           LuaBridgeTests${{ matrix.lua.suffix }}LuaCNoexcept
 
     - name: Test Lua ${{ matrix.lua.version }}
       working-directory: ${{runner.workspace}}/build/Tests
       run: |
         ./LuaBridgeTests${{ matrix.lua.suffix }}
+        ./LuaBridgeTests${{ matrix.lua.suffix }}Reflect
         ./LuaBridgeTests${{ matrix.lua.suffix }}LuaC
         ./LuaBridgeTests${{ matrix.lua.suffix }}Noexcept
+        ./LuaBridgeTests${{ matrix.lua.suffix }}ReflectNoexcept
         ./LuaBridgeTests${{ matrix.lua.suffix }}LuaCNoexcept
 
     - name: Coverage Lua ${{ matrix.lua.version }}

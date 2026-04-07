@@ -5,6 +5,7 @@
 #include "TestBase.h"
 
 #include "LuaBridge/LuaBridge.h"
+#include "LuaBridge/Inspect.h"
 
 #include <algorithm>
 #include <sstream>
@@ -333,7 +334,7 @@ TEST_F(InspectTests, LuaTableVisitorProducesTable)
 
     lua_getfield(L, -1, "classes");
     EXPECT_TRUE(lua_istable(L, -1));
-    EXPECT_EQ(1, (int)lua_rawlen(L, -1));
+    EXPECT_EQ(1, luabridge::get_length(L, -1));
     lua_pop(L, 1);
 
     lua_pop(L, 1); // pop result table
@@ -467,12 +468,10 @@ TEST_F(InspectTests, WithHintsIsAcceptedByAddFunction)
     struct Actor { void attack(float /*damage*/) {} };
 
     // This test verifies that withHints compiles and the function is registered correctly.
-    EXPECT_NO_THROW(
-        luabridge::getGlobalNamespace(L)
-            .beginClass<Actor>("Actor")
-                .addFunction("attack", luabridge::withHints(&Actor::attack, "damage"))
-            .endClass()
-    );
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Actor>("Actor")
+            .addFunction("attack", luabridge::withHints(&Actor::attack, "damage"))
+        .endClass();
 
     // Verify the function is callable from Lua
     auto info = luabridge::inspect<Actor>(L);
@@ -485,14 +484,12 @@ TEST_F(InspectTests, WithHintsOverloadsCompile)
 {
     struct Shooter {};
 
-    EXPECT_NO_THROW(
-        luabridge::getGlobalNamespace(L)
-            .beginClass<Shooter>("Shooter")
-                .addFunction("fire",
-                    luabridge::withHints([](Shooter&, int /*count*/) {}, "count"),
-                    luabridge::withHints([](Shooter&, float /*angle*/, int /*count*/) {}, "angle", "count"))
-            .endClass()
-    );
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Shooter>("Shooter")
+            .addFunction("fire",
+                luabridge::withHints([](Shooter&, int /*count*/) {}, "count"),
+                luabridge::withHints([](Shooter&, float /*angle*/, int /*count*/) {}, "angle", "count"))
+        .endClass();
 
     auto info = luabridge::inspect<Shooter>(L);
     auto* m = findMember(info, "fire");
@@ -500,8 +497,7 @@ TEST_F(InspectTests, WithHintsOverloadsCompile)
     EXPECT_EQ(2u, m->overloads.size());
 }
 
-#if defined(LUABRIDGE_ENABLE_REFLECT)
-
+#if LUABRIDGE_ENABLE_REFLECT
 TEST_F(InspectTests, ReflectTypeInfoPopulated)
 {
     struct Enemy { void takeDamage(float /*amount*/, int /*count*/) {} };
@@ -530,7 +526,7 @@ TEST_F(InspectTests, ReflectTypeInfoPopulated)
 
 TEST_F(InspectTests, ReflectConstructorTypeInfo)
 {
-    struct Widget {};
+    struct Widget { int x; float y; };
 
     luabridge::getGlobalNamespace(L)
         .beginClass<Widget>("Widget")
@@ -561,5 +557,4 @@ TEST_F(InspectTests, ReflectFreeFunction)
     EXPECT_EQ("a", fn->overloads[0].params[0].hint);
     EXPECT_EQ("b", fn->overloads[0].params[1].hint);
 }
-
 #endif // LUABRIDGE_ENABLE_REFLECT

@@ -1682,35 +1682,35 @@ struct function<void, ArgsPack, Start>
  *
  * The member function pointer is in the first upvalue. The class userdata object is at the top of the Lua stack.
  */
-template <class F, class T>
+template <class F, class T, int UV = 1>
 int invoke_member_function(lua_State* L)
 {
     using FnTraits = function_traits<F>;
 
-    LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
+    LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(UV)));
 
     auto ptr = Userdata::get<T>(L, 1, false);
     if (! ptr)
         raise_lua_error(L, "%s", ptr.error_cstr());
 
-    const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
+    const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(UV)));
     LUABRIDGE_ASSERT(func != nullptr);
 
     return function<typename FnTraits::result_type, typename FnTraits::argument_types, 2>::call(L, *ptr, func);
 }
 
-template <class F, class T>
+template <class F, class T, int UV = 1>
 int invoke_const_member_function(lua_State* L)
 {
     using FnTraits = function_traits<F>;
 
-    LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
+    LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(UV)));
 
     auto ptr = Userdata::get<T>(L, 1, true);
     if (! ptr)
         raise_lua_error(L, "%s", ptr.error_cstr());
 
-    const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(1)));
+    const F& func = *static_cast<const F*>(lua_touserdata(L, lua_upvalueindex(UV)));
     LUABRIDGE_ASSERT(func != nullptr);
 
     return function<typename FnTraits::result_type, typename FnTraits::argument_types, 2>::call(L, *ptr, func);
@@ -1790,14 +1790,14 @@ int invoke_const_member_cfunction(lua_State* L)
  *
  * The proxy function pointer (lightuserdata) is in the first upvalue. The class userdata object is at the top of the Lua stack.
  */
-template <class F>
+template <class F, int UV = 1>
 int invoke_proxy_function(lua_State* L)
 {
     using FnTraits = function_traits<F>;
 
-    LUABRIDGE_ASSERT(lua_islightuserdata(L, lua_upvalueindex(1)));
+    LUABRIDGE_ASSERT(lua_islightuserdata(L, lua_upvalueindex(UV)));
 
-    auto func = reinterpret_cast<F>(lua_touserdata(L, lua_upvalueindex(1)));
+    auto func = reinterpret_cast<F>(lua_touserdata(L, lua_upvalueindex(UV)));
     LUABRIDGE_ASSERT(func != nullptr);
 
     return function<typename FnTraits::result_type, typename FnTraits::argument_types, 1>::call(L, func);
@@ -1809,14 +1809,14 @@ int invoke_proxy_function(lua_State* L)
  *
  * The proxy std::function (lightuserdata) is in the first upvalue. The class userdata object is at the top of the Lua stack.
  */
-template <class F>
+template <class F, int UV = 1>
 int invoke_proxy_functor(lua_State* L)
 {
     using FnTraits = function_traits<std::remove_reference_t<F>>;
 
-    LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
+    LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(UV)));
 
-    auto& func = *align<std::remove_reference_t<F>>(lua_touserdata(L, lua_upvalueindex(1)));
+    auto& func = *align<std::remove_reference_t<F>>(lua_touserdata(L, lua_upvalueindex(UV)));
 
     return function<typename FnTraits::result_type, typename FnTraits::argument_types, 1>::call(L, func);
 }
@@ -1851,14 +1851,14 @@ inline int invoke_safe_cfunction(lua_State* L)
  *
  * The proxy std::function (lightuserdata) is in the first upvalue. The class userdata object will be pushed at the top of the Lua stack.
  */
-template <class F>
+template <class F, int UV = 1>
 int invoke_proxy_constructor(lua_State* L)
 {
     using FnTraits = function_traits<F>;
 
-    LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
+    LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(UV)));
 
-    auto& func = *align<F>(lua_touserdata(L, lua_upvalueindex(1)));
+    auto& func = *align<F>(lua_touserdata(L, lua_upvalueindex(UV)));
 
     function<void, typename FnTraits::argument_types, 1>::call(L, func);
 
@@ -1898,7 +1898,7 @@ struct OverloadEntry
     int arity;           // -1 for variadic (lua_CFunction): always attempt
     TypeChecker checker; // nullptr for variadic: skip type pre-checking
 
-#if defined(LUABRIDGE_ENABLE_REFLECT)
+#if LUABRIDGE_ENABLE_REFLECT
     std::string returnType;                ///< C++ return type name (from detail::typeName)
     std::vector<std::string> paramTypes;   ///< C++ parameter type names (excluding lua_State*)
     std::vector<std::string> paramHints;   ///< Optional user-provided parameter names (from withHints)
@@ -1909,10 +1909,16 @@ struct OverloadEntry
  * @brief C++ storage for all overloads of a function.
  *
  * Stored as a Lua full userdata so it is GC'd automatically when the closure is collected.
- * The actual function closures are stored separately in a flat Lua table (upvalue 2).
+ * For multi-overload dispatch: the actual function closures are in a flat Lua table (upvalue 2).
+ * For single-overload REFLECT: the OverloadSet is upvalue[1] of the actual function closure directly.
+ *
+ * The magic field allows getOverloadInfos() to reliably distinguish this from other full-userdata
+ * upvalues (e.g. functor objects stored in invoke_proxy_functor closures).
  */
 struct OverloadSet
 {
+    static constexpr uint32_t kMagic = 0x4C425246u; // 'LBRF' — LuaBridge ReFLect sentinel
+    uint32_t magic = kMagic;
     std::vector<OverloadEntry> entries;
 };
 
@@ -1971,6 +1977,8 @@ bool overload_type_checker(lua_State* L, int start)
  *   2. Type check via Stack<T>::isInstance in C++ (no pcall) — skips clearly mismatched overloads.
  *   3. Only calls lua_pcall for type-matched candidates, eliminating failed pcalls for type mismatches.
  */
+
+
 template <bool Member>
 inline int try_overload_functions(lua_State* L)
 {
@@ -2090,6 +2098,35 @@ inline void push_function(lua_State* L, F&& f, const char* debugname)
 {
     lua_newuserdata_aligned<F>(L, std::forward<F>(f));
     lua_pushcclosure_x(L, &invoke_proxy_functor<F>, debugname, 1);
+}
+
+//=================================================================================================
+// REFLECT variants of push_function: OverloadSet is already at stack top (upvalue[1]);
+// these push function data as upvalue[2] and create a 2-upvalue closure.
+
+// Generic function pointer (reflect)
+template <class ReturnType, class... Params>
+inline void push_function_reflect(lua_State* L, ReturnType (*fp)(Params...), const char* debugname)
+{
+    using FnType = ReturnType (*)(Params...);
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType, 2>, debugname, 2);
+}
+
+template <class ReturnType, class... Params>
+inline void push_function_reflect(lua_State* L, ReturnType (*fp)(Params...) noexcept, const char* debugname)
+{
+    using FnType = ReturnType (*)(Params...) noexcept;
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType, 2>, debugname, 2);
+}
+
+// Callable object / lambda (reflect)
+template <class F, class = std::enable_if<is_callable_v<F> && !std::is_pointer_v<F> && !std::is_member_function_pointer_v<F>>>
+inline void push_function_reflect(lua_State* L, F&& f, const char* debugname)
+{
+    lua_newuserdata_aligned<F>(L, std::forward<F>(f));
+    lua_pushcclosure_x(L, &invoke_proxy_functor<F, 2>, debugname, 2);
 }
 
 //=================================================================================================
@@ -2260,6 +2297,127 @@ void push_member_function(lua_State* L, int (U::*mfp)(lua_State*) const, const c
 
     new (lua_newuserdata_x<F>(L, sizeof(F))) F(mfp);
     lua_pushcclosure_x(L, &invoke_const_member_cfunction<T>, debugname, 1);
+}
+
+//=================================================================================================
+// REFLECT variants of push_member_function: OverloadSet is already at stack top (upvalue[1]);
+// these push function data as upvalue[2] and create a 2-upvalue closure.
+// Only non-cfunction types are handled here; is_any_cfunction_pointer_v types skip OverloadSet.
+
+// Generic function pointer (proxy-style, first arg is T* or T&)
+template <class T, class ReturnType, class... Params>
+void push_member_function_reflect(lua_State* L, ReturnType (*fp)(T*, Params...), const char* debugname)
+{
+    using FnType = decltype(fp);
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType, 2>, debugname, 2);
+}
+
+template <class T, class ReturnType, class... Params>
+void push_member_function_reflect(lua_State* L, ReturnType (*fp)(T&, Params...), const char* debugname)
+{
+    using FnType = decltype(fp);
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType, 2>, debugname, 2);
+}
+
+template <class T, class ReturnType, class... Params>
+void push_member_function_reflect(lua_State* L, ReturnType (*fp)(T*, Params...) noexcept, const char* debugname)
+{
+    using FnType = decltype(fp);
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType, 2>, debugname, 2);
+}
+
+template <class T, class ReturnType, class... Params>
+void push_member_function_reflect(lua_State* L, ReturnType (*fp)(T&, Params...) noexcept, const char* debugname)
+{
+    using FnType = decltype(fp);
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType, 2>, debugname, 2);
+}
+
+template <class T, class ReturnType, class... Params>
+void push_member_function_reflect(lua_State* L, ReturnType (*fp)(const T*, Params...), const char* debugname)
+{
+    using FnType = decltype(fp);
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType, 2>, debugname, 2);
+}
+
+template <class T, class ReturnType, class... Params>
+void push_member_function_reflect(lua_State* L, ReturnType (*fp)(const T&, Params...), const char* debugname)
+{
+    using FnType = decltype(fp);
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType, 2>, debugname, 2);
+}
+
+template <class T, class ReturnType, class... Params>
+void push_member_function_reflect(lua_State* L, ReturnType (*fp)(const T*, Params...) noexcept, const char* debugname)
+{
+    using FnType = decltype(fp);
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType, 2>, debugname, 2);
+}
+
+template <class T, class ReturnType, class... Params>
+void push_member_function_reflect(lua_State* L, ReturnType (*fp)(const T&, Params...) noexcept, const char* debugname)
+{
+    using FnType = decltype(fp);
+    lua_pushlightuserdata(L, reinterpret_cast<void*>(fp));
+    lua_pushcclosure_x(L, &invoke_proxy_function<FnType, 2>, debugname, 2);
+}
+
+// True member function pointers (non-const)
+template <class T, class U, class ReturnType, class... Params>
+void push_member_function_reflect(lua_State* L, ReturnType (U::*mfp)(Params...), const char* debugname)
+{
+    static_assert(std::is_same_v<T, U> || std::is_base_of_v<U, T>);
+    using F = decltype(mfp);
+    new (lua_newuserdata_x<F>(L, sizeof(F))) F(mfp);
+    lua_pushcclosure_x(L, &invoke_member_function<F, T, 2>, debugname, 2);
+}
+
+template <class T, class U, class ReturnType, class... Params>
+void push_member_function_reflect(lua_State* L, ReturnType (U::*mfp)(Params...) noexcept, const char* debugname)
+{
+    static_assert(std::is_same_v<T, U> || std::is_base_of_v<U, T>);
+    using F = decltype(mfp);
+    new (lua_newuserdata_x<F>(L, sizeof(F))) F(mfp);
+    lua_pushcclosure_x(L, &invoke_member_function<F, T, 2>, debugname, 2);
+}
+
+// True member function pointers (const)
+template <class T, class U, class ReturnType, class... Params>
+void push_member_function_reflect(lua_State* L, ReturnType (U::*mfp)(Params...) const, const char* debugname)
+{
+    static_assert(std::is_same_v<T, U> || std::is_base_of_v<U, T>);
+    using F = decltype(mfp);
+    new (lua_newuserdata_x<F>(L, sizeof(F))) F(mfp);
+    lua_pushcclosure_x(L, &invoke_const_member_function<F, T, 2>, debugname, 2);
+}
+
+template <class T, class U, class ReturnType, class... Params>
+void push_member_function_reflect(lua_State* L, ReturnType (U::*mfp)(Params...) const noexcept, const char* debugname)
+{
+    static_assert(std::is_same_v<T, U> || std::is_base_of_v<U, T>);
+    using F = decltype(mfp);
+    new (lua_newuserdata_x<F>(L, sizeof(F))) F(mfp);
+    lua_pushcclosure_x(L, &invoke_const_member_function<F, T, 2>, debugname, 2);
+}
+
+// Callable object / lambda (reflect)
+template <class T, class F, class = std::enable_if<
+    is_callable_v<F> &&
+        std::is_object_v<F> &&
+        !std::is_pointer_v<F> &&
+        !std::is_member_function_pointer_v<F>>>
+void push_member_function_reflect(lua_State* L, F&& f, const char* debugname)
+{
+    static_assert(std::is_same_v<T, remove_cvref_t<std::remove_pointer_t<function_argument_or_void_t<0, F>>>>);
+    lua_newuserdata_aligned<F>(L, std::forward<F>(f));
+    lua_pushcclosure_x(L, &invoke_proxy_functor<F, 2>, debugname, 2);
 }
 
 //=================================================================================================
@@ -2610,16 +2768,30 @@ struct constructor
 {
     static T* construct(const Args& args)
     {
-        auto alloc = [](auto&&... args) { return new T(std::forward<decltype(args)>(args)...); };
-
-        return std::apply(alloc, args);
+        if constexpr (std::is_aggregate_v<T>)
+        {
+            auto alloc = [](auto&&... args) { return new T{std::forward<decltype(args)>(args)...}; };
+            return std::apply(alloc, args);
+        }
+        else
+        {
+            auto alloc = [](auto&&... args) { return new T(std::forward<decltype(args)>(args)...); };
+            return std::apply(alloc, args);
+        }
     }
 
     static T* construct(void* ptr, const Args& args)
     {
-        auto alloc = [ptr](auto&&... args) { return new (ptr) T(std::forward<decltype(args)>(args)...); };
-
-        return std::apply(alloc, args);
+        if constexpr (std::is_aggregate_v<T>)
+        {
+            auto alloc = [ptr](auto&&... args) { return new (ptr) T{std::forward<decltype(args)>(args)...}; };
+            return std::apply(alloc, args);
+        }
+        else
+        {
+            auto alloc = [ptr](auto&&... args) { return new (ptr) T(std::forward<decltype(args)>(args)...); };
+            return std::apply(alloc, args);
+        }
     }
 };
 

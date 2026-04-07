@@ -187,36 +187,25 @@ inline std::vector<OverloadInfo> getOverloadInfos(lua_State* L, int funcIdx)
     if (!lua_isfunction(L, funcIdx))
         return { OverloadInfo{} };
 
-    // Check upvalue 1 for an OverloadSet userdata
+    // Check upvalue 1 for an OverloadSet userdata identified by its magic cookie.
+    // This handles two layouts:
+    //   Multi-overload:           upvalue[1]=OverloadSet, upvalue[2]=table of functions
+    //   Single-overload REFLECT:  upvalue[1]=OverloadSet, upvalue[2]=function data directly
     const char* uv1name = lua_getupvalue(L, funcIdx, 1);
     if (uv1name == nullptr)
     {
-        // No upvalues — bare cfunction (single function, no metadata available)
+        // No upvalues — bare cfunction, no metadata available
         return { OverloadInfo{} };
     }
 
-    bool isOverloadSet = isfulluserdata(L, -1);
-    lua_pop(L, 1); // pop upvalue 1
-
-    if (!isOverloadSet)
+    OverloadSet* overload_set = nullptr;
+    if (isfulluserdata(L, -1))
     {
-        // upvalue 1 is not a full userdata (e.g. lightuserdata function pointer)
-        return { OverloadInfo{} };
+        auto* candidate = align<OverloadSet>(lua_touserdata(L, -1));
+        if (candidate && candidate->magic == OverloadSet::kMagic)
+            overload_set = candidate;
     }
-
-    // Confirm upvalue 2 is a table (the flat function table)
-    const char* uv2name = lua_getupvalue(L, funcIdx, 2);
-    bool hasTable = (uv2name != nullptr) && lua_istable(L, -1);
-    if (uv2name != nullptr)
-        lua_pop(L, 1); // pop upvalue 2
-
-    if (!hasTable)
-        return { OverloadInfo{} };
-
-    // Re-fetch upvalue 1 to read the OverloadSet
-    lua_getupvalue(L, funcIdx, 1);
-    auto* overload_set = align<OverloadSet>(lua_touserdata(L, -1));
-    lua_pop(L, 1);
+    lua_pop(L, 1); // pop upvalue 1
 
     if (!overload_set || overload_set->entries.empty())
         return { OverloadInfo{} };
@@ -228,7 +217,7 @@ inline std::vector<OverloadInfo> getOverloadInfos(lua_State* L, int funcIdx)
     {
         OverloadInfo info;
 
-#if defined(LUABRIDGE_ENABLE_REFLECT)
+#if LUABRIDGE_ENABLE_REFLECT
         info.returnType = entry.returnType;
         for (std::size_t i = 0; i < entry.paramTypes.size(); ++i)
         {
@@ -263,7 +252,7 @@ inline bool isClassStaticTable(lua_State* L, int tableIdx)
     if (!lua_getmetatable(L, tableIdx)) // always works from C regardless of __metatable
         return false;
 
-    lua_rawgetp(L, -1, getClassKey()); // mt[getClassKey()] = cl ?
+    lua_rawgetp_x(L, -1, getClassKey()); // mt[getClassKey()] = cl ?
     bool result = lua_istable(L, -1);
     lua_pop(L, 1); // pop cl / nil
 
@@ -287,27 +276,27 @@ inline ClassInspectInfo inspectClassFromStaticTable(lua_State* L, int stIdx)
     int mtIdx = lua_absindex(L, -1);
 
     // Get the class table cl = mt[getClassKey()]
-    lua_rawgetp(L, mtIdx, getClassKey());
+    lua_rawgetp_x(L, mtIdx, getClassKey());
     int clIdx = lua_absindex(L, -1);
 
     ClassInspectInfo cls;
 
     // 1. Class name
-    lua_rawgetp(L, clIdx, getTypeKey());
+    lua_rawgetp_x(L, clIdx, getTypeKey());
     if (lua_isstring(L, -1))
         cls.name = stripConst(lua_tostring(L, -1));
     lua_pop(L, 1);
 
     // 2. Base classes from parent list
-    lua_rawgetp(L, clIdx, getParentKey());
+    lua_rawgetp_x(L, clIdx, getParentKey());
     if (lua_istable(L, -1))
     {
         int parIdx = lua_absindex(L, -1);
-        int len = static_cast<int>(luaL_len(L, parIdx));
+        int len = get_length(L, parIdx);
         for (int i = 1; i <= len; ++i)
         {
             lua_rawgeti(L, parIdx, i);
-            lua_rawgetp(L, -1, getTypeKey());
+            lua_rawgetp_x(L, -1, getTypeKey());
             if (lua_isstring(L, -1))
             {
                 std::string baseName = stripConst(lua_tostring(L, -1));
@@ -321,14 +310,14 @@ inline ClassInspectInfo inspectClassFromStaticTable(lua_State* L, int stIdx)
 
     // 3. Collect instance property names
     std::set<std::string> instPropget;
-    lua_rawgetp(L, clIdx, getPropgetKey());
+    lua_rawgetp_x(L, clIdx, getPropgetKey());
     if (lua_istable(L, -1))
         instPropget = collectTableKeys(L, -1);
     lua_pop(L, 1);
 
     // Collect instance property names that have a real (non-readonly-sentinel) setter
     std::set<std::string> instPropsetReal;
-    lua_rawgetp(L, clIdx, getPropsetKey());
+    lua_rawgetp_x(L, clIdx, getPropsetKey());
     if (lua_istable(L, -1))
     {
         int psIdx = lua_absindex(L, -1);
@@ -384,14 +373,14 @@ inline ClassInspectInfo inspectClassFromStaticTable(lua_State* L, int stIdx)
 
     // 6. Collect static property names
     std::set<std::string> stPropget;
-    lua_rawgetp(L, mtIdx, getPropgetKey());
+    lua_rawgetp_x(L, mtIdx, getPropgetKey());
     if (lua_istable(L, -1))
         stPropget = collectTableKeys(L, -1);
     lua_pop(L, 1);
 
     // Collect static property names that have a real (non-readonly-sentinel) setter
     std::set<std::string> stPropsetReal;
-    lua_rawgetp(L, mtIdx, getPropsetKey());
+    lua_rawgetp_x(L, mtIdx, getPropsetKey());
     if (lua_istable(L, -1))
     {
         int psIdx = lua_absindex(L, -1);
@@ -422,7 +411,7 @@ inline ClassInspectInfo inspectClassFromStaticTable(lua_State* L, int stIdx)
     // 8. Iterate mt for static methods + constructor
     static const std::set<std::string> staticSkipKeys{ "__index", "__newindex", "__metatable" };
 
-    lua_rawgetp(L, mtIdx, getClassKey()); // just to see mt's string keys, iterate mt directly
+    lua_rawgetp_x(L, mtIdx, getClassKey()); // just to see mt's string keys, iterate mt directly
     lua_pop(L, 1);
 
     lua_pushnil(L);
@@ -466,14 +455,14 @@ inline NamespaceInspectInfo inspectNamespaceTable(lua_State* L, int nsIdx, std::
 
     // Namespace-level properties (stored directly on the namespace table via getPropgetKey)
     std::set<std::string> nsPropget;
-    lua_rawgetp(L, nsIdx, getPropgetKey());
+    lua_rawgetp_x(L, nsIdx, getPropgetKey());
     if (lua_istable(L, -1))
         nsPropget = collectTableKeys(L, -1);
     lua_pop(L, 1);
 
     // Get the propset table so we can check each setter individually
     int nsPropsetTableIdx = 0;
-    lua_rawgetp(L, nsIdx, getPropsetKey());
+    lua_rawgetp_x(L, nsIdx, getPropsetKey());
     if (lua_istable(L, -1))
         nsPropsetTableIdx = lua_absindex(L, -1);
     // leave propset table on stack; we pop it after the loop
@@ -573,7 +562,7 @@ template <class T>
 [[nodiscard]] ClassInspectInfo inspect(lua_State* L)
 {
     // Load the class table (cl) directly from the Lua registry
-    lua_rawgetp(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>());
+    lua_rawgetp_x(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>());
     if (!lua_istable(L, -1))
     {
         lua_pop(L, 1);
@@ -584,7 +573,7 @@ template <class T>
     // cl[getStaticKey()] = st  (the internal static table that acts as a metatable)
     // NOTE: this is NOT the user-visible ns["ClassName"] table; it is the metatable of that table.
     // isClassStaticTable() cannot be used here because st itself has no metatable.
-    lua_rawgetp(L, -1, detail::getStaticKey());
+    lua_rawgetp_x(L, -1, detail::getStaticKey());
     if (!lua_istable(L, -1))
     {
         lua_pop(L, 2);
@@ -593,7 +582,7 @@ template <class T>
     // Stack: ..., cl, st
 
     // Verify st actually belongs to a registered class: st[getClassKey()] must be a table
-    lua_rawgetp(L, -1, detail::getClassKey());
+    lua_rawgetp_x(L, -1, detail::getClassKey());
     const bool isClass = lua_istable(L, -1);
     lua_pop(L, 1);
 
@@ -607,7 +596,6 @@ template <class T>
     ClassInspectInfo result = detail::inspectClassFromStaticTable(L, lua_gettop(L));
     // inspectClassFromStaticTable pops st (used as mt) and the cl it fetched from st[getClassKey()]
     // Stack: ..., cl
-
     lua_pop(L, 1); // pop cl
     return result;
 }
@@ -625,7 +613,7 @@ template <class T>
 {
     if (namespaceName == nullptr || namespaceName[0] == '\0')
     {
-        lua_pushglobaltable(L);
+        lua_getglobal(L, "_G");
     }
     else
     {
@@ -688,9 +676,6 @@ inline void inspectAccept(lua_State* L, const char* namespaceName, InspectVisito
 }
 
 //=================================================================================================
-// Built-in visitors
-
-//=================================================================================================
 /**
  * @brief Visitor that emits TypeScript-style pseudo-code to an ostream.
  *
@@ -723,16 +708,16 @@ public:
         ++depth_;
     }
 
-    void endNamespace(const NamespaceInspectInfo& /*ns*/) override
+    void endNamespace([[maybe_unused]] const NamespaceInspectInfo& ns) override
     {
         --depth_;
         indent();
         out_ << "}\n";
     }
 
-    void visitFreeMember(const NamespaceInspectInfo& /*ns*/, const MemberInfo& m) override
+    void visitFreeMember([[maybe_unused]] const NamespaceInspectInfo& ns, const MemberInfo& m) override
     {
-        emitMember(m, /*className=*/"");
+        emitMember(m, "");
     }
 
     void beginClass(const ClassInspectInfo& cls) override
@@ -752,7 +737,7 @@ public:
         ++depth_;
     }
 
-    void endClass(const ClassInspectInfo& /*cls*/) override
+    void endClass([[maybe_unused]] const ClassInspectInfo& cls) override
     {
         --depth_;
         indent();
@@ -792,7 +777,7 @@ private:
         return ov.returnType.empty() ? "any" : ov.returnType;
     }
 
-    void emitMember(const MemberInfo& m, const std::string& className) const
+    void emitMember(const MemberInfo& m, [[maybe_unused]] const std::string& className) const
     {
         switch (m.kind)
         {
@@ -822,15 +807,13 @@ private:
             {
                 indent();
                 if (isStatic) out_ << "static ";
-                out_ << m.name << "(" << paramStr(m.overloads[i]) << "): "
-                     << retStr(m.overloads[i]) << ";\n";
+                out_ << m.name << "(" << paramStr(m.overloads[i]) << "): " << retStr(m.overloads[i]) << ";\n";
             }
             break;
         }
         default:
             break;
         }
-        (void)className;
     }
 
     std::ostream& out_;
@@ -858,7 +841,7 @@ public:
         ns_ = ns.name == "_G" ? "" : ns.name;
     }
 
-    void endNamespace(const NamespaceInspectInfo& /*ns*/) override {}
+    void endNamespace([[maybe_unused]] const NamespaceInspectInfo& ns) override {}
 
     void visitFreeMember(const NamespaceInspectInfo& ns, const MemberInfo& m) override
     {
@@ -871,6 +854,7 @@ public:
             if (!ov.returnType.empty() && ov.returnType != "void")
                 out_ << "---@return " << luaType(ov.returnType) << "\n";
         }
+
         std::string qual = ns_.empty() ? "" : (ns_ + ".");
         out_ << "function " << qual << m.name << "(";
         if (!m.overloads.empty())
@@ -894,7 +878,7 @@ public:
         // (will be added in visitMember below, but need the class annotation open)
     }
 
-    void endClass(const ClassInspectInfo& /*cls*/) override
+    void endClass([[maybe_unused]] const ClassInspectInfo& cls) override
     {
         out_ << "local " << curClass_ << " = {}\n\n";
         curClass_.clear();
@@ -1094,13 +1078,13 @@ public:
         out_ << cls.name << ".__index = " << cls.name << "\n\n";
     }
 
-    void endClass(const ClassInspectInfo& /*cls*/) override
+    void endClass([[maybe_unused]] const ClassInspectInfo& cls) override
     {
         curClass_.clear();
         out_ << "\n";
     }
 
-    void visitMember(const ClassInspectInfo& /*cls*/, const MemberInfo& m) override
+    void visitMember([[maybe_unused]] const ClassInspectInfo& cls, const MemberInfo& m) override
     {
         if (m.overloads.empty())
             return;
@@ -1170,7 +1154,7 @@ public:
         firstClass_ = true;
     }
 
-    void endNamespace(const NamespaceInspectInfo& /*ns*/) override
+    void endNamespace([[maybe_unused]] const NamespaceInspectInfo& ns) override
     {
         --depth_;
         out_ << "\n";
@@ -1197,7 +1181,7 @@ public:
         firstMember_ = true;
     }
 
-    void endClass(const ClassInspectInfo& /*cls*/) override
+    void endClass([[maybe_unused]] const ClassInspectInfo& cls) override
     {
         --depth_;
         out_ << "\n";
@@ -1206,7 +1190,7 @@ public:
         indent(); out_ << "}";
     }
 
-    void visitMember(const ClassInspectInfo& /*cls*/, const MemberInfo& m) override
+    void visitMember([[maybe_unused]] const ClassInspectInfo& cls, const MemberInfo& m) override
     {
         if (!firstMember_) out_ << ",\n";
         firstMember_ = false;
@@ -1302,12 +1286,12 @@ public:
         subNsIdx_ = 1;
     }
 
-    void endNamespace(const NamespaceInspectInfo& /*ns*/) override
+    void endNamespace([[maybe_unused]] const NamespaceInspectInfo& ns) override
     {
         // namespace table stays on stack as the result
     }
 
-    void visitFreeMember(const NamespaceInspectInfo& /*ns*/, const MemberInfo& m) override
+    void visitFreeMember([[maybe_unused]] const NamespaceInspectInfo& ns, const MemberInfo& m) override
     {
         lua_getfield(L_, -1, "freeMembers");
         pushMemberInfo(m);
@@ -1334,7 +1318,7 @@ public:
         memberIdx_ = 1;
     }
 
-    void endClass(const ClassInspectInfo& /*cls*/) override
+    void endClass([[maybe_unused]] const ClassInspectInfo& cls) override
     {
         // class table is on top; store it in the namespace's "classes" array
         lua_getfield(L_, -2, "classes");
@@ -1343,7 +1327,7 @@ public:
         lua_pop(L_, 2); // pop classes table + class table
     }
 
-    void visitMember(const ClassInspectInfo& /*cls*/, const MemberInfo& m) override
+    void visitMember([[maybe_unused]] const ClassInspectInfo& cls, const MemberInfo& m) override
     {
         lua_getfield(L_, -1, "members");
         pushMemberInfo(m);

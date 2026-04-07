@@ -145,28 +145,30 @@ template <class F>
  * lua_State* parameters are filtered out (they are auto-injected by LuaBridge, not
  * visible from Lua).
  */
+template <class Tuple, std::size_t... I>
+void reflect_param_type_names_impl(std::vector<std::string>& result, std::index_sequence<I...>)
+{
+    // Fold expression over comma operator (C++17): invoke a lambda for each index
+    (
+        [&]()
+        {
+            using ParamT = std::tuple_element_t<I, Tuple>;
+
+            constexpr bool isLuaState =
+                std::is_pointer_v<ParamT> &&
+                std::is_same_v<std::remove_const_t<std::remove_pointer_t<ParamT>>, lua_State>;
+
+            if constexpr (!isLuaState)
+                result.push_back(std::string(typeName<std::remove_cvref_t<ParamT>>()));
+        }(),
+        ...);
+}
+
 template <class Tuple>
 [[nodiscard]] std::vector<std::string> reflect_param_type_names()
 {
     std::vector<std::string> result;
-
-    [&]<std::size_t... I>(std::index_sequence<I...>)
-    {
-        (
-            [&]
-            {
-                using ParamT = std::tuple_element_t<I, Tuple>;
-
-                constexpr bool isLuaState =
-                    std::is_pointer_v<ParamT> &&
-                    std::is_same_v<std::remove_const_t<std::remove_pointer_t<ParamT>>, lua_State>;
-
-                if constexpr (!isLuaState)
-                    result.push_back(std::string(typeName<std::remove_cvref_t<ParamT>>()));
-            }(),
-            ...);
-    }(std::make_index_sequence<std::tuple_size_v<Tuple>>{});
-
+    reflect_param_type_names_impl<Tuple>(result, std::make_index_sequence<std::tuple_size_v<Tuple>>{});
     return result;
 }
 
