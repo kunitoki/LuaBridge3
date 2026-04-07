@@ -671,7 +671,7 @@ Special attention needs to be given to the order (priority) of the overloads, ba
 
 ### 2.5.2 - Parameter Name Hints
 
-When `LUABRIDGE_ENABLE_REFLECT` is defined (see [6.6](#76---luabridge-enable-reflect)), LuaBridge captures the C++ type names of function parameters at compile time. You can additionally attach human-readable **parameter name hints** to any function using `luabridge::withHints`. These names are stored alongside the function and become available through the [Inspection API](#6---inspecting-registrations).
+When `LUABRIDGE_ENABLE_REFLECT` is defined (see [7.6](#76---luabridge-enable-reflect)), LuaBridge captures the C++ type names of function parameters at compile time. You can additionally attach human-readable **parameter name hints** to any function using `luabridge::withHints`. These names are stored alongside the function and become available through the [Inspection API](#6---inspecting-registrations).
 
 ```cpp
 #define LUABRIDGE_ENABLE_REFLECT
