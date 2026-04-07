@@ -12,6 +12,18 @@
 #error LuaBridge 3 requires a compliant C++17 compiler, or C++17 has not been enabled !
 #endif
 
+#if defined(LUAU_FASTMATH_BEGIN)
+#define LUABRIDGE_ON_LUAU 1
+#elif defined(LUAJIT_VERSION)
+#define LUABRIDGE_ON_LUAJIT 1
+#elif defined(RAVI_OPTION_STRING2)
+#define LUABRIDGE_ON_RAVI 1
+#elif defined(LUA_VERSION_NUM)
+#define LUABRIDGE_ON_LUA 1
+#else
+#error "Lua headers must be included prior to LuaBridge ones"
+#endif
+
 /**
  * @brief Enable C++20 coroutine integration with Lua coroutines.
  *
@@ -19,7 +31,7 @@
  * Define LUABRIDGE_DISABLE_CXX20_COROUTINES to force-disable even when C++20 is available.
  */
 #if !defined(LUABRIDGE_HAS_CXX20_COROUTINES)
-#if !defined(LUABRIDGE_DISABLE_CXX20_COROUTINES) && (__cplusplus >= 202002L || (defined(_MSC_VER) && _HAS_CXX20))
+#if !defined(LUABRIDGE_DISABLE_CXX20_COROUTINES) && (__cplusplus >= 202002L || (defined(_MSC_VER) && _HAS_CXX20)) && !(LUABRIDGE_ON_LUAU || LUABRIDGE_ON_LUAJIT || LUABRIDGE_ON_RAVI || LUA_VERSION_NUM < 502)
 #define LUABRIDGE_HAS_CXX20_COROUTINES 1
 #else
 #define LUABRIDGE_HAS_CXX20_COROUTINES 0
@@ -60,18 +72,6 @@
 #define LUABRIDGE_NO_SANITIZE(x) __attribute__((no_sanitize(x)))
 #else
 #define LUABRIDGE_NO_SANITIZE(x)
-#endif
-
-#if defined(LUAU_FASTMATH_BEGIN)
-#define LUABRIDGE_ON_LUAU 1
-#elif defined(LUAJIT_VERSION)
-#define LUABRIDGE_ON_LUAJIT 1
-#elif defined(RAVI_OPTION_STRING2)
-#define LUABRIDGE_ON_RAVI 1
-#elif defined(LUA_VERSION_NUM)
-#define LUABRIDGE_ON_LUA 1
-#else
-#error "Lua headers must be included prior to LuaBridge ones"
 #endif
 
 #if defined(__OBJC__)
