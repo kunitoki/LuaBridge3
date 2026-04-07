@@ -762,4 +762,438 @@ TEST_F(CppCoroutineTests, LuaIteratorPattern)
     EXPECT_EQ(15, luabridge::getGlobal(L, "rangeSum").unsafe_cast<int>());
 }
 
+//=============================================================================
+// Class<T>::addStaticCoroutine and Class<T>::addCoroutine tests
+//=============================================================================
+
+struct CppCoroutineClassTests : TestBase
+{
+    struct Counter
+    {
+        int value = 0;
+
+        void increment() { ++value; }
+    };
+};
+
+TEST_F(CppCoroutineClassTests, StaticCoroutine_Basic)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Counter>("Counter")
+            .addConstructor<void()>()
+            .addStaticCoroutine("generate", []() -> luabridge::CppCoroutine<int>
+            {
+                co_yield 10;
+                co_return 20;
+            })
+        .endClass();
+
+    ASSERT_TRUE(runLua(
+        "local f = coroutine.wrap(Counter.generate)\n"
+        "first  = f()\n"
+        "second = f()\n"
+    ));
+
+    EXPECT_EQ(10, luabridge::getGlobal(L, "first").unsafe_cast<int>());
+    EXPECT_EQ(20, luabridge::getGlobal(L, "second").unsafe_cast<int>());
+}
+
+TEST_F(CppCoroutineClassTests, StaticCoroutine_WithArguments)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Counter>("Counter")
+            .addConstructor<void()>()
+            .addStaticCoroutine("range", [](int from, int count) -> luabridge::CppCoroutine<int>
+            {
+                for (int i = 0; i < count; ++i)
+                    co_yield from + i;
+                co_return -1;
+            })
+        .endClass();
+
+    ASSERT_TRUE(runLua(
+        "local f = coroutine.wrap(Counter.range)\n"
+        "a = f(5, 3)\n"
+        "b = f()\n"
+        "c = f()\n"
+        "d = f()\n"
+    ));
+
+    EXPECT_EQ(5,  luabridge::getGlobal(L, "a").unsafe_cast<int>());
+    EXPECT_EQ(6,  luabridge::getGlobal(L, "b").unsafe_cast<int>());
+    EXPECT_EQ(7,  luabridge::getGlobal(L, "c").unsafe_cast<int>());
+    EXPECT_EQ(-1, luabridge::getGlobal(L, "d").unsafe_cast<int>());
+}
+
+TEST_F(CppCoroutineClassTests, StaticCoroutine_VoidReturn)
+{
+    int sideEffect = 0;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Counter>("Counter")
+            .addConstructor<void()>()
+            .addStaticCoroutine("doWork", [&sideEffect](int x) -> luabridge::CppCoroutine<void>
+            {
+                sideEffect = x;
+                co_return;
+            })
+        .endClass();
+
+    ASSERT_TRUE(runLua(
+        "local f = coroutine.wrap(Counter.doWork)\n"
+        "f(42)\n"
+    ));
+
+    EXPECT_EQ(42, sideEffect);
+}
+
+TEST_F(CppCoroutineClassTests, MemberCoroutine_NonConst)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Counter>("Counter")
+            .addConstructor<void()>()
+            .addProperty("value", &Counter::value)
+            .addCoroutine("generate", [](Counter* obj, int n) -> luabridge::CppCoroutine<int>
+            {
+                for (int i = 0; i < n; ++i)
+                {
+                    co_yield obj->value;
+                    obj->increment();
+                }
+                co_return -1;
+            })
+        .endClass();
+
+    ASSERT_TRUE(runLua(
+        "local obj = Counter()\n"
+        "local f = coroutine.wrap(Counter.generate)\n"
+        "a = f(obj, 3)\n"
+        "b = f()\n"
+        "c = f()\n"
+        "d = f()\n"
+        "finalVal = obj.value\n"
+    ));
+
+    EXPECT_EQ(0,  luabridge::getGlobal(L, "a").unsafe_cast<int>());
+    EXPECT_EQ(1,  luabridge::getGlobal(L, "b").unsafe_cast<int>());
+    EXPECT_EQ(2,  luabridge::getGlobal(L, "c").unsafe_cast<int>());
+    EXPECT_EQ(-1, luabridge::getGlobal(L, "d").unsafe_cast<int>());
+    EXPECT_EQ(3,  luabridge::getGlobal(L, "finalVal").unsafe_cast<int>());
+}
+
+TEST_F(CppCoroutineClassTests, MemberCoroutine_ConstAccessible)
+{
+    // A const coroutine (const T* first arg) is accessible on non-const objects.
+    // Counter default-constructs with value=0; coroutine yields/returns computed offsets.
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Counter>("Counter")
+            .addConstructor<void()>()
+            .addCoroutine("peek", [](const Counter* obj) -> luabridge::CppCoroutine<int>
+            {
+                co_yield obj->value + 10;
+                co_return obj->value + 20;
+            })
+        .endClass();
+
+    ASSERT_TRUE(runLua(
+        "local obj = Counter()\n"
+        "local f = coroutine.wrap(Counter.peek)\n"
+        "first  = f(obj)\n"
+        "second = f()\n"
+    ));
+
+    EXPECT_EQ(10, luabridge::getGlobal(L, "first").unsafe_cast<int>());
+    EXPECT_EQ(20, luabridge::getGlobal(L, "second").unsafe_cast<int>());
+}
+
+TEST_F(CppCoroutineClassTests, MemberCoroutine_MultipleYields)
+{
+    // Counter default-constructs with value=0; each yield/return adds an increasing offset.
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Counter>("Counter")
+            .addConstructor<void()>()
+            .addCoroutine("count", [](Counter* obj) -> luabridge::CppCoroutine<int>
+            {
+                co_yield obj->value + 1;
+                co_yield obj->value + 2;
+                co_yield obj->value + 3;
+                co_return obj->value + 4;
+            })
+        .endClass();
+
+    ASSERT_TRUE(runLua(
+        "local obj = Counter()\n"
+        "local f = coroutine.wrap(Counter.count)\n"
+        "a = f(obj)\n"
+        "b = f()\n"
+        "c = f()\n"
+        "d = f()\n"
+    ));
+
+    EXPECT_EQ(1, luabridge::getGlobal(L, "a").unsafe_cast<int>());
+    EXPECT_EQ(2, luabridge::getGlobal(L, "b").unsafe_cast<int>());
+    EXPECT_EQ(3, luabridge::getGlobal(L, "c").unsafe_cast<int>());
+    EXPECT_EQ(4, luabridge::getGlobal(L, "d").unsafe_cast<int>());
+}
+
+TEST_F(CppCoroutineClassTests, MemberCoroutine_VoidReturn)
+{
+    // Counter starts with value=0; the coroutine sets it to a known sentinel so we can verify
+    // the void coroutine body ran and mutated the object correctly.
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Counter>("Counter")
+            .addConstructor<void()>()
+            .addProperty("value", &Counter::value)
+            .addCoroutine("stamp", [](Counter* obj) -> luabridge::CppCoroutine<void>
+            {
+                obj->value = 77;
+                co_return;
+            })
+        .endClass();
+
+    ASSERT_TRUE(runLua(
+        "local obj = Counter()\n"
+        "local f = coroutine.wrap(Counter.stamp)\n"
+        "f(obj)\n"
+        "result = obj.value\n"
+    ));
+
+    EXPECT_EQ(77, luabridge::getGlobal(L, "result").unsafe_cast<int>());
+}
+
+TEST_F(CppCoroutineClassTests, MemberCoroutine_AbandonedNoLeak)
+{
+    int destructed = 0;
+    struct Guard { int* p; ~Guard() { ++(*p); } };
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Counter>("Counter")
+            .addConstructor<void()>()
+            .addCoroutine("guarded", [&destructed](Counter* /*obj*/) -> luabridge::CppCoroutine<int>
+            {
+                Guard g{ &destructed };
+                co_yield 1;
+                co_yield 2;
+                co_return 3;
+            })
+        .endClass();
+
+    ASSERT_TRUE(runLua(
+        "local obj = Counter()\n"
+        "local f = coroutine.wrap(Counter.guarded)\n"
+        "first = f(obj)\n"
+    ));
+
+    EXPECT_EQ(1, luabridge::getGlobal(L, "first").unsafe_cast<int>());
+
+    lua_gc(L, LUA_GCCOLLECT, 0);
+    lua_gc(L, LUA_GCCOLLECT, 0);
+
+    EXPECT_EQ(1, destructed);
+}
+
+TEST_F(CppCoroutineClassTests, StaticCoroutine_ConcurrentInstances)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Counter>("Counter")
+            .addConstructor<void()>()
+            .addStaticCoroutine("ticker", []() -> luabridge::CppCoroutine<int>
+            {
+                co_yield 1;
+                co_yield 2;
+                co_return 3;
+            })
+        .endClass();
+
+    ASSERT_TRUE(runLua(
+        "local a = coroutine.wrap(Counter.ticker)\n"
+        "local b = coroutine.wrap(Counter.ticker)\n"
+        "a1 = a()\n"
+        "b1 = b()\n"
+        "a2 = a()\n"
+        "b2 = b()\n"
+        "a3 = a()\n"
+        "b3 = b()\n"
+    ));
+
+    EXPECT_EQ(1, luabridge::getGlobal(L, "a1").unsafe_cast<int>());
+    EXPECT_EQ(1, luabridge::getGlobal(L, "b1").unsafe_cast<int>());
+    EXPECT_EQ(2, luabridge::getGlobal(L, "a2").unsafe_cast<int>());
+    EXPECT_EQ(2, luabridge::getGlobal(L, "b2").unsafe_cast<int>());
+    EXPECT_EQ(3, luabridge::getGlobal(L, "a3").unsafe_cast<int>());
+    EXPECT_EQ(3, luabridge::getGlobal(L, "b3").unsafe_cast<int>());
+}
+
+// Error / non-happy-path tests
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+TEST_F(CppCoroutineClassTests, StaticCoroutine_ExceptionOnFirstResume)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Counter>("Counter")
+            .addConstructor<void()>()
+            .addStaticCoroutine("boom", []() -> luabridge::CppCoroutine<int>
+            {
+                throw std::runtime_error("static coroutine error");
+                co_return 0;
+            })
+        .endClass();
+
+    ASSERT_TRUE(runLua(
+        "local ok, err = pcall(coroutine.wrap(Counter.boom))\n"
+        "success = ok\n"
+        "errmsg  = err\n"
+    ));
+
+    EXPECT_FALSE(luabridge::getGlobal(L, "success").unsafe_cast<bool>());
+    auto msg = luabridge::getGlobal(L, "errmsg").unsafe_cast<std::string>();
+    EXPECT_NE(std::string::npos, msg.find("static coroutine error"));
+}
+
+TEST_F(CppCoroutineClassTests, StaticCoroutine_ExceptionOnContinuation)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Counter>("Counter")
+            .addConstructor<void()>()
+            .addStaticCoroutine("boom2", []() -> luabridge::CppCoroutine<int>
+            {
+                co_yield 1;
+                throw std::runtime_error("static continuation error");
+                co_return 0;
+            })
+        .endClass();
+
+    ASSERT_TRUE(runLua(
+        "local f = coroutine.wrap(Counter.boom2)\n"
+        "first = f()\n"
+        "local ok, err = pcall(f)\n"
+        "success = ok\n"
+        "errmsg  = err\n"
+    ));
+
+    EXPECT_EQ(1, luabridge::getGlobal(L, "first").unsafe_cast<int>());
+    EXPECT_FALSE(luabridge::getGlobal(L, "success").unsafe_cast<bool>());
+    auto msg = luabridge::getGlobal(L, "errmsg").unsafe_cast<std::string>();
+    EXPECT_NE(std::string::npos, msg.find("static continuation error"));
+}
+
+TEST_F(CppCoroutineClassTests, MemberCoroutine_ExceptionOnFirstResume)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Counter>("Counter")
+            .addConstructor<void()>()
+            .addCoroutine("boom", [](Counter* /*obj*/) -> luabridge::CppCoroutine<int>
+            {
+                throw std::runtime_error("member coroutine error");
+                co_return 0;
+            })
+        .endClass();
+
+    ASSERT_TRUE(runLua(
+        "local obj = Counter()\n"
+        "local ok, err = pcall(coroutine.wrap(Counter.boom), obj)\n"
+        "success = ok\n"
+        "errmsg  = err\n"
+    ));
+
+    EXPECT_FALSE(luabridge::getGlobal(L, "success").unsafe_cast<bool>());
+    auto msg = luabridge::getGlobal(L, "errmsg").unsafe_cast<std::string>();
+    EXPECT_NE(std::string::npos, msg.find("member coroutine error"));
+}
+
+TEST_F(CppCoroutineClassTests, MemberCoroutine_ExceptionOnContinuation)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Counter>("Counter")
+            .addConstructor<void()>()
+            .addCoroutine("boom2", [](Counter* /*obj*/) -> luabridge::CppCoroutine<int>
+            {
+                co_yield 1;
+                throw std::runtime_error("member continuation error");
+                co_return 0;
+            })
+        .endClass();
+
+    ASSERT_TRUE(runLua(
+        "local obj = Counter()\n"
+        "local f = coroutine.wrap(Counter.boom2)\n"
+        "first = f(obj)\n"
+        "local ok, err = pcall(f)\n"
+        "success = ok\n"
+        "errmsg  = err\n"
+    ));
+
+    EXPECT_EQ(1, luabridge::getGlobal(L, "first").unsafe_cast<int>());
+    EXPECT_FALSE(luabridge::getGlobal(L, "success").unsafe_cast<bool>());
+    auto msg = luabridge::getGlobal(L, "errmsg").unsafe_cast<std::string>();
+    EXPECT_NE(std::string::npos, msg.find("member continuation error"));
+}
+#endif // LUABRIDGE_HAS_EXCEPTIONS
+
+TEST_F(CppCoroutineClassTests, StaticCoroutine_ResumeAfterDone)
+{
+    // Resuming a finished coroutine should produce an error
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Counter>("Counter")
+            .addConstructor<void()>()
+            .addStaticCoroutine("once", []() -> luabridge::CppCoroutine<int>
+            {
+                co_return 42;
+            })
+        .endClass();
+
+    ASSERT_TRUE(runLua(
+        "local f = coroutine.wrap(Counter.once)\n"
+        "result = f()\n"    // finishes immediately
+        "local ok, err = pcall(f)\n"  // second resume on dead coroutine
+        "resumeOk = ok\n"
+    ));
+
+    EXPECT_EQ(42, luabridge::getGlobal(L, "result").unsafe_cast<int>());
+    EXPECT_FALSE(luabridge::getGlobal(L, "resumeOk").unsafe_cast<bool>());
+}
+
+TEST_F(CppCoroutineClassTests, MemberCoroutine_ResumeAfterDone)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Counter>("Counter")
+            .addConstructor<void()>()
+            .addCoroutine("once", [](Counter* /*obj*/) -> luabridge::CppCoroutine<int>
+            {
+                co_return 99;
+            })
+        .endClass();
+
+    ASSERT_TRUE(runLua(
+        "local obj = Counter()\n"
+        "local f = coroutine.wrap(Counter.once)\n"
+        "result = f(obj)\n"   // finishes immediately
+        "local ok, err = pcall(f)\n"  // second resume on dead coroutine
+        "resumeOk = ok\n"
+    ));
+
+    EXPECT_EQ(99, luabridge::getGlobal(L, "result").unsafe_cast<int>());
+    EXPECT_FALSE(luabridge::getGlobal(L, "resumeOk").unsafe_cast<bool>());
+}
+
+TEST_F(CppCoroutineClassTests, MemberCoroutine_WrongArgumentType)
+{
+    // Passing a non-object (e.g. integer) where a Counter* is expected should produce an error
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Counter>("Counter")
+            .addConstructor<void()>()
+            .addCoroutine("generate", [](Counter* /*obj*/) -> luabridge::CppCoroutine<int>
+            {
+                co_return 1;
+            })
+        .endClass();
+
+    ASSERT_TRUE(runLua(
+        "local ok, err = pcall(coroutine.wrap(Counter.generate), 42)\n"
+        "success = ok\n"
+    ));
+
+    EXPECT_FALSE(luabridge::getGlobal(L, "success").unsafe_cast<bool>());
+}
+
 #endif // LUABRIDGE_HAS_CXX20_COROUTINES
