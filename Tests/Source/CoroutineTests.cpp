@@ -1397,7 +1397,10 @@ TEST_F(CppCoroutineClassTests, MemberCoroutine_ResumeAfterDone)
 
 TEST_F(CppCoroutineClassTests, MemberCoroutine_WrongArgumentType)
 {
-    // Passing a non-object (e.g. integer) where a Counter* is expected should produce an error
+    // Passing a non-object (integer) where Counter* is expected.
+    // With exceptions: the type-mismatch C++ exception escapes the Lua coroutine boundary
+    // before lua_error can intercept it, so it surfaces as a C++ throw through runLua.
+    // Without exceptions: luaL_error is called inside the coroutine, which is caught by pcall.
     luabridge::getGlobalNamespace(L)
         .beginClass<Counter>("Counter")
             .addConstructor<void()>()
@@ -1407,12 +1410,18 @@ TEST_F(CppCoroutineClassTests, MemberCoroutine_WrongArgumentType)
             })
         .endClass();
 
+#if LUABRIDGE_HAS_EXCEPTIONS
+    EXPECT_THROW(
+        runLua("coroutine.wrap(Counter.generate)(42)\n"),
+        std::exception
+    );
+#else
     ASSERT_TRUE(runLua(
         "local ok, err = pcall(coroutine.wrap(Counter.generate), 42)\n"
         "success = ok\n"
     ));
-
     EXPECT_FALSE(luabridge::getGlobal(L, "success").unsafe_cast<bool>());
+#endif
 }
 
 #endif // LUABRIDGE_HAS_CXX20_COROUTINES
