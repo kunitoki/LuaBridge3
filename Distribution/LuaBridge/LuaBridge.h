@@ -10,6 +10,7 @@
 #include <array>
 #include <cassert>
 #include <cmath>
+#include <coroutine>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -40,6 +41,26 @@
 
 #if !(__cplusplus >= 201703L || (defined(_MSC_VER) && _HAS_CXX17))
 #error LuaBridge 3 requires a compliant C++17 compiler, or C++17 has not been enabled !
+#endif
+
+#if defined(LUAU_FASTMATH_BEGIN)
+#define LUABRIDGE_ON_LUAU 1
+#elif defined(LUAJIT_VERSION)
+#define LUABRIDGE_ON_LUAJIT 1
+#elif defined(RAVI_OPTION_STRING2)
+#define LUABRIDGE_ON_RAVI 1
+#elif defined(LUA_VERSION_NUM)
+#define LUABRIDGE_ON_LUA 1
+#else
+#error "Lua headers must be included prior to LuaBridge ones"
+#endif
+
+#if !defined(LUABRIDGE_HAS_CXX20_COROUTINES)
+#if !defined(LUABRIDGE_DISABLE_CXX20_COROUTINES) && (__cplusplus >= 202002L || (defined(_MSC_VER) && _HAS_CXX20)) && !(LUABRIDGE_ON_LUAU || LUABRIDGE_ON_LUAJIT || LUABRIDGE_ON_RAVI || LUA_VERSION_NUM < 502)
+#define LUABRIDGE_HAS_CXX20_COROUTINES 1
+#else
+#define LUABRIDGE_HAS_CXX20_COROUTINES 0
+#endif
 #endif
 
 #if !defined(LUABRIDGE_HAS_EXCEPTIONS)
@@ -76,18 +97,6 @@
 #define LUABRIDGE_NO_SANITIZE(x) __attribute__((no_sanitize(x)))
 #else
 #define LUABRIDGE_NO_SANITIZE(x)
-#endif
-
-#if defined(LUAU_FASTMATH_BEGIN)
-#define LUABRIDGE_ON_LUAU 1
-#elif defined(LUAJIT_VERSION)
-#define LUABRIDGE_ON_LUAJIT 1
-#elif defined(RAVI_OPTION_STRING2)
-#define LUABRIDGE_ON_RAVI 1
-#elif defined(LUA_VERSION_NUM)
-#define LUABRIDGE_ON_LUA 1
-#else
-#error "Lua headers must be included prior to LuaBridge ones"
 #endif
 
 #if defined(__OBJC__)
@@ -1150,6 +1159,41 @@ bool is_floating_point_representable_by(lua_State* L, int index)
     return isValid ? is_floating_point_representable_by<U>(value) : false;
 }
 
+inline int lua_resume_x(lua_State* L, lua_State* from, int nargs, int* nresults = nullptr)
+{
+#if LUABRIDGE_ON_LUAJIT || LUA_VERSION_NUM == 501
+    unused(from);
+    int status = lua_resume(L, nargs);
+    if (nresults)
+        *nresults = lua_gettop(L);
+    return status;
+#elif LUABRIDGE_ON_LUAU || LUABRIDGE_ON_RAVI || LUA_VERSION_NUM < 504
+    int status = lua_resume(L, from, nargs);
+    if (nresults)
+        *nresults = lua_gettop(L);
+    return status;
+#else
+    int nr = 0;
+    int status = lua_resume(L, from, nargs, &nr);
+    if (nresults)
+        *nresults = nr;
+    return status;
+#endif
+}
+
+inline bool lua_isyieldable_x(lua_State* L)
+{
+#if LUABRIDGE_ON_LUAJIT || LUA_VERSION_NUM == 501 || LUABRIDGE_ON_LUAU
+    unused(L);
+    return false;
+#elif LUA_VERSION_NUM < 503
+    unused(L);
+    return true; 
+#else
+    return lua_isyieldable(L) != 0;
+#endif
+}
+
 } 
 
 
@@ -1179,7 +1223,11 @@ enum class ErrorCode
 
     InvalidTypeCast,
 
-    InvalidTableSizeInCast
+    InvalidTableSizeInCast,
+
+    CoroutineYieldFromNonCoroutine,
+
+    CoroutineAlreadyDone
 };
 
 namespace detail {
@@ -1219,6 +1267,12 @@ struct ErrorCategory : std::error_category
 
         case ErrorCode::InvalidTableSizeInCast:
             return "The lua table has different size than expected";
+
+        case ErrorCode::CoroutineYieldFromNonCoroutine:
+            return "Cannot yield from a non-coroutine Lua state";
+
+        case ErrorCode::CoroutineAlreadyDone:
+            return "The Lua coroutine has already finished execution";
 
         default:
             return "Unknown error";
@@ -8822,6 +8876,386 @@ private:
 
 // End File: Source/LuaBridge/detail/CFunctions.h
 
+// Begin File: Source/LuaBridge/detail/Coroutine.h
+
+#if LUABRIDGE_HAS_CXX20_COROUTINES
+
+#if LUABRIDGE_ON_LUAJIT || LUA_VERSION_NUM == 501 || LUABRIDGE_ON_LUAU
+#ifndef LUABRIDGE_DISABLE_COROUTINE_INTEGRATION
+#error "C++20 coroutine integration requires Lua 5.2+ with lua_yieldk support. \
+Define LUABRIDGE_DISABLE_COROUTINE_INTEGRATION to suppress this error."
+#endif
+#else
+
+namespace luabridge {
+
+template <class R>
+struct CppCoroutine
+{
+    struct promise_type
+    {
+        lua_State* L = nullptr;
+        int nresults = 0;
+        bool is_done = false;
+        std::exception_ptr exception;
+
+        std::suspend_always initial_suspend() noexcept { return {}; }
+        std::suspend_always final_suspend() noexcept { return {}; }
+
+        void unhandled_exception() noexcept
+        {
+            exception = std::current_exception();
+        }
+
+        std::suspend_always yield_value(const R& value)
+        {
+            nresults = 0;
+            if (L)
+            {
+                auto result = Stack<R>::push(L, value);
+                if (result)
+                    nresults = 1;
+                else
+                    exception = std::make_exception_ptr(std::system_error(result.error()));
+            }
+            return {};
+        }
+
+        std::suspend_always yield_value(R&& value)
+        {
+            nresults = 0;
+            if (L)
+            {
+                auto result = Stack<R>::push(L, std::move(value));
+                if (result)
+                    nresults = 1;
+                else
+                    exception = std::make_exception_ptr(std::system_error(result.error()));
+            }
+            return {};
+        }
+
+        void return_value(const R& value)
+        {
+            nresults = 0;
+            if (L)
+            {
+                auto result = Stack<R>::push(L, value);
+                if (result)
+                    nresults = 1;
+                else
+                    exception = std::make_exception_ptr(std::system_error(result.error()));
+            }
+            is_done = true;
+        }
+
+        void return_value(R&& value)
+        {
+            nresults = 0;
+            if (L)
+            {
+                auto result = Stack<R>::push(L, std::move(value));
+                if (result)
+                    nresults = 1;
+                else
+                    exception = std::make_exception_ptr(std::system_error(result.error()));
+            }
+            is_done = true;
+        }
+
+        CppCoroutine get_return_object()
+        {
+            return CppCoroutine{ std::coroutine_handle<promise_type>::from_promise(*this) };
+        }
+    };
+
+    std::coroutine_handle<promise_type> handle;
+
+    explicit CppCoroutine(std::coroutine_handle<promise_type> h) noexcept
+        : handle(h)
+    {
+    }
+
+    CppCoroutine(CppCoroutine&& other) noexcept
+        : handle(std::exchange(other.handle, {}))
+    {
+    }
+
+    CppCoroutine(const CppCoroutine&) = delete;
+    CppCoroutine& operator=(const CppCoroutine&) = delete;
+    ~CppCoroutine() = default;
+};
+
+template <>
+struct CppCoroutine<void>
+{
+    struct promise_type
+    {
+        lua_State* L = nullptr;
+        int nresults = 0;
+        bool is_done = false;
+        std::exception_ptr exception;
+
+        std::suspend_always initial_suspend() noexcept { return {}; }
+        std::suspend_always final_suspend() noexcept { return {}; }
+
+        void unhandled_exception() noexcept
+        {
+            exception = std::current_exception();
+        }
+
+        void return_void()
+        {
+            nresults = 0;
+            is_done = true;
+        }
+
+        CppCoroutine get_return_object()
+        {
+            return CppCoroutine{ std::coroutine_handle<promise_type>::from_promise(*this) };
+        }
+    };
+
+    std::coroutine_handle<promise_type> handle;
+
+    explicit CppCoroutine(std::coroutine_handle<promise_type> h) noexcept
+        : handle(h)
+    {
+    }
+
+    CppCoroutine(CppCoroutine&& other) noexcept
+        : handle(std::exchange(other.handle, {}))
+    {
+    }
+
+    CppCoroutine(const CppCoroutine&) = delete;
+    CppCoroutine& operator=(const CppCoroutine&) = delete;
+    ~CppCoroutine() = default;
+};
+
+class LuaCoroutine
+{
+public:
+    LuaCoroutine(lua_State* thread, lua_State* from = nullptr) noexcept
+        : m_thread(thread)
+        , m_from(from)
+    {
+    }
+
+    bool await_ready() noexcept
+    {
+        m_status = lua_resume_x(m_thread, m_from, 0, &m_nresults);
+        return true; 
+    }
+
+    void await_suspend(std::coroutine_handle<>) noexcept
+    {
+        
+    }
+
+    std::pair<int, int> await_resume() noexcept
+    {
+        return { m_status, m_nresults };
+    }
+
+private:
+    lua_State* m_thread;
+    lua_State* m_from;
+    int m_status = LUABRIDGE_LUA_OK;
+    int m_nresults = 0;
+};
+
+namespace detail {
+
+template <class T>
+struct is_cpp_coroutine : std::false_type
+{
+};
+
+template <class R>
+struct is_cpp_coroutine<CppCoroutine<R>> : std::true_type
+{
+};
+
+template <class F, class = void>
+struct is_cpp_coroutine_factory : std::false_type
+{
+};
+
+template <class F>
+struct is_cpp_coroutine_factory<F, std::void_t<typename function_traits<std::remove_reference_t<F>>::result_type>>
+    : is_cpp_coroutine<typename function_traits<std::remove_reference_t<F>>::result_type>
+{
+};
+
+template <class F>
+inline constexpr bool is_cpp_coroutine_factory_v = is_cpp_coroutine_factory<F>::value;
+
+template <class CoroType>
+struct CppCoroutineFrame
+{
+    using HandleType = std::coroutine_handle<typename CoroType::promise_type>;
+
+    HandleType handle;
+
+    explicit CppCoroutineFrame(HandleType h) noexcept
+        : handle(h)
+    {
+    }
+
+    CppCoroutineFrame(const CppCoroutineFrame&) = delete;
+    CppCoroutineFrame& operator=(const CppCoroutineFrame&) = delete;
+
+    ~CppCoroutineFrame()
+    {
+        if (handle && !handle.done())
+            handle.destroy();
+    }
+};
+
+template <class F> int coroutine_continuation_body(lua_State* L, int frame_abs_idx);
+
+#if LUA_VERSION_NUM < 503
+
+template <class F>
+int coroutine_continuation(lua_State* L)
+{
+    int frame_abs_idx = 0;
+    lua_getctx(L, &frame_abs_idx);
+    return coroutine_continuation_body<F>(L, frame_abs_idx);
+}
+
+template <class F>
+int do_yield(lua_State* L, int nresults, int frame_abs_idx)
+{
+    return lua_yieldk(L, nresults, frame_abs_idx, &coroutine_continuation<F>);
+}
+#else
+
+template <class F>
+int coroutine_continuation(lua_State* L, int 
+, lua_KContext ctx)
+{
+    return coroutine_continuation_body<F>(L, static_cast<int>(ctx));
+}
+
+template <class F>
+int do_yield(lua_State* L, int nresults, int frame_abs_idx)
+{
+    return lua_yieldk(L, nresults, static_cast<lua_KContext>(frame_abs_idx), &coroutine_continuation<F>);
+}
+#endif
+
+[[noreturn]] inline void raise_from_exception(lua_State* L, int frame_abs_idx, std::exception_ptr ex)
+{
+    lua_settop(L, frame_abs_idx - 1); 
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    try
+    {
+        std::rethrow_exception(ex);
+    }
+    catch (const std::exception& e)
+    {
+        raise_lua_error(L, "%s", e.what());
+    }
+    catch (...)
+    {
+#endif
+
+        raise_lua_error(L, "unknown exception in C++ coroutine");
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    }
+#endif
+}
+
+template <class F>
+int coroutine_continuation_body(lua_State* L, int frame_abs_idx)
+{
+    using CoroType = typename function_traits<std::remove_reference_t<F>>::result_type;
+    using FrameType = CppCoroutineFrame<CoroType>;
+
+    lua_settop(L, frame_abs_idx);
+
+    auto* frame = align<FrameType>(lua_touserdata(L, frame_abs_idx));
+
+    frame->handle.resume();
+
+    auto& promise = frame->handle.promise();
+
+    if (promise.exception)
+        raise_from_exception(L, frame_abs_idx, promise.exception);
+
+    if (promise.is_done)
+    {
+        if (promise.nresults == 1)
+            lua_replace(L, frame_abs_idx); 
+        else
+            lua_settop(L, frame_abs_idx - 1); 
+        return promise.nresults;
+    }
+
+    return do_yield<F>(L, promise.nresults, frame_abs_idx);
+}
+
+template <class F>
+int invoke_coroutine_entry(lua_State* L)
+{
+    using FnTraits = function_traits<std::remove_reference_t<F>>;
+    using ArgsPack = typename FnTraits::argument_types;
+    using CoroType = typename FnTraits::result_type;
+    using FrameType = CppCoroutineFrame<CoroType>;
+
+    LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
+    auto& factory = *align<F>(lua_touserdata(L, lua_upvalueindex(1)));
+
+    auto coro = invoke_callable_from_stack<ArgsPack, 1>(L, factory);
+
+    lua_newuserdata_aligned<FrameType>(L, std::move(coro.handle));
+    coro.handle = {}; 
+
+    int frame_abs_idx = lua_gettop(L);
+    auto* frame = align<FrameType>(lua_touserdata(L, frame_abs_idx));
+
+    frame->handle.promise().L = L;
+
+    frame->handle.resume();
+
+    auto& promise = frame->handle.promise();
+
+    if (promise.exception)
+        raise_from_exception(L, frame_abs_idx, promise.exception);
+
+    if (promise.is_done)
+    {
+        if (promise.nresults == 1)
+            lua_replace(L, frame_abs_idx); 
+        else
+            lua_settop(L, frame_abs_idx - 1); 
+        return promise.nresults;
+    }
+
+    return do_yield<F>(L, promise.nresults, frame_abs_idx);
+}
+
+template <class F, class = std::enable_if_t<is_cpp_coroutine_factory_v<F>>>
+inline void push_coroutine_function(lua_State* L, F&& f, const char* debugname)
+{
+    using FDecay = std::decay_t<F>;
+    lua_newuserdata_aligned<FDecay>(L, std::forward<F>(f));
+    lua_pushcclosure_x(L, &invoke_coroutine_entry<FDecay>, debugname, 1);
+}
+
+} 
+} 
+
+#endif 
+#endif 
+
+
+// End File: Source/LuaBridge/detail/Coroutine.h
+
 // Begin File: Source/LuaBridge/detail/Enum.h
 
 namespace luabridge {
@@ -11309,6 +11743,47 @@ class Namespace : public detail::Registrar
             return *this;
         }
 
+#if LUABRIDGE_HAS_CXX20_COROUTINES
+        
+        template <class F>
+        auto addStaticCoroutine(const char* name, F factory)
+            -> std::enable_if_t<detail::is_cpp_coroutine_factory_v<F>, Class<T>&>
+        {
+            LUABRIDGE_ASSERT(name != nullptr);
+            assertStackState(); 
+
+            detail::push_coroutine_function(L, std::move(factory), name);
+            rawsetfield(L, -2, name); 
+
+            return *this;
+        }
+
+        template <class F>
+        auto addCoroutine(const char* name, F factory)
+            -> std::enable_if_t<
+                detail::is_cpp_coroutine_factory_v<F> && detail::is_proxy_member_function_v<T, F>,
+                Class<T>&>
+        {
+            LUABRIDGE_ASSERT(name != nullptr);
+            assertStackState(); 
+
+            detail::push_coroutine_function(L, std::move(factory), name);
+
+            if constexpr (detail::is_const_function<T, F>)
+            {
+                lua_pushvalue(L, -1); 
+                rawsetfield(L, -4, name); 
+                rawsetfield(L, -4, name); 
+            }
+            else
+            {
+                rawsetfield(L, -3, name); 
+            }
+
+            return *this;
+        }
+#endif 
+
         template <class... Functions>
         auto addConstructor()
             -> std::enable_if_t<(sizeof...(Functions) > 0), Class<T>&>
@@ -11974,6 +12449,22 @@ public:
 
         return *this;
     }
+
+#if LUABRIDGE_HAS_CXX20_COROUTINES
+    
+    template <class F>
+    auto addCoroutine(const char* name, F factory)
+        -> std::enable_if_t<detail::is_cpp_coroutine_factory_v<F>, Namespace&>
+    {
+        LUABRIDGE_ASSERT(name != nullptr);
+        LUABRIDGE_ASSERT(lua_istable(L, -1)); 
+
+        detail::push_coroutine_function(L, std::move(factory), name);
+        rawsetfield(L, -2, name);
+
+        return *this;
+    }
+#endif 
 
     Table beginTable(const char* name)
     {
