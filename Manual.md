@@ -45,10 +45,11 @@ Contents
         *   [2.8.1 - Enums](#281---enums)
         *   [2.8.2 - lua_State](#282---lua_state)
     *   [2.9 - C++20 Coroutine Integration](#29---c20-coroutine-integration)
-        *   [2.9.1 - CppCoroutine\<R\> — Generators callable from Lua](#291---cppcoroutiner----generators-callable-from-lua)
+        *   [2.9.1 - CppCoroutine\<R\> - Generators callable from Lua](#291---cppcoroutiner----generators-callable-from-lua)
         *   [2.9.2 - Accepting Arguments](#292---accepting-arguments)
-        *   [2.9.3 - LuaCoroutine — Awaiting a Lua Thread from C++](#293---luacoroutine----awaiting-a-lua-thread-from-c)
-        *   [2.9.4 - Limitations](#294---limitations)
+        *   [2.9.3 - Class Coroutines - Static and Member](#293---class-coroutines----static-and-member)
+        *   [2.9.4 - LuaCoroutine - Awaiting a Lua Thread from C++](#294---luacoroutine----awaiting-a-lua-thread-from-c)
+        *   [2.9.5 - Limitations](#295---limitations)
 
 *   [3 - Passing Objects](#3---passing-objects)
 
@@ -135,7 +136,7 @@ To expose Lua objects to C++, a class called `luabridge::LuaRef` is provided. Th
 
 LuaBridge tries to be efficient as possible when creating the "glue" that exposes C++ data and functions to Lua. At the same time, the code was written with the intention that it is all as simple and clear as possible, without resorting to obscure C++ idioms, ugly preprocessor macros, or configuration settings. Furthermore, it is designed to be "header-only", making it very easy to integrate into your projects.
 
-Because LuaBridge was written with simplicity in mind there are some features that are not available. LuaBridge3 has been extensively optimized and now competes directly with [sol2](https://github.com/ThePhD/sol2) — one of the fastest C++/Lua binding libraries — across most workloads. In fact, LuaBridge3 outperforms sol2 in certain scenarios such as member function calls from Lua and global table writes, while remaining more compact and faster to compile. While sol2 has an edge in chained table access, the overall performance gap is negligible for most use cases. LuaBridge3 also does not try to implement every possible feature: [LuaBind](http://www.rasterbar.com/products/luabind.html) (requires Boost) and [sol2](https://github.com/ThePhD/sol2) explore every corner of the C++ language.
+Because LuaBridge was written with simplicity in mind there are some features that are not available. LuaBridge3 has been extensively optimized and now competes directly with [sol2](https://github.com/ThePhD/sol2) - one of the fastest C++/Lua binding libraries - across most workloads. In fact, LuaBridge3 outperforms sol2 in certain scenarios such as member function calls from Lua and global table writes, while remaining more compact and faster to compile. While sol2 has an edge in chained table access, the overall performance gap is negligible for most use cases. LuaBridge3 also does not try to implement every possible feature: [LuaBind](http://www.rasterbar.com/products/luabind.html) (requires Boost) and [sol2](https://github.com/ThePhD/sol2) explore every corner of the C++ language.
 
 LuaBridge does not support:
 
@@ -969,7 +970,7 @@ assert (propertyOne == 1337, "Value is now present !")
 
 ### 2.7.3 - Static Index and New Index Metamethods Fallback
 
-The same fallback mechanism is available for the *static class table* — i.e. for key lookups performed on the class name itself (e.g. `MyClass.someKey`) rather than on an instance.  Use `addStaticIndexMetaMethod` and `addStaticNewIndexMetaMethod` to register the callbacks.  Unlike their instance counterparts, the static callbacks receive only the key (and optionally `lua_State*`) — there is no `self` parameter.
+The same fallback mechanism is available for the *static class table* - i.e. for key lookups performed on the class name itself (e.g. `MyClass.someKey`) rather than on an instance.  Use `addStaticIndexMetaMethod` and `addStaticNewIndexMetaMethod` to register the callbacks.  Unlike their instance counterparts, the static callbacks receive only the key (and optionally `lua_State*`) - there is no `self` parameter.
 
 ```cpp
 struct MyClass {};
@@ -1258,7 +1259,7 @@ LuaBridge3 provides first-class interoperability between C++20 coroutines and Lu
 
 > **Note:** C++20 coroutine integration is not supported on Lua 5.1, LuaJIT, or Luau (those targets lack a public `lua_yieldk` equivalent).
 
-### 2.9.1 - CppCoroutine\<R\> — Generators callable from Lua
+### 2.9.1 - CppCoroutine\<R\> - Generators callable from Lua
 
 `luabridge::CppCoroutine<R>` is a coroutine return type that bridges C++20 coroutines with Lua's `coroutine.wrap` / `coroutine.resume` API. A function returning `CppCoroutine<R>` can use `co_yield` to suspend and pass a value back to Lua, and `co_return` to finish and return a final value.
 
@@ -1295,7 +1296,7 @@ end
 });
 ```
 
-An abandoned coroutine (one that goes out of scope in Lua without being fully consumed) is automatically cleaned up by the Lua garbage collector — no manual resource management is needed.
+An abandoned coroutine (one that goes out of scope in Lua without being fully consumed) is automatically cleaned up by the Lua garbage collector - no manual resource management is needed.
 
 ### 2.9.2 - Accepting Arguments
 
@@ -1315,7 +1316,7 @@ print(f(3, 4))   -- 7   (yield: 3+4)
 print(f())       -- 12  (return: 3*4)
 ```
 
-Multiple independent instances of the same coroutine factory can run concurrently — each call to `coroutine.wrap(name)` creates a separate C++ coroutine frame:
+Multiple independent instances of the same coroutine factory can run concurrently - each call to `coroutine.wrap(name)` creates a separate C++ coroutine frame:
 
 ```lua
 local a = coroutine.wrap(adder)
@@ -1324,7 +1325,76 @@ a(1, 2)   -- independent from b
 b(10, 20)
 ```
 
-### 2.9.3 - LuaCoroutine — Awaiting a Lua Thread from C++
+### 2.9.3 - Class Coroutines - Static and Member
+
+Coroutines can be attached directly to a registered class using `addStaticCoroutine` and `addCoroutine`.
+
+**Static coroutines** behave identically to namespace-level coroutines but live in the class's static table. The factory requires no object argument:
+
+```cpp
+luabridge::getGlobalNamespace(L)
+    .beginClass<Counter>("Counter")
+        .addStaticCoroutine("range", [](int from, int count) -> luabridge::CppCoroutine<int>
+        {
+            for (int i = 0; i < count; ++i)
+                co_yield from + i;
+            co_return -1;
+        })
+    .endClass();
+```
+
+```lua
+local f = coroutine.wrap(Counter.range)
+print(f(5, 3))   -- 5  (first yield)
+print(f())       -- 6
+print(f())       -- 7
+print(f())       -- -1 (done)
+```
+
+**Member coroutines** bind a coroutine factory to individual class instances. The factory's **first argument must be `T*` or `const T*`** - LuaBridge passes the Lua object as that argument automatically:
+
+```cpp
+.beginClass<Counter>("Counter")
+    .addCoroutine("generate", [](Counter* obj, int n) -> luabridge::CppCoroutine<int>
+    {
+        for (int i = 0; i < n; ++i)
+        {
+            co_yield obj->value;
+            obj->increment();
+        }
+        co_return -1;
+    })
+.endClass();
+```
+
+```lua
+local obj = Counter()
+local f = coroutine.wrap(Counter.generate)
+print(f(obj, 3))   -- 0  (obj.value before first increment)
+print(f())         -- 1
+print(f())         -- 2
+print(f())         -- -1 (done)
+```
+
+**Const vs non-const:** a factory that takes `const T*` as its first argument is registered as a const method - accessible on both const and non-const objects (it appears in both the const and non-const class tables). A factory taking `T*` is registered as a non-const method and is accessible on non-const objects only.
+
+```cpp
+// Accessible on const and non-const objects:
+.addCoroutine("peek", [](const Counter* obj) -> luabridge::CppCoroutine<int>
+{
+    co_yield obj->value;
+    co_return obj->value * 2;
+})
+
+// Accessible on non-const objects only:
+.addCoroutine("pop", [](Counter* obj) -> luabridge::CppCoroutine<int>
+{
+    co_yield obj->value--;
+    co_return obj->value;
+})
+```
+
+### 2.9.4 - LuaCoroutine - Awaiting a Lua Thread from C++
 
 `luabridge::LuaCoroutine` is an awaitable that can be used inside a `CppCoroutine` body to resume a child Lua thread synchronously. It runs the child thread to its first yield or return and gives back the status and the number of values the child left on its stack:
 
@@ -1350,13 +1420,12 @@ b(10, 20)
 
 `LuaCoroutine` always completes synchronously (no external event loop is required). The `status` field contains `LUA_YIELD` if the child yielded or `LUA_OK` if it returned normally.
 
-### 2.9.4 - Limitations
+### 2.9.5 - Limitations
 
 * **Lua version:** Requires Lua 5.2+ (`lua_yieldk`). Not supported on Lua 5.1, LuaJIT, or Luau.
 * **C++ version:** Requires C++20 (`<coroutine>`). Non-coroutine features continue to work under C++17.
 * **Multi-value yield:** `co_yield` sends exactly one value per suspension. Use `std::tuple` or a struct if multiple values are needed.
 * **Thread safety:** Coroutine frames must be driven from a single OS thread.
-* **Instance methods:** `addCoroutine` is available on `Namespace`; registering coroutine-returning member functions on `Class<T>` is not yet supported.
 
 3 - Passing Objects
 ===================
@@ -1920,7 +1989,7 @@ auto result = luabridge::callWithHandler (f, handler, /* args... */);
 4.4 - Wrapping C++ Callables
 -----------------------------
 
-`luabridge::newFunction` (and its equivalent `LuaRef::newFunction`) wraps any C++ callable — a lambda, a function pointer, or a `std::function` — into a Lua function and returns it as a `LuaRef`. This is useful when you need to pass a C++ callback to Lua without going through the namespace/class registration API:
+`luabridge::newFunction` (and its equivalent `LuaRef::newFunction`) wraps any C++ callable - a lambda, a function pointer, or a `std::function` - into a Lua function and returns it as a `LuaRef`. This is useful when you need to pass a C++ callback to Lua without going through the namespace/class registration API:
 
 ```cpp
 // Create a Lua function that squares its argument
@@ -2081,7 +2150,7 @@ Override the default when you need fine-grained control:
 6.5 - LUABRIDGE_HAS_CXX20_COROUTINES / LUABRIDGE_DISABLE_CXX20_COROUTINES
 --------------------------------------------------------------------------
 
-**`LUABRIDGE_HAS_CXX20_COROUTINES` — auto-detected, override allowed**
+**`LUABRIDGE_HAS_CXX20_COROUTINES` - auto-detected, override allowed**
 
 LuaBridge3 automatically enables C++20 coroutine support when it detects a C++20 compiler (`__cplusplus >= 202002L` or MSVC `_HAS_CXX20`). The macro is set to `1` when the feature is active and `0` otherwise.
 
@@ -2436,7 +2505,7 @@ Lua Nil Special Value - LuaNil
 /// LuaNil can be used to construct LuaRef.
 ```
 
-TypeResult<T> — Result of a Call or Cast
+TypeResult<T> - Result of a Call or Cast
 -----------------------------------------
 
 ```cpp
@@ -2445,7 +2514,7 @@ explicit operator bool() const;
 /// Return the contained value (undefined behavior if result holds an error).
 const T& value() const;
 
-/// Dereference operator — equivalent to value().
+/// Dereference operator - equivalent to value().
 T& operator*();
 
 /// Return the contained value or a default when the result holds an error.
@@ -2469,7 +2538,7 @@ explicit LuaFunction (const LuaRef& function);
 /// Call the function with the given arguments.
 TypeResult<R> operator() (Args... args) const;
 
-/// Call the function — equivalent to operator().
+/// Call the function - equivalent to operator().
 TypeResult<R> call (Args... args) const;
 
 /// Call the function with a custom error handler.
@@ -2512,8 +2581,8 @@ struct CppCoroutine;
 class LuaCoroutine
 {
 public:
-    /// thread  — the Lua thread to resume.
-    /// from    — the calling Lua state (typically L inside the coroutine body).
+    /// thread  - the Lua thread to resume.
+    /// from    - the calling Lua state (typically L inside the coroutine body).
     LuaCoroutine(lua_State* thread, lua_State* from = nullptr) noexcept;
 
     std::pair<int, int> await_resume() noexcept; // returns {status, nresults}
@@ -2524,7 +2593,18 @@ public:
 template <class F>
 Namespace& addCoroutine(const char* name, F factory);
 
-/// Portable lua_resume wrapper — fills *nresults on all Lua versions (5.1–5.5).
+/// Register a CppCoroutine factory as a static class function (available on Class<T>).
+/// F must be a callable whose return type is CppCoroutine<R>.
+template <class F>
+Class<T>& addStaticCoroutine(const char* name, F factory);
+
+/// Register a CppCoroutine factory as a member method (available on Class<T>).
+/// F must be a callable whose first argument is T* or const T*, and whose return type is
+/// CppCoroutine<R>. A const T* first argument registers the method as const-accessible.
+template <class F>
+Class<T>& addCoroutine(const char* name, F factory);
+
+/// Portable lua_resume wrapper - fills *nresults on all Lua versions (5.1–5.5).
 int lua_resume_x(lua_State* L, lua_State* from, int nargs, int* nresults = nullptr);
 
 /// Returns true if the current C function can yield via lua_yieldk.

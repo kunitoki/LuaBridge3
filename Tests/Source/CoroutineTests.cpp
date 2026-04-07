@@ -361,6 +361,225 @@ TEST_F(CppCoroutineTests, ExceptionOnSecondYield)
     auto msg = luabridge::getGlobal(L, "errmsg").unsafe_cast<std::string>();
     EXPECT_NE(std::string::npos, msg.find("second yield error"));
 }
+
+TEST_F(CppCoroutineTests, ExceptionType_LogicError)
+{
+    // std::logic_error (not runtime_error) — verifies any std::exception subclass is caught
+    // and its what() message is forwarded as the Lua error string.
+    luabridge::getGlobalNamespace(L)
+        .addCoroutine("badlogic", []() -> luabridge::CppCoroutine<int>
+        {
+            throw std::logic_error("logic went wrong");
+            co_return 0;
+        });
+
+    ASSERT_TRUE(runLua(
+        "local ok, err = pcall(coroutine.wrap(badlogic))\n"
+        "success = ok\n"
+        "errmsg  = err\n"
+    ));
+
+    EXPECT_FALSE(luabridge::getGlobal(L, "success").unsafe_cast<bool>());
+    auto msg = luabridge::getGlobal(L, "errmsg").unsafe_cast<std::string>();
+    EXPECT_NE(std::string::npos, msg.find("logic went wrong"));
+}
+
+TEST_F(CppCoroutineTests, ExceptionType_NonStdThrow)
+{
+    // Throwing a non-std type (int) hits the catch(...) path in raise_from_exception,
+    // which produces the fixed message "unknown exception in C++ coroutine".
+    luabridge::getGlobalNamespace(L)
+        .addCoroutine("intthrow", []() -> luabridge::CppCoroutine<int>
+        {
+            throw 42; // NOLINT: intentional non-std throw to exercise catch(...)
+            co_return 0;
+        });
+
+    ASSERT_TRUE(runLua(
+        "local ok, err = pcall(coroutine.wrap(intthrow))\n"
+        "success = ok\n"
+        "errmsg  = err\n"
+    ));
+
+    EXPECT_FALSE(luabridge::getGlobal(L, "success").unsafe_cast<bool>());
+    auto msg = luabridge::getGlobal(L, "errmsg").unsafe_cast<std::string>();
+    EXPECT_NE(std::string::npos, msg.find("unknown exception in C++ coroutine"));
+}
+
+TEST_F(CppCoroutineTests, ExceptionOnNthResume)
+{
+    // Exception thrown on the 4th resume (after 3 successful yields), verifying that
+    // the continuation path handles late exceptions correctly.
+    luabridge::getGlobalNamespace(L)
+        .addCoroutine("latecrash", []() -> luabridge::CppCoroutine<int>
+        {
+            co_yield 10;
+            co_yield 20;
+            co_yield 30;
+            throw std::runtime_error("crashed on fourth");
+            co_return 0;
+        });
+
+    ASSERT_TRUE(runLua(
+        "local f = coroutine.wrap(latecrash)\n"
+        "r1 = f()\n"
+        "r2 = f()\n"
+        "r3 = f()\n"
+        "local ok, err = pcall(f)\n"
+        "success = ok\n"
+        "errmsg  = err\n"
+    ));
+
+    EXPECT_EQ(10, luabridge::getGlobal(L, "r1").unsafe_cast<int>());
+    EXPECT_EQ(20, luabridge::getGlobal(L, "r2").unsafe_cast<int>());
+    EXPECT_EQ(30, luabridge::getGlobal(L, "r3").unsafe_cast<int>());
+    EXPECT_FALSE(luabridge::getGlobal(L, "success").unsafe_cast<bool>());
+    auto msg = luabridge::getGlobal(L, "errmsg").unsafe_cast<std::string>();
+    EXPECT_NE(std::string::npos, msg.find("crashed on fourth"));
+}
+
+TEST_F(CppCoroutineTests, ExceptionFromNestedCall)
+{
+    // Exception is not thrown directly but propagates up from a nested helper function,
+    // exercising that the coroutine frame capture works for indirect throw sites.
+    auto helper = []() { throw std::runtime_error("nested throw"); };
+
+    luabridge::getGlobalNamespace(L)
+        .addCoroutine("nested", [helper]() -> luabridge::CppCoroutine<int>
+        {
+            co_yield 1;
+            helper(); // throws from a non-coroutine call frame
+            co_return 0;
+        });
+
+    ASSERT_TRUE(runLua(
+        "local f = coroutine.wrap(nested)\n"
+        "first = f()\n"
+        "local ok, err = pcall(f)\n"
+        "success = ok\n"
+        "errmsg  = err\n"
+    ));
+
+    EXPECT_EQ(1, luabridge::getGlobal(L, "first").unsafe_cast<int>());
+    EXPECT_FALSE(luabridge::getGlobal(L, "success").unsafe_cast<bool>());
+    auto msg = luabridge::getGlobal(L, "errmsg").unsafe_cast<std::string>();
+    EXPECT_NE(std::string::npos, msg.find("nested throw"));
+}
+
+TEST_F(CppCoroutineTests, ExceptionCleansUpRAII)
+{
+    // When an exception unwinds the coroutine body, local objects with destructors must
+    // still be destroyed. Guard tracks whether its destructor ran.
+    int destructed = 0;
+    struct Guard { int* p; ~Guard() { ++(*p); } };
+
+    luabridge::getGlobalNamespace(L)
+        .addCoroutine("guardedcrash", [&destructed]() -> luabridge::CppCoroutine<int>
+        {
+            Guard g{ &destructed };
+            co_yield 1;
+            throw std::runtime_error("unwind me");
+            co_return 0;
+        });
+
+    ASSERT_TRUE(runLua(
+        "local f = coroutine.wrap(guardedcrash)\n"
+        "first = f()\n"
+        "local ok, err = pcall(f)\n"
+        "success = ok\n"
+        "errmsg  = err\n"
+    ));
+
+    EXPECT_EQ(1,     luabridge::getGlobal(L, "first").unsafe_cast<int>());
+    EXPECT_FALSE(luabridge::getGlobal(L, "success").unsafe_cast<bool>());
+    auto msg = luabridge::getGlobal(L, "errmsg").unsafe_cast<std::string>();
+    EXPECT_NE(std::string::npos, msg.find("unwind me"));
+
+    // Force GC so the CppCoroutineFrame __gc runs, triggering the handle destructor
+    // which in turn unwinds any remaining suspension points.
+    lua_gc(L, LUA_GCCOLLECT, 0);
+    lua_gc(L, LUA_GCCOLLECT, 0);
+
+    EXPECT_EQ(1, destructed);
+}
+
+TEST_F(CppCoroutineTests, ExceptionViaCoroutineResumeApi)
+{
+    // Use coroutine.create + coroutine.resume instead of coroutine.wrap.
+    // On exception coroutine.resume returns false plus the error message.
+    luabridge::getGlobalNamespace(L)
+        .addCoroutine("boomboom", []() -> luabridge::CppCoroutine<int>
+        {
+            co_yield 7;
+            throw std::runtime_error("resume api error");
+            co_return 0;
+        });
+
+    ASSERT_TRUE(runLua(
+        "local co = coroutine.create(boomboom)\n"
+        "local ok1, v1  = coroutine.resume(co)\n"   // first resume: yields 7
+        "local ok2, err = coroutine.resume(co)\n"   // second resume: throws
+        "resumeOk1 = ok1\n"
+        "yieldVal  = v1\n"
+        "resumeOk2 = ok2\n"
+        "errmsg    = err\n"
+    ));
+
+    EXPECT_TRUE(luabridge::getGlobal(L, "resumeOk1").unsafe_cast<bool>());
+    EXPECT_EQ(7, luabridge::getGlobal(L, "yieldVal").unsafe_cast<int>());
+    EXPECT_FALSE(luabridge::getGlobal(L, "resumeOk2").unsafe_cast<bool>());
+    auto msg = luabridge::getGlobal(L, "errmsg").unsafe_cast<std::string>();
+    EXPECT_NE(std::string::npos, msg.find("resume api error"));
+}
+
+TEST_F(CppCoroutineTests, ExceptionLeavesCoroutineDead)
+{
+    // After an exception kills a coroutine, further resume attempts should fail with
+    // a "cannot resume dead coroutine" error, not a C++ exception or crash.
+    luabridge::getGlobalNamespace(L)
+        .addCoroutine("dieonce", []() -> luabridge::CppCoroutine<int>
+        {
+            throw std::runtime_error("die");
+            co_return 0;
+        });
+
+    ASSERT_TRUE(runLua(
+        "local co = coroutine.create(dieonce)\n"
+        "local ok1, _  = coroutine.resume(co)\n"   // exception: coroutine dies
+        "local ok2, err = coroutine.resume(co)\n"  // resuming a dead coroutine
+        "firstOk  = ok1\n"
+        "secondOk = ok2\n"
+        "deadErr  = err\n"
+    ));
+
+    EXPECT_FALSE(luabridge::getGlobal(L, "firstOk").unsafe_cast<bool>());
+    EXPECT_FALSE(luabridge::getGlobal(L, "secondOk").unsafe_cast<bool>());
+    auto msg = luabridge::getGlobal(L, "deadErr").unsafe_cast<std::string>();
+    EXPECT_NE(std::string::npos, msg.find("dead"));
+}
+
+TEST_F(CppCoroutineTests, ExceptionMessagePassedVerbatim)
+{
+    // The exact what() text must survive the C++ → Lua error boundary unchanged.
+    const std::string uniqueMsg = "unique-error-XYZ-12345";
+
+    luabridge::getGlobalNamespace(L)
+        .addCoroutine("verbatim", [&uniqueMsg]() -> luabridge::CppCoroutine<int>
+        {
+            throw std::runtime_error(uniqueMsg);
+            co_return 0;
+        });
+
+    ASSERT_TRUE(runLua(
+        "local ok, err = pcall(coroutine.wrap(verbatim))\n"
+        "success = ok\n"
+        "errmsg  = err\n"
+    ));
+
+    EXPECT_FALSE(luabridge::getGlobal(L, "success").unsafe_cast<bool>());
+    auto msg = luabridge::getGlobal(L, "errmsg").unsafe_cast<std::string>();
+    EXPECT_NE(std::string::npos, msg.find(uniqueMsg));
+}
 #endif // LUABRIDGE_HAS_EXCEPTIONS
 
 TEST_F(CppCoroutineTests, FloatYield)
