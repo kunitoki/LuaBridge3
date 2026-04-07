@@ -311,9 +311,13 @@ TEST_F(LuaBridgeTest, TupleAsFunctionReturnValue)
         .addFunction("test", [x](Inner*) { return std::make_tuple(x, 42); })
         .endClass();
 
-    runLua("x = Inner () result = x:test ()");
-    EXPECT_EQ(true, result().isTable());
-    EXPECT_EQ(std::make_tuple(x, 42), (result<std::tuple<int, int>>()));
+    runLua("x = Inner () result1, result2 = x:test ()");
+    auto z1 = luabridge::getGlobal(L, "result1");
+    auto z2 = luabridge::getGlobal(L, "result2");
+    EXPECT_EQ(true, z1.isNumber());
+    EXPECT_EQ(true, z2.isNumber());
+    EXPECT_EQ(100, z1.unsafe_cast<int>());
+    EXPECT_EQ(42, z2.unsafe_cast<int>());
 }
 
 namespace {

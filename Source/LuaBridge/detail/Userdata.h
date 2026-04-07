@@ -297,21 +297,33 @@ public:
         const auto classId = detail::getClassRegistryKey<T>();
         const auto constId = detail::getConstRegistryKey<T>();
 
-        // Common-case fast path: exact class/const metatable match.
-        // This avoids parent-chain traversal and registry table lookups.
-        if (lua_getmetatable(L, absIndex) && lua_istable(L, -1))
+        // Common-case fast path: compare the object's metatable directly against
+        // the registry class/const tables. This avoids an extra interior table
+        // lookup (getTypeIdentityKey) and the lua_istable guard (lua_getmetatable
+        // always pushes a table when it returns non-zero). Safe because scripts
+        // cannot set metatables on userdata (Lua security model, points 1-3).
+        if (lua_getmetatable(L, absIndex)) // Stack: ..., mt
         {
-            lua_rawgetp_x(L, -1, detail::getTypeIdentityKey());
-            const void* identity = lua_touserdata(L, -1);
-            lua_pop(L, 1);
-
-            if (identity == classId || (canBeConst && identity == constId))
+            lua_rawgetp_x(L, LUA_REGISTRYINDEX, classId); // Stack: ..., mt, class_mt
+            if (lua_rawequal(L, -2, -1))
             {
-                lua_pop(L, 1);
+                lua_pop(L, 2);
                 return static_cast<T*>(static_cast<Userdata*>(lua_touserdata(L, absIndex))->getPointer());
             }
+            lua_pop(L, 1); // Stack: ..., mt
 
-            lua_pop(L, 1);
+            if (canBeConst)
+            {
+                lua_rawgetp_x(L, LUA_REGISTRYINDEX, constId); // Stack: ..., mt, const_mt
+                if (lua_rawequal(L, -2, -1))
+                {
+                    lua_pop(L, 2);
+                    return static_cast<T*>(static_cast<Userdata*>(lua_touserdata(L, absIndex))->getPointer());
+                }
+                lua_pop(L, 1); // Stack: ..., mt
+            }
+
+            lua_pop(L, 1); // Stack: ...
         }
 
         auto clazz = getClass(L, absIndex, constId, classId, canBeConst);

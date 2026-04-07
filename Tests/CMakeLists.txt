@@ -16,6 +16,9 @@ if (APPLE OR UNIX)
     GIT_REPOSITORY https://github.com/bombela/backward-cpp
     GIT_TAG master
     SYSTEM)
+  if (APPLE)
+    set(STACK_DETAILS_AUTO_DETECT OFF CACHE BOOL "Disable automatic detection of stack details for backward-cpp")
+  endif()
   FetchContent_MakeAvailable (backward)
 endif()
 

@@ -31,18 +31,8 @@ bool is_handler_valid(const F& f) noexcept
         return true;
 }
 
-template <class T>
-struct IsTuple : std::false_type
-{
-};
-
-template <class... Ts>
-struct IsTuple<std::tuple<Ts...>> : std::true_type
-{
-};
-
 template <class Tuple, std::size_t... Indices>
-TypeResult<Tuple> decodeTupleResult(lua_State* L, int firstResultIndex, std::index_sequence<Indices...>)
+TypeResult<Tuple> decode_tuple_result(lua_State* L, int first_result_index, std::index_sequence<Indices...>)
 {
     Tuple value;
     std::error_code ec;
@@ -52,7 +42,7 @@ TypeResult<Tuple> decodeTupleResult(lua_State* L, int firstResultIndex, std::ind
         {
             using ElementType = std::tuple_element_t<Indices, Tuple>;
 
-            auto element = Stack<ElementType>::get(L, firstResultIndex + static_cast<int>(Indices));
+            auto element = Stack<ElementType>::get(L, first_result_index + static_cast<int>(Indices));
             if (! element)
             {
                 ec = element.error();
@@ -71,30 +61,29 @@ TypeResult<Tuple> decodeTupleResult(lua_State* L, int firstResultIndex, std::ind
 }
 
 template <class R>
-TypeResult<R> decodeCallResult(lua_State* L, int firstResultIndex, int numReturnedValues)
+TypeResult<R> decode_call_result(lua_State* L, int first_result_index, int num_returned_values)
 {
     if constexpr (std::is_same_v<R, void> || std::is_same_v<R, std::tuple<>>)
     {
-        if (numReturnedValues != 0)
+        if (num_returned_values != 0)
             return makeErrorCode(ErrorCode::InvalidTableSizeInCast);
 
         return {};
     }
-    else
-    if constexpr (IsTuple<R>::value)
+    else if constexpr (is_tuple_v<R>)
     {
-        constexpr auto expectedSize = static_cast<int>(std::tuple_size_v<R>);
-        if (numReturnedValues != expectedSize)
+        constexpr auto expected_size = static_cast<int>(std::tuple_size_v<R>);
+        if (num_returned_values != expected_size)
             return makeErrorCode(ErrorCode::InvalidTableSizeInCast);
 
-        return decodeTupleResult<R>(L, firstResultIndex, std::make_index_sequence<std::tuple_size_v<R>>{});
+        return decode_tuple_result<R>(L, first_result_index, std::make_index_sequence<expected_size>{});
     }
     else
     {
-        if (numReturnedValues < 1)
+        if (num_returned_values < 1)
             return makeErrorCode(ErrorCode::InvalidTypeCast);
 
-        return Stack<R>::get(L, firstResultIndex);
+        return Stack<R>::get(L, first_result_index);
     }
 }
 
@@ -155,7 +144,7 @@ TypeResult<R> callWithHandler(const Ref& object, F&& errorHandler, Args&&... arg
 
     const int firstResultIndex = initialTop + 1;
     const int numReturnedValues = lua_gettop(L) - initialTop;
-    return detail::decodeCallResult<R>(L, firstResultIndex, numReturnedValues);
+    return detail::decode_call_result<R>(L, firstResultIndex, numReturnedValues);
 }
 
 template <class Ref, class F, class... Args>

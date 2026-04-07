@@ -60,26 +60,9 @@ LuaBridge3 is usable from a compliant C++17 compiler and offers the following fe
 
 ## Performance
 
-LuaBridge3 has been heavily optimized and now competes directly with [sol2](https://github.com/ThePhD/sol2) — one of the fastest C++/Lua binding libraries — across most workloads. In some cases (e.g. member function calls from Lua) LuaBridge3 is actually **faster** than sol2:
+LuaBridge3 has been heavily optimized and now competes directly with [sol2](https://github.com/ThePhD/sol2) — one of the fastest C++/Lua binding libraries — across most workloads.
 
-| Case                         | LuaBridge3 (ns/op) | sol2 (ns/op) |
-|------------------------------|--------------------|--------------|
-| lua_empty_loop               | 2.10               | 2.07         |
-| lua_to_cpp_free_fn           | 28.30              | 21.54        |
-| lua_to_cpp_member            | **70.23**          | 101.13       |
-| lua_to_cpp_property          | 139.29             | 125.34       |
-| lua_to_cpp_property_set      | 70.70              | 62.58        |
-| lua_to_cpp_property_get      | 64.65              | 61.98        |
-| cpp_table_global_get         | 15.24              | 12.60        |
-| cpp_table_global_set         | **9.99**           | 11.31        |
-| cpp_table_get                | 26.24              | 18.54        |
-| cpp_table_set                | 23.41              | 17.74        |
-| cpp_table_chained_get        | 70.55              | 27.87        |
-| cpp_table_chained_set        | 66.87              | 26.50        |
-| cpp_to_lua_call              | 33.41              | 30.92        |
-| cpp_c_function_through_lua   | 52.52              | 46.47        |
-
-Bold entries indicate cases where LuaBridge3 outperforms sol2. Lower is better (nanoseconds per operation).
+![Benchmarks](./Images/benchmarks.png)
 
 ## Improvements Over Vanilla LuaBridge
 
