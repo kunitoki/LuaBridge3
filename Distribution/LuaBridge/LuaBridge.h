@@ -10123,27 +10123,37 @@ public:
 
         lua_newtable(L_);
         lua_setfield(L_, -2, "freeMembers");
-        freeMemberIdx_ = 1;
 
         lua_newtable(L_);
         lua_setfield(L_, -2, "classes");
-        classIdx_ = 1;
 
         lua_newtable(L_);
         lua_setfield(L_, -2, "subNamespaces");
-        subNsIdx_ = 1;
+
+        nsStack_.push_back({});
     }
 
     void endNamespace([[maybe_unused]] const NamespaceInspectInfo& ns) override
     {
-        
+        nsStack_.pop_back();
+
+        if (!nsStack_.empty())
+        {
+            // Sub-namespace table is on top; store it in the parent's "subNamespaces" array.
+            // Stack: [..., parent_ns_table, sub_ns_table]
+            lua_getfield(L_, -2, "subNamespaces");         // [..., parent_ns_table, sub_ns_table, subNS_array]
+            lua_pushvalue(L_, -2);                         // [..., parent_ns_table, sub_ns_table, subNS_array, sub_ns_table]
+            lua_rawseti(L_, -2, nsStack_.back().subNsIdx++); // store sub_ns_table into subNS_array
+            lua_pop(L_, 2);                                // pop subNS_array + sub_ns_table
+            // Stack: [..., parent_ns_table]
+        }
     }
 
     void visitFreeMember([[maybe_unused]] const NamespaceInspectInfo& ns, const MemberInfo& m) override
     {
         lua_getfield(L_, -1, "freeMembers");
         pushMemberInfo(m);
-        lua_rawseti(L_, -2, freeMemberIdx_++);
+        lua_rawseti(L_, -2, nsStack_.back().freeMemberIdx++);
         lua_pop(L_, 1);
     }
 
@@ -10171,7 +10181,7 @@ public:
         
         lua_getfield(L_, -2, "classes");
         lua_pushvalue(L_, -2);
-        lua_rawseti(L_, -2, classIdx_++);
+        lua_rawseti(L_, -2, nsStack_.back().classIdx++);
         lua_pop(L_, 2); 
     }
 
@@ -10184,6 +10194,13 @@ public:
     }
 
 private:
+    struct NsState
+    {
+        int freeMemberIdx = 1;
+        int classIdx = 1;
+        int subNsIdx = 1;
+    };
+
     void pushMemberInfo(const MemberInfo& m)
     {
         lua_newtable(L_);
@@ -10235,9 +10252,7 @@ private:
     }
 
     lua_State* L_;
-    int freeMemberIdx_ = 1;
-    int classIdx_ = 1;
-    int subNsIdx_ = 1;
+    std::vector<NsState> nsStack_;
     int memberIdx_ = 1;
 };
 
