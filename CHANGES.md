@@ -1,5 +1,3 @@
-## Master
-
 ## Version 3.0
 
 * Moved to C++17 as minimum supported standard C++ version.
@@ -17,6 +15,11 @@
 * Allow specifying a non virtual base class method when declaring class members (functions or variables) not exposed in the inherited class.
 * Allow using capturing lambdas in `Namespace::addFunction`, `Namespace::addProperty`, `Class<T>::addFunction`, `Class<T>::addStaticFunction`, `Class<T>::addProperty` and `Class<T>::addStaticProperty`.
 * Added multiple inheritance support: `deriveClass` now accepts more than one registered base class (e.g. `deriveClass<D, A, B>`).
+* Added C++20 coroutine integration: `CppCoroutine<R>` type that can be registered via `Namespace::addCoroutine()` to expose C++ generators to Lua using `co_yield` and `co_return`.
+* Added `LuaCoroutine` awaitable to resume a child Lua thread synchronously from inside a `CppCoroutine` body using `co_await`.
+* Added `lua_resume_x` and `lua_isyieldable_x` portable helpers in `LuaBridge/detail/LuaHelpers.h`.
+* Added `LUABRIDGE_HAS_CXX20_COROUTINES` feature-detection macro; opt out with `LUABRIDGE_DISABLE_CXX20_COROUTINES`.
+* Added `ErrorCode::CoroutineYieldFromNonCoroutine` and `ErrorCode::CoroutineAlreadyDone` error codes.
 * Added `Namespace::addVariable` to allow adding a modifiable value by copy into the namespace without incurring in function calls or metatables generation.
 * Added `luabridge::callWithHandler` free function and `LuaRef::callWithHandler` member to provide a custom Lua message handler during `lua_pcall`.
 * Added `luabridge::newFunction` free function and `LuaRef::newFunction` static method to wrap any C++ callable into a Lua function exposed as a `LuaRef`.

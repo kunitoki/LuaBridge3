@@ -1069,6 +1069,78 @@ class Namespace : public detail::Registrar
             return *this;
         }
 
+#if LUABRIDGE_HAS_CXX20_COROUTINES
+        //=========================================================================================
+        /**
+         * @brief Add a C++20 coroutine as a static function to this class.
+         *
+         * The factory must be a callable returning CppCoroutine<R>. When Lua calls the registered
+         * function, a new C++ coroutine is created and run; co_yield sends values to the Lua caller
+         * and co_return sends the final return value.
+         *
+         * @param name    The function name to register.
+         * @param factory A callable returning CppCoroutine<R>.
+         *
+         * @returns This class registration object.
+         */
+        template <class F>
+        auto addStaticCoroutine(const char* name, F factory)
+            -> std::enable_if_t<detail::is_cpp_coroutine_factory_v<F>, Class<T>&>
+        {
+            LUABRIDGE_ASSERT(name != nullptr);
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            detail::push_coroutine_function(L, std::move(factory), name);
+            rawsetfield(L, -2, name); // Stack: co, cl, st  (into st)
+
+            return *this;
+        }
+
+        //=========================================================================================
+        /**
+         * @brief Add a C++20 coroutine as a member function to this class.
+         *
+         * The factory must be a callable whose first argument is T* or const T*, followed by any
+         * additional arguments, and returning CppCoroutine<R>. When Lua calls the method on an
+         * object, a new C++ coroutine is created with the object as the first argument; co_yield
+         * sends values to the Lua caller and co_return sends the final return value.
+         *
+         * If the factory takes const T* as the first argument it is registered as a const method
+         * (accessible on both const and non-const objects); otherwise it is registered as a
+         * non-const method (accessible on non-const objects only).
+         *
+         * @param name    The method name to register.
+         * @param factory A callable taking T* or const T* as the first argument (the object
+         *                pointer), plus optional further arguments, returning CppCoroutine<R>.
+         *
+         * @returns This class registration object.
+         */
+        template <class F>
+        auto addCoroutine(const char* name, F factory)
+            -> std::enable_if_t<
+                detail::is_cpp_coroutine_factory_v<F> && detail::is_proxy_member_function_v<T, F>,
+                Class<T>&>
+        {
+            LUABRIDGE_ASSERT(name != nullptr);
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            detail::push_coroutine_function(L, std::move(factory), name);
+
+            if constexpr (detail::is_const_function<T, F>)
+            {
+                lua_pushvalue(L, -1); // Stack: co, cl, st, func, func
+                rawsetfield(L, -4, name); // Stack: co, cl, st, func  (sets in cl)
+                rawsetfield(L, -4, name); // Stack: co, cl, st  (sets in co)
+            }
+            else
+            {
+                rawsetfield(L, -3, name); // Stack: co, cl, st  (sets in cl)
+            }
+
+            return *this;
+        }
+#endif // LUABRIDGE_HAS_CXX20_COROUTINES
+
         //=========================================================================================
         /**
          * @brief Add or replace a primary Constructor.
@@ -1899,6 +1971,34 @@ public:
 
         return *this;
     }
+
+#if LUABRIDGE_HAS_CXX20_COROUTINES
+    //=============================================================================================
+    /**
+     * @brief Add a C++20 coroutine function to this namespace.
+     *
+     * The factory must be a callable returning CppCoroutine<R>. When Lua calls the registered
+     * function, a new C++ coroutine is created and run; co_yield sends values to the Lua caller
+     * and co_return sends the final return value.
+     *
+     * @param name    The function name to register.
+     * @param factory A callable returning CppCoroutine<R>.
+     *
+     * @returns This namespace registration object.
+     */
+    template <class F>
+    auto addCoroutine(const char* name, F factory)
+        -> std::enable_if_t<detail::is_cpp_coroutine_factory_v<F>, Namespace&>
+    {
+        LUABRIDGE_ASSERT(name != nullptr);
+        LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: namespace table (ns)
+
+        detail::push_coroutine_function(L, std::move(factory), name);
+        rawsetfield(L, -2, name);
+
+        return *this;
+    }
+#endif // LUABRIDGE_HAS_CXX20_COROUTINES
 
     //=============================================================================================
     /**
