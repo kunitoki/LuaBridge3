@@ -1,10 +1,12 @@
 // https://github.com/kunitoki/LuaBridge3
-// Copyright 2024, kunitoki
+// Copyright 2026, kunitoki
 // SPDX-License-Identifier: MIT
 
 #include "TestBase.h"
 
 #include "LuaBridge/LuaBridge.h"
+
+#if LUABRIDGE_ENABLE_REFLECT
 #include "LuaBridge/Inspect.h"
 
 #include <algorithm>
@@ -360,6 +362,7 @@ TEST_F(InspectTests, LuaLSVisitorProducesAnnotations)
     luabridge::accept(ns, v);
 
     const auto result = ss.str();
+    std::cout << result << std::endl;
     EXPECT_FALSE(result.empty());
     EXPECT_NE(std::string::npos, result.find("---@class LuaLS.Cls"));
     EXPECT_NE(std::string::npos, result.find("---@field value integer # readonly"));
@@ -492,7 +495,6 @@ TEST_F(InspectTests, WithHintsOverloadsCompile)
     EXPECT_EQ(2u, m->overloads.size());
 }
 
-#if LUABRIDGE_ENABLE_REFLECT
 TEST_F(InspectTests, ReflectTypeInfoPopulated)
 {
     struct Enemy { void takeDamage(float /*amount*/, int /*count*/) {} };
@@ -552,4 +554,5 @@ TEST_F(InspectTests, ReflectFreeFunction)
     EXPECT_EQ("a", fn->overloads[0].params[0].hint);
     EXPECT_EQ("b", fn->overloads[0].params[1].hint);
 }
+
 #endif // LUABRIDGE_ENABLE_REFLECT

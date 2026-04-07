@@ -4,6 +4,10 @@
 
 #pragma once
 
+#if ! LUABRIDGE_ENABLE_REFLECT
+#error "This header is only for use when LUABRIDGE_ENABLE_REFLECT is active."
+#endif
+
 #include "detail/CFunctions.h"
 #include "detail/ClassInfo.h"
 #include "detail/LuaHelpers.h"
@@ -844,16 +848,29 @@ private:
         switch (m.kind)
         {
         case MemberKind::Property:
-            indent(); out_ << m.name << ": any;\n"; break;
+            indent();
+            out_ << m.name << ": any;\n";
+            break;
+
         case MemberKind::ReadOnlyProperty:
-            indent(); out_ << "readonly " << m.name << ": any;\n"; break;
+            indent();
+            out_ << "readonly " << m.name << ": any;\n";
+            break;
+
         case MemberKind::StaticProperty:
-            indent(); out_ << "static " << m.name << ": any;\n"; break;
+            indent();
+            out_ << "static " << m.name << ": any;\n";
+            break;
+        
         case MemberKind::StaticReadOnlyProperty:
-            indent(); out_ << "static readonly " << m.name << ": any;\n"; break;
+            indent();
+            out_ << "static readonly " << m.name << ": any;\n";
+            break;
+
         case MemberKind::Metamethod:
             // Skip metamethods in TypeScript-style output
             break;
+
         case MemberKind::Constructor:
             for (const auto& ov : m.overloads)
             {
@@ -861,10 +878,11 @@ private:
                 out_ << "constructor(" << paramStr(ov) << ");\n";
             }
             break;
+
         case MemberKind::Method:
         case MemberKind::StaticMethod:
         {
-            bool isStatic = (m.kind == MemberKind::StaticMethod);
+            const bool isStatic = (m.kind == MemberKind::StaticMethod);
             for (std::size_t i = 0; i < m.overloads.size(); ++i)
             {
                 indent();
@@ -873,6 +891,7 @@ private:
             }
             break;
         }
+
         default:
             break;
         }
