@@ -26,5 +26,4 @@ clean:
     rm -rf Build/
 
 amalgamate:
-    uv run amalgamate.py
-
+    uv run Tools/amalgamate.py

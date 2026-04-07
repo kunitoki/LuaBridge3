@@ -6,8 +6,8 @@ on:
       - master
     paths:
       - "**/workflows/amalgamate.yml"
-      - "**/Source/**"
-      - "**/amalgamate.py"
+      - "**/Source/**/*.h"
+      - "**/Tools/amalgamate.py"
 
 jobs:
   run:
@@ -23,7 +23,7 @@ jobs:
           python-version: 3.9
 
       - name: Create amalgamation file
-        run: python amalgamate.py
+        run: python Tools/amalgamate.py
 
       - name: Commit changes
         uses: EndBug/add-and-commit@v10
