@@ -751,13 +751,13 @@ TEST_F(LuaBridgeTest, InvokePassingUnregisteredClassShouldThrowAndRestoreStack)
         auto f1 = luabridge::getGlobal(L, "f1");
 
 #if LUABRIDGE_HAS_EXCEPTIONS
-    EXPECT_THROW(f1.call(unregistered), luabridge::LuaException);
+        EXPECT_THROW(f1.call(unregistered), luabridge::LuaException);
 #else
         int stackTop = lua_gettop(L);
         
-    auto result = f1.call(unregistered);
-    EXPECT_FALSE(result);
-    EXPECT_EQ(luabridge::makeErrorCode(luabridge::ErrorCode::ClassNotRegistered), result.error());
+        auto result = f1.call(unregistered);
+        EXPECT_FALSE(result);
+        EXPECT_EQ(luabridge::makeErrorCode(luabridge::ErrorCode::ClassNotRegistered), result.error());
 
         EXPECT_EQ(stackTop, lua_gettop(L));
 #endif

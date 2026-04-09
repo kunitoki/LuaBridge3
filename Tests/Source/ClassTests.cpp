@@ -3382,7 +3382,6 @@ TEST_F(ClassTests, BugWithLuauNotPrintingClassConstructorNameInErrors)
         .beginNamespace("foo")
             .beginClass<ClassWithMethod>("ClassWithMethod")
                 .addConstructor<void (*)(lua_State*)>()
-                .addFunction("methodWithError", &ClassWithMethod::methodWithError)
             .endClass()
         .endNamespace();
 
@@ -3400,7 +3399,6 @@ TEST_F(ClassTests, BugWithLuauNotPrintingClassMethodNameInErrors)
     luabridge::getGlobalNamespace(L)
         .beginNamespace("foo")
             .beginClass<ClassWithMethod>("ClassWithMethod")
-                .addConstructor<void (*)(lua_State*)>()
                 .addFunction("methodWithError", &ClassWithMethod::methodWithError)
             .endClass()
         .endNamespace();
