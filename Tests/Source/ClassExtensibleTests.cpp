@@ -309,7 +309,7 @@ TEST_F(ClassExtensibleTests, ExtensibleClass)
     runLua(R"(
         function ExtensibleBase:test() return 41 + self:baseClass() end
 
-        local base = ExtensibleBase(); result = base:test()
+        local base = ExtensibleBase.new(); result = base:test()
     )");
 
     EXPECT_EQ(42, result<int>());
@@ -330,7 +330,7 @@ TEST_F(ClassExtensibleTests, ExtensibleBaseClassNotDerived)
     runLua(R"(
         function ExtensibleBase:test() return 41 + self:baseClass() end
 
-        local derived = ExtensibleDerived(); result = derived:test()
+        local derived = ExtensibleDerived.new(); result = derived:test()
     )");
 
     EXPECT_EQ(42, result<int>());
@@ -351,7 +351,7 @@ TEST_F(ClassExtensibleTests, ExtensibleDerivedClassNotBase)
     runLua(R"(
         function ExtensibleDerived:test() return 41 + self:baseClass() end
 
-        local derived = ExtensibleDerived(); result = derived:test()
+        local derived = ExtensibleDerived.new(); result = derived:test()
     )");
 
     EXPECT_EQ(42, result<int>());
@@ -374,7 +374,7 @@ TEST_F(ClassExtensibleTests, ExtensibleDerivedClassAndBase)
         function ExtensibleBase:test1() return self:baseClass() end
         function ExtensibleDerived:test2() return self:derivedClass() end
 
-        local derived = ExtensibleDerived(); result = derived:test1() - derived:test2()
+        local derived = ExtensibleDerived.new(); result = derived:test1() - derived:test2()
     )");
 
     EXPECT_EQ(-10, result<int>());
@@ -397,7 +397,7 @@ TEST_F(ClassExtensibleTests, ExtensibleDerivedClassAndBaseCascading)
         function ExtensibleBase:testBase() return self:baseClass() end
         function ExtensibleDerived:testDerived() return self:testBase() end
 
-        local derived = ExtensibleDerived(); result = derived:testDerived()
+        local derived = ExtensibleDerived.new(); result = derived:testDerived()
     )");
 
     EXPECT_EQ(1, result<int>());
@@ -419,7 +419,7 @@ TEST_F(ClassExtensibleTests, ExtensibleParentLuaMethodVisibleFromDerived)
             return 123
         end
 
-        local derived = ExtensibleDerived()
+        local derived = ExtensibleDerived.new()
         result = derived:luaOnlyMethod()
     )");
 
@@ -436,7 +436,7 @@ TEST_F(ClassExtensibleTests, SimpleUserdataPropertyLookupFastPath)
     ;
 
     runLua(R"(
-        local obj = SimplePropertyClass()
+        local obj = SimplePropertyClass.new()
         local valueOk = obj.value == 17
         local missingIsNil = obj.missing == nil
         result = valueOk and missingIsNil
@@ -461,7 +461,7 @@ TEST_F(ClassExtensibleTests, ExtensibleDerivedClassAndBaseSameMethod)
         function ExtensibleBase:test() return 1338 end -- This is on purpose
         function ExtensibleDerived:test() return 42 end
 
-        local derived = ExtensibleDerived()
+        local derived = ExtensibleDerived.new()
         result = derived:test()
     )");
 
@@ -482,13 +482,13 @@ TEST_F(ClassExtensibleTests, ExtensibleClassExtendExistingMethod)
     EXPECT_ANY_THROW(runLua(R"(
         function ExtensibleBase:baseClass() return 42 end
 
-        local base = ExtensibleBase(); result = base:baseClass()
+        local base = ExtensibleBase.new(); result = base:baseClass()
     )"));
 #else
     EXPECT_FALSE(runLua(R"(
         function ExtensibleBase:baseClass() return 42 end
 
-        local base = ExtensibleBase(); result = base:baseClass()
+        local base = ExtensibleBase.new(); result = base:baseClass()
     )"));
 #endif
 
@@ -496,13 +496,13 @@ TEST_F(ClassExtensibleTests, ExtensibleClassExtendExistingMethod)
     EXPECT_ANY_THROW(runLua(R"(
         function ExtensibleBase:baseClassConst() return 42 end
 
-        local base = ExtensibleBase(); result = base:baseClassConst()
+        local base = ExtensibleBase.new(); result = base:baseClassConst()
     )"));
 #else
     EXPECT_FALSE(runLua(R"(
         function ExtensibleBase:baseClassConst() return 42 end
 
-        local base = ExtensibleBase(); result = base:baseClassConst()
+        local base = ExtensibleBase.new(); result = base:baseClassConst()
     )"));
 #endif
 }
@@ -522,7 +522,7 @@ TEST_F(ClassExtensibleTests, ExtensibleClassExtendExistingMethodAllowingOverride
             return 42 + self:super_baseClass()
         end
 
-        local base = ExtensibleBase()
+        local base = ExtensibleBase.new()
         result = base:baseClass()
     )");
 
@@ -533,7 +533,7 @@ TEST_F(ClassExtensibleTests, ExtensibleClassExtendExistingMethodAllowingOverride
             return 42 + self:super_baseClassConst()
         end
 
-        local base = ExtensibleBase()
+        local base = ExtensibleBase.new()
         result = base:baseClassConst()
     )");
 
@@ -560,7 +560,7 @@ TEST_F(ClassExtensibleTests, ExtensibleDerivedOverrideOneFunctionCallBaseForTheO
     runLua(R"(
         function ExtensibleDerived:baseClass() return 100 + self:super_baseClass() end
 
-        local derived = ExtensibleDerived()
+        local derived = ExtensibleDerived.new()
         result = derived:baseClass() + derived:baseClassConst()
     )");
 
@@ -584,8 +584,8 @@ TEST_F(ClassExtensibleTests, ExtensibleDerivedDoesNotPollutBaseMethod)
         function ExtensibleBase:init() return 100 end
         function ExtensibleDerived:init() return 200 end
 
-        local base = ExtensibleBase()
-        local derived = ExtensibleDerived()
+        local base = ExtensibleBase.new()
+        local derived = ExtensibleDerived.new()
         result = base:init()
     )");
 
@@ -609,8 +609,8 @@ TEST_F(ClassExtensibleTests, ExtensibleDerivedMethodIsolatedFromBase)
         function ExtensibleBase:getValue() return 10 end
         function ExtensibleDerived:getValue() return 20 end
 
-        local base = ExtensibleBase()
-        local derived = ExtensibleDerived()
+        local base = ExtensibleBase.new()
+        local derived = ExtensibleDerived.new()
         result = derived:getValue() * 100 + base:getValue()
     )");
 
@@ -640,8 +640,8 @@ TEST_F(ClassExtensibleTests, ExtensibleDerivedOverridePreservesCppBaseMethod)
             return 100 + self:super_baseClass()
         end
 
-        local base = ExtensibleBase()
-        local derived = ExtensibleDerived()
+        local base = ExtensibleBase.new()
+        local derived = ExtensibleDerived.new()
         result = derived:baseClass() * 1000 + base:baseClass()
     )");
 
@@ -662,7 +662,7 @@ TEST_F(ClassExtensibleTests, ExtensibleObjectNonFunctionWriteCanReplaceMethodWit
     ;
 
     ASSERT_TRUE(runLua(R"(
-        local base = ExtensibleBase()
+        local base = ExtensibleBase.new()
         base.baseClass = 41
         result = true
     )"));
@@ -682,7 +682,7 @@ TEST_F(ClassExtensibleTests, ExtensibleObjectNonFunctionWriteTraversesParentAndU
     ;
 
     runLua(R"(
-        local derived = ExtensibleDerived()
+        local derived = ExtensibleDerived.new()
         derived.dynamicValue = 10
         derived.dynamicValue = 20
         result = derived.dynamicValue
@@ -707,7 +707,7 @@ TEST_F(ClassExtensibleTests, ExtensibleClassCustomMetamethods)
             return ('ExtensibleBase(%d)'):format(self:baseClass())
         end
 
-        local base = ExtensibleBase(); result = tostring(base)
+        local base = ExtensibleBase.new(); result = tostring(base)
     )");
 
     EXPECT_EQ("ExtensibleBase(1)", result<std::string>());
@@ -728,7 +728,7 @@ TEST_F(ClassExtensibleTests, ExtensibleClassCustomMetamethodsSuper)
             return '123456 - ' .. self:super__tostring()
         end
 
-        local base = ExtensibleBase(); result = tostring(base)
+        local base = ExtensibleBase.new(); result = tostring(base)
     )");
 
     EXPECT_EQ(0u, result<std::string>().find("123456"));
@@ -751,8 +751,8 @@ TEST_F(ClassExtensibleTests, ExtensibleClassCustomMetamethodEq)
             return self:baseClass() == other:baseClass()
         end
 
-        local base1 = ExtensibleBase()
-        local base2 = ExtensibleBase()
+        local base1 = ExtensibleBase.new()
+        local base2 = ExtensibleBase.new()
         result = base1 == base2
     )");
 
@@ -787,7 +787,7 @@ TEST_F(ClassExtensibleTests, ExtensibleClassWithCustomIndexMethod)
             return 41 + self.xyz + self:baseClass()
         end
 
-        local base = ExtensibleBase()
+        local base = ExtensibleBase.new()
         base.xyz = 1000
         result = base:test()
     )");
@@ -861,7 +861,7 @@ TEST_F(ClassExtensibleTests, IndexAndNewMetaMethodCalledInBaseClass)
           self.property = value
         end
 
-        local test = DerivedExtensible()
+        local test = DerivedExtensible.new()
         test:setProperty(2)
         result = test:getProperty() + DerivedExtensible.property
     )");
@@ -869,7 +869,7 @@ TEST_F(ClassExtensibleTests, IndexAndNewMetaMethodCalledInBaseClass)
     EXPECT_EQ(102, result<int>());
 
     runLua(R"(
-        local test = DerivedExtensible()
+        local test = DerivedExtensible.new()
         test.property = 3
         result = test.property
     )");
@@ -915,7 +915,7 @@ TEST_F(ClassExtensibleTests, MetatableSecurityNotHidden)
                 .addFunction("__tostring", &ExampleStringifiableClass::tostring)
             .endClass();
 
-        runLua("local t = ExampleStringifiableClass(); result = getmetatable(t)");
+        runLua("local t = ExampleStringifiableClass.new(); result = getmetatable(t)");
 
         const auto res = result();
         ASSERT_TRUE(res.isTable());
@@ -943,7 +943,7 @@ TEST_F(ClassExtensibleTests, MetatableSecurity)
                 .addFunction("__tostring", &ExampleStringifiableClass::tostring)
             .endClass();
 
-        runLua("local t = ExampleStringifiableClass(); result = getmetatable(t)");
+        runLua("local t = ExampleStringifiableClass.new(); result = getmetatable(t)");
 
         const auto res = result();
         ASSERT_TRUE(res.isBool());

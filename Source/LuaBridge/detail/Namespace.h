@@ -1262,7 +1262,7 @@ class Namespace : public detail::Registrar
         /**
          * @brief Add or replace a primary Constructor.
          *
-         * The primary Constructor is invoked when calling the class type table like a function.
+         * The primary Constructor is invoked by calling `ClassName.new(args...)`.
          *
          * The template parameter should be a function pointer type that matches the desired Constructor (since you can't take the
          * address of a Constructor and pass it as an argument).
@@ -1337,10 +1337,10 @@ class Namespace : public detail::Registrar
 
                 } (), ...);
 
-                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, className, 2);
+                lua_pushcclosure_x(L, &detail::try_overload_functions<false>, className, 2);
             }
 
-            rawsetfield(L, -2, "__call");
+            rawsetfield(L, -2, "new");
 
             return *this;
         }
@@ -1349,10 +1349,10 @@ class Namespace : public detail::Registrar
         /**
          * @brief Add or replace a placement constructor.
          *
-         * The primary placement constructor is invoked when calling the class type table like a function.
+         * The primary placement constructor is invoked by calling `ClassName.new(args...)`.
          *
          * The provider of the Function argument is responsible of doing placement new of the type T over the void* pointer provided to
-         * the method as first argument.
+         * the method as first argument. Invoked by calling `ClassName.new(args...)`.
          */
         template <class... Functions>
         auto addConstructor(Functions... functions)
@@ -1445,10 +1445,10 @@ class Namespace : public detail::Registrar
 
                 } (), ...);
 
-                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, className, 2);
+                lua_pushcclosure_x(L, &detail::try_overload_functions<false>, className, 2);
             }
 
-            rawsetfield(L, -2, "__call"); // Stack: co, cl, st
+            rawsetfield(L, -2, "new"); // Stack: co, cl, st
 
             return *this;
         }
@@ -1499,10 +1499,10 @@ class Namespace : public detail::Registrar
 
                 } (), ...);
 
-                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, className, 2);
+                lua_pushcclosure_x(L, &detail::try_overload_functions<false>, className, 2);
             }
 
-            rawsetfield(L, -2, "__call");
+            rawsetfield(L, -2, "new");
 
             return *this;
         }
@@ -1571,10 +1571,10 @@ class Namespace : public detail::Registrar
 
                 } (), ...);
 
-                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, className, 2);
+                lua_pushcclosure_x(L, &detail::try_overload_functions<false>, className, 2);
             }
 
-            rawsetfield(L, -2, "__call"); // Stack: co, cl, st
+            rawsetfield(L, -2, "new"); // Stack: co, cl, st
 
             return *this;
         }
@@ -1603,7 +1603,7 @@ class Namespace : public detail::Registrar
         /**
          * @brief Add or replace a factory.
          *
-         * The primary Constructor is invoked when calling the class type table like a function.
+         * The factory is invoked by calling `ClassName.new()`.
          *
          * The template parameter should be a function pointer type that matches the desired Constructor (since you can't take the
          * address of a Constructor and pass it as an argument).
@@ -1617,7 +1617,7 @@ class Namespace : public detail::Registrar
 
             lua_newuserdata_aligned<F>(L, F(std::move(allocator), std::move(deallocator))); // Stack: co, cl, st, upvalue
             lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, className, 1); // Stack: co, cl, st, function
-            rawsetfield(L, -2, "__call"); // Stack: co, cl, st
+            rawsetfield(L, -2, "new"); // Stack: co, cl, st
 
             return *this;
         }

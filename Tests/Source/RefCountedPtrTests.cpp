@@ -120,7 +120,7 @@ TEST_F(RefCountedPtrTests, LastReferenceInstantiatedFromLua)
     EXPECT_FALSE(RefCountedStatic::constructed);
     EXPECT_FALSE(RefCountedStatic::deleted);
 
-    runLua("local o = Class(); result = false");
+    runLua("local o = Class.new(); result = false");
 
     EXPECT_TRUE(RefCountedStatic::constructed);
     EXPECT_FALSE(RefCountedStatic::deleted);

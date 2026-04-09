@@ -8813,7 +8813,7 @@ int constructor_container_proxy(lua_State* L)
     try
     {
 #endif
-        object = constructor<T, Args>::construct(detail::make_arguments_list<Args, 2>(L));
+        object = constructor<T, Args>::construct(detail::make_arguments_list<Args, 1>(L));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
     }
@@ -8833,7 +8833,7 @@ int constructor_container_proxy(lua_State* L)
 template <class T, class Args>
 int constructor_placement_proxy(lua_State* L)
 {
-    auto args = make_arguments_list<Args, 2>(L);
+    auto args = make_arguments_list<Args, 1>(L);
 
     std::error_code ec;
     auto* value = UserdataValue<T>::place(L, ec);
@@ -8873,7 +8873,7 @@ struct constructor_forwarder
         using FnTraits = function_traits<F>;
         using FnArgs = remove_first_type_t<typename FnTraits::argument_types>;
 
-        auto args = make_arguments_list<FnArgs, 2>(L);
+        auto args = make_arguments_list<FnArgs, 1>(L);
 
         std::error_code ec;
         auto* value = UserdataValue<T>::place(L, ec);
@@ -8988,7 +8988,7 @@ struct container_forwarder
         try
         {
 #endif
-            object = container_constructor<C>::construct(m_func, make_arguments_list<FnArgs, 2>(L));
+            object = container_constructor<C>::construct(m_func, make_arguments_list<FnArgs, 1>(L));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
@@ -9408,7 +9408,7 @@ inline ClassInspectInfo inspectClassFromStaticTable(lua_State* L, int stIdx)
                 {
                     MemberInfo m;
                     m.name = key;
-                    if (key == "__call")
+                    if (key == "new")
                         m.kind = MemberKind::Constructor;
                     else if (key.size() >= 2 && key[0] == '_' && key[1] == '_')
                         m.kind = MemberKind::Metamethod;
@@ -10072,10 +10072,10 @@ public:
         {
         case MemberKind::Constructor:
             
-            out_ << "setmetatable(" << qname << ", {__call = function(t";
+            out_ << qname << ".new = function(";
             if (!m.overloads[0].params.empty())
-                out_ << ", " << paramNames(m.overloads[0].params);
-            out_ << ")\n    return setmetatable({}, t)\nend})\n\n";
+                out_ << paramNames(m.overloads[0].params);
+            out_ << ") end\n\n";
             break;
 
         case MemberKind::Method:
@@ -13412,10 +13412,10 @@ class Namespace : public detail::Registrar
 
                 } (), ...);
 
-                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, className, 2);
+                lua_pushcclosure_x(L, &detail::try_overload_functions<false>, className, 2);
             }
 
-            rawsetfield(L, -2, "__call");
+            rawsetfield(L, -2, "new");
 
             return *this;
         }
@@ -13509,10 +13509,10 @@ class Namespace : public detail::Registrar
 
                 } (), ...);
 
-                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, className, 2);
+                lua_pushcclosure_x(L, &detail::try_overload_functions<false>, className, 2);
             }
 
-            rawsetfield(L, -2, "__call"); 
+            rawsetfield(L, -2, "new"); 
 
             return *this;
         }
@@ -13558,10 +13558,10 @@ class Namespace : public detail::Registrar
 
                 } (), ...);
 
-                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, className, 2);
+                lua_pushcclosure_x(L, &detail::try_overload_functions<false>, className, 2);
             }
 
-            rawsetfield(L, -2, "__call");
+            rawsetfield(L, -2, "new");
 
             return *this;
         }
@@ -13623,10 +13623,10 @@ class Namespace : public detail::Registrar
 
                 } (), ...);
 
-                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, className, 2);
+                lua_pushcclosure_x(L, &detail::try_overload_functions<false>, className, 2);
             }
 
-            rawsetfield(L, -2, "__call"); 
+            rawsetfield(L, -2, "new"); 
 
             return *this;
         }
@@ -13659,7 +13659,7 @@ class Namespace : public detail::Registrar
 
             lua_newuserdata_aligned<F>(L, F(std::move(allocator), std::move(deallocator))); 
             lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, className, 1); 
-            rawsetfield(L, -2, "__call"); 
+            rawsetfield(L, -2, "new"); 
 
             return *this;
         }

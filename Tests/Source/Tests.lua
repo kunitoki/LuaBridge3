@@ -63,10 +63,10 @@ A.testStaticProp2 = 49;         assert(testAFnCalled(FN_STATIC_PROPSET) and A.te
 
 -- test classes registered from C++
 
-object1 = A("object1");          assert(testAFnCalled(FN_CTOR));
+object1 = A.new("object1");          assert(testAFnCalled(FN_CTOR));
 object1:testVirtual();           assert(testAFnCalled(FN_VIRTUAL));
 
-object2 = B("object2");         assert(testAFnCalled(FN_CTOR) and testBFnCalled(FN_CTOR));
+object2 = B.new("object2");         assert(testAFnCalled(FN_CTOR) and testBFnCalled(FN_CTOR));
 object2:testVirtual();          assert(testBFnCalled(FN_VIRTUAL) and not testAFnCalled(FN_VIRTUAL));
 
 -- test functions taking and returning objects

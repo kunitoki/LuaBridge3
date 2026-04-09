@@ -138,12 +138,12 @@ TEST_F(LuaBridgeTest, LambdaClassMethods)
         .addFunction("normalMethod1", &Inner::normalMethod1)
         .endClass();
 
-    runLua("x = Inner () result = x:test (255)");
+    runLua("x = Inner.new() result = x:test (255)");
     EXPECT_EQ(true, result().isNumber());
     EXPECT_EQ(355, result<int>());
 
     resetResult();
-    runLua("x = Inner () result = x:test (255)");
+    runLua("x = Inner.new() result = x:test (255)");
     EXPECT_EQ(true, result().isNumber());
     EXPECT_EQ(355, result<int>());
 }
@@ -311,7 +311,7 @@ TEST_F(LuaBridgeTest, TupleAsFunctionReturnValue)
         .addFunction("test", [x](Inner*) { return std::make_tuple(x, 42); })
         .endClass();
 
-    runLua("x = Inner () result1, result2 = x:test ()");
+    runLua("x = Inner.new() result1, result2 = x:test ()");
     auto z1 = luabridge::getGlobal(L, "result1");
     auto z2 = luabridge::getGlobal(L, "result2");
     EXPECT_EQ(true, z1.isNumber());
@@ -904,7 +904,7 @@ TEST_F(LuaBridgeTest, StdSharedPtrSingle)
     auto a3 = result<std::shared_ptr<A>>();
     EXPECT_EQ(1, a3->x);
 
-    EXPECT_TRUE(runLua("result = test.A(2)"));
+    EXPECT_TRUE(runLua("result = test.A.new(2)"));
     auto a4 = result<std::shared_ptr<A>>();
     EXPECT_EQ(2, a4->x);
 }
@@ -929,19 +929,19 @@ TEST_F(LuaBridgeTest, StdSharedPtrSingleCustomConstructor)
             .endClass()
         .endNamespace();
 
-    EXPECT_TRUE(runLua("result = test.A1()"));
+    EXPECT_TRUE(runLua("result = test.A1.new()"));
     auto a0 = result<std::shared_ptr<A>>();
     EXPECT_EQ(42, a0->x);
 
-    EXPECT_TRUE(runLua("result = test.A2()"));
+    EXPECT_TRUE(runLua("result = test.A2.new()"));
     auto a1 = result<std::shared_ptr<A>>();
     EXPECT_EQ(42, a1->x);
 
-    EXPECT_TRUE(runLua("result = test.A2(1337)"));
+    EXPECT_TRUE(runLua("result = test.A2.new(1337)"));
     auto a2 = result<std::shared_ptr<A>>();
     EXPECT_EQ(1337, a2->x);
 
-    EXPECT_TRUE(runLua("result = test.A2(11, 22)"));
+    EXPECT_TRUE(runLua("result = test.A2.new(11, 22)"));
     auto a3 = result<std::shared_ptr<A>>();
     EXPECT_EQ(33, a3->x);
 }
@@ -955,11 +955,11 @@ TEST_F(LuaBridgeTest, StdSharedPtrMultiple)
             .endClass()
         .endNamespace();
 
-    EXPECT_TRUE(runLua("result = test.A()"));
+    EXPECT_TRUE(runLua("result = test.A.new()"));
     auto a1 = result<std::shared_ptr<A>>();
     EXPECT_EQ(42, a1->x);
 
-    EXPECT_TRUE(runLua("result = test.A(2)"));
+    EXPECT_TRUE(runLua("result = test.A.new(2)"));
     auto a2 = result<std::shared_ptr<A>>();
     EXPECT_EQ(2, a2->x);
 }
@@ -987,7 +987,7 @@ TEST_F(LuaBridgeTest, StdSharedPtrDerived)
         auto a2 = result<std::shared_ptr<A>>();
         EXPECT_EQ(1, a2->x);
 
-        EXPECT_TRUE(runLua("result = test.B(2)"));
+        EXPECT_TRUE(runLua("result = test.B.new(2)"));
         auto a3 = result<std::shared_ptr<A>>();
         EXPECT_EQ(2, a3->x);
     }
@@ -1000,7 +1000,7 @@ TEST_F(LuaBridgeTest, StdSharedPtrDerived)
         auto b2 = result<std::shared_ptr<B>>();
         EXPECT_EQ(1, b2->x);
 
-        EXPECT_TRUE(runLua("result = test.B(2)"));
+        EXPECT_TRUE(runLua("result = test.B.new(2)"));
         auto b3 = result<std::shared_ptr<B>>();
         EXPECT_EQ(2, b3->x);
     }
@@ -1036,7 +1036,7 @@ TEST_F(LuaBridgeTest, StdSharedPtrDerivedPolymorphic)
         auto a2 = result<std::shared_ptr<VirtualA>>();
         EXPECT_EQ(1, a2->x);
 
-        EXPECT_TRUE(runLua("result = test.B(2)"));
+        EXPECT_TRUE(runLua("result = test.B.new(2)"));
         auto a3 = result<std::shared_ptr<VirtualA>>();
         EXPECT_EQ(2, a3->x);
     }
@@ -1049,7 +1049,7 @@ TEST_F(LuaBridgeTest, StdSharedPtrDerivedPolymorphic)
         auto b2 = result<std::shared_ptr<VirtualB>>();
         EXPECT_EQ(1, b2->x);
 
-        EXPECT_TRUE(runLua("result = test.B(2)"));
+        EXPECT_TRUE(runLua("result = test.B.new(2)"));
         auto b3 = result<std::shared_ptr<VirtualB>>();
         EXPECT_EQ(2, b3->x);
     }
@@ -1068,15 +1068,15 @@ TEST_F(LuaBridgeTest, StdSharedPtrDerivedPolymorphic)
     return; // TODO - Ravi asserts on the lua state being invalid because of the previous exception
 #endif
 
-    EXPECT_TRUE(runLua("local x = test.A(2); result = x:myNameIs()"));
+    EXPECT_TRUE(runLua("local x = test.A.new(2); result = x:myNameIs()"));
     auto x1 = result<std::string>();
     EXPECT_EQ("VirtualA", x1);
 
-    EXPECT_TRUE(runLua("local x = test.B(2); result = x:myNameIs()"));
+    EXPECT_TRUE(runLua("local x = test.B.new(2); result = x:myNameIs()"));
     auto x2 = result<std::string>();
     EXPECT_EQ("VirtualB", x2);
 
-    EXPECT_TRUE(runLua("local x = test.C(2); result = x:myNameIs()"));
+    EXPECT_TRUE(runLua("local x = test.C.new(2); result = x:myNameIs()"));
     auto x3 = result<std::string>();
     EXPECT_EQ("VirtualC", x3);
 }
@@ -1119,13 +1119,13 @@ TEST_F(LuaBridgeTest, StdSharedPtrAsProperty)
             .endClass()
         .endNamespace();
 
-    ASSERT_TRUE(runLua("local x = test.TestClassOuter(); result = x.getNested:getValue()"));
+    ASSERT_TRUE(runLua("local x = test.TestClassOuter.new(); result = x.getNested:getValue()"));
     EXPECT_EQ(42, result<int>());
 
-    ASSERT_TRUE(runLua("local x = test.TestClassOuter(); result = x.valueNested:getValue()"));
+    ASSERT_TRUE(runLua("local x = test.TestClassOuter.new(); result = x.valueNested:getValue()"));
     EXPECT_EQ(42, result<int>());
 
-    ASSERT_TRUE(runLua("local x = test.TestClassOuter(); result = x.sharedPointerNested:getValue()"));
+    ASSERT_TRUE(runLua("local x = test.TestClassOuter.new(); result = x.sharedPointerNested:getValue()"));
     EXPECT_EQ(42, result<int>());
 }
 
@@ -1200,26 +1200,26 @@ TEST_F(LuaBridgeTest, PointersBoom)
         .endNamespace();
 
     runLua(R"(
-        local foo = test.BoomyClass()
+        local foo = test.BoomyClass.new()
         result = foo:nullconst()
     )");
     EXPECT_TRUE(result().isNil());
 
     runLua(R"(
-        local foo = test.BoomyClass()
+        local foo = test.BoomyClass.new()
         result = foo:null()
     )");
     EXPECT_TRUE(result().isNil());
 
     runLua(R"(
-        local foo = test.BoomyClass()
+        local foo = test.BoomyClass.new()
         result = foo:twochars("aaa", nil)
     )");
     ASSERT_TRUE(result().isString());
     EXPECT_EQ("aaa", result<std::string>());
 
     runLua(R"(
-        local foo = test.BoomyClass()
+        local foo = test.BoomyClass.new()
         result = foo:twochars("aaa", "bbb")
     )");
     ASSERT_TRUE(result().isString());
@@ -1251,20 +1251,20 @@ TEST_F(LuaBridgeTest, BooleanNoValue)
 
 #if !LUABRIDGE_STRICT_STACK_CONVERSIONS
     // Non-strict mode: no value at the argument index is accepted as false via lua_toboolean
-    runLua("local foo = test.ConstructibleFromBool(); result = foo:val()");
+    runLua("local foo = test.ConstructibleFromBool.new(); result = foo:val()");
     ASSERT_TRUE(result().isBool());
     EXPECT_FALSE(result<bool>());
 #else
     // Strict mode: missing bool argument must fail
 #if LUABRIDGE_HAS_EXCEPTIONS
-    EXPECT_THROW(runLua("local foo = test.ConstructibleFromBool(); result = foo:val()"), std::runtime_error);
+    EXPECT_THROW(runLua("local foo = test.ConstructibleFromBool.new(); result = foo:val()"), std::runtime_error);
 #else
-    EXPECT_FALSE(runLua("local foo = test.ConstructibleFromBool(); result = foo:val()"));
+    EXPECT_FALSE(runLua("local foo = test.ConstructibleFromBool.new(); result = foo:val()"));
 #endif
 #endif
 
     // Passing false explicitly must work
-    runLua("local foo = test.ConstructibleFromBool(false); result = foo:val()");
+    runLua("local foo = test.ConstructibleFromBool.new(false); result = foo:val()");
     ASSERT_TRUE(result().isBool());
     EXPECT_FALSE(result<bool>());
 }

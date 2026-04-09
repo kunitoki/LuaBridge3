@@ -146,10 +146,10 @@ TEST_F(DynamicLibraryTests, ExampleUsageFromLibrary)
     runLua("result = callSharedClassMethod(shared)");
     EXPECT_EQ(1379, result<int>());
 
-    runLua("a = SharedClass(); result = callSharedClassMethod(a)");
+    runLua("a = SharedClass.new(); result = callSharedClassMethod(a)");
     EXPECT_EQ(1379, result<int>());
 
-    runLua("b = SharedClass(); result = b");
+    runLua("b = SharedClass.new(); result = b");
     auto ptr = result<xyz::ISharedClass*>();
     ASSERT_NE(nullptr, ptr);
     EXPECT_EQ(1379, callSharedClassMethod(ptr));
@@ -198,16 +198,16 @@ TEST_F(DynamicLibraryTests, ExampleRegistrationFromLibrary)
 
     registerAnotherClass(L);
 
-    runLua("a = dll.AnotherClass(); result = a.value");
+    runLua("a = dll.AnotherClass.new(); result = a.value");
     EXPECT_EQ(30, result<int>());
 
-    runLua("b = dll.AnotherClass(); b:publicMethod(12); result = b.value");
+    runLua("b = dll.AnotherClass.new(); b:publicMethod(12); result = b.value");
     EXPECT_EQ(12, result<int>());
 
-    runLua("c = dll.AnotherClass(); result = c:publicMethod(12)");
+    runLua("c = dll.AnotherClass.new(); result = c:publicMethod(12)");
     EXPECT_EQ(12, result<int>());
 
-    runLua("d = dll.AnotherClass(); result = d:publicConstMethod(12)");
+    runLua("d = dll.AnotherClass.new(); result = d:publicConstMethod(12)");
     EXPECT_EQ(42, result<int>());
 
     closeLuaState(); // Force garbage collection

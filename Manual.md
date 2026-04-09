@@ -732,12 +732,12 @@ luabridge::getGlobalNamespace (L)
   .endNamespace ();
 ```
 
-Constructors added in this fashion are called from Lua using the fully qualified name of the class. This Lua code will create instances of `A` and `B`.
+Constructors added in this fashion are called from Lua using the `.new` field on the class. This Lua code will create instances of `A` and `B`.
 
 ```lua
-a = test.A ()           -- Create a new A.
-b = test.B ("hello", 5) -- Create a new B.
-b = test.B ()           -- Error: expected string in argument 1
+a = test.A.new ()           -- Create a new A.
+b = test.B.new ("hello", 5) -- Create a new B.
+b = test.B.new ()           -- Error: expected string in argument 1
 ```
 
 ### 2.6.1 - Constructor Proxies
@@ -764,16 +764,16 @@ luabridge::getGlobalNamespace (L)
 Then in lua:
 
 ```lua
-hard = test.HardToCreate (5) -- Create a new HardToCreate.
+hard = test.HardToCreate.new (5) -- Create a new HardToCreate.
 ```
 
-The `addConstructor` overload taking a generic functor also accepts a `lua_State*` as last parameter in order to be used for constructors that needs to be overloaded by different numbers of arguments (arguments will start at index 2 of the stack):
+The `addConstructor` overload taking a generic functor also accepts a `lua_State*` as last parameter in order to be used for constructors that needs to be overloaded by different numbers of arguments (arguments will start at index 1 of the stack):
 
 ```cpp
 luabridge::getGlobalNamespace (L)
   .beginNamespace ("test")
     .beginClass<HardToCreate> ("HardToCreate")
-      .addConstructor ([] (void* ptr, lua_State* L) { return new (ptr) HardToCreate (shouldNotSeeMe, lua_checkinteger (L, 2)); })
+      .addConstructor ([] (void* ptr, lua_State* L) { return new (ptr) HardToCreate (shouldNotSeeMe, lua_checkinteger (L, 1)); })
     .endClass ()
   .endNamespace ();
 ```
@@ -826,7 +826,7 @@ luabridge::getGlobalNamespace (L)
 The object is the perfectly instantiable through lua:
 
 ```lua
-a = test.Object ()           -- Create a new Object using objectFactoryAllocator
+a = test.Object.new ()           -- Create a new Object using objectFactoryAllocator
 a = nil                      -- Remove any reference count
 collectgarbage ("collect")   -- The object is garbage collected using objectFactoryDeallocator
 ```

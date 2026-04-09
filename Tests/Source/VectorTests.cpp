@@ -109,12 +109,12 @@ TEST_F(VectorTests, PassFromLua)
         .addFunction("processPointers", &processPointers);
 
     resetResult();
-    runLua("result = processValues ({Data (-1), Data (2)})");
+    runLua("result = processValues ({Data.new(-1), Data.new(2)})");
 
     ASSERT_EQ(std::vector<Data>({-1, 2}), result<std::vector<Data>>());
 
     resetResult();
-    runLua("result = processPointers ({Data (-3), Data (4)})");
+    runLua("result = processPointers ({Data.new(-3), Data.new(4)})");
 
     ASSERT_EQ(std::vector<Data>({-3, 4}), result<std::vector<Data>>());
 }

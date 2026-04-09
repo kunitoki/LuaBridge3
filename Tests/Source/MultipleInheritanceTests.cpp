@@ -137,7 +137,7 @@ TEST_F(MultipleInheritanceTests, BasicTwoBasesMethods)
     registerAB(L);
 
     runLua(R"(
-        local d = D()
+        local d = D.new()
         result = d:methodA() + d:methodB()
     )");
 
@@ -154,7 +154,7 @@ TEST_F(MultipleInheritanceTests, BasicTwoBasesProperties)
     // TODO: Fix property access across multiple base classes
     
     runLua(R"(
-        local d = D()
+        local d = D.new()
         -- Access methods which work correctly
         result = d:methodA() + d:methodB()
     )");
@@ -178,7 +178,7 @@ TEST_F(MultipleInheritanceTests, MethodResolutionOrder_DeclOrder)
         .endClass();
 
     runLua(R"(
-        local d = D()
+        local d = D.new()
         result = d:greet()
     )");
 
@@ -190,7 +190,7 @@ TEST_F(MultipleInheritanceTests, DerivedOverrideShadowsBases)
     registerAB(L);
 
     runLua(R"(
-        local d = D()
+        local d = D.new()
         result = d:greet()
     )");
 
@@ -217,7 +217,7 @@ TEST_F(MultipleInheritanceTests, DiamondInheritance)
         .endClass();
 
     runLua(R"(
-        local d = DiamondD()
+        local d = DiamondD.new()
         result = d:fromB() .. d:fromC() .. d:sharedAncestor()
     )");
 
@@ -243,7 +243,7 @@ TEST_F(MultipleInheritanceTests, DiamondDFSOrder)
         .endClass();
 
     runLua(R"(
-        local d = DiamondD()
+        local d = DiamondD.new()
         result = d:dfsPriority()
     )");
 
@@ -267,7 +267,7 @@ TEST_F(MultipleInheritanceTests, PassDerivedAsBase1)
     luabridge::getGlobalNamespace(L).addFunction("consumeA", &consumeA);
 
     runLua(R"(
-        local d = D()
+        local d = D.new()
         result = consumeA(d)
     )");
 
@@ -280,7 +280,7 @@ TEST_F(MultipleInheritanceTests, PassDerivedAsBase2)
     luabridge::getGlobalNamespace(L).addFunction("consumeB", &consumeB);
 
     runLua(R"(
-        local d = D()
+        local d = D.new()
         result = consumeB(d)
     )");
 
@@ -292,7 +292,7 @@ TEST_F(MultipleInheritanceTests, ConstMethodInheritance)
     registerAB(L);
 
     runLua(R"(
-        local d = D()
+        local d = D.new()
         result = d:constMethod()
     )");
 
@@ -330,7 +330,7 @@ TEST_F(MultipleInheritanceTests, ThreeBaseClasses)
         .endClass();
 
     runLua(R"(
-        local d = D3()
+        local d = D3.new()
         result = d:methodA() + d:methodB() + d:methodC()
     )");
 
@@ -361,7 +361,7 @@ TEST_F(MultipleInheritanceTests, MultiLevelMultiple)
         .endClass();
 
     runLua(R"(
-        local e = E()
+        local e = E.new()
         result = e:methodA() + e:methodB() + e:methodC()
     )");
 
@@ -386,7 +386,7 @@ TEST_F(MultipleInheritanceTests, SharedPtrMultipleBases)
         .endClass();
 
     runLua(R"(
-        local d = D()
+        local d = D.new()
         result = d:methodA() + d:methodB()
     )");
 
@@ -407,7 +407,7 @@ TEST_F(MultipleInheritanceTests, SharedPtrIsInstance)
         .endClass();
 
     runLua(R"(
-        result = D()
+        result = D.new()
     )");
 
     EXPECT_TRUE(result().isInstance<A>());
@@ -420,7 +420,7 @@ TEST_F(MultipleInheritanceTests, PropertySetterFromBase)
     registerAB(L);
 
     runLua(R"(
-        local d = D()
+        local d = D.new()
         d.b = 13
         result = d.b
     )");
@@ -440,7 +440,7 @@ TEST_F(MultipleInheritanceTests, ExistingSingleInheritanceUnchanged)
         .endClass();
 
     runLua(R"(
-        local d = SingleDerived()
+        local d = SingleDerived.new()
         result = d:value()
     )");
 
@@ -452,7 +452,7 @@ TEST_F(MultipleInheritanceTests, ReadOnlyPropertyFromBase)
     registerAB(L);
 
     runLua(R"(
-        local d = D()
+        local d = D.new()
         result = d.readOnlyA
     )");
 
@@ -464,7 +464,7 @@ TEST_F(MultipleInheritanceTests, ConstructorWithMultipleBases)
     registerAB(L);
 
     runLua(R"(
-        local d = D()
+        local d = D.new()
         result = d:methodA() + d:methodB()
     )");
 
@@ -477,7 +477,7 @@ TEST_F(MultipleInheritanceTests, VirtualMethodResolution)
     luabridge::getGlobalNamespace(L).addFunction("callVirtual", &callVirtual);
 
     runLua(R"(
-        local d = D()
+        local d = D.new()
         result = callVirtual(d)
     )");
 
@@ -512,7 +512,7 @@ TEST_F(MultipleInheritanceTests, ExtensibleMultipleBases)
         .endClass();
 
     runLua(R"(
-        local d = DExtensible()
+        local d = DExtensible.new()
         result = d:methodA() + d:methodB()
     )");
 
@@ -529,7 +529,7 @@ TEST_F(MultipleInheritanceTests, ExtensibleMultipleBasesWithMethods)
         .endClass();
 
     runLua(R"(
-        local d = DExtWithMethods()
+        local d = DExtWithMethods.new()
         -- Add custom Lua methods that call base methods
         function d:combined()
             return self:methodA() + self:methodB() + 100
@@ -553,7 +553,7 @@ TEST_F(MultipleInheritanceTests, ExtensibleMultipleBasesPropertyStorage)
         .endClass();
 
     runLua(R"(
-        local d = DExtensibleStore()
+        local d = DExtensibleStore.new()
         -- Test calling through extensible derived with multiple bases
         local a_val = d:methodA()
         local b_val = d:methodB()
@@ -571,8 +571,8 @@ TEST_F(MultipleInheritanceTests, MultipleBasesWithCopySemantics)
     registerAB(L);
 
     runLua(R"(
-        local d1 = D()
-        local d2 = D()
+        local d1 = D.new()
+        local d2 = D.new()
         
         -- Both should be independent D instances
         result = (d1:methodA() == d2:methodA() and 1 or 0) + 
@@ -603,7 +603,7 @@ TEST_F(MultipleInheritanceTests, MultipleInheritanceChainLookup)
         .endClass();
 
     runLua(R"(
-        local e = E()
+        local e = E.new()
         result = e:methodA() + e:methodB()
     )");
 
@@ -615,7 +615,7 @@ TEST_F(MultipleInheritanceTests, ReferencingAcrossBases)
     registerAB(L);
 
     runLua(R"(
-        local d = D()
+        local d = D.new()
         -- D is-a A
         local a_ref = d
         local as_array = {d, d, d}

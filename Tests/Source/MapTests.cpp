@@ -193,7 +193,7 @@ TEST_F(MapTests, PassFromLua)
 
     {
         resetResult();
-        runLua("result = processValues ({[Data (-1)] = Data (2)})");
+        runLua("result = processValues ({[Data.new(-1)] = Data.new(2)})");
         std::map<Data, Data> expected{{Data(-1), Data(2)}};
         const auto actual = result<std::map<Data, Data>>();
         ASSERT_EQ(expected, actual);
@@ -201,7 +201,7 @@ TEST_F(MapTests, PassFromLua)
 
     {
         resetResult();
-        runLua("result = processPointers ({[Data (3)] = Data (-4)})");
+        runLua("result = processPointers ({[Data.new(3)] = Data.new(-4)})");
         std::map<Data, Data> expected{{Data(3), Data(-4)}};
         const auto actual = result<std::map<Data, Data>>();
         ASSERT_EQ(expected, actual);

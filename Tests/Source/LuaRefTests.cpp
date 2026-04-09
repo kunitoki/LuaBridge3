@@ -742,7 +742,7 @@ TEST_F(LuaRefTests, IsInstance)
         .addConstructor<void (*)()>()
         .endClass();
 
-    runLua("result = Base ()");
+    runLua("result = Base.new()");
     EXPECT_TRUE(result().isInstance<Base>());
     EXPECT_FALSE(result().isInstance<Derived>());
     EXPECT_FALSE(result().isInstance<Other>());
@@ -751,7 +751,7 @@ TEST_F(LuaRefTests, IsInstance)
     EXPECT_FALSE(result().isNil());
     EXPECT_EQ("Base", result().getClassName().value_or(""));
 
-    runLua("result = Derived ()");
+    runLua("result = Derived.new()");
     EXPECT_TRUE(result().isInstance<Base>());
     EXPECT_TRUE(result().isInstance<Derived>());
     EXPECT_FALSE(result().isInstance<Other>());
@@ -760,7 +760,7 @@ TEST_F(LuaRefTests, IsInstance)
     EXPECT_FALSE(result().isNil());
     EXPECT_EQ("Derived", result().getClassName().value_or(""));
 
-    runLua("result = Other ()");
+    runLua("result = Other.new()");
     EXPECT_FALSE(result().isInstance<Base>());
     EXPECT_FALSE(result().isInstance<Derived>());
     EXPECT_TRUE(result().isInstance<Other>());
@@ -906,10 +906,10 @@ TEST_F(LuaRefTests, RegisterLambdaInFunction)
     luabridge::setGlobal(L, luabridge::newFunction(L, [](const Class* obj, int x) { return obj->test() + x; }), "takeClass");
     luabridge::setGlobal(L, luabridge::newFunction(L, [](Class* obj, int x, int y, lua_State* L) { return obj->test() + x + y + lua_gettop(L); }), "takeClassState");
 
-    runLua("obj = Class(); result = takeClass (obj, 10)");
+    runLua("obj = Class.new(); result = takeClass (obj, 10)");
     ASSERT_EQ(1 + 10, result<int>());
 
-    runLua("obj = Class(); result = takeClassState (obj, 10, 100)");
+    runLua("obj = Class.new(); result = takeClassState (obj, 10, 100)");
     ASSERT_EQ(1 + 10 + 100 + 3, result<int>());
 }
 
@@ -1100,7 +1100,7 @@ TEST_F(LuaRefTests, UserdataIndexMetamethodPropgetFastPath)
         })
         .endClass();
 
-    runLua("obj = PropsClass(); result = obj");
+    runLua("obj = PropsClass.new(); result = obj");
     auto obj = result();
     ASSERT_TRUE(obj.isUserdata());
 

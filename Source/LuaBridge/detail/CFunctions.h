@@ -2009,8 +2009,6 @@ bool overload_type_checker(lua_State* L, int start)
  *   2. Type check via Stack<T>::isInstance in C++ (no pcall) — skips clearly mismatched overloads.
  *   3. Only calls lua_pcall for type-matched candidates, eliminating failed pcalls for type mismatches.
  */
-
-
 template <bool Member>
 inline int try_overload_functions(lua_State* L)
 {
@@ -2890,7 +2888,7 @@ int constructor_container_proxy(lua_State* L)
     try
     {
 #endif
-        object = constructor<T, Args>::construct(detail::make_arguments_list<Args, 2>(L));
+        object = constructor<T, Args>::construct(detail::make_arguments_list<Args, 1>(L));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
     }
@@ -2913,7 +2911,7 @@ int constructor_container_proxy(lua_State* L)
 template <class T, class Args>
 int constructor_placement_proxy(lua_State* L)
 {
-    auto args = make_arguments_list<Args, 2>(L);
+    auto args = make_arguments_list<Args, 1>(L);
 
     std::error_code ec;
     auto* value = UserdataValue<T>::place(L, ec);
@@ -2957,7 +2955,7 @@ struct constructor_forwarder
         using FnTraits = function_traits<F>;
         using FnArgs = remove_first_type_t<typename FnTraits::argument_types>;
 
-        auto args = make_arguments_list<FnArgs, 2>(L);
+        auto args = make_arguments_list<FnArgs, 1>(L);
 
         std::error_code ec;
         auto* value = UserdataValue<T>::place(L, ec);
@@ -3084,7 +3082,7 @@ struct container_forwarder
         try
         {
 #endif
-            object = container_constructor<C>::construct(m_func, make_arguments_list<FnArgs, 2>(L));
+            object = container_constructor<C>::construct(m_func, make_arguments_list<FnArgs, 1>(L));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }

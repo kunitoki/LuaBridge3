@@ -134,7 +134,7 @@ TEST_F(CoroutineTests, ThreadedRegistration)
     lua_State* thread1 = lua_newthread(L);
 
     {
-        auto result = luaL_loadstring(thread1, "x = SomeClass(42)");
+        auto result = luaL_loadstring(thread1, "x = SomeClass.new(42)");
         ASSERT_EQ(LUABRIDGE_LUA_OK, result);
     }
 
@@ -187,9 +187,9 @@ TEST_F(CoroutineTests, ThreadedRegistration)
 
     // Another coroutine will see no luabridge registration
 #if LUABRIDGE_HAS_EXCEPTIONS
-    EXPECT_THROW(runLua("x = SomeClass(42)", thread2), std::exception);
+    EXPECT_THROW(runLua("x = SomeClass.new(42)", thread2), std::exception);
 #else
-    EXPECT_FALSE(runLua("x = SomeClass(42)", thread2));
+    EXPECT_FALSE(runLua("x = SomeClass.new(42)", thread2));
 #endif
 }
 

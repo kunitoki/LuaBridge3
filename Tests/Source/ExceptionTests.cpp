@@ -80,7 +80,7 @@ TEST_F(ExceptionTests, ThrowingPrimaryConstructors)
         .addConstructor<void(*)()>()
         .endClass();
 
-    EXPECT_ANY_THROW(runLua("result = ThrowingClass()"));
+    EXPECT_ANY_THROW(runLua("result = ThrowingClass.new()"));
 }
 
 TEST_F(ExceptionTests, ThrowingPlacementConstructors)
@@ -93,9 +93,9 @@ TEST_F(ExceptionTests, ThrowingPlacementConstructors)
             return new(ptr) ThrowingClass();
         })
         .endClass();
-    
-    EXPECT_ANY_THROW(runLua("result = ThrowingClass()"));
-    
+
+    EXPECT_ANY_THROW(runLua("result = ThrowingClass.new()"));
+
     luabridge::getGlobalNamespace(L)
         .beginClass<ThrowingClass>("ThrowingClass2")
         .addConstructor([](void* ptr)
@@ -103,8 +103,8 @@ TEST_F(ExceptionTests, ThrowingPlacementConstructors)
             return new(ptr) ThrowingClass();
         })
         .endClass();
-    
-    EXPECT_ANY_THROW(runLua("result = ThrowingClass2()"));
+
+    EXPECT_ANY_THROW(runLua("result = ThrowingClass2.new()"));
 }
 
 TEST_F(ExceptionTests, ThrowingContainerPrimaryConstructors)
@@ -114,7 +114,7 @@ TEST_F(ExceptionTests, ThrowingContainerPrimaryConstructors)
         .addConstructorFrom<std::shared_ptr<ThrowingClass>, void(*)()>()
         .endClass();
 
-    EXPECT_ANY_THROW(runLua("result = ThrowingClass()"));
+    EXPECT_ANY_THROW(runLua("result = ThrowingClass.new()"));
 }
 
 TEST_F(ExceptionTests, ThrowingContainerPlacementConstructors)
@@ -127,9 +127,9 @@ TEST_F(ExceptionTests, ThrowingContainerPlacementConstructors)
             return std::make_shared<ThrowingClass>();
         })
         .endClass();
-    
-    EXPECT_ANY_THROW(runLua("result = ThrowingClass()"));
-    
+
+    EXPECT_ANY_THROW(runLua("result = ThrowingClass.new()"));
+
     luabridge::getGlobalNamespace(L)
         .beginClass<ThrowingClass>("ThrowingClass2")
         .addConstructorFrom<std::shared_ptr<ThrowingClass>>([]
@@ -138,7 +138,7 @@ TEST_F(ExceptionTests, ThrowingContainerPlacementConstructors)
         })
         .endClass();
 
-    EXPECT_ANY_THROW(runLua("result = ThrowingClass2()"));
+    EXPECT_ANY_THROW(runLua("result = ThrowingClass2.new()"));
 }
 
 TEST_F(ExceptionTests, ThrowingFactoryConstructors)
@@ -149,19 +149,19 @@ TEST_F(ExceptionTests, ThrowingFactoryConstructors)
             +[]() -> ThrowingClass* {
                 throw std::runtime_error("Throwing during construction");
                 return new ThrowingClass(); },
-            +[](ThrowingClass* x) { delete x; })                    
+            +[](ThrowingClass* x) { delete x; })
         .endClass();
-    
-    EXPECT_ANY_THROW(runLua("result = ThrowingClass()"));
-    
+
+    EXPECT_ANY_THROW(runLua("result = ThrowingClass.new()"));
+
     luabridge::getGlobalNamespace(L)
         .beginClass<ThrowingClass>("ThrowingClass2")
         .addFactory(
             +[]() -> ThrowingClass* { return new ThrowingClass(); },
-            +[](ThrowingClass* x) { delete x; })                    
+            +[](ThrowingClass* x) { delete x; })
         .endClass();
 
-    EXPECT_ANY_THROW(runLua("result = ThrowingClass2()"));
+    EXPECT_ANY_THROW(runLua("result = ThrowingClass2.new()"));
 }
 
 TEST_F(ExceptionTests, ThrowingMethodInvocation)
@@ -181,14 +181,14 @@ TEST_F(ExceptionTests, ThrowingMethodInvocation)
             throw std::runtime_error("Throwing during const lambda"); self.throwingMethodConst(); })
         .endClass();
 
-    EXPECT_ANY_THROW(runLua("local t = ThrowingClass(1); result = t:throwingMethod()"));
-    EXPECT_ANY_THROW(runLua("local t = ThrowingClass(2); result = t:throwingMethodConst()"));
-    EXPECT_ANY_THROW(runLua("local t = ThrowingClass(3); result = t:throwingCMethod()"));
-    EXPECT_ANY_THROW(runLua("local t = ThrowingClass(4); result = t:throwingCMethodConst()"));
-    EXPECT_ANY_THROW(runLua("local t = ThrowingClass(5); result = t:throwingMethodLambda()"));
-    EXPECT_ANY_THROW(runLua("local t = ThrowingClass(6); result = t:throwingMethodLambdaConst()"));
-    EXPECT_ANY_THROW(runLua("local t = ThrowingClass(7); result = t:throwingMethodLambdaRaise()"));
-    EXPECT_ANY_THROW(runLua("local t = ThrowingClass(8); result = t:throwingMethodLambdaConstRaise()"));
+    EXPECT_ANY_THROW(runLua("local t = ThrowingClass.new(1); result = t:throwingMethod()"));
+    EXPECT_ANY_THROW(runLua("local t = ThrowingClass.new(2); result = t:throwingMethodConst()"));
+    EXPECT_ANY_THROW(runLua("local t = ThrowingClass.new(3); result = t:throwingCMethod()"));
+    EXPECT_ANY_THROW(runLua("local t = ThrowingClass.new(4); result = t:throwingCMethodConst()"));
+    EXPECT_ANY_THROW(runLua("local t = ThrowingClass.new(5); result = t:throwingMethodLambda()"));
+    EXPECT_ANY_THROW(runLua("local t = ThrowingClass.new(6); result = t:throwingMethodLambdaConst()"));
+    EXPECT_ANY_THROW(runLua("local t = ThrowingClass.new(7); result = t:throwingMethodLambdaRaise()"));
+    EXPECT_ANY_THROW(runLua("local t = ThrowingClass.new(8); result = t:throwingMethodLambdaConstRaise()"));
 }
 
 namespace {
@@ -302,7 +302,7 @@ TEST_F(ExceptionTests, PassFromLua)
     {
         auto result = runLuaCaptureError(R"(
 
-            local errorClass = test.ErrorClass()
+            local errorClass = test.ErrorClass.new()
             local x = errorClass:memberFunctionError()
         )");
 
@@ -315,7 +315,7 @@ TEST_F(ExceptionTests, PassFromLua)
     {
         auto result = runLuaCaptureError(R"(
 
-            local errorClass = test.ErrorClass()
+            local errorClass = test.ErrorClass.new()
             local y = errorClass.memberPropertyError
         )");
 
@@ -328,7 +328,7 @@ TEST_F(ExceptionTests, PassFromLua)
     {
         auto result = runLuaCaptureError(R"(
 
-            local errorClass = test.ErrorClass()
+            local errorClass = test.ErrorClass.new()
             local y = errorClass.memberPropertyError2
         )");
 

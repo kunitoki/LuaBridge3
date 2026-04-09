@@ -117,12 +117,12 @@ TEST_F(ArrayTests, PassFromLua)
         .addFunction("processPointers", &processPointers<3>);
 
     resetResult();
-    runLua("result = processValues ({Data (-1), Data (2), Data (5)})");
+    runLua("result = processValues ({Data.new(-1), Data.new(2), Data.new(5)})");
 
     ASSERT_EQ((std::array<Data, 3>({-1, 2, 5})), (result<std::array<Data, 3>>()));
 
     resetResult();
-    runLua("result = processPointers ({Data (-3), Data (4), Data (9)})");
+    runLua("result = processPointers ({Data.new(-3), Data.new(4), Data.new(9)})");
 
     ASSERT_EQ((std::array<Data, 3>({-3, 4, 9})), (result<std::array<Data, 3>>()));
 }

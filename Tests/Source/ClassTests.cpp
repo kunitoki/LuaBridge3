@@ -241,9 +241,9 @@ TEST_F(ClassTests, IsInstanceRef)
         .endClass();
 
     runLua(R"(
-        local fooFirst = Foo('first')
+        local fooFirst = Foo.new('first')
 
-        local bar = Bar()
+        local bar = Bar.new()
         bar:setFoo(fooFirst)
         result = bar:getFooName() .. " " .. tostring(fooFirst)
     )");
@@ -252,7 +252,7 @@ TEST_F(ClassTests, IsInstanceRef)
     runLua(R"(
         local fooSecond = Foo.createRef('second')
 
-        local bar = Bar()
+        local bar = Bar.new()
         bar:setFoo(fooSecond)
         result = bar:getFooName() .. " " .. tostring(fooSecond)
     )");
@@ -278,9 +278,9 @@ TEST_F(ClassTests, IsInstanceConstRef)
         .endClass();
 
     runLua(R"(
-        local fooFirst = Foo('first')
+        local fooFirst = Foo.new('first')
 
-        local bar = Bar()
+        local bar = Bar.new()
         bar:setFoo(fooFirst)
         result = bar:getFooName() .. " " .. tostring(fooFirst)
     )");
@@ -289,7 +289,7 @@ TEST_F(ClassTests, IsInstanceConstRef)
     runLua(R"(
         local fooSecond = Foo.createConstRef('second')
 
-        local bar = Bar()
+        local bar = Bar.new()
         bar:setFoo(fooSecond)
         result = bar:getFooName() .. " " .. tostring(fooSecond)
     )");
@@ -389,9 +389,9 @@ TEST_F(ClassTests, PassWrongClassFromLuaThrows)
 
     // bad argument #1 to 'processRight' (Right expected, got Wrong)
 #if LUABRIDGE_HAS_EXCEPTIONS
-    ASSERT_THROW(runLua("result = processRight (Wrong (5))"), std::exception);
+    ASSERT_THROW(runLua("result = processRight (Wrong.new(5))"), std::exception);
 #else
-    ASSERT_FALSE(runLua("result = processRight (Wrong (5))"));
+    ASSERT_FALSE(runLua("result = processRight (Wrong.new(5))"));
 #endif
 
     ASSERT_TRUE(result().isNil());
@@ -410,7 +410,7 @@ TEST_F(ClassTests, PassDerivedClassInsteadOfBase)
         .endClass()
         .addFunction("processBase", &Base::staticFunction);
 
-    runLua("result = processBase (Derived (3.14))");
+    runLua("result = processBase (Derived.new(3.14))");
     ASSERT_EQ(0, result<Base>().data);
 }
 
@@ -480,9 +480,9 @@ TEST_F(ClassTests, PassRegisteredClassInsteadOfUnregisteredThrows)
 
     // bad argument #1 to 'processUnregisteredInt' (unregistered class expected, got Float)
 #if LUABRIDGE_HAS_EXCEPTIONS
-    ASSERT_THROW(runLua("result = processUnregisteredInt (Float (1.2))"), std::exception);
+    ASSERT_THROW(runLua("result = processUnregisteredInt (Float.new(1.2))"), std::exception);
 #else
-    ASSERT_FALSE(runLua("result = processUnregisteredInt (Float (1.2))"));
+    ASSERT_FALSE(runLua("result = processUnregisteredInt (Float.new(1.2))"));
 #endif
 
     ASSERT_TRUE(result().isNil());
@@ -663,7 +663,7 @@ TEST_F(ClassFunctions, Destructor)
             })
         .endClass();
 
-    runLua("local x = Int(42)");
+    runLua("local x = Int.new(42)");
     ASSERT_TRUE(result().isNil());
 
     closeLuaState();
@@ -851,10 +851,10 @@ TEST_F(ClassFunctions, ClassWithTemplateMembers)
             .addFunction("methodNoexcept", &ClassWithTemplateMembers::templateMethodNoexcept<int>)
         .endClass();
 
-    runLua("local a = ClassWithTemplateMembers(); result = a:method()");
+    runLua("local a = ClassWithTemplateMembers.new(); result = a:method()");
     ASSERT_EQ(0, result<int>());
 
-    runLua("local a = ClassWithTemplateMembers(); result = a:methodNoexcept()");
+    runLua("local a = ClassWithTemplateMembers.new(); result = a:methodNoexcept()");
     ASSERT_EQ(0, result<int>());
 }
 
@@ -1152,9 +1152,9 @@ TEST_F(ClassProperties, FieldPointersNonRegistered)
         .endClass();
 
 #if LUABRIDGE_HAS_EXCEPTIONS
-    ASSERT_THROW(runLua("result = Int().data"), std::exception);
+    ASSERT_THROW(runLua("result = Int.new().data"), std::exception);
 #else
-    ASSERT_FALSE(runLua("result = Int().data"));
+    ASSERT_FALSE(runLua("result = Int.new().data"));
 #endif
 }
 
@@ -1168,7 +1168,7 @@ TEST_F(ClassProperties, FieldPointers)
         .addProperty("data", &Int::data, &Int::data)
         .endClass();
 
-    runLua("result = Int (501)");
+    runLua("result = Int.new(501)");
     ASSERT_TRUE(result()["data"].isNumber());
     ASSERT_EQ(501, result()["data"].cast<int>());
 
@@ -1176,7 +1176,7 @@ TEST_F(ClassProperties, FieldPointers)
     ASSERT_TRUE(result()["data"].isNumber());
     ASSERT_EQ(2, result()["data"].cast<int>());
 
-    runLua("result = Int (42).data");
+    runLua("result = Int.new(42).data");
     ASSERT_TRUE(result().isNumber());
     ASSERT_EQ(42, result<int>());
 }
@@ -1191,7 +1191,7 @@ TEST_F(ClassProperties, FieldPointers_ReadOnly)
         .addProperty("data", &Int::data)
         .endClass();
 
-    runLua("result = Int (501)");
+    runLua("result = Int.new(501)");
     ASSERT_TRUE(result()["data"].isNumber());
     ASSERT_EQ(501, result()["data"].cast<int>());
 
@@ -1201,7 +1201,7 @@ TEST_F(ClassProperties, FieldPointers_ReadOnly)
     ASSERT_FALSE(runLua("result.data = 2"));
 #endif
 
-    runLua("result = Int (42).data");
+    runLua("result = Int.new(42).data");
     ASSERT_TRUE(result().isNumber());
     ASSERT_EQ(42, result<int>());
 }
@@ -1219,7 +1219,7 @@ TEST_F(ClassProperties, MemberFunctions)
         .addFunction("setDataNoexcept", &Int::setDataNoexcept)
         .endClass();
 
-    runLua("result = Int (501)");
+    runLua("result = Int.new(501)");
     ASSERT_TRUE(result()["data"].isNumber());
     ASSERT_EQ(501, result()["data"].cast<int>());
     ASSERT_TRUE(result()["dataNoexcept"].isNumber());
@@ -1245,7 +1245,7 @@ TEST_F(ClassProperties, MemberFunctions_PassState)
         .addProperty("dataNoexcept", &Int::getDataStateNoexcept, &Int::setDataStateNoexcept)
         .endClass();
 
-    runLua("result = Int (501)");
+    runLua("result = Int.new(501)");
     ASSERT_TRUE(result()["data"].isNumber());
     ASSERT_EQ(501, result()["data"].cast<int>());
     ASSERT_TRUE(result()["dataNoexcept"].isNumber());
@@ -1270,7 +1270,7 @@ TEST_F(ClassProperties, MemberFunctions_ReadOnly)
         .addProperty("data", &Int::getData)
         .endClass();
 
-    runLua("result = Int (501)");
+    runLua("result = Int.new(501)");
     ASSERT_TRUE(result()["data"].isNumber());
     ASSERT_EQ(501, result()["data"].cast<int>());
 
@@ -1383,7 +1383,7 @@ TEST_F(ClassProperties, ProxyFunctions)
         .addProperty("data", &getData<int, EmptyBase>, &setData<int, EmptyBase>)
         .endClass();
 
-    runLua("result = Int (501)");
+    runLua("result = Int.new(501)");
     ASSERT_TRUE(result()["data"].isNumber());
     ASSERT_EQ(501, result()["data"].cast<int>());
 
@@ -1402,7 +1402,7 @@ TEST_F(ClassProperties, ProxyFunctionsNoexcept)
         .addProperty("data", &getDataNoexcept<int, EmptyBase>, &setDataNoexcept<int, EmptyBase>)
         .endClass();
 
-    runLua("result = Int (501)");
+    runLua("result = Int.new(501)");
     ASSERT_TRUE(result()["data"].isNumber());
     ASSERT_EQ(501, result()["data"].cast<int>());
 
@@ -1421,7 +1421,7 @@ TEST_F(ClassProperties, ProxyFunctions_ReadOnly)
         .addProperty("data", &getData<int, EmptyBase>)
         .endClass();
 
-    runLua("result = Int (501)");
+    runLua("result = Int.new(501)");
     ASSERT_TRUE(result()["data"].isNumber());
     ASSERT_EQ(501, result()["data"].cast<int>());
 
@@ -1532,7 +1532,7 @@ TEST_F(ClassProperties, ProxyCFunctions)
         .addProperty("data", &getDataC<int, EmptyBase>, &setDataC<int, EmptyBase>)
         .endClass();
 
-    runLua("result = Int (501)");
+    runLua("result = Int.new(501)");
     ASSERT_TRUE(result()["data"].isNumber());
     ASSERT_EQ(501, result()["data"].cast<int>());
 
@@ -1551,7 +1551,7 @@ TEST_F(ClassProperties, ProxyCFunctions_ReadOnly)
         .addProperty("data", &getDataC<int, EmptyBase>)
         .endClass();
 
-    runLua("result = Int (501)");
+    runLua("result = Int.new(501)");
     ASSERT_TRUE(result()["data"].isNumber());
     ASSERT_EQ(501, result()["data"].cast<int>());
 
@@ -1663,7 +1663,7 @@ TEST_F(ClassProperties, StdFunctions)
     sharedSetterData.reset();
     ASSERT_FALSE(setterData.expired());
 
-    runLua("result = Int (501)");
+    runLua("result = Int.new(501)");
     ASSERT_EQ(501, result()["data"].cast<int>());
 
     runLua("result.data = -2");
@@ -1702,7 +1702,7 @@ TEST_F(ClassProperties, StdFunctions_ReadOnly)
     sharedGetterData.reset();
     ASSERT_FALSE(getterData.expired());
 
-    runLua("result = Int (501)");
+    runLua("result = Int.new(501)");
     ASSERT_TRUE(result()["data"].isNumber());
     ASSERT_EQ(501, result()["data"].cast<int>());
 
@@ -1734,7 +1734,7 @@ TEST_F(ClassStaticFunctions, Functions)
         .addStaticFunction("static", &Int::staticFunction)
         .endClass();
 
-    runLua("result = Int.static (Int (35))");
+    runLua("result = Int.static (Int.new(35))");
     ASSERT_EQ(35, result<Int>().data);
 }
 
@@ -1751,7 +1751,7 @@ TEST_F(ClassStaticFunctions, Functions_Derived)
         .deriveClass<Derived, Base>("Derived")
         .endClass();
 
-    runLua("result = Derived.static (Base ('abc'))");
+    runLua("result = Derived.static (Base.new('abc'))");
     ASSERT_EQ("abc", result<Base>().data);
 }
 
@@ -1770,10 +1770,10 @@ TEST_F(ClassStaticFunctions, Functions_Overridden)
         .addStaticFunction("staticFunction", &Derived::staticFunction)
         .endClass();
 
-    runLua("result = Base.staticFunction (Base ('abc'))");
+    runLua("result = Base.staticFunction (Base.new('abc'))");
     ASSERT_EQ("abc", result<Base>().data);
 
-    runLua("result = Derived.staticFunction (Derived (123))");
+    runLua("result = Derived.staticFunction (Derived.new(123))");
     ASSERT_EQ(123, result<Derived>().data);
 }
 
@@ -1787,7 +1787,7 @@ TEST_F(ClassStaticFunctions, StdFunctions)
         .addStaticFunction("static", std::function<Int(Int)>(&Int::staticFunction))
         .endClass();
 
-    runLua("result = Int.static (Int (35))");
+    runLua("result = Int.static (Int.new(35))");
     ASSERT_EQ(35, result<Int>().data);
 }
 
@@ -2103,11 +2103,11 @@ TEST_F(ClassMetaMethods, __call)
         .addFunction("__call", &Int::operator())
         .endClass();
 
-    runLua("result = Int (1) (-1)");
+    runLua("result = Int.new(1)(-1)");
     ASSERT_TRUE(result().isUserdata());
     ASSERT_EQ(-1, result<Int>().data);
 
-    runLua("result = Int (2) (5)");
+    runLua("result = Int.new(2)(5)");
     ASSERT_TRUE(result().isUserdata());
     ASSERT_EQ(5, result<Int>().data);
 }
@@ -2127,12 +2127,12 @@ TEST_F(ClassMetaMethods, __tostring)
         .addFunction("__tostring", &StringClass::toString)
         .endClass();
 
-    runLua("result = tostring (Int (-123))");
+    runLua("result = tostring (Int.new(-123))");
     ASSERT_EQ("-123", result<std::string>());
 
 #if LUA_VERSION_NUM >= 502
     // Lua 5.1 string.format doesn't use __tostring
-    runLua("result = string.format ('%s%s', String ('abc'), Int (-123))");
+    runLua("result = string.format ('%s%s', String.new('abc'), Int.new(-123))");
     ASSERT_EQ("abc-123", result<std::string>());
 #endif
 }
@@ -2147,16 +2147,16 @@ TEST_F(ClassMetaMethods, __eq)
         .addFunction("__eq", &Int::operator==)
         .endClass();
 
-    runLua("result = Int (1) == Int (1)");
+    runLua("result = Int.new(1) == Int.new(1)");
     ASSERT_EQ(true, result<bool>());
 
-    runLua("result = Int (1) ~= Int (1)");
+    runLua("result = Int.new(1) ~= Int.new(1)");
     ASSERT_EQ(false, result<bool>());
 
-    runLua("result = Int (1) == Int (2)");
+    runLua("result = Int.new(1) == Int.new(2)");
     ASSERT_EQ(false, result<bool>());
 
-    runLua("result = Int (1) ~= Int (2)");
+    runLua("result = Int.new(1) ~= Int.new(2)");
     ASSERT_EQ(true, result<bool>());
 }
 
@@ -2170,13 +2170,13 @@ TEST_F(ClassMetaMethods, __lt)
         .addFunction("__lt", &Int::operator<)
         .endClass();
 
-    runLua("result = Int (1) < Int (1)");
+    runLua("result = Int.new(1) < Int.new(1)");
     ASSERT_EQ(false, result<bool>());
 
-    runLua("result = Int (1) < Int (2)");
+    runLua("result = Int.new(1) < Int.new(2)");
     ASSERT_EQ(true, result<bool>());
 
-    runLua("result = Int (2) < Int (1)");
+    runLua("result = Int.new(2) < Int.new(1)");
     ASSERT_EQ(false, result<bool>());
 }
 
@@ -2190,13 +2190,13 @@ TEST_F(ClassMetaMethods, __le)
         .addFunction("__le", &Int::operator<=)
         .endClass();
 
-    runLua("result = Int (1) <= Int (1)");
+    runLua("result = Int.new(1) <= Int.new(1)");
     ASSERT_EQ(true, result<bool>());
 
-    runLua("result = Int (1) <= Int (2)");
+    runLua("result = Int.new(1) <= Int.new(2)");
     ASSERT_EQ(true, result<bool>());
 
-    runLua("result = Int (2) <= Int (1)");
+    runLua("result = Int.new(2) <= Int.new(1)");
     ASSERT_EQ(false, result<bool>());
 }
 
@@ -2210,7 +2210,7 @@ TEST_F(ClassMetaMethods, __add)
         .addFunction("__add", &Int::operator+)
         .endClass();
 
-    runLua("result = Int (1) + Int (2)");
+    runLua("result = Int.new(1) + Int.new(2)");
     ASSERT_TRUE(result().isUserdata());
     ASSERT_EQ(3, result<Int>().data);
 }
@@ -2225,7 +2225,7 @@ TEST_F(ClassMetaMethods, __sub)
         .addFunction("__sub", &Int::operator-)
         .endClass();
 
-    runLua("result = Int (1) - Int (2)");
+    runLua("result = Int.new(1) - Int.new(2)");
     ASSERT_TRUE(result().isUserdata());
     ASSERT_EQ(-1, result<Int>().data);
 }
@@ -2240,7 +2240,7 @@ TEST_F(ClassMetaMethods, __mul)
         .addFunction("__mul", &Int::operator*)
         .endClass();
 
-    runLua("result = Int (-2) * Int (-5)");
+    runLua("result = Int.new(-2) * Int.new(-5)");
     ASSERT_TRUE(result().isUserdata());
     ASSERT_EQ(10, result<Int>().data);
 }
@@ -2255,7 +2255,7 @@ TEST_F(ClassMetaMethods, __div)
         .addFunction("__div", &Int::operator/)
         .endClass();
 
-    runLua("result = Int (10) / Int (2)");
+    runLua("result = Int.new(10) / Int.new(2)");
     ASSERT_TRUE(result().isUserdata());
     ASSERT_EQ(5, result<Int>().data);
 }
@@ -2270,7 +2270,7 @@ TEST_F(ClassMetaMethods, __mod)
         .addFunction("__mod", &Int::operator%)
         .endClass();
 
-    runLua("result = Int (7) % Int (2)");
+    runLua("result = Int.new(7) % Int.new(2)");
     ASSERT_TRUE(result().isUserdata());
     ASSERT_EQ(1, result<Int>().data);
 }
@@ -2285,7 +2285,7 @@ TEST_F(ClassMetaMethods, __pow)
         .addFunction("__pow", &Int::operator-)
         .endClass();
 
-    runLua("result = Int (5) ^ Int (2)");
+    runLua("result = Int.new(5) ^ Int.new(2)");
     ASSERT_TRUE(result().isUserdata());
     ASSERT_EQ(3, result<Int>().data);
 }
@@ -2300,7 +2300,7 @@ TEST_F(ClassMetaMethods, __unm)
         .addFunction("__unm", &Int::negate)
         .endClass();
 
-    runLua("result = -Int (-3)");
+    runLua("result = -Int.new(-3)");
     ASSERT_TRUE(result().isUserdata());
     ASSERT_EQ(3, result<Int>().data);
 }
@@ -2316,12 +2316,12 @@ TEST_F(ClassMetaMethods, __concat)
         .endClass();
 
 #if LUABRIDGE_HAS_EXCEPTIONS
-    ASSERT_THROW(runLua("result = String ('a') + String ('b')"), std::exception);
+    ASSERT_THROW(runLua("result = String.new('a') + String.new('b')"), std::exception);
 #else
-    ASSERT_FALSE(runLua("result = String ('a') + String ('b')"));
+    ASSERT_FALSE(runLua("result = String.new('a') + String.new('b')"));
 #endif
 
-    runLua("result = String ('ab') .. String ('cd')");
+    runLua("result = String.new('ab') .. String.new('cd')");
     ASSERT_TRUE(result().isUserdata());
     ASSERT_EQ("abcd", result<String>().data);
 }
@@ -2336,11 +2336,11 @@ TEST_F(ClassMetaMethods, __len)
         .addFunction("__len", &Int::len)
         .endClass();
 
-    runLua("result = #Int (1)");
+    runLua("result = #Int.new(1)");
     ASSERT_TRUE(result().isNumber());
     ASSERT_EQ(1, result<int>());
 
-    runLua("result = #Int (5)");
+    runLua("result = #Int.new(5)");
     ASSERT_TRUE(result().isNumber());
     ASSERT_EQ(5, result<int>());
 }
@@ -2462,35 +2462,35 @@ TEST_F(ClassMetaMethods, MetamethodsShouldNotBePartOfClassInstances)
         .endClass();
 
 #if LUABRIDGE_HAS_EXCEPTIONS
-    EXPECT_ANY_THROW(runLua("local x = Int(1); x.__gc()"));
-    EXPECT_ANY_THROW(runLua("local x = Int(1); x:__gc()"));
-    EXPECT_ANY_THROW(runLua("local x = Int(1); x.__index()"));
-    EXPECT_ANY_THROW(runLua("local x = Int(1); x:__index()"));
-    EXPECT_ANY_THROW(runLua("local x = Int(1); x.__newindex()"));
-    EXPECT_ANY_THROW(runLua("local x = Int(1); x:__newindex()"));
-    EXPECT_TRUE(runLua("local x = Int(1); result = x.__gc"));
+    EXPECT_ANY_THROW(runLua("local x = Int.new(1); x.__gc()"));
+    EXPECT_ANY_THROW(runLua("local x = Int.new(1); x:__gc()"));
+    EXPECT_ANY_THROW(runLua("local x = Int.new(1); x.__index()"));
+    EXPECT_ANY_THROW(runLua("local x = Int.new(1); x:__index()"));
+    EXPECT_ANY_THROW(runLua("local x = Int.new(1); x.__newindex()"));
+    EXPECT_ANY_THROW(runLua("local x = Int.new(1); x:__newindex()"));
+    EXPECT_TRUE(runLua("local x = Int.new(1); result = x.__gc"));
     EXPECT_TRUE(result().isNil());
-    EXPECT_TRUE(runLua("local x = Int(1); result = x.__index"));
+    EXPECT_TRUE(runLua("local x = Int.new(1); result = x.__index"));
     EXPECT_TRUE(result().isNil());
-    EXPECT_TRUE(runLua("local x = Int(1); result = x.__newindex"));
+    EXPECT_TRUE(runLua("local x = Int.new(1); result = x.__newindex"));
     EXPECT_TRUE(result().isNil());
 #else
-    EXPECT_FALSE(runLua("local x = Int(1); x.__gc()"));
-    EXPECT_FALSE(runLua("local x = Int(1); x:__gc()"));
-    EXPECT_FALSE(runLua("local x = Int(1); x.__index()"));
-    EXPECT_FALSE(runLua("local x = Int(1); x:__index()"));
-    EXPECT_FALSE(runLua("local x = Int(1); x.__newindex()"));
-    EXPECT_FALSE(runLua("local x = Int(1); x:__newindex()"));
-    EXPECT_TRUE(runLua("local x = Int(1); result = x.__gc"));
+    EXPECT_FALSE(runLua("local x = Int.new(1); x.__gc()"));
+    EXPECT_FALSE(runLua("local x = Int.new(1); x:__gc()"));
+    EXPECT_FALSE(runLua("local x = Int.new(1); x.__index()"));
+    EXPECT_FALSE(runLua("local x = Int.new(1); x:__index()"));
+    EXPECT_FALSE(runLua("local x = Int.new(1); x.__newindex()"));
+    EXPECT_FALSE(runLua("local x = Int.new(1); x:__newindex()"));
+    EXPECT_TRUE(runLua("local x = Int.new(1); result = x.__gc"));
     EXPECT_TRUE(result().isNil());
-    EXPECT_TRUE(runLua("local x = Int(1); result = x.__index"));
+    EXPECT_TRUE(runLua("local x = Int.new(1); result = x.__index"));
     EXPECT_TRUE(result().isNil());
-    EXPECT_TRUE(runLua("local x = Int(1); result = x.__newindex"));
+    EXPECT_TRUE(runLua("local x = Int.new(1); result = x.__newindex"));
     EXPECT_TRUE(result().isNil());
 #endif
 
-    EXPECT_TRUE(runLua("local x = Int(1); x:__xyz()"));
-    EXPECT_TRUE(runLua("local x = Int(1); result = x.__xyz"));
+    EXPECT_TRUE(runLua("local x = Int.new(1); x:__xyz()"));
+    EXPECT_TRUE(runLua("local x = Int.new(1); result = x.__xyz"));
     EXPECT_TRUE(result().isFunction());
 }
 
@@ -2544,13 +2544,13 @@ TEST_F(ClassMetaMethods, MetamethodsShouldNotBeWritable)
         .endClass();
 
 #if LUABRIDGE_HAS_EXCEPTIONS
-    EXPECT_ANY_THROW(runLua("local x = Int(1); x.__gc = function() end"));
-    EXPECT_ANY_THROW(runLua("local x = Int(1); x.__index = function() end"));
-    EXPECT_ANY_THROW(runLua("local x = Int(1); x.__newindex = function() end"));
+    EXPECT_ANY_THROW(runLua("local x = Int.new(1); x.__gc = function() end"));
+    EXPECT_ANY_THROW(runLua("local x = Int.new(1); x.__index = function() end"));
+    EXPECT_ANY_THROW(runLua("local x = Int.new(1); x.__newindex = function() end"));
 #else
-    EXPECT_FALSE(runLua("local x = Int(1); x.__gc = function() end"));
-    EXPECT_FALSE(runLua("local x = Int(1); x.__index = function() end"));
-    EXPECT_FALSE(runLua("local x = Int(1); x.__newindex = function() end"));
+    EXPECT_FALSE(runLua("local x = Int.new(1); x.__gc = function() end"));
+    EXPECT_FALSE(runLua("local x = Int.new(1); x.__index = function() end"));
+    EXPECT_FALSE(runLua("local x = Int.new(1); x.__newindex = function() end"));
 #endif
 }
 
@@ -2577,7 +2577,7 @@ TEST_F(ClassMetaMethods, ErrorLineWithProperties)
     try
     {
         runLua(R"(
-            local myStringGetter = StringGetter()
+            local myStringGetter = StringGetter.new()
             myStringGetter.str = 12
         )");
 
@@ -2594,7 +2594,7 @@ TEST_F(ClassMetaMethods, ErrorLineWithProperties)
     try
     {
         runLua(R"(
-            local myStringGetter = StringGetter()
+            local myStringGetter = StringGetter.new()
             myStringGetter:setString(12)
         )");
 
@@ -2611,7 +2611,7 @@ TEST_F(ClassMetaMethods, ErrorLineWithProperties)
 
     {
         auto [result, errorString] = runLuaCaptureError(R"(
-            local myStringGetter = StringGetter()
+            local myStringGetter = StringGetter.new()
             myStringGetter.str = 12
         )");
 
@@ -2621,7 +2621,7 @@ TEST_F(ClassMetaMethods, ErrorLineWithProperties)
 
     {
         auto [result, errorString] = runLuaCaptureError(R"(
-            local myStringGetter = StringGetter()
+            local myStringGetter = StringGetter.new()
             myStringGetter:setString(12)
         )");
 
@@ -2741,7 +2741,7 @@ TEST_F(ClassTests, ConstructorWithReferences)
             .addConstructor<void (*)(const InnerClass&)>()
         .endClass();
 
-    runLua("x = InnerClass () result = OuterClass (x)");
+    runLua("x = InnerClass.new() result = OuterClass.new(x)");
 }
 
 TEST_F(ClassTests, DestructorIsNotCalledIfConstructorThrows)
@@ -2754,7 +2754,7 @@ TEST_F(ClassTests, DestructorIsNotCalledIfConstructorThrows)
 
     InnerClass::destructorCallCount = 0;
     OuterClass::destructorCallCount = 0;
-    ASSERT_THROW(runLua("result = OuterClass ()"), std::exception);
+    ASSERT_THROW(runLua("result = OuterClass.new()"), std::exception);
     ASSERT_EQ(1, InnerClass::destructorCallCount);
 
     closeLuaState(); // Force garbage collection
@@ -2772,7 +2772,7 @@ TEST_F(ClassTests, DestructorIsCalledOnce)
         .endClass();
 
     InnerClass::destructorCallCount = 0;
-    runLua("result = InnerClass ()");
+    runLua("result = InnerClass.new()");
 
     closeLuaState(); // Force garbage collection
 
@@ -2805,7 +2805,7 @@ TEST_F(ClassTests, ConstructorTakesMoreThanEightArgs)
         .addConstructor<void (*)(int, int, int, int, int, int, int, int, int, int)>()
         .endClass();
 
-    runLua("result = WideClass (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)");
+    runLua("result = WideClass.new(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)");
 
     ASSERT_TRUE(result().isUserdata());
     ASSERT_EQ(1, result<WideClass>().a1_);
@@ -2849,7 +2849,7 @@ TEST_F(ClassTests, MethodTakesMoreThanEightArgs)
         .addFunction("testLotsOfArgs", &WideClass::testLotsOfArgs)
         .endClass();
 
-    runLua("result = WideClass () result:testLotsOfArgs (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)");
+    runLua("result = WideClass.new() result:testLotsOfArgs (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)");
 
     ASSERT_TRUE(result().isUserdata());
     ASSERT_EQ(1, result<WideClass>().a1_);
@@ -2881,7 +2881,7 @@ TEST_F(ClassTests, ConstructorFactory)
             .addProperty("x", &FactoryConstructibleClass::x_)
             .endClass();
 
-        runLua("obj = FactoryConstructibleClass (); result = obj.x");
+        runLua("obj = FactoryConstructibleClass.new(); result = obj.x");
 
         ASSERT_TRUE(result().isNumber());
         ASSERT_EQ(33, result<int>());
@@ -2894,7 +2894,7 @@ TEST_F(ClassTests, ConstructorFactory)
             .addProperty("x", &FactoryConstructibleClass::x_)
             .endClass();
 
-        runLua("obj = FactoryConstructibleClass2 (42); result = obj.x");
+        runLua("obj = FactoryConstructibleClass2.new(42); result = obj.x");
 
         ASSERT_TRUE(result().isNumber());
         ASSERT_EQ(42, result<int>());
@@ -2903,11 +2903,11 @@ TEST_F(ClassTests, ConstructorFactory)
     {
         luabridge::getGlobalNamespace(L)
             .beginClass<FactoryConstructibleClass>("FactoryConstructibleClass3")
-            .addConstructor([](void* ptr, lua_State* L) { return new(ptr) FactoryConstructibleClass(static_cast<int>(luaL_checkinteger(L, 2))); })
+            .addConstructor([](void* ptr, lua_State* L) { return new(ptr) FactoryConstructibleClass(static_cast<int>(luaL_checkinteger(L, 1))); })
             .addProperty("x", &FactoryConstructibleClass::x_)
             .endClass();
 
-        runLua("obj = FactoryConstructibleClass3 (42); result = obj.x");
+        runLua("obj = FactoryConstructibleClass3.new(42); result = obj.x");
 
         ASSERT_TRUE(result().isNumber());
         ASSERT_EQ(42, result<int>());
@@ -2984,7 +2984,7 @@ TEST_F(ClassTests, NonVirtualMethodInBaseClassCannotBeExposed)
         .endClass();
 
     runLua(R"(
-        result = DerivedExampleClass ()
+        result = DerivedExampleClass.new()
         result:baseFunction(1)
         result:baseCFunction()
         result:baseFunctionConst(1)
@@ -3076,13 +3076,13 @@ TEST_F(ClassTests, OveralignedClasses)
             .addFunction("checkIsAligned", &Vec<32>::isAligned)
         .endClass();
 
-    runLua("result = Vec8(3.0, 2.0, 1.0, 0.5):checkIsAligned()");
+    runLua("result = Vec8.new(3.0, 2.0, 1.0, 0.5):checkIsAligned()");
     EXPECT_TRUE(result<bool>());
 
-    runLua("result = Vec16(3.0, 2.0, 1.0, 0.5):checkIsAligned()");
+    runLua("result = Vec16.new(3.0, 2.0, 1.0, 0.5):checkIsAligned()");
     EXPECT_TRUE(result<bool>());
 
-    runLua("result = Vec32(3.0, 2.0, 1.0, 0.5):checkIsAligned()");
+    runLua("result = Vec32.new(3.0, 2.0, 1.0, 0.5):checkIsAligned()");
     EXPECT_TRUE(result<bool>());
 }
 
@@ -3147,7 +3147,7 @@ TEST_F(ClassTests, WrongThrowBadArgObjectDescription)
 
     try
     {
-        runLua("textXYZ(1, 1.0, ABC())");
+        runLua("textXYZ(1, 1.0, ABC.new())");
         EXPECT_TRUE(false);
     }
     catch (const std::exception& ex)
@@ -3188,7 +3188,7 @@ TEST_F(ClassTests, WrongThrowBadArgObjectDescription)
     }
 
     {
-        auto [result, errorMessage] = runLuaCaptureError("textXYZ(1, 1.0, ABC())");
+        auto [result, errorMessage] = runLuaCaptureError("textXYZ(1, 1.0, ABC.new())");
         ASSERT_FALSE(result);
         expectBadArgOrInvalidCast(errorMessage, "got ABC");
     }
@@ -3310,8 +3310,8 @@ TEST_F(ClassTests, BugWithPlacementConstructor)
         .endNamespace();
 
     runLua(R"(
-        local foo = foobar.foo(5000)
-        local bar = foobar.bar(foo)
+        local foo = foobar.foo.new(5000)
+        local bar = foobar.bar.new(foo)
         local next = bar:first()
         while next do
             next = bar:next(next)
@@ -3343,8 +3343,8 @@ TEST_F(ClassTests, BugWithFactoryConstructor)
         .endNamespace();
 
     runLua(R"(
-        local foo = foobar.foo()
-        local bar = foobar.bar(foo)
+        local foo = foobar.foo.new()
+        local bar = foobar.bar.new(foo)
         local next = bar:first()
         while next do
             next = bar:next(next)
@@ -3387,7 +3387,7 @@ TEST_F(ClassTests, BugWithLuauNotPrintingClassConstructorNameInErrors)
         .endNamespace();
 
     auto [result, error] = runLuaCaptureError(R"(
-        local bar = foo.ClassWithMethod()
+        local bar = foo.ClassWithMethod.new()
         result = bar
     )");
 
@@ -3451,8 +3451,8 @@ TEST_F(ClassTests, BugWithSharedPtrPropertyGetterFromClassNotDerivingFromSharedF
             .addProperty("getAsProperty", &fooClassGetter)
         .endNamespace();
 
-    EXPECT_TRUE(runLua("result = BarClass():getAsFunction()"));
-    EXPECT_TRUE(runLua("result = BarClass().getAsProperty"));
+    EXPECT_TRUE(runLua("result = BarClass.new():getAsFunction()"));
+    EXPECT_TRUE(runLua("result = BarClass.new().getAsProperty"));
     EXPECT_TRUE(runLua("result = bar.getAsFunction()"));
     EXPECT_TRUE(runLua("result = bar.getAsProperty"));
 }
@@ -3482,7 +3482,7 @@ TEST_F(ClassTests, DerivedClassAccessesParentProperty)
             .addConstructor<void (*)()>()
         .endClass();
 
-    EXPECT_TRUE(runLua("result = CoverageDerived().value"));
+    EXPECT_TRUE(runLua("result = CoverageDerived.new().value"));
     EXPECT_EQ(42, result<int>());
 }
 
@@ -3498,7 +3498,7 @@ TEST_F(ClassTests, DerivedClassAccessesMetamethodNameReturnsNil)
             .addConstructor<void (*)()>()
         .endClass();
 
-    EXPECT_TRUE(runLua("result = CoverageDerived().__index"));
+    EXPECT_TRUE(runLua("result = CoverageDerived.new().__index"));
     EXPECT_TRUE(result().isNil());
 }
 
