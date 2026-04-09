@@ -57,28 +57,28 @@ struct UserDataTest : TestBase
 
 TEST_F(UserDataTest, Object)
 {
-    runLua("object = TestClass(123); result = testFunctionObject(object)");
+    runLua("object = TestClass.new(123); result = testFunctionObject(object)");
 
     ASSERT_EQ(result(), 123);
 }
 
 TEST_F(UserDataTest, ObjectConst)
 {
-    runLua("object = TestClass(123); result = testFunctionObjectConst(object)");
+    runLua("object = TestClass.new(123); result = testFunctionObjectConst(object)");
 
     ASSERT_EQ(result(), 123);
 }
 
 TEST_F(UserDataTest, Ref)
 {
-    runLua("object = TestClass(123); result = testFunctionRef(object)");
+    runLua("object = TestClass.new(123); result = testFunctionRef(object)");
 
     ASSERT_EQ(result(), 123);
 }
 
 TEST_F(UserDataTest, RefConst)
 {
-    runLua("object = TestClass(123); result = testFunctionRefConst(object)");
+    runLua("object = TestClass.new(123); result = testFunctionRefConst(object)");
 
     ASSERT_EQ(result(), 123);
 }
@@ -246,21 +246,21 @@ TEST_F(TypeResultErrorHandlingTest, MemberFunctionWithNil)
 // Test 5: Verify correct behavior with valid object
 TEST_F(TypeResultErrorHandlingTest, ValidObjectPropertyAccess)
 {
-    runLua("obj = ClassWithProperties(); result = obj.value");
+    runLua("obj = ClassWithProperties.new(); result = obj.value");
     ASSERT_EQ(result(), 42);
 }
 
 // Test 6: Verify correct behavior with property setter
 TEST_F(TypeResultErrorHandlingTest, ValidObjectPropertySetter)
 {
-    runLua("obj = ClassWithProperties(); obj.value = 99; result = obj.value");
+    runLua("obj = ClassWithProperties.new(); obj.value = 99; result = obj.value");
     ASSERT_EQ(result(), 99);
 }
 
 // Test 7: Verify correct behavior with member function
 TEST_F(TypeResultErrorHandlingTest, ValidObjectMemberFunction)
 {
-    runLua("obj = ClassWithProperties(); result = obj:callSomething(21)");
+    runLua("obj = ClassWithProperties.new(); result = obj:callSomething(21)");
     ASSERT_EQ(result(), 42);
 }
 
@@ -268,10 +268,10 @@ TEST_F(TypeResultErrorHandlingTest, ValidObjectMemberFunction)
 TEST_F(TypeResultErrorHandlingTest, WrongTypeToMemberFunction)
 {
 #if LUABRIDGE_HAS_EXCEPTIONS
-    runLua("obj = ClassWithProperties()"); // Setup valid object
+    runLua("obj = ClassWithProperties.new()"); // Setup valid object
     ASSERT_THROW(runLua("result = obj:callSomething('string')"), std::runtime_error);
 #else
-    runLua("obj = ClassWithProperties()");
+    runLua("obj = ClassWithProperties.new()");
     auto [result, errorMsg] = runLuaCaptureError("result = obj:callSomething('string')");
     ASSERT_FALSE(result);
 #endif
@@ -291,7 +291,7 @@ TEST_F(TypeResultErrorHandlingTest, UnregisteredClassError)
 // Test 10: Nil handling consistency across different property access patterns
 TEST_F(TypeResultErrorHandlingTest, PropertyAccessConsistency)
 {
-    runLua("obj = ClassWithProperties(); "
+    runLua("obj = ClassWithProperties.new(); "
            "v1 = obj.value; "
            "result = (v1 == 42)");
     
@@ -301,7 +301,7 @@ TEST_F(TypeResultErrorHandlingTest, PropertyAccessConsistency)
 // Test 11: Multiple operations in sequence to verify stack management
 TEST_F(TypeResultErrorHandlingTest, SequentialPropertyAccess)
 {
-    runLua("obj = ClassWithProperties(); "
+    runLua("obj = ClassWithProperties.new(); "
            "v1 = obj.value; "
            "obj.value = 50; "
            "v2 = obj.value; "
@@ -313,10 +313,10 @@ TEST_F(TypeResultErrorHandlingTest, SequentialPropertyAccess)
 // Test 12: Verify error when passing wrong object type to function expecting specific class
 TEST_F(TypeResultErrorHandlingTest, WrongClassTypeError)
 {
-    runLua("obj = ClassWithProperties()");
-    
+    runLua("obj = ClassWithProperties.new()");
+
 #if LUABRIDGE_HAS_EXCEPTIONS
-    ASSERT_THROW(runLua("otherObj = TestClass(10)"), std::runtime_error);
+    ASSERT_THROW(runLua("otherObj = TestClass.new(10)"), std::runtime_error);
 #else
     // This test mainly checks that registering TestClass succeeds
     EXPECT_TRUE(true);

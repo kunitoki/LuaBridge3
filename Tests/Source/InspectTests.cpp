@@ -103,7 +103,7 @@ TEST_F(InspectTests, InspectSimpleClass)
     ASSERT_NE(nullptr, staticFn);
     EXPECT_EQ(luabridge::MemberKind::StaticMethod, staticFn->kind);
 
-    auto* ctor = findMember(info, "__call");
+    auto* ctor = findMember(info, "new");
     ASSERT_NE(nullptr, ctor);
     EXPECT_EQ(luabridge::MemberKind::Constructor, ctor->kind);
 }
@@ -502,7 +502,7 @@ TEST_F(InspectTests, ReflectConstructorTypeInfo)
         .endClass();
 
     auto info = luabridge::inspect<Widget>(L);
-    auto* ctor = findMember(info, "__call");
+    auto* ctor = findMember(info, "new");
     ASSERT_NE(nullptr, ctor);
     ASSERT_EQ(1u, ctor->overloads.size());
 

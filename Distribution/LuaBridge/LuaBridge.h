@@ -8003,8 +8003,7 @@ bool overload_check_args_impl(lua_State* L, int start, std::index_sequence<I...>
 template <class ArgsPack>
 bool overload_check_args(lua_State* L, int start)
 {
-    return overload_check_args_impl<ArgsPack>(L, start,
-        std::make_index_sequence<std::tuple_size_v<ArgsPack>>{});
+    return overload_check_args_impl<ArgsPack>(L, start, std::make_index_sequence<std::tuple_size_v<ArgsPack>>{});
 }
 
 template <class ArgsPack>
@@ -8813,7 +8812,7 @@ int constructor_container_proxy(lua_State* L)
     try
     {
 #endif
-        object = constructor<T, Args>::construct(detail::make_arguments_list<Args, 2>(L));
+        object = constructor<T, Args>::construct(detail::make_arguments_list<Args, 1>(L));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
     }
@@ -8833,7 +8832,7 @@ int constructor_container_proxy(lua_State* L)
 template <class T, class Args>
 int constructor_placement_proxy(lua_State* L)
 {
-    auto args = make_arguments_list<Args, 2>(L);
+    auto args = make_arguments_list<Args, 1>(L);
 
     std::error_code ec;
     auto* value = UserdataValue<T>::place(L, ec);
@@ -8873,7 +8872,7 @@ struct constructor_forwarder
         using FnTraits = function_traits<F>;
         using FnArgs = remove_first_type_t<typename FnTraits::argument_types>;
 
-        auto args = make_arguments_list<FnArgs, 2>(L);
+        auto args = make_arguments_list<FnArgs, 1>(L);
 
         std::error_code ec;
         auto* value = UserdataValue<T>::place(L, ec);
@@ -8988,7 +8987,7 @@ struct container_forwarder
         try
         {
 #endif
-            object = container_constructor<C>::construct(m_func, make_arguments_list<FnArgs, 2>(L));
+            object = container_constructor<C>::construct(m_func, make_arguments_list<FnArgs, 1>(L));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
@@ -9408,7 +9407,7 @@ inline ClassInspectInfo inspectClassFromStaticTable(lua_State* L, int stIdx)
                 {
                     MemberInfo m;
                     m.name = key;
-                    if (key == "__call")
+                    if (key == "new")
                         m.kind = MemberKind::Constructor;
                     else if (key.size() >= 2 && key[0] == '_' && key[1] == '_')
                         m.kind = MemberKind::Metamethod;
@@ -10072,10 +10071,10 @@ public:
         {
         case MemberKind::Constructor:
             
-            out_ << "setmetatable(" << qname << ", {__call = function(t";
+            out_ << qname << ".new = function(";
             if (!m.overloads[0].params.empty())
-                out_ << ", " << paramNames(m.overloads[0].params);
-            out_ << ")\n    return setmetatable({}, t)\nend})\n\n";
+                out_ << paramNames(m.overloads[0].params);
+            out_ << ") end\n\n";
             break;
 
         case MemberKind::Method:
@@ -13370,13 +13369,13 @@ class Namespace : public detail::Registrar
                     entry.paramTypes = detail::reflect_param_type_names<ArgsPack>();
                     overload_set->entries.push_back(std::move(entry));
 
-                    lua_pushcclosure_x(L, &detail::constructor_placement_proxy<T, ArgsPack>, className, 1);
+                    lua_pushcclosure_x(L, &detail::constructor_placement_proxy<T, ArgsPack>, "new", 1);
 
                 } (), ...);
 #else
                 ([&]
                 {
-                    lua_pushcclosure_x(L, &detail::constructor_placement_proxy<T, detail::function_arguments_t<Functions>>, className, 0);
+                    lua_pushcclosure_x(L, &detail::constructor_placement_proxy<T, detail::function_arguments_t<Functions>>, "new", 0);
 
                 } (), ...);
 #endif
@@ -13407,15 +13406,15 @@ class Namespace : public detail::Registrar
 
                 ([&]
                 {
-                    lua_pushcclosure_x(L, &detail::constructor_placement_proxy<T, detail::function_arguments_t<Functions>>, className, 0);
+                    lua_pushcclosure_x(L, &detail::constructor_placement_proxy<T, detail::function_arguments_t<Functions>>, "new", 0);
                     lua_rawseti(L, -2, idx++);
 
                 } (), ...);
 
-                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, className, 2);
+                lua_pushcclosure_x(L, &detail::try_overload_functions<false>, "new", 2);
             }
 
-            rawsetfield(L, -2, "__call");
+            rawsetfield(L, -2, "new");
 
             return *this;
         }
@@ -13454,10 +13453,10 @@ class Namespace : public detail::Registrar
                     }
                     
                     lua_newuserdata_aligned<F>(L, F(detail::get_underlying(std::move(functions)))); 
-                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F, 2>, className, 2);
+                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F, 2>, "new", 2);
 #else
                     lua_newuserdata_aligned<F>(L, F(detail::get_underlying(std::move(functions)))); 
-                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, className, 1); 
+                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, "new", 1); 
 #endif
                 } (), ...);
             }
@@ -13504,15 +13503,15 @@ class Namespace : public detail::Registrar
                     using F = detail::constructor_forwarder<T, InnerF>;
 
                     lua_newuserdata_aligned<F>(L, F(detail::get_underlying(std::move(functions))));
-                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, className, 1);
+                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, "new", 1);
                     lua_rawseti(L, -2, idx++);
 
                 } (), ...);
 
-                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, className, 2);
+                lua_pushcclosure_x(L, &detail::try_overload_functions<false>, "new", 2);
             }
 
-            rawsetfield(L, -2, "__call"); 
+            rawsetfield(L, -2, "new"); 
 
             return *this;
         }
@@ -13527,7 +13526,7 @@ class Namespace : public detail::Registrar
             {
                 ([&]
                 {
-                    lua_pushcclosure_x(L, &detail::constructor_container_proxy<C, detail::function_arguments_t<Functions>>, className, 0);
+                    lua_pushcclosure_x(L, &detail::constructor_container_proxy<C, detail::function_arguments_t<Functions>>, "new", 0);
 
                 } (), ...);
             }
@@ -13553,15 +13552,15 @@ class Namespace : public detail::Registrar
 
                 ([&]
                 {
-                    lua_pushcclosure_x(L, &detail::constructor_container_proxy<C, detail::function_arguments_t<Functions>>, className, 0);
+                    lua_pushcclosure_x(L, &detail::constructor_container_proxy<C, detail::function_arguments_t<Functions>>, "new", 0);
                     lua_rawseti(L, -2, idx++);
 
                 } (), ...);
 
-                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, className, 2);
+                lua_pushcclosure_x(L, &detail::try_overload_functions<false>, "new", 2);
             }
 
-            rawsetfield(L, -2, "__call");
+            rawsetfield(L, -2, "new");
 
             return *this;
         }
@@ -13581,7 +13580,7 @@ class Namespace : public detail::Registrar
                     using F = detail::container_forwarder<C, Functions>;
 
                     lua_newuserdata_aligned<F>(L, F(std::move(functions))); 
-                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, className, 1); 
+                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, "new", 1); 
 
                 } (), ...);
             }
@@ -13618,15 +13617,15 @@ class Namespace : public detail::Registrar
                     using F = detail::container_forwarder<C, Functions>;
 
                     lua_newuserdata_aligned<F>(L, F(std::move(functions)));
-                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, className, 1);
+                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, "new", 1);
                     lua_rawseti(L, -2, idx++);
 
                 } (), ...);
 
-                lua_pushcclosure_x(L, &detail::try_overload_functions<true>, className, 2);
+                lua_pushcclosure_x(L, &detail::try_overload_functions<false>, "new", 2);
             }
 
-            rawsetfield(L, -2, "__call"); 
+            rawsetfield(L, -2, "new"); 
 
             return *this;
         }
@@ -13658,8 +13657,8 @@ class Namespace : public detail::Registrar
             using F = detail::factory_forwarder<T, Allocator, Deallocator>;
 
             lua_newuserdata_aligned<F>(L, F(std::move(allocator), std::move(deallocator))); 
-            lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, className, 1); 
-            rawsetfield(L, -2, "__call"); 
+            lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, "new", 1); 
+            rawsetfield(L, -2, "new"); 
 
             return *this;
         }

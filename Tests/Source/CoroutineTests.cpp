@@ -134,7 +134,7 @@ TEST_F(CoroutineTests, ThreadedRegistration)
     lua_State* thread1 = lua_newthread(L);
 
     {
-        auto result = luaL_loadstring(thread1, "x = SomeClass(42)");
+        auto result = luaL_loadstring(thread1, "x = SomeClass.new(42)");
         ASSERT_EQ(LUABRIDGE_LUA_OK, result);
     }
 
@@ -187,9 +187,9 @@ TEST_F(CoroutineTests, ThreadedRegistration)
 
     // Another coroutine will see no luabridge registration
 #if LUABRIDGE_HAS_EXCEPTIONS
-    EXPECT_THROW(runLua("x = SomeClass(42)", thread2), std::exception);
+    EXPECT_THROW(runLua("x = SomeClass.new(42)", thread2), std::exception);
 #else
-    EXPECT_FALSE(runLua("x = SomeClass(42)", thread2));
+    EXPECT_FALSE(runLua("x = SomeClass.new(42)", thread2));
 #endif
 }
 
@@ -1084,7 +1084,7 @@ TEST_F(CppCoroutineClassTests, MemberCoroutine_NonConst)
         .endClass();
 
     ASSERT_TRUE(runLua(
-        "local obj = Counter()\n"
+        "local obj = Counter.new()\n"
         "local f = coroutine.wrap(Counter.generate)\n"
         "a = f(obj, 3)\n"
         "b = f()\n"
@@ -1115,7 +1115,7 @@ TEST_F(CppCoroutineClassTests, MemberCoroutine_ConstAccessible)
         .endClass();
 
     ASSERT_TRUE(runLua(
-        "local obj = Counter()\n"
+        "local obj = Counter.new()\n"
         "local f = coroutine.wrap(Counter.peek)\n"
         "first  = f(obj)\n"
         "second = f()\n"
@@ -1141,7 +1141,7 @@ TEST_F(CppCoroutineClassTests, MemberCoroutine_MultipleYields)
         .endClass();
 
     ASSERT_TRUE(runLua(
-        "local obj = Counter()\n"
+        "local obj = Counter.new()\n"
         "local f = coroutine.wrap(Counter.count)\n"
         "a = f(obj)\n"
         "b = f()\n"
@@ -1171,7 +1171,7 @@ TEST_F(CppCoroutineClassTests, MemberCoroutine_VoidReturn)
         .endClass();
 
     ASSERT_TRUE(runLua(
-        "local obj = Counter()\n"
+        "local obj = Counter.new()\n"
         "local f = coroutine.wrap(Counter.stamp)\n"
         "f(obj)\n"
         "result = obj.value\n"
@@ -1198,7 +1198,7 @@ TEST_F(CppCoroutineClassTests, MemberCoroutine_AbandonedNoLeak)
         .endClass();
 
     ASSERT_TRUE(runLua(
-        "local obj = Counter()\n"
+        "local obj = Counter.new()\n"
         "local f = coroutine.wrap(Counter.guarded)\n"
         "first = f(obj)\n"
     ));
@@ -1309,7 +1309,7 @@ TEST_F(CppCoroutineClassTests, MemberCoroutine_ExceptionOnFirstResume)
         .endClass();
 
     ASSERT_TRUE(runLua(
-        "local obj = Counter()\n"
+        "local obj = Counter.new()\n"
         "local ok, err = pcall(coroutine.wrap(Counter.boom), obj)\n"
         "success = ok\n"
         "errmsg  = err\n"
@@ -1334,7 +1334,7 @@ TEST_F(CppCoroutineClassTests, MemberCoroutine_ExceptionOnContinuation)
         .endClass();
 
     ASSERT_TRUE(runLua(
-        "local obj = Counter()\n"
+        "local obj = Counter.new()\n"
         "local f = coroutine.wrap(Counter.boom2)\n"
         "first = f(obj)\n"
         "local ok, err = pcall(f)\n"
@@ -1384,7 +1384,7 @@ TEST_F(CppCoroutineClassTests, MemberCoroutine_ResumeAfterDone)
         .endClass();
 
     ASSERT_TRUE(runLua(
-        "local obj = Counter()\n"
+        "local obj = Counter.new()\n"
         "local f = coroutine.wrap(Counter.once)\n"
         "result = f(obj)\n"   // finishes immediately
         "local ok, err = pcall(f)\n"  // second resume on dead coroutine

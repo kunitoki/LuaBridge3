@@ -130,7 +130,7 @@ TEST_F(IssueTests, Issue178)
         .addProperty("x", &Vector::x, &Vector::x)
         .endClass();
 
-    runLua("result = WideVector (0, 1, 2, 3).x");
+    runLua("result = WideVector.new(0, 1, 2, 3).x");
 
     ASSERT_TRUE(result().isNumber());
     ASSERT_EQ(3.f, result<float>());
@@ -244,7 +244,7 @@ TEST_F(IssueTests, IssueMainThread)
         end
     )";
 
-    const char* threadSource = "c = SomeClass()";
+    const char* threadSource = "c = SomeClass.new()";
 
     lua_State* thread = lua_newthread(L);
 

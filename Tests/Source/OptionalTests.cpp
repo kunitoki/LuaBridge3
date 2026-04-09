@@ -234,12 +234,12 @@ TEST_F(OptionalTests, PassFromLua)
         .addFunction("processValue", &processValue)
         .addFunction("processPointer", &processPointer);
 
-    testPassFromLua<Data>(*this, "processValue", "Data(-1)", Data(-1));
-    testPassFromLua<Data>(*this, "processValue", "Data(2)", Data(2));
+    testPassFromLua<Data>(*this, "processValue", "Data.new(-1)", Data(-1));
+    testPassFromLua<Data>(*this, "processValue", "Data.new(2)", Data(2));
     testPassFromLua<Data>(*this, "processValue", "nil", std::nullopt);
 
-    testPassFromLua<Data>(*this, "processPointer", "Data(-1)", Data(-1));
-    testPassFromLua<Data>(*this, "processPointer", "Data(2)", Data(2));
+    testPassFromLua<Data>(*this, "processPointer", "Data.new(-1)", Data(-1));
+    testPassFromLua<Data>(*this, "processPointer", "Data.new(2)", Data(2));
     testPassFromLua<Data>(*this, "processPointer", "nil", std::nullopt);
 }
 
@@ -311,13 +311,13 @@ TEST_F(OptionalTests, FromCppApi)
         .endClass();
 
     resetResult();
-    runLua("result = OptionalClass () result:testOptionalAsArg (1337)");
+    runLua("result = OptionalClass.new() result:testOptionalAsArg (1337)");
 
     EXPECT_TRUE(result().isUserdata());
     EXPECT_EQ(1337, *result<OptionalClass>().x);
 
     resetResult();
-    runLua("x = OptionalClass () result = x:testOptionalAsReturn ()");
+    runLua("x = OptionalClass.new() result = x:testOptionalAsReturn ()");
 
     EXPECT_FALSE(result().isNil());
     EXPECT_EQ("abcdef", *result<std::optional<std::string>>());

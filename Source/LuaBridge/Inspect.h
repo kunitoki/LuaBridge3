@@ -468,7 +468,7 @@ inline ClassInspectInfo inspectClassFromStaticTable(lua_State* L, int stIdx)
                 {
                     MemberInfo m;
                     m.name = key;
-                    if (key == "__call")
+                    if (key == "new")
                         m.kind = MemberKind::Constructor;
                     else if (key.size() >= 2 && key[0] == '_' && key[1] == '_')
                         m.kind = MemberKind::Metamethod;
@@ -1008,7 +1008,7 @@ public:
         case MemberKind::Constructor:
         {
             // Represent the constructor as @overload annotations before the local declaration.
-            // LuaBridge constructors are called as ClassName(args), not ClassName.new(args).
+            // LuaBridge constructors are called as ClassName.new(args).
             std::string qname = qualifiedName(cls.name);
             for (const auto& ov : m.overloads)
                 out_ << "---@overload fun(" << overloadParams(ov.params) << "): " << qname << "\n";
@@ -1202,11 +1202,11 @@ public:
         switch (m.kind)
         {
         case MemberKind::Constructor:
-            // LuaBridge constructors are called as ClassName(args) via __call metamethod.
-            out_ << "setmetatable(" << qname << ", {__call = function(t";
+            // LuaBridge constructors are called as ClassName.new(args).
+            out_ << qname << ".new = function(";
             if (!m.overloads[0].params.empty())
-                out_ << ", " << paramNames(m.overloads[0].params);
-            out_ << ")\n    return setmetatable({}, t)\nend})\n\n";
+                out_ << paramNames(m.overloads[0].params);
+            out_ << ") end\n\n";
             break;
 
         case MemberKind::Method:

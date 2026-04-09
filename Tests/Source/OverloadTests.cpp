@@ -230,43 +230,43 @@ TEST_F(OverloadTests, BaseAndDerivedClassOverloads)
             [](Derived* d) { return d->test5(); },
             [](Base* b) { return b->test3(); });
 
-    runLua("b = Base(); result = b:testx ()");
+    runLua("b = Base.new(); result = b:testx ()");
     ASSERT_TRUE(result().isNumber());
     EXPECT_EQ(1, result<int>());
 
-    runLua("b = Base(); result = b:testx (1)");
+    runLua("b = Base.new(); result = b:testx (1)");
     ASSERT_TRUE(result().isNumber());
     EXPECT_EQ(2, result<int>());
 
-    runLua("b = Derived(); result = b:testx ()");
+    runLua("b = Derived.new(); result = b:testx ()");
     ASSERT_TRUE(result().isNumber());
     EXPECT_EQ(5, result<int>());
 
-    runLua("b = Derived(); result = b:testx (1)");
+    runLua("b = Derived.new(); result = b:testx (1)");
     ASSERT_TRUE(result().isNumber());
     EXPECT_EQ(6, result<int>());
 
-    runLua("b = Derived(); result = b:testy ()");
+    runLua("b = Derived.new(); result = b:testy ()");
     ASSERT_TRUE(result().isNumber());
     EXPECT_EQ(3, result<int>());
 
-    runLua("b = Derived(); result = b:testy (1)");
+    runLua("b = Derived.new(); result = b:testy (1)");
     ASSERT_TRUE(result().isNumber());
     EXPECT_EQ(4, result<int>());
 
-    runLua("b = Base(); result = testBase (b)");
+    runLua("b = Base.new(); result = testBase (b)");
     ASSERT_TRUE(result().isNumber());
     EXPECT_EQ(3, result<int>());
 
-    runLua("b = Derived(); result = testBase (b)");
+    runLua("b = Derived.new(); result = testBase (b)");
     ASSERT_TRUE(result().isNumber());
     EXPECT_EQ(3, result<int>());
 
-    runLua("b = Base(); result = testDerived (b)");
+    runLua("b = Base.new(); result = testDerived (b)");
     ASSERT_TRUE(result().isNumber());
     EXPECT_EQ(3, result<int>());
 
-    runLua("b = Derived(); result = testDerived (b)");
+    runLua("b = Derived.new(); result = testDerived (b)");
     ASSERT_TRUE(result().isNumber());
     EXPECT_EQ(7, result<int>());
 }
@@ -519,12 +519,12 @@ TEST_F(OverloadTests, OverloadOperatorClass)
                 luabridge::overload<int>(&X::operator*))
         .endClass();
 
-    runLua("x1 = X(2); x2 = X(3); result = x1 * x2");
+    runLua("x1 = X.new(2); x2 = X.new(3); result = x1 * x2");
     ASSERT_TRUE(result().isUserdata());
     auto result1 = result<X>();
     EXPECT_EQ(6, result1.value);
 
-    runLua("x1 = X(2); result = x1 * 3");
+    runLua("x1 = X.new(2); result = x1 * 3");
     ASSERT_TRUE(result().isUserdata());
     auto result2 = result<X>();
     EXPECT_EQ(6, result2.value);
@@ -872,32 +872,32 @@ TEST_F(OverloadTests, ConstructorOverloading)
             .addProperty("value", &X::value)
         .endClass();
 
-    runLua("x = X(1); result = x.value");
+    runLua("x = X.new(1); result = x.value");
     ASSERT_TRUE(result().isNumber());
     EXPECT_EQ(1, result<int>());
 
-    runLua("x = X(1, 10); result = x.value");
+    runLua("x = X.new(1, 10); result = x.value");
     ASSERT_TRUE(result().isNumber());
     EXPECT_EQ(11, result<int>());
 
 #if LUABRIDGE_HAS_EXCEPTIONS
-    ASSERT_ANY_THROW(runLua("x = X(1, 10, 100); result = x.value"));
+    ASSERT_ANY_THROW(runLua("x = X.new(1, 10, 100); result = x.value"));
 #else
-    ASSERT_FALSE(runLua("x = X(1, 10, 100); result = x.value"));
+    ASSERT_FALSE(runLua("x = X.new(1, 10, 100); result = x.value"));
 #endif
 
-    runLua("y = Y(1); result = y.value");
+    runLua("y = Y.new(1); result = y.value");
     ASSERT_TRUE(result().isNumber());
     EXPECT_EQ(1, result<int>());
 
-    runLua("y = Y(1, 10); result = y.value");
+    runLua("y = Y.new(1, 10); result = y.value");
     ASSERT_TRUE(result().isNumber());
     EXPECT_EQ(11, result<int>());
 
 #if LUABRIDGE_HAS_EXCEPTIONS
-    ASSERT_ANY_THROW(runLua("y = Y(1, 10, 100); result = y.value"));
+    ASSERT_ANY_THROW(runLua("y = Y.new(1, 10, 100); result = y.value"));
 #else
-    ASSERT_FALSE(runLua("y = Y(1, 10, 100); result = y.value"));
+    ASSERT_FALSE(runLua("y = Y.new(1, 10, 100); result = y.value"));
 #endif
 }
 
