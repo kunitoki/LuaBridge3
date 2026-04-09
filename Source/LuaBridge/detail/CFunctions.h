@@ -1981,8 +1981,7 @@ bool overload_check_args_impl(lua_State* L, int start, std::index_sequence<I...>
 template <class ArgsPack>
 bool overload_check_args(lua_State* L, int start)
 {
-    return overload_check_args_impl<ArgsPack>(L, start,
-        std::make_index_sequence<std::tuple_size_v<ArgsPack>>{});
+    return overload_check_args_impl<ArgsPack>(L, start, std::make_index_sequence<std::tuple_size_v<ArgsPack>>{});
 }
 
 /**

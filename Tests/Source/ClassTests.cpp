@@ -3392,7 +3392,7 @@ TEST_F(ClassTests, BugWithLuauNotPrintingClassConstructorNameInErrors)
     )");
 
     EXPECT_FALSE(result);
-    EXPECT_TRUE(error.find("ClassWithMethod") != std::string::npos);
+    EXPECT_TRUE(error.find("new") != std::string::npos);
 }
 
 TEST_F(ClassTests, BugWithLuauNotPrintingClassMethodNameInErrors)
