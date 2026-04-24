@@ -1187,6 +1187,17 @@ TEST_F(LuaRefTests, CallReturningTupleSuccess)
     EXPECT_EQ("hello", std::get<1>(*r));
 }
 
+TEST_F(LuaRefTests, CallReturningTupleWithLuaRef)
+{
+    runLua("result = function() return 1, {2, 'three'} end");
+    auto r = result().call<std::tuple<int, luabridge::LuaRef>>();
+    ASSERT_TRUE(r);
+    EXPECT_EQ(1, std::get<0>(*r));
+    ASSERT_TRUE(std::get<1>(*r).isTable());
+    EXPECT_EQ(2, *std::get<1>(*r)[1].cast<int>());
+    EXPECT_EQ("three", *std::get<1>(*r)[2].cast<std::string>());
+}
+
 TEST_F(LuaRefTests, CallReturningTupleWrongType)
 {
     // Exercises the error path of decodeTupleResult (Invoke.h:58-59):
