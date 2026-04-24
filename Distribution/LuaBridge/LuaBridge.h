@@ -10461,22 +10461,20 @@ bool is_handler_valid(const F& f) noexcept
 template <class Tuple, std::size_t... Indices>
 TypeResult<Tuple> decode_tuple_result(lua_State* L, int first_result_index, std::index_sequence<Indices...>)
 {
-    Tuple value;
+    auto results = std::make_tuple(
+        Stack<std::tuple_element_t<Indices, Tuple>>::get(L, first_result_index + static_cast<int>(Indices))...);
+
     std::error_code ec;
 
     const bool ok =
         (([&]()
         {
-            using ElementType = std::tuple_element_t<Indices, Tuple>;
-
-            auto element = Stack<ElementType>::get(L, first_result_index + static_cast<int>(Indices));
+            const auto& element = std::get<Indices>(results);
             if (! element)
             {
                 ec = element.error();
                 return false;
             }
-
-            std::get<Indices>(value) = std::move(*element);
             return true;
         }())
             && ...);
@@ -10484,7 +10482,7 @@ TypeResult<Tuple> decode_tuple_result(lua_State* L, int first_result_index, std:
     if (! ok)
         return ec;
 
-    return value;
+    return Tuple{ std::move(*std::get<Indices>(results))... };
 }
 
 template <class R>
