@@ -36,6 +36,10 @@
 #ifndef _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS
 #endif
+#elif __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpragmas"
+#pragma GCC diagnostic ignored "-Wunused-variable"
 #endif
 
 // Ast
@@ -83,6 +87,8 @@
 
 #if _MSC_VER
 #pragma pop_macro("_CRT_SECURE_NO_WARNINGS")
+#elif __GNUC__
+#pragma GCC diagnostic pop
 #endif
 
 #else

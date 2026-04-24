@@ -24,6 +24,7 @@
 #include "detail/Expected.h"
 #include "detail/FlagSet.h"
 #include "detail/FuncTraits.h"
+#include "detail/FunctionHints.h"
 #include "detail/Globals.h"
 #include "detail/Invoke.h"
 #include "detail/Iterator.h"

@@ -22,8 +22,8 @@ plot:
     uv run --with-requirements Benchmarks/requirements.txt Benchmarks/plot_benchmarks.py --input Build/*.json --output Images/benchmarks.png
 
 clean:
-    rm -rf Build
+    -rm -rf Build/
+    rm -rf Build/
 
 amalgamate:
-    uv run amalgamate.py
-
+    uv run Tools/amalgamate.py

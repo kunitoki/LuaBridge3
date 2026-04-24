@@ -148,6 +148,17 @@ template <class T, auto = typeName<T>().find_first_of('.')>
 
 //=================================================================================================
 /**
+ * @brief The key of a property-type table in a class/namespace metatable.
+ *
+ * Maps property names to their C++ return type strings (for inspection/IDE tooling).
+ */
+[[nodiscard]] inline const void* getPropTypeKey() noexcept
+{
+    return reinterpret_cast<void*>(0x9e7);
+}
+
+//=================================================================================================
+/**
  * @brief The key of a cast offset table in a derived class metatable.
  *
  * Maps base class registry keys to byte offsets for pointer adjustment when converting

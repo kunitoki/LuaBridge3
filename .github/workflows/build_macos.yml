@@ -50,16 +50,20 @@ jobs:
       run: |
         cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target \
           LuaBridgeTests${{ matrix.lua.suffix }} \
+          LuaBridgeTests${{ matrix.lua.suffix }}Reflect \
           LuaBridgeTests${{ matrix.lua.suffix }}LuaC \
           LuaBridgeTests${{ matrix.lua.suffix }}Noexcept \
+          LuaBridgeTests${{ matrix.lua.suffix }}ReflectNoexcept \
           LuaBridgeTests${{ matrix.lua.suffix }}LuaCNoexcept
 
     - name: Test Lua ${{ matrix.lua.version }}
       working-directory: ${{runner.workspace}}/build/Tests
       run: |
         ./LuaBridgeTests${{ matrix.lua.suffix }}
+        ./LuaBridgeTests${{ matrix.lua.suffix }}Reflect
         ./LuaBridgeTests${{ matrix.lua.suffix }}LuaC
         ./LuaBridgeTests${{ matrix.lua.suffix }}Noexcept
+        ./LuaBridgeTests${{ matrix.lua.suffix }}ReflectNoexcept
         ./LuaBridgeTests${{ matrix.lua.suffix }}LuaCNoexcept
 
   luajit:
@@ -82,13 +86,17 @@ jobs:
       run: |
         cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target \
           LuaBridgeTestsLuaJIT \
-          LuaBridgeTestsLuaJITNoexcept
+          LuaBridgeTestsLuaJITReflect \
+          LuaBridgeTestsLuaJITNoexcept \
+          LuaBridgeTestsLuaJITReflectNoexcept
 
     - name: Test LuaJIT
       working-directory: ${{runner.workspace}}/build/Tests
       run: |
         ./LuaBridgeTestsLuaJIT
+        ./LuaBridgeTestsLuaJITReflect
         ./LuaBridgeTestsLuaJITNoexcept
+        ./LuaBridgeTestsLuaJITReflectNoexcept
 
   luau:
     runs-on: macos-latest
@@ -107,11 +115,16 @@ jobs:
 
     - name: Build Luau
       working-directory: ${{runner.workspace}}/build
-      run: cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target LuaBridgeTestsLuau
+      run: |
+        cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target \
+          LuaBridgeTestsLuau \
+          LuaBridgeTestsLuauReflect
 
     - name: Test Luau
       working-directory: ${{runner.workspace}}/build/Tests
-      run: ./LuaBridgeTestsLuau
+      run: |
+        ./LuaBridgeTestsLuau
+        ./LuaBridgeTestsLuauReflect
 
   ravi:
     runs-on: macos-latest
@@ -130,8 +143,13 @@ jobs:
 
     - name: Build Ravi
       working-directory: ${{runner.workspace}}/build
-      run: cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target LuaBridgeTestsRavi
+      run: |
+        cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target \
+          LuaBridgeTestsRavi \
+          LuaBridgeTestsRaviReflect
 
     - name: Test Ravi
       working-directory: ${{runner.workspace}}/build/Tests
-      run: ./LuaBridgeTestsRavi
+      run: |
+        ./LuaBridgeTestsRavi
+        ./LuaBridgeTestsRaviReflect

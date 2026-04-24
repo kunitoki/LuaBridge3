@@ -709,6 +709,9 @@ class Namespace : public detail::Registrar
             detail::push_property_readonly(L, name); // Stack: co, cl, st, function
             detail::add_property_setter(L, name, -2); // Stack: co, cl, st
 
+            using RetType = detail::getter_return_t<Getter>;
+            detail::add_property_type(L, name, std::string(detail::typeName<RetType>()).c_str(), -1); // st
+
             return *this;
         }
 
@@ -723,6 +726,9 @@ class Namespace : public detail::Registrar
 
             detail::push_property_setter(L, std::move(set), name); // Stack: co, cl, st, function
             detail::add_property_setter(L, name, -2); // Stack: co, cl, st
+
+            using RetType = detail::getter_return_t<Getter>;
+            detail::add_property_type(L, name, std::string(detail::typeName<RetType>()).c_str(), -1); // st
 
             return *this;
         }
@@ -745,11 +751,41 @@ class Namespace : public detail::Registrar
 
             if constexpr (sizeof...(Functions) == 1)
             {
+#if LUABRIDGE_ENABLE_REFLECT
+                // Embed 1-entry OverloadSet as upvalue[1] of the actual function closure so
+                // metadata is accessible at runtime without a wrapper.
                 ([&]
                 {
-                    detail::push_function(L, std::move(functions), name);
+                    if constexpr (!detail::is_any_cfunction_pointer_v<Functions>)
+                    {
+                        auto* overload_set_unaligned = lua_newuserdata_aligned<detail::OverloadSet>(L);
+                        auto* overload_set = align<detail::OverloadSet>(overload_set_unaligned);
+
+                        detail::OverloadEntry entry;
+                        using ArgsPack = detail::function_arguments_t<Functions>;
+                        entry.arity = -1;
+                        entry.checker = nullptr;
+                        entry.returnType = std::string(detail::typeName<std::remove_cvref_t<detail::function_result_t<Functions>>>());
+                        entry.paramTypes = detail::reflect_param_type_names<ArgsPack>();
+                        if constexpr (detail::is_function_with_hints_v<Functions>)
+                            entry.paramHints = functions.hints;
+                        overload_set->entries.push_back(std::move(entry));
+
+                        detail::push_function_reflect(L, detail::get_underlying(std::move(functions)), name);
+                    }
+                    else
+                    {
+                        detail::push_function(L, detail::get_underlying(std::move(functions)), name);
+                    }
 
                 } (), ...);
+#else
+                ([&]
+                {
+                    detail::push_function(L, detail::get_underlying(std::move(functions)), name);
+
+                } (), ...);
+#endif
             }
             else
             {
@@ -770,6 +806,12 @@ class Namespace : public detail::Registrar
                         using ArgsPack = detail::function_arguments_t<Functions>;
                         entry.arity = static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>);
                         entry.checker = &detail::overload_type_checker<ArgsPack>;
+#if LUABRIDGE_ENABLE_REFLECT
+                        entry.returnType = std::string(detail::typeName<std::remove_cvref_t<detail::function_result_t<Functions>>>());
+                        entry.paramTypes = detail::reflect_param_type_names<ArgsPack>();
+                        if constexpr (detail::is_function_with_hints_v<Functions>)
+                            entry.paramHints = functions.hints;
+#endif
                     }
                     overload_set->entries.push_back(entry);
 
@@ -782,7 +824,7 @@ class Namespace : public detail::Registrar
 
                 ([&]
                 {
-                    detail::push_function(L, std::move(functions), name);
+                    detail::push_function(L, detail::get_underlying(std::move(functions)), name);
                     lua_rawseti(L, -2, idx++);
 
                 } (), ...);
@@ -890,6 +932,9 @@ class Namespace : public detail::Registrar
             detail::push_property_readonly(L, name); // Stack: co, cl, st, function
             detail::add_property_setter(L, name, -3); // Stack: co, cl, st
 
+            using RetType = detail::getter_return_t<Getter>;
+            detail::add_property_type(L, name, std::string(detail::typeName<RetType>()).c_str(), -2); // cl
+
             return *this;
         }
 
@@ -906,6 +951,9 @@ class Namespace : public detail::Registrar
 
             detail::push_class_property_setter<T>(L, std::move(setter), name); // Stack: co, cl, st, setter
             detail::add_property_setter(L, name, -3); // Stack: co, cl, st
+
+            using RetType = detail::getter_return_t<Getter>;
+            detail::add_property_type(L, name, std::string(detail::typeName<RetType>()).c_str(), -2); // cl
 
             return *this;
         }
@@ -934,11 +982,56 @@ class Namespace : public detail::Registrar
 
             if constexpr (sizeof...(Functions) == 1)
             {
+#if LUABRIDGE_ENABLE_REFLECT
+                // Embed 1-entry OverloadSet as upvalue[1] of the actual function closure so
+                // metadata is accessible at runtime without a wrapper (avoiding C-to-C call chains
+                // that break luaL_argerror function-name resolution).
                 ([&]
                 {
-                    detail::push_member_function<T>(L, std::move(functions), name);
+                    if constexpr (!detail::is_any_cfunction_pointer_v<Functions>)
+                    {
+                        auto* overload_set_unaligned = lua_newuserdata_aligned<detail::OverloadSet>(L);
+                        auto* overload_set = align<detail::OverloadSet>(overload_set_unaligned);
+
+                        detail::OverloadEntry entry;
+                        if constexpr (detail::is_proxy_member_function_v<T, Functions>)
+                        {
+                            using ArgsPack = detail::remove_first_type_t<detail::function_arguments_t<Functions>>;
+                            entry.arity = -1;
+                            entry.checker = nullptr;
+                            entry.returnType = std::string(detail::typeName<std::remove_cvref_t<detail::function_result_t<Functions>>>());
+                            entry.paramTypes = detail::reflect_param_type_names<ArgsPack>();
+                        }
+                        else
+                        {
+                            using ArgsPack = detail::function_arguments_t<Functions>;
+                            entry.arity = -1;
+                            entry.checker = nullptr;
+                            entry.returnType = std::string(detail::typeName<std::remove_cvref_t<detail::function_result_t<Functions>>>());
+                            entry.paramTypes = detail::reflect_param_type_names<ArgsPack>();
+                        }
+                        if constexpr (detail::is_function_with_hints_v<Functions>)
+                            entry.paramHints = functions.hints;
+                        overload_set->entries.push_back(std::move(entry));
+
+                        // OverloadSet is now at stack top (upvalue[1]).
+                        // push_member_function_reflect pushes function data as upvalue[2].
+                        detail::push_member_function_reflect<T>(L, detail::get_underlying(std::move(functions)), name);
+                    }
+                    else
+                    {
+                        // Bare cfunction: no type metadata to embed; register directly.
+                        detail::push_member_function<T>(L, detail::get_underlying(std::move(functions)), name);
+                    }
 
                 } (), ...);
+#else
+                ([&]
+                {
+                    detail::push_member_function<T>(L, detail::get_underlying(std::move(functions)), name);
+
+                } (), ...);
+#endif
 
                 if constexpr (detail::const_functions_count<T, Functions...> == 1)
                 {
@@ -976,12 +1069,24 @@ class Namespace : public detail::Registrar
                             using ArgsPack = detail::remove_first_type_t<detail::function_arguments_t<Functions>>;
                             entry.arity = static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>);
                             entry.checker = &detail::overload_type_checker<ArgsPack>;
+#if LUABRIDGE_ENABLE_REFLECT
+                            entry.returnType = std::string(detail::typeName<std::remove_cvref_t<detail::function_result_t<Functions>>>());
+                            entry.paramTypes = detail::reflect_param_type_names<ArgsPack>();
+                            if constexpr (detail::is_function_with_hints_v<Functions>)
+                                entry.paramHints = functions.hints;
+#endif
                         }
                         else
                         {
                             using ArgsPack = detail::function_arguments_t<Functions>;
                             entry.arity = static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>);
                             entry.checker = &detail::overload_type_checker<ArgsPack>;
+#if LUABRIDGE_ENABLE_REFLECT
+                            entry.returnType = std::string(detail::typeName<std::remove_cvref_t<detail::function_result_t<Functions>>>());
+                            entry.paramTypes = detail::reflect_param_type_names<ArgsPack>();
+                            if constexpr (detail::is_function_with_hints_v<Functions>)
+                                entry.paramHints = functions.hints;
+#endif
                         }
                         overload_set_const->entries.push_back(entry);
 
@@ -999,7 +1104,7 @@ class Namespace : public detail::Registrar
                         if (!detail::is_const_function<T, Functions>)
                             return;
 
-                        detail::push_member_function<T>(L, std::move(functions), name);
+                        detail::push_member_function<T>(L, detail::get_underlying(std::move(functions)), name);
                         lua_rawseti(L, -2, idx++);
 
                     } (), ...);
@@ -1033,12 +1138,24 @@ class Namespace : public detail::Registrar
                             using ArgsPack = detail::remove_first_type_t<detail::function_arguments_t<Functions>>;
                             entry.arity = static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>);
                             entry.checker = &detail::overload_type_checker<ArgsPack>;
+#if LUABRIDGE_ENABLE_REFLECT
+                            entry.returnType = std::string(detail::typeName<std::remove_cvref_t<detail::function_result_t<Functions>>>());
+                            entry.paramTypes = detail::reflect_param_type_names<ArgsPack>();
+                            if constexpr (detail::is_function_with_hints_v<Functions>)
+                                entry.paramHints = functions.hints;
+#endif
                         }
                         else
                         {
                             using ArgsPack = detail::function_arguments_t<Functions>;
                             entry.arity = static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>);
                             entry.checker = &detail::overload_type_checker<ArgsPack>;
+#if LUABRIDGE_ENABLE_REFLECT
+                            entry.returnType = std::string(detail::typeName<std::remove_cvref_t<detail::function_result_t<Functions>>>());
+                            entry.paramTypes = detail::reflect_param_type_names<ArgsPack>();
+                            if constexpr (detail::is_function_with_hints_v<Functions>)
+                                entry.paramHints = functions.hints;
+#endif
                         }
                         overload_set_nonconst->entries.push_back(entry);
 
@@ -1056,7 +1173,7 @@ class Namespace : public detail::Registrar
                         if (detail::is_const_function<T, Functions>)
                             return;
 
-                        detail::push_member_function<T>(L, std::move(functions), name);
+                        detail::push_member_function<T>(L, detail::get_underlying(std::move(functions)), name);
                         lua_rawseti(L, -2, idx++);
 
                     } (), ...);
@@ -1158,11 +1275,35 @@ class Namespace : public detail::Registrar
 
             if constexpr (sizeof...(Functions) == 1)
             {
+#if LUABRIDGE_ENABLE_REFLECT
+                // Embed 1-entry OverloadSet as upvalue[1] of the constructor closure.
+                // constructor_placement_proxy uses no upvalues internally, so upvalue[1]
+                // is only there for getOverloadInfos() to read metadata.
+                ([&]
+                {
+                    using ArgsPack = detail::function_arguments_t<Functions>;
+
+                    auto* overload_set_unaligned = lua_newuserdata_aligned<detail::OverloadSet>(L);
+                    auto* overload_set = align<detail::OverloadSet>(overload_set_unaligned);
+
+                    detail::OverloadEntry entry;
+                    entry.arity = -1;
+                    entry.checker = nullptr;
+                    entry.returnType = std::string(detail::typeName<T>());
+                    entry.paramTypes = detail::reflect_param_type_names<ArgsPack>();
+                    overload_set->entries.push_back(std::move(entry));
+
+                    // OverloadSet is at stack top (upvalue[1]); constructor_placement_proxy ignores it.
+                    lua_pushcclosure_x(L, &detail::constructor_placement_proxy<T, ArgsPack>, className, 1);
+
+                } (), ...);
+#else
                 ([&]
                 {
                     lua_pushcclosure_x(L, &detail::constructor_placement_proxy<T, detail::function_arguments_t<Functions>>, className, 0);
 
                 } (), ...);
+#endif
             }
             else
             {
@@ -1176,6 +1317,10 @@ class Namespace : public detail::Registrar
                     detail::OverloadEntry entry;
                     entry.arity = static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>);
                     entry.checker = &detail::overload_type_checker<ArgsPack>;
+#if LUABRIDGE_ENABLE_REFLECT
+                    entry.returnType = std::string(detail::typeName<T>());
+                    entry.paramTypes = detail::reflect_param_type_names<ArgsPack>();
+#endif
                     overload_set->entries.push_back(entry);
 
                 } (), ...);
@@ -1222,11 +1367,33 @@ class Namespace : public detail::Registrar
             {
                 ([&]
                 {
-                    using F = detail::constructor_forwarder<T, Functions>;
+                    using InnerF = detail::unwrap_fn_type_t<Functions>;
+                    using F = detail::constructor_forwarder<T, InnerF>;
 
-                    lua_newuserdata_aligned<F>(L, F(std::move(functions))); // Stack: co, cl, st, upvalue
+#if LUABRIDGE_ENABLE_REFLECT
+                    // Embed 1-entry OverloadSet as upvalue[1] of the constructor closure so
+                    // metadata is accessible at runtime without a wrapper.
+                    {
+                        auto* overload_set_unaligned = lua_newuserdata_aligned<detail::OverloadSet>(L);
+                        auto* overload_set = align<detail::OverloadSet>(overload_set_unaligned);
+                        // skip void* first arg (placement new destination, not a Lua argument)
+                        using ArgsPack = detail::remove_first_type_t<detail::function_arguments_t<InnerF>>;
+                        detail::OverloadEntry entry;
+                        entry.arity = -1;
+                        entry.checker = nullptr;
+                        entry.returnType = std::string(detail::typeName<T>());
+                        entry.paramTypes = detail::reflect_param_type_names<ArgsPack>();
+                        if constexpr (detail::is_function_with_hints_v<Functions>)
+                            entry.paramHints = functions.hints;
+                        overload_set->entries.push_back(std::move(entry));
+                    }
+                    // OverloadSet is now at stack top (upvalue[1]).
+                    lua_newuserdata_aligned<F>(L, F(detail::get_underlying(std::move(functions)))); // upvalue[2]
+                    lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F, 2>, className, 2);
+#else
+                    lua_newuserdata_aligned<F>(L, F(detail::get_underlying(std::move(functions)))); // Stack: co, cl, st, upvalue
                     lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, className, 1); // Stack: co, cl, st, function
-
+#endif
                 } (), ...);
             }
             else
@@ -1237,8 +1404,10 @@ class Namespace : public detail::Registrar
 
                 ([&]
                 {
+                    using InnerF = detail::unwrap_fn_type_t<Functions>;
+
                     detail::OverloadEntry entry;
-                    if constexpr (detail::is_any_cfunction_pointer_v<Functions>)
+                    if constexpr (detail::is_any_cfunction_pointer_v<InnerF>)
                     {
                         entry.arity = -1;
                         entry.checker = nullptr;
@@ -1246,9 +1415,15 @@ class Namespace : public detail::Registrar
                     else
                     {
                         // skip void* first arg (placement new destination, not a Lua argument)
-                        using ArgsPack = detail::remove_first_type_t<detail::function_arguments_t<Functions>>;
-                        entry.arity = static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>) - 1;
+                        using ArgsPack = detail::remove_first_type_t<detail::function_arguments_t<InnerF>>;
+                        entry.arity = static_cast<int>(detail::function_arity_excluding_v<InnerF, lua_State*>) - 1;
                         entry.checker = &detail::overload_type_checker<ArgsPack>;
+#if LUABRIDGE_ENABLE_REFLECT
+                        entry.returnType = std::string(detail::typeName<T>());
+                        entry.paramTypes = detail::reflect_param_type_names<ArgsPack>();
+                        if constexpr (detail::is_function_with_hints_v<Functions>)
+                            entry.paramHints = functions.hints;
+#endif
                     }
                     overload_set->entries.push_back(entry);
 
@@ -1261,9 +1436,10 @@ class Namespace : public detail::Registrar
 
                 ([&]
                 {
-                    using F = detail::constructor_forwarder<T, Functions>;
+                    using InnerF = detail::unwrap_fn_type_t<Functions>;
+                    using F = detail::constructor_forwarder<T, InnerF>;
 
-                    lua_newuserdata_aligned<F>(L, F(std::move(functions)));
+                    lua_newuserdata_aligned<F>(L, F(detail::get_underlying(std::move(functions))));
                     lua_pushcclosure_x(L, &detail::invoke_proxy_constructor<F>, className, 1);
                     lua_rawseti(L, -2, idx++);
 
@@ -1870,6 +2046,9 @@ public:
         detail::push_property_readonly(L, name); // Stack: ns, function
         detail::add_property_setter(L, name, -2); // Stack: ns
 
+        using RetType = detail::getter_return_t<Getter>;
+        detail::add_property_type(L, name, std::string(detail::typeName<RetType>()).c_str(), -1); // ns
+
         return *this;
     }
 
@@ -1901,6 +2080,9 @@ public:
         detail::push_property_setter(L, std::move(setter), name); // Stack: ns, setter
         detail::add_property_setter(L, name, -2); // Stack: ns
 
+        using RetType = detail::getter_return_t<Getter>;
+        detail::add_property_type(L, name, std::string(detail::typeName<RetType>()).c_str(), -1); // ns
+
         return *this;
     }
 
@@ -1922,11 +2104,45 @@ public:
 
         if constexpr (sizeof...(Functions) == 1)
         {
+#if LUABRIDGE_ENABLE_REFLECT
+            // Embed 1-entry OverloadSet as upvalue[1] of the actual function closure so that
+            // metadata is accessible at runtime without a wrapper (avoiding C-to-C call chains
+            // that break luaL_argerror function-name resolution).
             ([&]
             {
-                detail::push_function(L, std::move(functions), name);
+                if constexpr (!detail::is_any_cfunction_pointer_v<Functions>)
+                {
+                    auto* overload_set_unaligned = lua_newuserdata_aligned<detail::OverloadSet>(L);
+                    auto* overload_set = align<detail::OverloadSet>(overload_set_unaligned);
+
+                    detail::OverloadEntry entry;
+                    using ArgsPack = detail::function_arguments_t<Functions>;
+                    entry.arity = -1; // single overload: arity check disabled
+                    entry.checker = nullptr; // single overload: no type dispatch needed
+                    entry.returnType = std::string(detail::typeName<std::remove_cvref_t<detail::function_result_t<Functions>>>());
+                    entry.paramTypes = detail::reflect_param_type_names<ArgsPack>();
+                    if constexpr (detail::is_function_with_hints_v<Functions>)
+                        entry.paramHints = functions.hints;
+                    overload_set->entries.push_back(std::move(entry));
+
+                    // OverloadSet is now at stack top (upvalue[1]).
+                    // push_function_reflect pushes function data as upvalue[2] and creates the closure.
+                    detail::push_function_reflect(L, detail::get_underlying(std::move(functions)), name);
+                }
+                else
+                {
+                    // Bare cfunction: no type metadata to embed; register directly.
+                    detail::push_function(L, detail::get_underlying(std::move(functions)), name);
+                }
 
             } (), ...);
+#else
+            ([&]
+            {
+                detail::push_function(L, detail::get_underlying(std::move(functions)), name);
+
+            } (), ...);
+#endif
         }
         else
         {
@@ -1947,6 +2163,12 @@ public:
                     using ArgsPack = detail::function_arguments_t<Functions>;
                     entry.arity = static_cast<int>(detail::function_arity_excluding_v<Functions, lua_State*>);
                     entry.checker = &detail::overload_type_checker<ArgsPack>;
+#if LUABRIDGE_ENABLE_REFLECT
+                    entry.returnType = std::string(detail::typeName<std::remove_cvref_t<detail::function_result_t<Functions>>>());
+                    entry.paramTypes = detail::reflect_param_type_names<ArgsPack>();
+                    if constexpr (detail::is_function_with_hints_v<Functions>)
+                        entry.paramHints = functions.hints;
+#endif
                 }
                 overload_set->entries.push_back(entry);
 
@@ -1959,7 +2181,7 @@ public:
 
             ([&]
             {
-                detail::push_function(L, std::move(functions), name);
+                detail::push_function(L, detail::get_underlying(std::move(functions)), name);
                 lua_rawseti(L, -2, idx++);
 
             } (), ...);

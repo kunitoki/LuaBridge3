@@ -19,7 +19,7 @@ set (LUABRIDGE_SANITIZE "" CACHE STRING "Sanitizer to enable (address, undefined
 
 add_subdirectory (Source)
 
-if (LUABRIDGE_TESTING)
+if (PROJECT_IS_TOP_LEVEL AND LUABRIDGE_TESTING)
     include (CTest)
     enable_testing()
     set (gtest_force_shared_crt ON CACHE BOOL "Use /MD and /MDd" FORCE)

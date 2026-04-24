@@ -33,6 +33,7 @@ Contents
     *   [2.4 - Property Member Proxies](#24---property-member-proxies)
     *   [2.5 - Function Member Proxies](#25---function-member-proxies)
     *   [2.5.1 - Function Overloading](#251---function-overloading)
+    *   [2.5.2 - Parameter Name Hints](#252---parameter-name-hints)
     *   [2.6 - Constructors](#26---constructors)
     *   [2.6.1 - Constructor Proxies](#261---constructor-proxies)
     *   [2.6.2 - Constructor Factories](#262---constructor-factories)
@@ -44,12 +45,6 @@ Contents
     *   [2.8 - Lua Stack](#28---lua-stack)
         *   [2.8.1 - Enums](#281---enums)
         *   [2.8.2 - lua_State](#282---lua_state)
-    *   [2.9 - C++20 Coroutine Integration](#29---c20-coroutine-integration)
-        *   [2.9.1 - CppCoroutine\<R\> - Generators callable from Lua](#291---cppcoroutiner----generators-callable-from-lua)
-        *   [2.9.2 - Accepting Arguments](#292---accepting-arguments)
-        *   [2.9.3 - Class Coroutines - Static and Member](#293---class-coroutines----static-and-member)
-        *   [2.9.4 - LuaCoroutine - Awaiting a Lua Thread from C++](#294---luacoroutine----awaiting-a-lua-thread-from-c)
-        *   [2.9.5 - Limitations](#295---limitations)
 
 *   [3 - Passing Objects](#3---passing-objects)
 
@@ -74,16 +69,31 @@ Contents
         *   [4.3.2 - Class LuaException](#432---class-luaexception)
         *   [4.3.3 - Calling with Error Handlers](#433---calling-with-error-handlers)
     *   [4.4 - Wrapping C++ Callables](#44---wrapping-c-callables)
+        *   [4.4.1 - LuaFunction\<Signature\>](#441---luafunctionsignature)
+    *   [4.5 - C++20 Coroutine Integration](#45---c20-coroutine-integration)
+        *   [4.5.1 - CppCoroutine\<R\> - Generators callable from Lua](#451---cppcoroutiner----generators-callable-from-lua)
+        *   [4.5.2 - Accepting Arguments](#452---accepting-arguments)
+        *   [4.5.3 - Class Coroutines - Static and Member](#453---class-coroutines----static-and-member)
+        *   [4.5.4 - LuaCoroutine - Awaiting a Lua Thread from C++](#454---luacoroutine----awaiting-a-lua-thread-from-c)
+        *   [4.5.5 - Limitations](#455---limitations)
 
 *   [5 - Security](#5---security)
 
-*   [6 - Configuration](#6---configuration)
+*   [6 - Inspecting Registrations](#6---inspecting-registrations)
 
-    * [6.1 - LUABRIDGE_SAFE_STACK_CHECKS](#61---luabridge-safe-stack-checks)
-    * [6.2 - LUABRIDGE_STRICT_STACK_CONVERSIONS](#62---luabridge-strict-stack-conversions)
-    * [6.3 - LUABRIDGE_SAFE_LUA_C_EXCEPTION_HANDLING](#63---luabridge-safe-c-exception-handling)
-    * [6.4 - LUABRIDGE_RAISE_UNREGISTERED_CLASS_USAGE](#64---luabridge-raise-unregistered-class-usage)
-    * [6.5 - LUABRIDGE_HAS_CXX20_COROUTINES / LUABRIDGE_DISABLE_CXX20_COROUTINES](#65---luabridge-has-cxx20-coroutines--luabridge-disable-cxx20-coroutines)
+    *   [6.1 - inspect\<T\> and inspectNamespace](#61---inspectT-and-inspectnamespace)
+    *   [6.2 - Visitor API](#62---visitor-api)
+    *   [6.3 - ConsoleVisitor](#63---consolevisitor)
+    *   [6.4 - Enabling Full Type Information (LUABRIDGE_ENABLE_REFLECT)](#64---enabling-full-type-information-luabridge_enable_reflect)
+
+*   [7 - Configuration](#7---configuration)
+
+    * [7.1 - LUABRIDGE_SAFE_STACK_CHECKS](#71---luabridge-safe-stack-checks)
+    * [7.2 - LUABRIDGE_STRICT_STACK_CONVERSIONS](#72---luabridge-strict-stack-conversions)
+    * [7.3 - LUABRIDGE_SAFE_LUA_C_EXCEPTION_HANDLING](#73---luabridge-safe-c-exception-handling)
+    * [7.4 - LUABRIDGE_RAISE_UNREGISTERED_CLASS_USAGE](#74---luabridge-raise-unregistered-class-usage)
+    * [7.5 - LUABRIDGE_HAS_CXX20_COROUTINES / LUABRIDGE_DISABLE_CXX20_COROUTINES](#75---luabridge-has-cxx20-coroutines--luabridge-disable-cxx20-coroutines)
+    * [7.6 - LUABRIDGE_ENABLE_REFLECT](#76---luabridge-enable-reflect)
 
 *   [Appendix - API Reference](#appendix---api-reference)
 
@@ -658,6 +668,40 @@ luabridge::getGlobalNamespace (L)
 It's possible to mix lambdas, function pointers and member functions in overload creation. Providing a `lua_Cfunction` as last method will ensure it can be reached in case no other overload is successfully executed, kind of like a "catch all" method.
 
 Special attention needs to be given to the order (priority) of the overloads, based on the number and type of the arguments. Better to place first the overloads that can be called more frequently, and putting "stronger" types first: for example when having an overload taking an `int` and an overload taking `float`, as lua is not able to distinguish between them properly (until lua 5.4) the first overload will always be called.
+
+### 2.5.2 - Parameter Name Hints
+
+When `LUABRIDGE_ENABLE_REFLECT` is defined (see [7.6](#76---luabridge-enable-reflect)), LuaBridge captures the C++ type names of function parameters at compile time. You can additionally attach human-readable **parameter name hints** to any function using `luabridge::withHints`. These names are stored alongside the function and become available through the [Inspection API](#6---inspecting-registrations).
+
+```cpp
+#define LUABRIDGE_ENABLE_REFLECT
+#include <LuaBridge/LuaBridge.h>
+#include <LuaBridge/Inspect.h>  // source headers only; omit when using the amalgama
+
+struct Enemy
+{
+    void attack(Enemy* target, float damage);
+    void move(float x, float y, float z);
+};
+
+luabridge::getGlobalNamespace(L)
+    .beginNamespace("game")
+        .beginClass<Enemy>("Enemy")
+            .addFunction("attack", luabridge::withHints(&Enemy::attack, "target", "damage"))
+            .addFunction("move",   luabridge::withHints(&Enemy::move,   "x", "y", "z"))
+        .endClass()
+    .endNamespace();
+```
+
+`withHints` is transparent: it forwards all function-trait queries to the wrapped function, so it can be used anywhere a plain function pointer is accepted — including overloaded registrations:
+
+```cpp
+.addFunction("rotate",
+    luabridge::withHints(luabridge::overload<float>(&Vec::rotate),        "degrees"),
+    luabridge::withHints(luabridge::overload<const Quat&>(&Vec::rotate),  "quaternion"))
+```
+
+When `LUABRIDGE_ENABLE_REFLECT` is **not** defined, `withHints` is still accepted by the compiler and correctly strips the wrapper — the hints are simply ignored at runtime so there is no overhead.
 
 2.6 - Constructors
 ------------------
@@ -1251,181 +1295,6 @@ luabridge::getGlobalNamespace (L).addFunction ("useStateAndArgs", &useStateAndAr
 When the script calls `useStateAndArgs`, it passes only the integer and string parameters. LuaBridge takes care of inserting the `lua_State*` into the argument list for the corresponding C++ function. This will work correctly even for the state created by coroutines. Undefined behavior results if the `lua_State*` is not the last parameter.
 
 The same is applicable for properties.
-
-2.9 - C++20 Coroutine Integration
-----------------------------------
-
-LuaBridge3 provides first-class interoperability between C++20 coroutines and Lua coroutines, available when compiling with C++20 or later and Lua 5.2+ (requires `lua_yieldk`). The feature is guarded by `LUABRIDGE_HAS_CXX20_COROUTINES`, which is detected automatically and can be suppressed with `LUABRIDGE_DISABLE_CXX20_COROUTINES`.
-
-> **Note:** C++20 coroutine integration is not supported on Lua 5.1, LuaJIT, or Luau (those targets lack a public `lua_yieldk` equivalent).
-
-### 2.9.1 - CppCoroutine\<R\> - Generators callable from Lua
-
-`luabridge::CppCoroutine<R>` is a coroutine return type that bridges C++20 coroutines with Lua's `coroutine.wrap` / `coroutine.resume` API. A function returning `CppCoroutine<R>` can use `co_yield` to suspend and pass a value back to Lua, and `co_return` to finish and return a final value.
-
-Register via `Namespace::addCoroutine`:
-
-```cpp
-luabridge::getGlobalNamespace(L)
-    .addCoroutine("range", [](int from, int to) -> luabridge::CppCoroutine<int>
-    {
-        for (int i = from; i <= to; ++i)
-            co_yield i;
-        co_return -1;  // sentinel value when the range is exhausted
-    });
-```
-
-From Lua, use `coroutine.wrap` to create a callable iterator:
-
-```lua
-local gen = coroutine.wrap(range)
-local v = gen(1, 5)   -- first call passes arguments; yields 1
-while v ~= -1 do
-    print(v)          -- 1, 2, 3, 4, 5
-    v = gen()         -- subsequent calls resume without arguments
-end
-```
-
-`CppCoroutine<void>` is also supported for coroutines that produce no values:
-
-```cpp
-.addCoroutine("doWork", []() -> luabridge::CppCoroutine<void>
-{
-    performStep1();
-    co_return;
-});
-```
-
-An abandoned coroutine (one that goes out of scope in Lua without being fully consumed) is automatically cleaned up by the Lua garbage collector - no manual resource management is needed.
-
-### 2.9.2 - Accepting Arguments
-
-The factory lambda receives the Lua call arguments on first invocation. A `lua_State*` parameter, if present, must be the **first** parameter and receives the running Lua thread:
-
-```cpp
-.addCoroutine("adder", [](int a, int b) -> luabridge::CppCoroutine<int>
-{
-    co_yield a + b;   // first resume yields the sum
-    co_return a * b;  // second resume returns the product
-});
-```
-
-```lua
-local f = coroutine.wrap(adder)
-print(f(3, 4))   -- 7   (yield: 3+4)
-print(f())       -- 12  (return: 3*4)
-```
-
-Multiple independent instances of the same coroutine factory can run concurrently - each call to `coroutine.wrap(name)` creates a separate C++ coroutine frame:
-
-```lua
-local a = coroutine.wrap(adder)
-local b = coroutine.wrap(adder)
-a(1, 2)   -- independent from b
-b(10, 20)
-```
-
-### 2.9.3 - Class Coroutines - Static and Member
-
-Coroutines can be attached directly to a registered class using `addStaticCoroutine` and `addCoroutine`.
-
-**Static coroutines** behave identically to namespace-level coroutines but live in the class's static table. The factory requires no object argument:
-
-```cpp
-luabridge::getGlobalNamespace(L)
-    .beginClass<Counter>("Counter")
-        .addStaticCoroutine("range", [](int from, int count) -> luabridge::CppCoroutine<int>
-        {
-            for (int i = 0; i < count; ++i)
-                co_yield from + i;
-            co_return -1;
-        })
-    .endClass();
-```
-
-```lua
-local f = coroutine.wrap(Counter.range)
-print(f(5, 3))   -- 5  (first yield)
-print(f())       -- 6
-print(f())       -- 7
-print(f())       -- -1 (done)
-```
-
-**Member coroutines** bind a coroutine factory to individual class instances. The factory's **first argument must be `T*` or `const T*`** - LuaBridge passes the Lua object as that argument automatically:
-
-```cpp
-.beginClass<Counter>("Counter")
-    .addCoroutine("generate", [](Counter* obj, int n) -> luabridge::CppCoroutine<int>
-    {
-        for (int i = 0; i < n; ++i)
-        {
-            co_yield obj->value;
-            obj->increment();
-        }
-        co_return -1;
-    })
-.endClass();
-```
-
-```lua
-local obj = Counter()
-local f = coroutine.wrap(Counter.generate)
-print(f(obj, 3))   -- 0  (obj.value before first increment)
-print(f())         -- 1
-print(f())         -- 2
-print(f())         -- -1 (done)
-```
-
-**Const vs non-const:** a factory that takes `const T*` as its first argument is registered as a const method - accessible on both const and non-const objects (it appears in both the const and non-const class tables). A factory taking `T*` is registered as a non-const method and is accessible on non-const objects only.
-
-```cpp
-// Accessible on const and non-const objects:
-.addCoroutine("peek", [](const Counter* obj) -> luabridge::CppCoroutine<int>
-{
-    co_yield obj->value;
-    co_return obj->value * 2;
-})
-
-// Accessible on non-const objects only:
-.addCoroutine("pop", [](Counter* obj) -> luabridge::CppCoroutine<int>
-{
-    co_yield obj->value--;
-    co_return obj->value;
-})
-```
-
-### 2.9.4 - LuaCoroutine - Awaiting a Lua Thread from C++
-
-`luabridge::LuaCoroutine` is an awaitable that can be used inside a `CppCoroutine` body to resume a child Lua thread synchronously. It runs the child thread to its first yield or return and gives back the status and the number of values the child left on its stack:
-
-```cpp
-.addCoroutine("driver", [](lua_State* L) -> luabridge::CppCoroutine<int>
-{
-    // Spawn a child Lua thread and anchor it in the registry so the GC
-    // doesn't collect it while we hold a pointer to it.
-    lua_State* child = lua_newthread(L);
-    int ref = luaL_ref(L, LUA_REGISTRYINDEX);  // pops thread from L's stack
-
-    lua_getglobal(child, "luaGenerator");
-
-    // Resume the child synchronously; suspends this C++ coroutine until done.
-    auto [status, nresults] = co_await luabridge::LuaCoroutine{ child, L };
-
-    int value = (nresults > 0) ? static_cast<int>(lua_tointeger(child, -nresults)) : 0;
-
-    luaL_unref(L, LUA_REGISTRYINDEX, ref);
-    co_return value;
-});
-```
-
-`LuaCoroutine` always completes synchronously (no external event loop is required). The `status` field contains `LUA_YIELD` if the child yielded or `LUA_OK` if it returned normally.
-
-### 2.9.5 - Limitations
-
-* **Lua version:** Requires Lua 5.2+ (`lua_yieldk`). Not supported on Lua 5.1, LuaJIT, or Luau.
-* **C++ version:** Requires C++20 (`<coroutine>`). Non-coroutine features continue to work under C++17.
-* **Multi-value yield:** `co_yield` sends exactly one value per suspension. Use `std::tuple` or a struct if multiple values are needed.
-* **Thread safety:** Coroutine frames must be driven from a single OS thread.
 
 3 - Passing Objects
 ===================
@@ -2021,6 +1890,181 @@ if (result)
 
 `LuaFunction<Signature>` supports the same `call`, `callWithHandler`, and `isValid` interface as a `LuaRef`. The wrapped `LuaRef` is accessible via `ref()`.
 
+4.5 - C++20 Coroutine Integration
+----------------------------------
+
+LuaBridge3 provides first-class interoperability between C++20 coroutines and Lua coroutines, available when compiling with C++20 or later and Lua 5.2+ (requires `lua_yieldk`). The feature is guarded by `LUABRIDGE_HAS_CXX20_COROUTINES`, which is detected automatically and can be suppressed with `LUABRIDGE_DISABLE_CXX20_COROUTINES`.
+
+> **Note:** C++20 coroutine integration is not supported on Lua 5.1, LuaJIT, or Luau (those targets lack a public `lua_yieldk` equivalent).
+
+### 4.5.1 - CppCoroutine\<R\> - Generators callable from Lua
+
+`luabridge::CppCoroutine<R>` is a coroutine return type that bridges C++20 coroutines with Lua's `coroutine.wrap` / `coroutine.resume` API. A function returning `CppCoroutine<R>` can use `co_yield` to suspend and pass a value back to Lua, and `co_return` to finish and return a final value.
+
+Register via `Namespace::addCoroutine`:
+
+```cpp
+luabridge::getGlobalNamespace(L)
+    .addCoroutine("range", [](int from, int to) -> luabridge::CppCoroutine<int>
+    {
+        for (int i = from; i <= to; ++i)
+            co_yield i;
+        co_return -1;  // sentinel value when the range is exhausted
+    });
+```
+
+From Lua, use `coroutine.wrap` to create a callable iterator:
+
+```lua
+local gen = coroutine.wrap(range)
+local v = gen(1, 5)   -- first call passes arguments; yields 1
+while v ~= -1 do
+    print(v)          -- 1, 2, 3, 4, 5
+    v = gen()         -- subsequent calls resume without arguments
+end
+```
+
+`CppCoroutine<void>` is also supported for coroutines that produce no values:
+
+```cpp
+.addCoroutine("doWork", []() -> luabridge::CppCoroutine<void>
+{
+    performStep1();
+    co_return;
+});
+```
+
+An abandoned coroutine (one that goes out of scope in Lua without being fully consumed) is automatically cleaned up by the Lua garbage collector - no manual resource management is needed.
+
+### 4.5.2 - Accepting Arguments
+
+The factory lambda receives the Lua call arguments on first invocation. A `lua_State*` parameter, if present, must be the **first** parameter and receives the running Lua thread:
+
+```cpp
+.addCoroutine("adder", [](int a, int b) -> luabridge::CppCoroutine<int>
+{
+    co_yield a + b;   // first resume yields the sum
+    co_return a * b;  // second resume returns the product
+});
+```
+
+```lua
+local f = coroutine.wrap(adder)
+print(f(3, 4))   -- 7   (yield: 3+4)
+print(f())       -- 12  (return: 3*4)
+```
+
+Multiple independent instances of the same coroutine factory can run concurrently - each call to `coroutine.wrap(name)` creates a separate C++ coroutine frame:
+
+```lua
+local a = coroutine.wrap(adder)
+local b = coroutine.wrap(adder)
+a(1, 2)   -- independent from b
+b(10, 20)
+```
+
+### 4.5.3 - Class Coroutines - Static and Member
+
+Coroutines can be attached directly to a registered class using `addStaticCoroutine` and `addCoroutine`.
+
+**Static coroutines** behave identically to namespace-level coroutines but live in the class's static table. The factory requires no object argument:
+
+```cpp
+luabridge::getGlobalNamespace(L)
+    .beginClass<Counter>("Counter")
+        .addStaticCoroutine("range", [](int from, int count) -> luabridge::CppCoroutine<int>
+        {
+            for (int i = 0; i < count; ++i)
+                co_yield from + i;
+            co_return -1;
+        })
+    .endClass();
+```
+
+```lua
+local f = coroutine.wrap(Counter.range)
+print(f(5, 3))   -- 5  (first yield)
+print(f())       -- 6
+print(f())       -- 7
+print(f())       -- -1 (done)
+```
+
+**Member coroutines** bind a coroutine factory to individual class instances. The factory's **first argument must be `T*` or `const T*`** - LuaBridge passes the Lua object as that argument automatically:
+
+```cpp
+.beginClass<Counter>("Counter")
+    .addCoroutine("generate", [](Counter* obj, int n) -> luabridge::CppCoroutine<int>
+    {
+        for (int i = 0; i < n; ++i)
+        {
+            co_yield obj->value;
+            obj->increment();
+        }
+        co_return -1;
+    })
+.endClass();
+```
+
+```lua
+local obj = Counter()
+local f = coroutine.wrap(Counter.generate)
+print(f(obj, 3))   -- 0  (obj.value before first increment)
+print(f())         -- 1
+print(f())         -- 2
+print(f())         -- -1 (done)
+```
+
+**Const vs non-const:** a factory that takes `const T*` as its first argument is registered as a const method - accessible on both const and non-const objects (it appears in both the const and non-const class tables). A factory taking `T*` is registered as a non-const method and is accessible on non-const objects only.
+
+```cpp
+// Accessible on const and non-const objects:
+.addCoroutine("peek", [](const Counter* obj) -> luabridge::CppCoroutine<int>
+{
+    co_yield obj->value;
+    co_return obj->value * 2;
+})
+
+// Accessible on non-const objects only:
+.addCoroutine("pop", [](Counter* obj) -> luabridge::CppCoroutine<int>
+{
+    co_yield obj->value--;
+    co_return obj->value;
+})
+```
+
+### 4.5.4 - LuaCoroutine - Awaiting a Lua Thread from C++
+
+`luabridge::LuaCoroutine` is an awaitable that can be used inside a `CppCoroutine` body to resume a child Lua thread synchronously. It runs the child thread to its first yield or return and gives back the status and the number of values the child left on its stack:
+
+```cpp
+.addCoroutine("driver", [](lua_State* L) -> luabridge::CppCoroutine<int>
+{
+    // Spawn a child Lua thread and anchor it in the registry so the GC
+    // doesn't collect it while we hold a pointer to it.
+    lua_State* child = lua_newthread(L);
+    int ref = luaL_ref(L, LUA_REGISTRYINDEX);  // pops thread from L's stack
+
+    lua_getglobal(child, "luaGenerator");
+
+    // Resume the child synchronously; suspends this C++ coroutine until done.
+    auto [status, nresults] = co_await luabridge::LuaCoroutine{ child, L };
+
+    int value = (nresults > 0) ? static_cast<int>(lua_tointeger(child, -nresults)) : 0;
+
+    luaL_unref(L, LUA_REGISTRYINDEX, ref);
+    co_return value;
+});
+```
+
+`LuaCoroutine` always completes synchronously (no external event loop is required). The `status` field contains `LUA_YIELD` if the child yielded or `LUA_OK` if it returned normally.
+
+### 4.5.5 - Limitations
+
+* **Lua version:** Requires Lua 5.2+ (`lua_yieldk`). Not supported on Lua 5.1, LuaJIT, or Luau.
+* **C++ version:** Requires C++20 (`<coroutine>`). Non-coroutine features continue to work under C++17.
+* **Multi-value yield:** `co_yield` sends exactly one value per suspension. Use `std::tuple` or a struct if multiple values are needed.
+* **Thread safety:** Coroutine frames must be driven from a single OS thread.
+
 5 - Security
 ============
 
@@ -2060,12 +2104,151 @@ luabridge::getGlobalNamespace (L)
   .endNamespace ()
 ```
 
-6 - Configuration
+6 - Inspecting Registrations
+============================
+
+LuaBridge3 can introspect its own registration tables at runtime, making it straightforward to generate documentation, build IDE auto-complete databases, produce TypeScript type declarations, or validate that a binding matches an expected schema.
+
+The inspection API lives in the **optional** header `<LuaBridge/Inspect.h>`. When using the individual source headers, it must be included separately after `<LuaBridge/LuaBridge.h>`. When using the single-file amalgama (`Distribution/LuaBridge/LuaBridge.h`), `Inspect.h` is already embedded and no separate include is needed.
+
+Define `LUABRIDGE_ENABLE_REFLECT` before any LuaBridge header to enable C++ type-name capture (see [7.6](#76---luabridge-enable-reflect)). The inspection API works without it — type names will simply be empty strings.
+
+```cpp
+// Source headers: include Inspect.h separately (optional)
+#define LUABRIDGE_ENABLE_REFLECT   // optional: enables type-name capture
+#include <LuaBridge/LuaBridge.h>
+#include <LuaBridge/Inspect.h>
+
+// Amalgama: Inspect.h is already embedded — no separate include needed
+#define LUABRIDGE_ENABLE_REFLECT   // optional: enables type-name capture
+#include <LuaBridge/LuaBridge.h>
+```
+
+6.1 - inspect\<T\> and inspectNamespace
+----------------------------------------
+
+Two top-level free functions collect inspection data without traversing any Lua tables from user code:
+
+**`inspect<T>(L)`** — returns a `ClassInspectInfo` for the single registered class `T`. Returns an empty struct if `T` has not been registered.
+
+```cpp
+auto info = luabridge::inspect<Enemy>(L);
+std::cout << info.name << "\n"; // "Enemy"
+for (const auto& m : info.members)
+    std::cout << "  " << m.name << "\n";
+```
+
+**`inspectNamespace(L, name)`** — returns a `NamespaceInspectInfo` for the given namespace. Pass `nullptr` or an empty string to inspect the global namespace `_G`. Dotted paths are supported.
+
+```cpp
+auto ns  = luabridge::inspectNamespace(L, "game");       // top-level namespace
+auto sub = luabridge::inspectNamespace(L, "game.util");  // nested namespace
+auto g   = luabridge::inspectNamespace(L);               // global namespace (_G)
+```
+
+The returned structures are plain data — they are independent copies that do not hold references to the Lua state:
+
+| Type | Fields |
+|------|--------|
+| `NamespaceInspectInfo` | `name`, `freeMembers`, `classes`, `subNamespaces` |
+| `ClassInspectInfo` | `name`, `baseClasses`, `members` |
+| `MemberInfo` | `name`, `kind` (`MemberKind`), `overloads` |
+| `OverloadInfo` | `returnType`, `params` (`vector<ParamInfo>`), `isConst` |
+| `ParamInfo` | `typeName`, `hint` |
+
+`MemberKind` is an enum with the following values:
+
+```cpp
+enum class MemberKind
+{
+    Method,
+    StaticMethod,
+    Property,
+    ReadOnlyProperty,
+    StaticProperty,
+    StaticReadOnlyProperty,
+    Constructor,
+    Metamethod,
+};
+```
+
+`returnType` and `typeName` are populated only when `LUABRIDGE_ENABLE_REFLECT` is defined. `hint` is populated when the function was registered with `luabridge::withHints` (see [2.5.2](#252---parameter-name-hints)).
+
+6.2 - Visitor API
+------------------
+
+For namespace-wide traversal, a visitor-pattern API is provided. Derive from `InspectVisitor` and override only the callbacks you need:
+
+```cpp
+class InspectVisitor
+{
+public:
+    virtual void beginNamespace(const NamespaceInspectInfo& ns) {}
+    virtual void endNamespace  (const NamespaceInspectInfo& ns) {}
+    virtual void visitFreeMember(const NamespaceInspectInfo& ns, const MemberInfo& m) {}
+
+    virtual void beginClass(const ClassInspectInfo& cls) {}
+    virtual void endClass  (const ClassInspectInfo& cls) {}
+    virtual void visitMember(const ClassInspectInfo& cls, const MemberInfo& m) {}
+};
+```
+
+Drive a visitor over a pre-collected `NamespaceInspectInfo` using `accept`, or use the convenience wrapper `inspectAccept` that collects and visits in one call:
+
+```cpp
+// Option A: collect once, visit multiple times
+auto ns = luabridge::inspectNamespace(L, "game");
+MyVisitor v;
+luabridge::accept(ns, v);
+
+// Option B: collect and visit in a single call
+luabridge::inspectAccept(L, "game", v);
+```
+
+The traversal order for `accept` is:
+1. `beginNamespace`
+2. `visitFreeMember` for each free function / namespace-level property
+3. Recursive traversal of each class (begin → members → end)
+4. Recursive traversal of each sub-namespace
+5. `endNamespace`
+
+6.3 - ConsoleVisitor
+---------------------
+
+LuaBridge provides a ready-made visitor, `ConsoleVisitor`, that prints a TypeScript-style declaration to any `std::ostream` (defaults to `std::cerr`):
+
+```cpp
+luabridge::ConsoleVisitor printer(std::cout);
+luabridge::inspectAccept(L, "game", printer);
+```
+
+Example output for a `game` namespace containing an `Enemy` class:
+
+```
+namespace game {
+    class Enemy {
+        constructor(p1: any);
+        attack(target: Enemy, damage: float): void;
+        move(x: float, y: float, z: float): void;
+        readonly hp: int;
+        static create(p1: float, p2: float): Enemy;
+    }
+}
+```
+
+Type names and parameter names are filled in when `LUABRIDGE_ENABLE_REFLECT` is active and `withHints` was used during registration. Without reflection the output uses `any` for unknown types and `p1`, `p2`, … as placeholder parameter names.
+
+6.4 - Enabling Full Type Information (LUABRIDGE_ENABLE_REFLECT)
+----------------------------------------------------------------
+
+See [7.6 - LUABRIDGE_ENABLE_REFLECT](#76---luabridge-enable-reflect) for the compile-time flag that activates C++ type-name capture. When the flag is off, the inspection API still works — it just reports empty strings for type names. The `withHints` parameter name hints work regardless of the flag.
+
+7 - Configuration
 =================
 
 LuaBridge3 exposes several compile-time configuration macros. Each macro can be overridden by defining it **before** including any LuaBridge header, or by passing it as a compiler flag (e.g. `-DLUABRIDGE_SAFE_STACK_CHECKS=0`).
 
-6.1 - LUABRIDGE_SAFE_STACK_CHECKS
+7.1 - LUABRIDGE_SAFE_STACK_CHECKS
 ----------------------------------
 
 **Default: `1` (enabled)**
@@ -2079,7 +2262,7 @@ Disable this flag only when you are certain that the Lua stack will never overfl
 #include <LuaBridge/LuaBridge.h>
 ```
 
-6.2 - LUABRIDGE_STRICT_STACK_CONVERSIONS
+7.2 - LUABRIDGE_STRICT_STACK_CONVERSIONS
 -----------------------------------------
 
 **Default: `0` (disabled)**
@@ -2117,7 +2300,7 @@ lua_pushboolean (L, 1);
 auto r = luabridge::Stack<bool>::get (L, -1); // ok: true
 ```
 
-6.3 - LUABRIDGE_SAFE_LUA_C_EXCEPTION_HANDLING
+7.3 - LUABRIDGE_SAFE_LUA_C_EXCEPTION_HANDLING
 -----------------------------------------------
 
 **Default: `0` (disabled). Only meaningful when `LUABRIDGE_HAS_EXCEPTIONS` is `1`.**
@@ -2133,7 +2316,7 @@ Enable this flag only if you are compiling Lua as C (not as C++), have exception
 
 > **Warning:** Enabling this flag introduces a small performance overhead on every registered CFunction call through the library.
 
-6.4 - LUABRIDGE_RAISE_UNREGISTERED_CLASS_USAGE
+7.4 - LUABRIDGE_RAISE_UNREGISTERED_CLASS_USAGE
 ------------------------------------------------
 
 **Default: `1` when exceptions are enabled, `0` otherwise.**
@@ -2147,7 +2330,7 @@ Override the default when you need fine-grained control:
 #include <LuaBridge/LuaBridge.h>
 ```
 
-6.5 - LUABRIDGE_HAS_CXX20_COROUTINES / LUABRIDGE_DISABLE_CXX20_COROUTINES
+7.5 - LUABRIDGE_HAS_CXX20_COROUTINES / LUABRIDGE_DISABLE_CXX20_COROUTINES
 --------------------------------------------------------------------------
 
 **`LUABRIDGE_HAS_CXX20_COROUTINES` - auto-detected, override allowed**
@@ -2170,6 +2353,32 @@ You can also override the detection result explicitly:
 ```
 
 Attempting to use coroutine integration on Lua 5.1, LuaJIT, or Luau will emit a compile-time `#error` unless `LUABRIDGE_DISABLE_COROUTINE_INTEGRATION` is also defined.
+
+7.6 - LUABRIDGE_ENABLE_REFLECT
+-------------------------------
+
+**Default: not defined (disabled)**
+
+When defined, LuaBridge captures the C++ type names of function parameters and return types at compile time using `typeid`. This information is stored alongside the function in the Lua registry and is retrieved by the [Inspection API](#6---inspecting-registrations) to populate `OverloadInfo::returnType` and `ParamInfo::typeName`.
+
+Enable reflection by defining the macro **before** including any LuaBridge header:
+
+```cpp
+// Source headers
+#define LUABRIDGE_ENABLE_REFLECT
+#include <LuaBridge/LuaBridge.h>
+#include <LuaBridge/Inspect.h>  // optional: only needed when using the inspection API
+
+// Amalgama (Inspect.h is already embedded — no separate include needed)
+#define LUABRIDGE_ENABLE_REFLECT
+#include <LuaBridge/LuaBridge.h>
+```
+
+> **Note:** `Inspect.h` does **not** require `LUABRIDGE_ENABLE_REFLECT` — it can always be included. Without the macro the inspection API still works; it just reports empty strings for type names. You may also use `withHints` (see [2.5.2](#252---parameter-name-hints)) without including `Inspect.h`.
+
+When `LUABRIDGE_ENABLE_REFLECT` is not defined:
+* `withHints` parameter name hints are ignored and are not available through inspection.
+* `OverloadInfo::returnType` and `ParamInfo::typeName` are empty strings.
 
 Appendix - API Reference
 ========================
@@ -2609,4 +2818,110 @@ int lua_resume_x(lua_State* L, lua_State* from, int nargs, int* nresults = nullp
 
 /// Returns true if the current C function can yield via lua_yieldk.
 bool lua_isyieldable_x(lua_State* L);
+```
+
+Registration Inspection (`<LuaBridge/Inspect.h>`, enhanced by `LUABRIDGE_ENABLE_REFLECT`)
+---------------------------------------------------------------------------------------
+
+```cpp
+/// Kind of a registered member.
+enum class MemberKind
+{
+    Method,
+    StaticMethod,
+    Property,
+    ReadOnlyProperty,
+    StaticProperty,
+    StaticReadOnlyProperty,
+    Constructor,
+    Metamethod,
+};
+
+/// Type and optional name hint for one Lua-visible parameter of an overload.
+struct ParamInfo
+{
+    std::string typeName; ///< C++ type name (e.g. "float", "int", "MyClass"). Empty if unavailable.
+    std::string hint;     ///< Optional user-provided name (e.g. "damage"). Empty if not provided.
+};
+
+/// Type information for one overload of a registered function or constructor.
+struct OverloadInfo
+{
+    std::string returnType;        ///< C++ return type name. Empty if unavailable.
+    std::vector<ParamInfo> params; ///< One entry per Lua-visible parameter.
+    bool isConst = false;          ///< True when this is a const member function.
+};
+
+/// Information about one registered member (method, property, constructor, …).
+struct MemberInfo
+{
+    std::string name;
+    MemberKind kind = MemberKind::Method;
+    std::vector<OverloadInfo> overloads; ///< At least 1 entry; may contain empty OverloadInfo.
+};
+
+/// Inspection result for one registered class.
+struct ClassInspectInfo
+{
+    std::string name;
+    std::vector<std::string> baseClasses; ///< Names of all registered ancestor classes.
+    std::vector<MemberInfo> members;
+
+    void accept(InspectVisitor& v) const;
+};
+
+/// Inspection result for a namespace (may contain classes and sub-namespaces).
+struct NamespaceInspectInfo
+{
+    std::string name;
+    std::vector<MemberInfo> freeMembers;        ///< Free functions and namespace-level properties.
+    std::vector<ClassInspectInfo> classes;
+    std::vector<NamespaceInspectInfo> subNamespaces;
+
+    void accept(InspectVisitor& v) const;
+};
+
+/// Visitor interface for traversing an inspection result tree.
+class InspectVisitor
+{
+public:
+    virtual void beginNamespace(const NamespaceInspectInfo& ns) {}
+    virtual void endNamespace  (const NamespaceInspectInfo& ns) {}
+    virtual void visitFreeMember(const NamespaceInspectInfo& ns, const MemberInfo& m) {}
+
+    virtual void beginClass(const ClassInspectInfo& cls) {}
+    virtual void endClass  (const ClassInspectInfo& cls) {}
+    virtual void visitMember(const ClassInspectInfo& cls, const MemberInfo& m) {}
+};
+
+/// Built-in visitor that emits TypeScript-style pseudo-declarations to an ostream.
+class ConsoleVisitor : public InspectVisitor
+{
+public:
+    explicit ConsoleVisitor(std::ostream& out = std::cerr);
+    // overrides all six InspectVisitor methods
+};
+
+/// Inspect a single registered class by its C++ type.
+/// Returns an empty ClassInspectInfo if T is not registered.
+template <class T>
+[[nodiscard]] ClassInspectInfo inspect(lua_State* L);
+
+/// Inspect a namespace by name. Pass nullptr or "" for the global namespace.
+/// Supports dotted paths (e.g. "Outer.Inner").
+/// Returns an empty NamespaceInspectInfo if the name is not found.
+[[nodiscard]] NamespaceInspectInfo inspectNamespace(lua_State* L, const char* namespaceName = nullptr);
+
+/// Traverse a NamespaceInspectInfo with a visitor.
+void accept(const NamespaceInspectInfo& ns, InspectVisitor& v);
+void accept(const ClassInspectInfo& cls,    InspectVisitor& v);
+
+/// Collect inspection data for a namespace and drive a visitor over it (convenience wrapper).
+void inspectAccept(lua_State* L, const char* namespaceName, InspectVisitor& visitor);
+
+/// Attach Lua parameter name hints to a function for use with addFunction / addStaticFunction.
+/// Works with and without LUABRIDGE_ENABLE_REFLECT. Hints are stored at runtime; type capture
+/// requires the macro.
+template <class F, class... Names>
+[[nodiscard]] FunctionWithHints<std::decay_t<F>> withHints(F&& func, Names&&... paramNames);
 ```
