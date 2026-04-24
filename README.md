@@ -21,14 +21,14 @@
 [![UBSAN](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_ubsan.yml/badge.svg?branch=master)](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_ubsan.yml)
 [![ASAN](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_asan.yml/badge.svg?branch=master)](https://github.com/kunitoki/LuaBridge3/actions/workflows/build_asan.yml)
 <br/>
-[![Lua 5.1](https://img.shields.io/badge/lua-5.1-red)](https://www.lua.org/manual/5.1/readme.html)
-[![Lua 5.2](https://img.shields.io/badge/lua-5.2-red)](https://www.lua.org/manual/5.2/readme.html)
-[![Lua 5.3](https://img.shields.io/badge/lua-5.3-red)](https://www.lua.org/manual/5.3/readme.html)
-[![Lua 5.4](https://img.shields.io/badge/lua-5.4-red)](https://www.lua.org/manual/5.4/readme.html)
-[![Lua 5.5](https://img.shields.io/badge/lua-5.5-red)](https://www.lua.org/manual/5.5/readme.html)
-[![LuaJIT](https://img.shields.io/badge/lua-LuaJIT-red)](https://luajit.org/luajit.html)
-[![Luau](https://img.shields.io/badge/lua-Luau-red)](https://luau.org/)
-[![Ravi](https://img.shields.io/badge/lua-Ravi-red)](https://ravilang.github.io/)
+[![Lua 5.1](https://img.shields.io/badge/lua-5.1-lightblue?logo=lua)](https://www.lua.org/manual/5.1/readme.html)
+[![Lua 5.2](https://img.shields.io/badge/lua-5.2-lightblue?logo=lua)](https://www.lua.org/manual/5.2/readme.html)
+[![Lua 5.3](https://img.shields.io/badge/lua-5.3-lightblue?logo=lua)](https://www.lua.org/manual/5.3/readme.html)
+[![Lua 5.4](https://img.shields.io/badge/lua-5.4-lightblue?logo=lua)](https://www.lua.org/manual/5.4/readme.html)
+[![Lua 5.5](https://img.shields.io/badge/lua-5.5-lightblue?logo=lua)](https://www.lua.org/manual/5.5/readme.html)
+[![LuaJIT](https://img.shields.io/badge/lua-LuaJIT-lightblue?logo=lua)](https://luajit.org/luajit.html)
+[![Luau](https://img.shields.io/badge/lua-Luau-lightblue?logo=lua)](https://luau.org/)
+[![Ravi](https://img.shields.io/badge/lua-Ravi-lightblue?logo=lua)](https://ravilang.github.io/)
 
 # LuaBridge 3.0
 
