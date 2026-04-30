@@ -424,6 +424,20 @@ Method registration works just like function registration. Virtual methods work 
 
 As with regular variables and properties, class properties can be marked read-only by passing false in the second parameter, or omitting the set function. The `deriveClass` takes a derived class and one or more registered base classes as template arguments. Inherited methods do not have to be re-declared and will function normally in Lua. If a class has a base class that is **not** registered with Lua, there is no need to declare it as a subclass.
 
+When registering a data member pointer as both readable and writable, the common pattern of passing the same pointer twice to `addProperty` or `addStaticProperty` can be replaced with the convenience methods `addPropertyReadWrite` and `addStaticPropertyReadWrite`:
+
+```cpp
+luabridge::getGlobalNamespace (L)
+  .beginNamespace ("test")
+    .beginClass<A> ("A")
+      .addStaticPropertyReadWrite ("staticData", &A::staticData)  // equivalent to addStaticProperty ("staticData", &A::staticData, &A::staticData)
+      .addPropertyReadWrite ("data", &A::dataMember)              // equivalent to addProperty ("data", &A::dataMember, &A::dataMember)
+    .endClass ()
+  .endNamespace ();
+```
+
+These accept only a pointer-to-data-member (for `addPropertyReadWrite`) or a pointer to a static data member (for `addStaticPropertyReadWrite`). They do not accept getter/setter function pairs; use `addProperty` or `addStaticProperty` directly for those cases.
+
 Remember that in Lua, the colon operator '`:`' is used for method call syntax:
 
 ```lua
