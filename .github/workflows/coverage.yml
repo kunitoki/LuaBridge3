@@ -55,16 +55,20 @@ jobs:
       run: |
         cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target \
           LuaBridgeTests${{ matrix.lua.suffix }} \
+          LuaBridgeTests${{ matrix.lua.suffix }}Reflect \
           LuaBridgeTests${{ matrix.lua.suffix }}LuaC \
           LuaBridgeTests${{ matrix.lua.suffix }}Noexcept \
+          LuaBridgeTests${{ matrix.lua.suffix }}ReflectNoexcept \
           LuaBridgeTests${{ matrix.lua.suffix }}LuaCNoexcept
 
     - name: Test Lua ${{ matrix.lua.version }}
       working-directory: ${{runner.workspace}}/build/Tests
       run: |
         ./LuaBridgeTests${{ matrix.lua.suffix }}
+        ./LuaBridgeTests${{ matrix.lua.suffix }}Reflect
         ./LuaBridgeTests${{ matrix.lua.suffix }}LuaC
         ./LuaBridgeTests${{ matrix.lua.suffix }}Noexcept
+        ./LuaBridgeTests${{ matrix.lua.suffix }}ReflectNoexcept
         ./LuaBridgeTests${{ matrix.lua.suffix }}LuaCNoexcept
 
     - name: Coverage Lua ${{ matrix.lua.version }}
@@ -106,13 +110,17 @@ jobs:
       run: |
         cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target \
           LuaBridgeTestsLuaJIT \
-          LuaBridgeTestsLuaJITNoexcept
+          LuaBridgeTestsLuaJITReflect \
+          LuaBridgeTestsLuaJITNoexcept \
+          LuaBridgeTestsLuaJITReflectNoexcept
 
     - name: Test LuaJIT
       working-directory: ${{runner.workspace}}/build/Tests
       run: |
         ./LuaBridgeTestsLuaJIT
+        ./LuaBridgeTestsLuaJITReflect
         ./LuaBridgeTestsLuaJITNoexcept
+        ./LuaBridgeTestsLuaJITReflectNoexcept
 
     - name: Coverage LuaJIT
       working-directory: ${{runner.workspace}}/build
@@ -150,11 +158,16 @@ jobs:
 
     - name: Build Luau
       working-directory: ${{runner.workspace}}/build
-      run: cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target LuaBridgeTestsLuau
+      run: |
+        cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target \
+          LuaBridgeTestsLuau \
+          LuaBridgeTestsLuauReflect
 
     - name: Test Luau
       working-directory: ${{runner.workspace}}/build/Tests
-      run: ./LuaBridgeTestsLuau
+      run: |
+        ./LuaBridgeTestsLuau
+        ./LuaBridgeTestsLuauReflect
 
     - name: Coverage Luau
       working-directory: ${{runner.workspace}}/build
@@ -192,11 +205,16 @@ jobs:
 
     - name: Build Ravi
       working-directory: ${{runner.workspace}}/build
-      run: cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target LuaBridgeTestsRavi
+      run: |
+        cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target \
+          LuaBridgeTestsRavi \
+          LuaBridgeTestsRaviReflect
 
     - name: Test Ravi
       working-directory: ${{runner.workspace}}/build/Tests
-      run: LD_PRELOAD=$(gcc -print-file-name=libasan.so) ./LuaBridgeTestsRavi
+      run: |
+        LD_PRELOAD=$(gcc -print-file-name=libasan.so) ./LuaBridgeTestsRavi
+        LD_PRELOAD=$(gcc -print-file-name=libasan.so) ./LuaBridgeTestsRaviReflect
 
     - name: Coverage Ravi
       working-directory: ${{runner.workspace}}/build
@@ -299,7 +317,7 @@ jobs:
 
       #- name: Convert to Coverage TXT
       #  working-directory: ${{runner.workspace}}/build
-      #  run: python3 ${{runner.workspace}}/cobertura.py coverage/cobertura.info coverage/coverage.txt
+      #  run: python3 ${{runner.workspace}}/Tools/cobertura.py coverage/cobertura.info coverage/coverage.txt
 
       - name: Upload Cobertura XML
         uses: actions/upload-artifact@v4

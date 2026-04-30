@@ -3,6 +3,7 @@ cmake_minimum_required (VERSION 3.10)
 set (LUABRIDGE_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/Array.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/Dump.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/Inspect.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/List.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/LuaBridge.h
   ${CMAKE_CURRENT_SOURCE_DIR}/LuaBridge/Map.h

@@ -52,8 +52,10 @@ jobs:
       run: |
         cmake --build . --config $BUILD_TYPE --parallel 4 --target \
           LuaBridgeTests${{ matrix.lua.suffix }} \
+          LuaBridgeTests${{ matrix.lua.suffix }}Reflect \
           LuaBridgeTests${{ matrix.lua.suffix }}LuaC \
           LuaBridgeTests${{ matrix.lua.suffix }}Noexcept \
+          LuaBridgeTests${{ matrix.lua.suffix }}ReflectNoexcept \
           LuaBridgeTests${{ matrix.lua.suffix }}LuaCNoexcept
 
     - name: Test Lua ${{ matrix.lua.version }}
@@ -61,8 +63,10 @@ jobs:
       shell: bash
       run: |
         ./LuaBridgeTests${{ matrix.lua.suffix }}.exe
+        ./LuaBridgeTests${{ matrix.lua.suffix }}Reflect.exe
         ./LuaBridgeTests${{ matrix.lua.suffix }}LuaC.exe
         ./LuaBridgeTests${{ matrix.lua.suffix }}Noexcept.exe
+        ./LuaBridgeTests${{ matrix.lua.suffix }}ReflectNoexcept.exe
         ./LuaBridgeTests${{ matrix.lua.suffix }}LuaCNoexcept.exe
 
   luajit:
@@ -87,14 +91,18 @@ jobs:
       run: |
         cmake --build . --config $BUILD_TYPE --parallel 4 --target \
           LuaBridgeTestsLuaJIT \
-          LuaBridgeTestsLuaJITNoexcept
+          LuaBridgeTestsLuaJITReflect \
+          LuaBridgeTestsLuaJITNoexcept \
+          LuaBridgeTestsLuaJITReflectNoexcept
 
     - name: Test LuaJIT
       working-directory: ${{runner.workspace}}/build/Tests/Release
       shell: bash
       run: |
         ./LuaBridgeTestsLuaJIT.exe
+        ./LuaBridgeTestsLuaJITReflect.exe
         ./LuaBridgeTestsLuaJITNoexcept.exe
+        ./LuaBridgeTestsLuaJITReflectNoexcept.exe
 
   luau:
     runs-on: windows-latest
@@ -115,12 +123,17 @@ jobs:
     - name: Build Luau
       working-directory: ${{runner.workspace}}/build
       shell: bash
-      run: cmake --build . --config $BUILD_TYPE --parallel 4 --target LuaBridgeTestsLuau
+      run: |
+        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
+          LuaBridgeTestsLuau \
+          LuaBridgeTestsLuauReflect
 
     - name: Test Luau
       working-directory: ${{runner.workspace}}/build/Tests/Release
       shell: bash
-      run: ./LuaBridgeTestsLuau.exe
+      run: |
+        ./LuaBridgeTestsLuau.exe
+        ./LuaBridgeTestsLuauReflect.exe
 
   ravi:
     runs-on: windows-latest
@@ -141,7 +154,10 @@ jobs:
     - name: Build Ravi
       working-directory: ${{runner.workspace}}/build
       shell: bash
-      run: cmake --build . --config $BUILD_TYPE --parallel 4 --target LuaBridgeTestsRavi
+      run: |
+        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
+          LuaBridgeTestsRavi \
+          LuaBridgeTestsRaviReflect
 
     - name: Test Ravi
       working-directory: ${{runner.workspace}}/build/Tests/Release

@@ -196,8 +196,14 @@ class SourceInfo:
 			headerAmalgamation.write(f"// clang-format off\n\n")
 			headerAmalgamation.write(f"#pragma once\n\n")
 
+			guarded_includes = set(["coroutine", "span"])
 			for header in sorted(list(self.systemHeaders)):
-				headerAmalgamation.write(f"#include <{header}>\n")
+				if header in guarded_includes:
+					headerAmalgamation.write(f"#if defined(__has_include) && __has_include(<{header}>)\n")
+					headerAmalgamation.write(f"#include <{header}>\n")
+					headerAmalgamation.write(f"#endif\n\n")
+				else:
+					headerAmalgamation.write(f"#include <{header}>\n")
 			headerAmalgamation.write("\n")
 
 			self.AmalgamateQueue(self.headerQueue, headerAmalgamation)
