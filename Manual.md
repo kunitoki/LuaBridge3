@@ -438,6 +438,38 @@ luabridge::getGlobalNamespace (L)
 
 These accept only a pointer-to-data-member (for `addPropertyReadWrite`) or a pointer to a static data member (for `addStaticPropertyReadWrite`). They do not accept getter/setter function pairs; use `addProperty` or `addStaticProperty` directly for those cases.
 
+### 2.3.1 - Integer-Indexed Properties
+
+Class members can also be exposed under integer indices in addition to (or instead of) named string properties. This allows Lua code to access members via `obj[1]`, `obj[2]`, etc. Integer-indexed access and named access can coexist on the same class, making it easy to alias a member under both a name and an index:
+
+```cpp
+struct Vec2
+{
+  float x;
+  float y;
+};
+
+luabridge::getGlobalNamespace (L)
+  .beginClass<Vec2> ("Vec2")
+    .addPropertyReadWrite ("x", &Vec2::x)   // named access: obj.x
+    .addPropertyReadWrite ("y", &Vec2::y)   // named access: obj.y
+    .addPropertyReadWrite (1, &Vec2::x)     // integer-index access: obj[1] aliases x
+    .addPropertyReadWrite (2, &Vec2::y)     // integer-index access: obj[2] aliases y
+  .endClass ();
+```
+
+From Lua:
+
+```lua
+local v = Vec2 ()
+v.x = 10          -- named write
+v[1] = 10         -- integer-index write (same member)
+print (v.x)       -- named read  -> 10
+print (v[1])      -- integer-index read -> 10
+```
+
+Like named properties, integer-indexed properties support read-only variants (by passing only a getter), read-write variants (by passing both getter and setter or using `addPropertyReadWrite`), and all the same getter/setter forms: member pointers, member functions, proxy functions, lambdas, and `std::function`.
+
 Remember that in Lua, the colon operator '`:`' is used for method call syntax:
 
 ```lua
@@ -448,7 +480,7 @@ a.func1 (a) -- okay, verbose, this how OOP works in Lua
 a:func1 ()  -- okay, less verbose, equivalent to the previous
 ```
 
-### 2.3.1 - Multiple Inheritance
+### 2.3.2 - Multiple Inheritance
 
 `deriveClass` supports multiple registered base classes by specifying them as additional template parameters. LuaBridge will traverse all base class hierarchies when resolving member lookups from Lua:
 
@@ -2339,6 +2371,22 @@ Class<T> addProperty (const char* name, Getter getter);
 /// Registers a readwrite property with a getter and a setter.
 template <class Getter>
 Class<T> addProperty (const char* name, Getter getter, Setter setter);
+
+/// Registers a readonly property accessible by integer index (e.g. obj[1]).
+template <class Getter>
+Class<T> addProperty (lua_Integer index, Getter getter);
+
+/// Registers a readwrite property accessible by integer index (e.g. obj[1]).
+template <class Getter, class Setter>
+Class<T> addProperty (lua_Integer index, Getter getter, Setter setter);
+
+/// Convenience overload: registers a data-member pointer as both a readable and writable named property.
+template <class Field>
+Class<T> addPropertyReadWrite (const char* name, Field T::* member);
+
+/// Convenience overload: registers a data-member pointer as both a readable and writable integer-indexed property.
+template <class Field>
+Class<T> addPropertyReadWrite (lua_Integer index, Field T::* member);
 ```
 
 ### Static Function Registration

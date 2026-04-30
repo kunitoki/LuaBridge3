@@ -1720,6 +1720,97 @@ TEST_F(ClassProperties, StdFunctions_ReadOnly)
     ASSERT_TRUE(getterData.expired());
 }
 
+TEST_F(ClassProperties, IntegerIndexFieldPointers)
+{
+    using Int = Class<int, EmptyBase>;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addConstructor<void (*)(int)>()
+        .addPropertyReadWrite(1, &Int::data)
+        .endClass();
+
+    runLua("result = Int (501)");
+    ASSERT_TRUE(result()[1].isNumber());
+    ASSERT_EQ(501, result()[1].cast<int>());
+
+    runLua("result[1] = 2");
+    ASSERT_TRUE(result()[1].isNumber());
+    ASSERT_EQ(2, result()[1].cast<int>());
+
+    runLua("result = Int (42)[1]");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(42, result<int>());
+}
+
+TEST_F(ClassProperties, IntegerIndexFieldPointers_ReadOnly)
+{
+    using Int = Class<int, EmptyBase>;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addConstructor<void (*)(int)>()
+        .addProperty(1, &Int::data)
+        .endClass();
+
+    runLua("result = Int (501)");
+    ASSERT_TRUE(result()[1].isNumber());
+    ASSERT_EQ(501, result()[1].cast<int>());
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    ASSERT_THROW(runLua("result[1] = 2"), std::exception);
+#else
+    ASSERT_FALSE(runLua("result[1] = 2"));
+#endif
+
+    runLua("result = Int (42)[1]");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(42, result<int>());
+}
+
+TEST_F(ClassProperties, IntegerIndexMemberFunctions)
+{
+    using Int = Class<int, EmptyBase>;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addConstructor<void (*)(int)>()
+        .addProperty(1, &Int::getData, &Int::setData)
+        .endClass();
+
+    runLua("result = Int (501)");
+    ASSERT_TRUE(result()[1].isNumber());
+    ASSERT_EQ(501, result()[1].cast<int>());
+
+    runLua("result[1] = 2");
+    ASSERT_TRUE(result()[1].isNumber());
+    ASSERT_EQ(2, result()[1].cast<int>());
+}
+
+TEST_F(ClassProperties, IntegerIndexAndNamedPropertyAlias)
+{
+    using Int = Class<int, EmptyBase>;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addConstructor<void (*)(int)>()
+        .addProperty("data", &Int::data, &Int::data)
+        .addPropertyReadWrite(1, &Int::data)
+        .endClass();
+
+    runLua("result = Int (42)");
+    ASSERT_EQ(42, result()["data"].cast<int>());
+    ASSERT_EQ(42, result()[1].cast<int>());
+
+    runLua("result.data = 100");
+    ASSERT_EQ(100, result()["data"].cast<int>());
+    ASSERT_EQ(100, result()[1].cast<int>());
+
+    runLua("result[1] = 200");
+    ASSERT_EQ(200, result()["data"].cast<int>());
+    ASSERT_EQ(200, result()[1].cast<int>());
+}
+
 struct ClassStaticFunctions : ClassTests
 {
 };

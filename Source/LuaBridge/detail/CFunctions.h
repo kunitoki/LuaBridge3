@@ -1392,6 +1392,16 @@ inline void add_property_getter(lua_State* L, const char* name, int tableIndex)
 }
 
 //=================================================================================================
+/**
+ * @brief Helper function to push a property getter on a table at an integer key index.
+ */
+inline void add_property_getter_index(lua_State* L, lua_Integer index, int tableIndex)
+{
+    auto name = std::to_string(index);
+    add_property_getter(L, name.c_str(), tableIndex);
+}
+
+//=================================================================================================
 
 template <class T, class C = void>
 struct property_setter;
@@ -1476,6 +1486,16 @@ inline void add_property_setter(lua_State* L, const char* name, int tableIndex)
     lua_pushvalue(L, -2); // Stack: setter, ps, setter
     rawsetfield(L, -2, name); // Stack: setter, ps
     lua_pop(L, 2); // Stack: -
+}
+
+//=================================================================================================
+/**
+ * @brief Helper function to push a property setter on a table at an integer key index.
+ */
+inline void add_property_setter_index(lua_State* L, lua_Integer index, int tableIndex)
+{
+    auto name = std::to_string(index);
+    add_property_setter(L, name.c_str(), tableIndex);
 }
 
 //=================================================================================================
@@ -2590,6 +2610,17 @@ inline void push_property_readonly(lua_State* L, const char* debugname)
 {
     lua_pushstring(L, debugname);
     lua_pushcclosure_x(L, &detail::read_only_error, debugname, 1);
+}
+
+//=================================================================================================
+/**
+ * @brief Push a read-only error function for an integer-indexed property.
+ */
+inline void push_property_readonly_index(lua_State* L, lua_Integer index)
+{
+    auto name = std::to_string(index);
+    lua_pushstring(L, name.c_str());
+    lua_pushcclosure_x(L, &detail::read_only_error, name.c_str(), 1);
 }
 
 //=================================================================================================

@@ -924,6 +924,53 @@ class Namespace : public detail::Registrar
 
         //=========================================================================================
         /**
+         * @brief Add or replace a property member accessible by integer index.
+         *
+         * This allows binding an integer index (e.g. 1, 2) to a property getter, enabling
+         * Lua code to access class members via `obj[1]` in addition to named access.
+         */
+        template <class Getter>
+        Class<T>& addProperty(lua_Integer index, Getter getter)
+        {
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            auto debugname = std::to_string(index);
+            detail::push_class_property_getter<T>(L, std::move(getter), debugname.c_str()); // Stack: co, cl, st, getter
+            lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
+            detail::add_property_getter_index(L, index, -4); // Stack: co, cl, st, getter
+            detail::add_property_getter_index(L, index, -4); // Stack: co, cl, st
+
+            detail::push_property_readonly_index(L, index); // Stack: co, cl, st, function
+            detail::add_property_setter_index(L, index, -3); // Stack: co, cl, st
+
+            return *this;
+        }
+
+        template <class Getter, class Setter>
+        Class<T>& addProperty(lua_Integer index, Getter getter, Setter setter)
+        {
+            assertStackState(); // Stack: const table (co), class table (cl), static table (st)
+
+            auto debugname = std::to_string(index);
+            detail::push_class_property_getter<T>(L, std::move(getter), debugname.c_str()); // Stack: co, cl, st, getter
+            lua_pushvalue(L, -1); // Stack: co, cl, st, getter, getter
+            detail::add_property_getter_index(L, index, -4); // Stack: co, cl, st, getter
+            detail::add_property_getter_index(L, index, -4); // Stack: co, cl, st
+
+            detail::push_class_property_setter<T>(L, std::move(setter), debugname.c_str()); // Stack: co, cl, st, setter
+            detail::add_property_setter_index(L, index, -3); // Stack: co, cl, st
+
+            return *this;
+        }
+
+        template <class Field>
+        Class<T>& addPropertyReadWrite(lua_Integer index, Field T::*member)
+        {
+            return addProperty(index, member, member);
+        }
+
+        //=========================================================================================
+        /**
          * @brief Add or replace a function that can operate on the class.
          *
          * @param name The function or overloaded functions name.
