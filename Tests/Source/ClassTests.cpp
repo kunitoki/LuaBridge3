@@ -3462,21 +3462,41 @@ struct CoverageBase
 {
     int value = 42;
     int getValue() const { return value; }
+    
+    static int x;
 };
+
+int CoverageBase::x = 100;
 
 struct CoverageDerived : CoverageBase
 {
 };
 } // namespace
 
+TEST_F(ClassTests, DerivedClassAccessesParentStaticProperty)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<CoverageBase>("CoverageBase")
+            .addStaticProperty("value", &CoverageBase::x)
+            .addStaticPropertyReadWrite("value_rw", &CoverageBase::x)
+        .endClass()
+        .deriveClass<CoverageDerived, CoverageBase>("CoverageDerived")
+            .addConstructor<void (*)()>()
+        .endClass();
+
+    EXPECT_TRUE(runLua("result = CoverageDerived.value"));
+    EXPECT_EQ(100, result<int>());
+
+    EXPECT_TRUE(runLua("CoverageDerived.value_rw = 13; result = CoverageDerived.value_rw"));
+    EXPECT_EQ(13, result<int>());
+}
+
 TEST_F(ClassTests, DerivedClassAccessesParentProperty)
 {
-    // Covers CFunctions.h:476-477, 511 - parent propget table lookup in index_metamethod
-    // Derived is registered without any properties; accessing "value" traverses parent list
-    // and finds it in Base's propget table (lines 491-504) or continues iteration (476-477, 511)
     luabridge::getGlobalNamespace(L)
         .beginClass<CoverageBase>("CoverageBase")
             .addProperty("value", &CoverageBase::value)
+            .addPropertyReadWrite("value_rw", &CoverageBase::value)
         .endClass()
         .deriveClass<CoverageDerived, CoverageBase>("CoverageDerived")
             .addConstructor<void (*)()>()
@@ -3484,13 +3504,13 @@ TEST_F(ClassTests, DerivedClassAccessesParentProperty)
 
     EXPECT_TRUE(runLua("result = CoverageDerived().value"));
     EXPECT_EQ(42, result<int>());
+
+    EXPECT_TRUE(runLua("obj = CoverageDerived(); obj.value_rw = 13; result = obj.value"));
+    EXPECT_EQ(13, result<int>());
 }
 
 TEST_F(ClassTests, DerivedClassAccessesMetamethodNameReturnsNil)
 {
-    // Covers CFunctions.h:381-382 - metamethod name protection in index_metamethod
-    // Derived class uses complex index_metamethod (not simple); accessing "__index"
-    // triggers the is_metamethod guard and returns nil
     luabridge::getGlobalNamespace(L)
         .beginClass<CoverageBase>("CoverageBase")
         .endClass()
@@ -3504,8 +3524,6 @@ TEST_F(ClassTests, DerivedClassAccessesMetamethodNameReturnsNil)
 
 TEST_F(ClassTests, StaticClassAccessReturnsMethodFromConstTable)
 {
-    // Covers CFunctions.h:613 - in index_metamethod_simple<false> (static path),
-    // upvalue[2] (const/methods table) lookup returns a non-nil value
     struct SimpleClass
     {
         int getValue() const { return 7; }
