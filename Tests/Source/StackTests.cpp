@@ -2950,6 +2950,107 @@ TEST_F(StackTests, ArrayPushElementFailure)
     }
 }
 
+namespace {
+template <class T, std::size_t S>
+struct Array
+{
+    Array() = default;
+
+    T& operator[](std::size_t index) { return value; }
+    const T& operator[](std::size_t index) const { return value; }
+
+    T value;
+};
+
+using Color = Array<float, 4>;
+
+struct Sprite
+{
+    void SetColor(const Color& col) {}
+    void SetColor(const Color& col, size_t index) {}
+};
+} // namespace
+
+namespace luabridge {
+template <class T, std::size_t Size>
+struct Stack<Array<T, Size>>
+{
+    using Type = Array<T, Size>;
+
+    [[nodiscard]] static Result push(lua_State* L, const Type& array)
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (!lua_checkstack(L, 3))
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
+        StackRestore stackRestore(L);
+
+        lua_createtable(L, static_cast<int>(Size), 0);
+
+        for (std::size_t i = 0; i < Size; ++i)
+        {
+            lua_pushinteger(L, static_cast<lua_Integer>(i + 1));
+
+            auto result = Stack<T>::push(L, array[i]);
+            if (!result)
+                return result;
+
+            lua_settable(L, -3);
+        }
+
+        stackRestore.reset();
+        return {};
+    }
+
+    [[nodiscard]] static TypeResult<Type> get(lua_State* L, int index)
+    {
+        if (!lua_istable(L, index))
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        if (get_length(L, index) != Size)
+            return makeErrorCode(ErrorCode::InvalidTableSizeInCast);
+
+        const StackRestore stackRestore(L);
+
+        Type array;
+
+        int absIndex = lua_absindex(L, index);
+        lua_pushnil(L);
+
+        int arrayIndex = 0;
+        while (lua_next(L, absIndex) != 0)
+        {
+            auto item = Stack<T>::get(L, -1);
+            if (!item)
+                return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+            array[arrayIndex++] = *item;
+            lua_pop(L, 1);
+        }
+
+        return array;
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        return lua_istable(L, index) && get_length(L, index) == Size;
+    }
+};
+} // namespace luabridge
+
+TEST_F(StackTests, OverloadTriggersStackTemplateCompilationError)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Sprite>("Sprite")
+        .addFunction("SetColor",
+            luabridge::overload<const Color&>(&Sprite::SetColor),
+            luabridge::overload<const Color&, size_t>(&Sprite::SetColor))
+        .endClass();
+        
+    SUCCEED();
+}
+
 #if LUABRIDGE_HAS_EXCEPTIONS
 TEST_F(StackTests, PcallFailureThrowsException)
 {
