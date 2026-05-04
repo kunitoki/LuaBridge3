@@ -32,7 +32,8 @@ Contents
         *   [2.3.1 - Multiple Inheritance](#231---multiple-inheritance)
     *   [2.4 - Property Member Proxies](#24---property-member-proxies)
     *   [2.5 - Function Member Proxies](#25---function-member-proxies)
-    *   [2.5.1 - Function Overloading](#251---function-overloading)
+    *   [2.5.1 - Partial Application with luabridge::bind_front](#251---partial-application-with-luabridgebind_front)
+    *   [2.5.2 - Function Overloading](#252---function-overloading)
     *   [2.6 - Constructors](#26---constructors)
     *   [2.6.1 - Constructor Proxies](#261---constructor-proxies)
     *   [2.6.2 - Constructor Factories](#262---constructor-factories)
@@ -602,7 +603,38 @@ luabridge::getGlobalNamespace (L)
 
 Of course when not capturing, it is better to prefix the lambda with `+` so it is converted and stored internally to a function pointer instead of an `std::function`, so it is actually lighter to store and faster to call.
 
-### 2.5.1 - Function Overloading
+### 2.5.1 - Partial Application with luabridge::bind_front
+
+`std::bind_front` (C++20) returns a callable whose `operator()` is a template, so LuaBridge cannot statically resolve its argument types. Passing such a result directly to `addFunction` therefore fails to compile. The workaround without `luabridge::bind_front` is an explicit cast to `std::function`:
+
+```cpp
+int add (int a, int b) { return a + b; }
+
+// Verbose: explicit signature required
+ns.addFunction ("add10", std::function<int(int)> (std::bind_front (&add, 10)));
+```
+
+`luabridge::bind_front` is a drop-in replacement that deduces the remaining argument types from the underlying callable's signature, so no explicit cast is needed:
+
+```cpp
+// Concise: types are deduced automatically
+ns.addFunction ("add10", luabridge::bind_front (&add, 10));
+```
+
+It also works with member function pointers, where the bound object is not counted as a Lua-visible parameter:
+
+```cpp
+struct Vec { float coord [3]; };
+float getCoord (const Vec* v, int i) { return v->coord [i]; }
+
+ns.beginClass<Vec> ("Vec")
+  .addFunction ("x", luabridge::bind_front (&getCoord, 0))
+  .addFunction ("y", luabridge::bind_front (&getCoord, 1))
+  .addFunction ("z", luabridge::bind_front (&getCoord, 2))
+.endClass ();
+```
+
+### 2.5.2 - Function Overloading
 
 When specifying more than one method to the `addFunction` or `addStaticFunction` of both `Namespace` and `Class`, those overloads will be invoked in case of a call. Only overloads that have matched arguments arity will be considered, and they will be tried from first to last until the call succeeds.
 

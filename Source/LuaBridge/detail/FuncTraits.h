@@ -195,8 +195,32 @@ struct function_traits_impl<R (__fastcall C::*)(Args...) const noexcept, true> :
 };
 #endif
 
+template <class F, class = void>
+struct has_call_operator : std::false_type
+{
+};
+
 template <class F>
-struct functor_traits_impl : function_traits_impl<decltype(&F::operator()), true>
+struct has_call_operator<F, std::void_t<decltype(&F::operator())>> : std::true_type
+{
+};
+
+template <class F>
+inline static constexpr bool has_call_operator_v = has_call_operator<F>::value;
+
+template <class F, class = void>
+struct functor_traits_impl
+{
+};
+
+template <class F>
+struct functor_traits_impl<F, std::enable_if_t<has_call_operator_v<F>>> : function_traits_impl<decltype(&F::operator()), true>
+{
+};
+
+template <class F>
+struct functor_traits_impl<F, std::enable_if_t<!has_call_operator_v<F> && std::is_invocable_v<F&>>>
+    : function_traits_base<false, false, std::invoke_result_t<F&>>
 {
 };
 
@@ -212,6 +236,19 @@ struct function_traits : std::conditional_t<std::is_class_v<F>,
                                             detail::function_traits_impl<F, true>>
 {
 };
+
+template <class T, bool IsClass = std::is_class_v<T>, class = void>
+struct has_function_traits : std::false_type
+{
+};
+
+template <class T>
+struct has_function_traits<T, true, std::void_t<typename function_traits<T>::result_type, typename function_traits<T>::argument_types>> : std::true_type
+{
+};
+
+template <class T>
+inline static constexpr bool has_function_traits_v = has_function_traits<T>::value;
 
 //=================================================================================================
 /**
@@ -299,6 +336,12 @@ struct is_callable
 
 template <class T>
 struct is_callable<T, std::void_t<decltype(&T::operator())>>
+{
+    static constexpr bool value = true;
+};
+
+template <class T>
+struct is_callable<T, std::enable_if_t<std::is_class_v<T> && !has_call_operator_v<T> && has_function_traits_v<T>>>
 {
     static constexpr bool value = true;
 };
@@ -547,5 +590,96 @@ struct remove_first_type<std::tuple<T, Ts...>>
 template <class T>
 using remove_first_type_t = typename remove_first_type<T>::type;
 
+//=================================================================================================
+/**
+ * @brief Drop the first N types from a tuple.
+ */
+template <std::size_t N, class Tuple>
+struct tuple_drop_first
+{
+    using type = typename tuple_drop_first<N - 1, remove_first_type_t<Tuple>>::type;
+};
+
+template <class Tuple>
+struct tuple_drop_first<0, Tuple>
+{
+    using type = Tuple;
+};
+
+template <std::size_t N, class Tuple>
+using tuple_drop_first_t = typename tuple_drop_first<N, Tuple>::type;
+
+//=================================================================================================
+/**
+ * @brief Internal storage for luabridge::bind_front — exposes a non-template operator() so that
+ *        function_traits can statically resolve result_type and argument_types.
+ */
+template <class R, class RemainingArgsTuple, class Fn, class... BoundArgs>
+struct bind_front_wrapper;
+
+template <class R, class... Remaining, class Fn, class... BoundArgs>
+struct bind_front_wrapper<R, std::tuple<Remaining...>, Fn, BoundArgs...>
+{
+    Fn fn_;
+    std::tuple<BoundArgs...> bound_;
+
+    template <class F, class... BA>
+    bind_front_wrapper(F&& f, BA&&... ba)
+        : fn_(std::forward<F>(f)), bound_(std::forward<BA>(ba)...)
+    {
+    }
+
+    R operator()(Remaining... args) const
+    {
+        return std::apply([&](const auto&... ba) { return std::invoke(fn_, ba..., args...); }, bound_);
+    }
+};
+
 } // namespace detail
+
+//=================================================================================================
+/**
+ * @brief Drop-in replacement for std::bind_front with statically introspectable argument types.
+ *
+ * std::bind_front returns an object whose operator() is a template, so its argument and result
+ * types cannot be resolved at compile time without an explicit std::function<Sig> cast. This
+ * wrapper stores the callable and its leading bound arguments, then exposes a concrete
+ * non-template operator() whose parameter types are derived directly from the underlying
+ * callable's signature. This lets LuaBridge register the result with addFunction / addProperty /
+ * addMethod without any extra annotation.
+ *
+ * @code
+ * // Instead of:
+ * ns.addFunction("add", std::function<int(int)>(std::bind_front(&add2, 10)));
+ *
+ * // Write:
+ * ns.addFunction("add", luabridge::bind_front(&add2, 10));
+ * @endcode
+ *
+ * For member function pointers the implicit object argument consumed by std::invoke is not
+ * counted as part of the remaining (Lua-visible) parameter list, matching std::bind_front
+ * semantics.
+ *
+ * @tparam F     Callable type (function pointer, member function pointer, functor).
+ * @tparam BoundArgs Leading argument types to bind.
+ * @param  f     The callable to wrap.
+ * @param  args  Leading arguments forwarded into the wrapper by value.
+ * @return A callable object whose operator() accepts the remaining (unbound) arguments.
+ */
+template <class F, class... BoundArgs>
+auto bind_front(F&& f, BoundArgs&&... args)
+{
+    using Fn = std::decay_t<F>;
+    using FnTraits = detail::function_traits<Fn>;
+
+    static constexpr std::size_t skip = FnTraits::is_member ? 1u : 0u;
+    static constexpr std::size_t num_effective_bound = sizeof...(BoundArgs) - skip;
+
+    using remaining = detail::tuple_drop_first_t<num_effective_bound, typename FnTraits::argument_types>;
+    using R = typename FnTraits::result_type;
+
+    return detail::bind_front_wrapper<R, remaining, Fn, std::decay_t<BoundArgs>...>(
+        std::forward<F>(f), std::forward<BoundArgs>(args)...);
+}
+
 } // namespace luabridge
