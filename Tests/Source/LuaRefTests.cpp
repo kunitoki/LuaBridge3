@@ -9,6 +9,10 @@
 
 #include <sstream>
 
+namespace {
+int addInts(int a, int b) { return a + b; }
+} // namespace
+
 struct LuaRefTests : TestBase
 {
 };
@@ -911,6 +915,38 @@ TEST_F(LuaRefTests, RegisterLambdaInFunction)
 
     runLua("obj = Class(); result = takeClassState (obj, 10, 100)");
     ASSERT_EQ(1 + 10 + 100 + 3, result<int>());
+}
+
+TEST_F(LuaRefTests, RegisterBindFrontInNewFunction)
+{
+    luabridge::setGlobal(L, luabridge::newFunction(L, luabridge::bind_front(&addInts, 10)), "addTen");
+
+    runLua("result = addTen (32)");
+    ASSERT_EQ(42, result<int>());
+}
+
+TEST_F(LuaRefTests, RegisterBindFrontLambdaInNewFunction)
+{
+    luabridge::setGlobal(L, luabridge::newFunction(L, luabridge::bind_front([](int a, int b) { return a + b; }, 10)), "addTen");
+
+    runLua("result = addTen (32)");
+    ASSERT_EQ(42, result<int>());
+}
+
+TEST_F(LuaRefTests, RegisterBindBackInNewFunction)
+{
+    luabridge::setGlobal(L, luabridge::newFunction(L, luabridge::bind_back(&addInts, 10)), "addTen");
+
+    runLua("result = addTen (32)");
+    ASSERT_EQ(42, result<int>());
+}
+
+TEST_F(LuaRefTests, RegisterBindBackLambdaInNewFunction)
+{
+    luabridge::setGlobal(L, luabridge::newFunction(L, luabridge::bind_back([](int a, int b) { return a + b; }, 10)), "addTen");
+
+    runLua("result = addTen (32)");
+    ASSERT_EQ(42, result<int>());
 }
 
 TEST_F(LuaRefTests, HookTesting)

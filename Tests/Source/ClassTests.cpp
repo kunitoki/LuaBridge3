@@ -840,6 +840,36 @@ int proxyCFunctionState(lua_State* L)
 
     return 1;
 }
+
+template<class T, class Base>
+T proxyFunctionWithBoundOffset(int offset, Class<T, Base>* object, T value)
+{
+    return value + offset;
+}
+
+template<class T, class Base>
+T proxyConstFunctionWithBoundOffset(int offset, const Class<T, Base>* object, T value)
+{
+    return value + offset;
+}
+
+template<class T, class Base>
+T proxyFunctionWithTrailingOffset(Class<T, Base>* object, T value, int offset)
+{
+    return value + offset;
+}
+
+template<class T, class Base>
+T proxyConstFunctionWithTrailingOffset(const Class<T, Base>* object, T value, int offset)
+{
+    return value + offset;
+}
+
+template<class T>
+T staticFunctionAdd(T a, T b)
+{
+    return a + b;
+}
 } // namespace
 
 TEST_F(ClassFunctions, ClassWithTemplateMembers)
@@ -1135,6 +1165,162 @@ TEST_F(ClassFunctions, ConstStdFunctions)
     closeLuaState(); // Force garbage collection
 
     ASSERT_TRUE(data.expired());
+}
+
+TEST_F(ClassFunctions, BindFrontProxyFunctions)
+{
+    using Int = Class<int, EmptyBase>;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addFunction("method", luabridge::bind_front(&proxyFunctionWithBoundOffset<int, EmptyBase>, 100))
+        .endClass();
+
+    addHelperFunctions(L);
+
+    runLua("result = returnRef ():method (5)");
+    ASSERT_EQ(105, result<int>());
+
+    runLua("result = returnConstRef ().method"); // Don't call, just get
+    ASSERT_TRUE(result().isNil());
+
+    runLua("result = returnPtr ():method (2)");
+    ASSERT_EQ(102, result<int>());
+
+    runLua("result = returnConstPtr ().method"); // Don't call, just get
+    ASSERT_TRUE(result().isNil());
+
+    runLua("result = returnValue ():method (3)");
+    ASSERT_EQ(103, result<int>());
+}
+
+TEST_F(ClassFunctions, BindFrontConstProxyFunctions)
+{
+    using Int = Class<int, EmptyBase>;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addFunction("constMethod", luabridge::bind_front(&proxyConstFunctionWithBoundOffset<int, EmptyBase>, 200))
+        .endClass();
+
+    addHelperFunctions(L);
+
+    runLua("result = returnRef ():constMethod (5)");
+    ASSERT_EQ(205, result<int>());
+
+    runLua("result = returnConstRef ():constMethod (10)");
+    ASSERT_EQ(210, result<int>());
+
+    runLua("result = returnPtr ():constMethod (3)");
+    ASSERT_EQ(203, result<int>());
+
+    runLua("result = returnConstPtr ():constMethod (4)");
+    ASSERT_EQ(204, result<int>());
+
+    runLua("result = returnValue ():constMethod (1)");
+    ASSERT_EQ(201, result<int>());
+}
+
+TEST_F(ClassFunctions, BindBackProxyFunctions)
+{
+    using Int = Class<int, EmptyBase>;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addFunction("method", luabridge::bind_back(&proxyFunctionWithTrailingOffset<int, EmptyBase>, 100))
+        .endClass();
+
+    addHelperFunctions(L);
+
+    runLua("result = returnRef ():method (5)");
+    ASSERT_EQ(105, result<int>());
+
+    runLua("result = returnConstRef ().method"); // Don't call, just get
+    ASSERT_TRUE(result().isNil());
+
+    runLua("result = returnPtr ():method (2)");
+    ASSERT_EQ(102, result<int>());
+
+    runLua("result = returnConstPtr ().method"); // Don't call, just get
+    ASSERT_TRUE(result().isNil());
+
+    runLua("result = returnValue ():method (3)");
+    ASSERT_EQ(103, result<int>());
+}
+
+TEST_F(ClassFunctions, BindBackConstProxyFunctions)
+{
+    using Int = Class<int, EmptyBase>;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addFunction("constMethod", luabridge::bind_back(&proxyConstFunctionWithTrailingOffset<int, EmptyBase>, 200))
+        .endClass();
+
+    addHelperFunctions(L);
+
+    runLua("result = returnRef ():constMethod (5)");
+    ASSERT_EQ(205, result<int>());
+
+    runLua("result = returnConstRef ():constMethod (10)");
+    ASSERT_EQ(210, result<int>());
+
+    runLua("result = returnPtr ():constMethod (3)");
+    ASSERT_EQ(203, result<int>());
+
+    runLua("result = returnConstPtr ():constMethod (4)");
+    ASSERT_EQ(204, result<int>());
+
+    runLua("result = returnValue ():constMethod (1)");
+    ASSERT_EQ(201, result<int>());
+}
+
+TEST_F(ClassFunctions, BindBackMemberFunctions)
+{
+    using Int = Class<int, EmptyBase>;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addFunction("method", luabridge::bind_back(&Int::method, 7))
+        .endClass();
+
+    addHelperFunctions(L);
+
+    runLua("result = returnRef ():method ()");
+    ASSERT_EQ(7, result<int>());
+
+    runLua("result = returnPtr ():method ()");
+    ASSERT_EQ(7, result<int>());
+
+    runLua("result = returnValue ():method ()");
+    ASSERT_EQ(7, result<int>());
+}
+
+TEST_F(ClassFunctions, BindBackConstMemberFunctions)
+{
+    using Int = Class<int, EmptyBase>;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addFunction("constMethod", luabridge::bind_back(&Int::constMethod, 9))
+        .endClass();
+
+    addHelperFunctions(L);
+
+    runLua("result = returnRef ():constMethod ()");
+    ASSERT_EQ(9, result<int>());
+
+    runLua("result = returnConstRef ():constMethod ()");
+    ASSERT_EQ(9, result<int>());
+
+    runLua("result = returnPtr ():constMethod ()");
+    ASSERT_EQ(9, result<int>());
+
+    runLua("result = returnConstPtr ():constMethod ()");
+    ASSERT_EQ(9, result<int>());
+
+    runLua("result = returnValue ():constMethod ()");
+    ASSERT_EQ(9, result<int>());
 }
 
 struct ClassProperties : ClassTests
@@ -1789,6 +1975,64 @@ TEST_F(ClassStaticFunctions, StdFunctions)
 
     runLua("result = Int.static (Int (35))");
     ASSERT_EQ(35, result<Int>().data);
+}
+
+TEST_F(ClassStaticFunctions, BindFrontFunctions)
+{
+    using Int = Class<int, EmptyBase>;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addStaticFunction("add", luabridge::bind_front(&staticFunctionAdd<int>, 10))
+        .endClass();
+
+    runLua("result = Int.add (32)");
+    ASSERT_EQ(42, result<int>());
+}
+
+TEST_F(ClassStaticFunctions, BindFrontMemberFunctionBoundObject)
+{
+    using Int = Class<int, EmptyBase>;
+
+    Int myObject(42);
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addStaticFunction("getData", luabridge::bind_front(&Int::getData, &myObject))
+        .addStaticFunction("method", luabridge::bind_front(&Int::method, &myObject))
+        .endClass();
+
+    runLua("result = Int.getData ()");
+    ASSERT_EQ(42, result<int>());
+
+    runLua("result = Int.method (7)");
+    ASSERT_EQ(7, result<int>());
+}
+
+TEST_F(ClassStaticFunctions, BindBackFunctions)
+{
+    using Int = Class<int, EmptyBase>;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addStaticFunction("add", luabridge::bind_back(&staticFunctionAdd<int>, 10))
+        .endClass();
+
+    runLua("result = Int.add (32)");
+    ASSERT_EQ(42, result<int>());
+}
+
+TEST_F(ClassStaticFunctions, BindBackFunctionsFullyBound)
+{
+    using Int = Class<int, EmptyBase>;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addStaticFunction("getFortyTwo", luabridge::bind_back(&staticFunctionAdd<int>, 10, 32))
+        .endClass();
+
+    runLua("result = Int.getFortyTwo ()");
+    ASSERT_EQ(42, result<int>());
 }
 
 struct ClassStaticProperties : ClassTests

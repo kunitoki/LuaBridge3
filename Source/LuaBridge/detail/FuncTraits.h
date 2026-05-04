@@ -611,6 +611,91 @@ using tuple_drop_first_t = typename tuple_drop_first<N, Tuple>::type;
 
 //=================================================================================================
 /**
+ * @brief Prepend a type to a tuple.
+ */
+template <class T, class Tuple>
+struct tuple_prepend;
+
+template <class T, class... Ts>
+struct tuple_prepend<T, std::tuple<Ts...>>
+{
+    using type = std::tuple<T, Ts...>;
+};
+
+template <class T, class Tuple>
+using tuple_prepend_t = typename tuple_prepend<T, Tuple>::type;
+
+//=================================================================================================
+/**
+ * @brief Take only the first N types from a tuple (uses an accumulator to avoid ambiguity).
+ */
+template <std::size_t N, class Tuple, class Accum = std::tuple<>>
+struct tuple_take_first_impl
+{
+    using type = Accum;
+};
+
+template <std::size_t N, class T, class... Ts, class... Acc>
+struct tuple_take_first_impl<N, std::tuple<T, Ts...>, std::tuple<Acc...>>
+{
+    using type = typename tuple_take_first_impl<N - 1, std::tuple<Ts...>, std::tuple<Acc..., T>>::type;
+};
+
+template <class T, class... Ts, class... Acc>
+struct tuple_take_first_impl<0, std::tuple<T, Ts...>, std::tuple<Acc...>>
+{
+    using type = std::tuple<Acc...>;
+};
+
+template <std::size_t N, class Tuple>
+using tuple_take_first_t = typename tuple_take_first_impl<N, Tuple>::type;
+
+//=================================================================================================
+/**
+ * @brief Extracts the class type from a member function pointer.
+ */
+template <class F>
+struct member_function_class;
+
+template <class C, class R, class... Args>
+struct member_function_class<R (C::*)(Args...)> { using type = C; };
+
+template <class C, class R, class... Args>
+struct member_function_class<R (C::*)(Args...) const> { using type = const C; };
+
+template <class C, class R, class... Args>
+struct member_function_class<R (C::*)(Args...) noexcept> { using type = C; };
+
+template <class C, class R, class... Args>
+struct member_function_class<R (C::*)(Args...) const noexcept> { using type = const C; };
+
+template <class F>
+using member_function_class_t = typename member_function_class<F>::type;
+
+//=================================================================================================
+/**
+ * @brief Computes the leading argument tuple for bind_back: for member function pointers,
+ *        prepends ClassType* to the explicit remaining args; for all other callables, returns
+ *        the explicit remaining args unchanged.
+ */
+template <class Fn, class ExplicitRemaining, bool IsMember>
+struct bind_back_leading_impl
+{
+    using type = ExplicitRemaining;
+};
+
+template <class Fn, class ExplicitRemaining>
+struct bind_back_leading_impl<Fn, ExplicitRemaining, true>
+{
+    using type = tuple_prepend_t<member_function_class_t<Fn>*, ExplicitRemaining>;
+};
+
+template <class Fn, class ExplicitRemaining>
+using bind_back_leading_t =
+    typename bind_back_leading_impl<Fn, ExplicitRemaining, std::is_member_function_pointer_v<Fn>>::type;
+
+//=================================================================================================
+/**
  * @brief Internal storage for luabridge::bind_front — exposes a non-template operator() so that
  *        function_traits can statically resolve result_type and argument_types.
  */
@@ -645,16 +730,7 @@ struct bind_front_wrapper<R, std::tuple<Remaining...>, Fn, BoundArgs...>
  * types cannot be resolved at compile time without an explicit std::function<Sig> cast. This
  * wrapper stores the callable and its leading bound arguments, then exposes a concrete
  * non-template operator() whose parameter types are derived directly from the underlying
- * callable's signature. This lets LuaBridge register the result with addFunction / addProperty /
- * addMethod without any extra annotation.
- *
- * @code
- * // Instead of:
- * ns.addFunction("add", std::function<int(int)>(std::bind_front(&add2, 10)));
- *
- * // Write:
- * ns.addFunction("add", luabridge::bind_front(&add2, 10));
- * @endcode
+ * callable's signature.
  *
  * For member function pointers the implicit object argument consumed by std::invoke is not
  * counted as part of the remaining (Lua-visible) parameter list, matching std::bind_front
@@ -672,13 +748,85 @@ auto bind_front(F&& f, BoundArgs&&... args)
     using Fn = std::decay_t<F>;
     using FnTraits = detail::function_traits<Fn>;
 
-    static constexpr std::size_t skip = FnTraits::is_member ? 1u : 0u;
+    static constexpr std::size_t skip = std::is_member_function_pointer_v<Fn> ? 1u : 0u;
     static constexpr std::size_t num_effective_bound = sizeof...(BoundArgs) - skip;
 
     using remaining = detail::tuple_drop_first_t<num_effective_bound, typename FnTraits::argument_types>;
     using R = typename FnTraits::result_type;
 
     return detail::bind_front_wrapper<R, remaining, Fn, std::decay_t<BoundArgs>...>(
+        std::forward<F>(f), std::forward<BoundArgs>(args)...);
+}
+
+//=================================================================================================
+namespace detail {
+
+/**
+ * @brief Internal storage for luabridge::bind_back — exposes a non-template operator() so that
+ *        function_traits can statically resolve result_type and argument_types.
+ *
+ *        LeadingArgsTuple is the tuple of arguments that the caller must provide; BoundArgs are
+ *        the trailing arguments captured at bind time. For member function pointers, the class
+ *        pointer is included as the first element of LeadingArgsTuple.
+ */
+template <class R, class LeadingArgsTuple, class Fn, class... BoundArgs>
+struct bind_back_wrapper;
+
+template <class R, class... Leading, class Fn, class... BoundArgs>
+struct bind_back_wrapper<R, std::tuple<Leading...>, Fn, BoundArgs...>
+{
+    Fn fn_;
+    std::tuple<BoundArgs...> bound_;
+
+    template <class F, class... BA>
+    bind_back_wrapper(F&& f, BA&&... ba)
+        : fn_(std::forward<F>(f)), bound_(std::forward<BA>(ba)...)
+    {
+    }
+
+    R operator()(Leading... args) const
+    {
+        return std::apply([&](const auto&... ba) { return std::invoke(fn_, args..., ba...); }, bound_);
+    }
+};
+
+} // namespace detail
+
+//=================================================================================================
+/**
+ * @brief Drop-in replacement for std::bind_back with statically introspectable argument types.
+ *
+ * Stores the callable and its trailing bound arguments, then exposes a concrete non-template
+ * operator() whose parameter types are derived directly from the underlying callable's signature.
+ * This lets LuaBridge register the result with addFunction / addStaticFunction without any extra
+ * annotation.
+ *
+ * For member function pointers the class pointer is automatically prepended to the remaining
+ * (Lua-visible) parameter list so that LuaBridge can dispatch it as a proxy member function.
+ *
+ * @tparam F     Callable type (function pointer, member function pointer, functor).
+ * @tparam BoundArgs Trailing argument types to bind.
+ * @param  f     The callable to wrap.
+ * @param  args  Trailing arguments forwarded into the wrapper by value.
+ * @return A callable object whose operator() accepts the remaining (leading) arguments.
+ */
+template <class F, class... BoundArgs>
+auto bind_back(F&& f, BoundArgs&&... args)
+{
+    using Fn = std::decay_t<F>;
+    using FnTraits = detail::function_traits<Fn>;
+
+    static constexpr std::size_t num_explicit = FnTraits::arity;
+    static constexpr std::size_t num_bound = sizeof...(BoundArgs);
+    static constexpr std::size_t num_remaining = num_explicit - num_bound;
+
+    using explicit_remaining = detail::tuple_take_first_t<num_remaining, typename FnTraits::argument_types>;
+
+    using leading = detail::bind_back_leading_t<Fn, explicit_remaining>;
+
+    using R = typename FnTraits::result_type;
+
+    return detail::bind_back_wrapper<R, leading, Fn, std::decay_t<BoundArgs>...>(
         std::forward<F>(f), std::forward<BoundArgs>(args)...);
 }
 
