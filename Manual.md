@@ -33,7 +33,8 @@ Contents
     *   [2.4 - Property Member Proxies](#24---property-member-proxies)
     *   [2.5 - Function Member Proxies](#25---function-member-proxies)
     *   [2.5.1 - Partial Application with luabridge::bind_front](#251---partial-application-with-luabridgebind_front)
-    *   [2.5.2 - Function Overloading](#252---function-overloading)
+    *   [2.5.2 - Partial Application with luabridge::bind_back](#252---partial-application-with-luabridgebind_back)
+    *   [2.5.3 - Function Overloading](#253---function-overloading)
     *   [2.6 - Constructors](#26---constructors)
     *   [2.6.1 - Constructor Proxies](#261---constructor-proxies)
     *   [2.6.2 - Constructor Factories](#262---constructor-factories)
@@ -621,20 +622,59 @@ ns.addFunction ("add10", std::function<int(int)> (std::bind_front (&add, 10)));
 ns.addFunction ("add10", luabridge::bind_front (&add, 10));
 ```
 
-It also works with member function pointers, where the bound object is not counted as a Lua-visible parameter:
+It also works with member function pointers. The bound object is not counted as a Lua-visible parameter, so `bind_front` turns a member function into a plain callable that Lua sees as a regular function:
 
 ```cpp
-struct Vec { float coord [3]; };
-float getCoord (const Vec* v, int i) { return v->coord [i]; }
+struct Vec { float coord [3]; float getCoord (int i) const { return coord [i]; } };
 
-ns.beginClass<Vec> ("Vec")
-  .addFunction ("x", luabridge::bind_front (&getCoord, 0))
-  .addFunction ("y", luabridge::bind_front (&getCoord, 1))
-  .addFunction ("z", luabridge::bind_front (&getCoord, 2))
-.endClass ();
+Vec v;
+// Bind v as the object; Lua supplies the index
+ns.addFunction ("getCoord", luabridge::bind_front (&Vec::getCoord, &v));
+// Lua: getCoord(0) == v.coord[0]
 ```
 
-### 2.5.2 - Function Overloading
+It also accepts lambdas:
+
+```cpp
+int base = 10;
+ns.addFunction ("addBase", luabridge::bind_front ([base](int offset, int v) { return base + offset + v; }, 2));
+// Lua: addBase(30) == 42
+```
+
+### 2.5.2 - Partial Application with luabridge::bind_back
+
+`luabridge::bind_back` is the trailing-argument counterpart to `bind_front`: it pre-binds the **last** arguments of a callable, leaving the **leading** arguments for Lua to supply.
+
+```cpp
+int add (int a, int b) { return a + b; }
+
+// bind_back fixes the trailing argument; Lua supplies the leading one
+ns.addFunction ("add10", luabridge::bind_back (&add, 10));
+// Lua: add10(32) == 42
+```
+
+For member function pointers, `bind_back` automatically prepends the class pointer to the remaining (Lua-visible) parameter list so that LuaBridge can dispatch it as a proxy function. This lets you pre-bind a method's trailing arguments while the object still comes from Lua:
+
+```cpp
+struct Vec { float coord [3]; float getCoord (int i) const { return coord [i]; } };
+
+ns.beginClass<Vec> ("Vec")
+  .addFunction ("x", luabridge::bind_back (&Vec::getCoord, 0))
+  .addFunction ("y", luabridge::bind_back (&Vec::getCoord, 1))
+  .addFunction ("z", luabridge::bind_back (&Vec::getCoord, 2))
+.endClass ();
+// Lua: v:x() returns v.coord[0], v:y() returns v.coord[1], etc.
+```
+
+`bind_back` also accepts lambdas:
+
+```cpp
+int base = 10;
+ns.addFunction ("addBase", luabridge::bind_back ([base](int v, int offset) { return base + offset + v; }, 2));
+// Lua: addBase(30) == 42
+```
+
+### 2.5.3 - Function Overloading
 
 When specifying more than one method to the `addFunction` or `addStaticFunction` of both `Namespace` and `Class`, those overloads will be invoked in case of a call. Only overloads that have matched arguments arity will be considered, and they will be tried from first to last until the call succeeds.
 
