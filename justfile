@@ -5,6 +5,15 @@ default:
 generate:
     cmake -G Xcode -B Build -DLUABRIDGE_BENCHMARKS=ON .
 
+open: generate
+    -open Build/LuaBridge.xcodeproj
+
+build: generate
+    cmake --build Build --config Debug --target LuaBridgeTests53 -j8
+
+test: build
+    ./Build/Tests/Debug/LuaBridgeTests53
+
 sanitize TYPE='address':
     cmake -G Xcode -B Build -DLUABRIDGE_SANITIZE={{TYPE}} .
 
