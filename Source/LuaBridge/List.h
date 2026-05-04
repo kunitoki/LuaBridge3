@@ -15,10 +15,10 @@ namespace luabridge {
 /**
  * @brief Stack specialization for `std::array`.
  */
-template <class T>
-struct Stack<std::list<T>>
+template <class T, class Allocator>
+struct Stack<std::list<T, Allocator>>
 {
-    using Type = std::list<T>;
+    using Type = std::list<T, Allocator>;
     
     [[nodiscard]] static Result push(lua_State* L, const Type& list)
     {

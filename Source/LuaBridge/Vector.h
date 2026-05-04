@@ -15,10 +15,10 @@ namespace luabridge {
 /**
  * @brief Stack specialization for `std::vector`.
  */
-template <class T>
-struct Stack<std::vector<T>>
+template <class T, class Allocator>
+struct Stack<std::vector<T, Allocator>>
 {
-    using Type = std::vector<T>;
+    using Type = std::vector<T, Allocator>;
 
     [[nodiscard]] static Result push(lua_State* L, const Type& vector)
     {

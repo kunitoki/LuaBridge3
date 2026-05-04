@@ -15,10 +15,10 @@ namespace luabridge {
 /**
  * @brief Stack specialization for `std::unordered_map`.
  */
-template <class K, class V>
-struct Stack<std::unordered_map<K, V>>
+template <class K, class V, class Hash, class KeyEqual, class Allocator>
+struct Stack<std::unordered_map<K, V, Hash, KeyEqual, Allocator>>
 {
-    using Type = std::unordered_map<K, V>;
+    using Type = std::unordered_map<K, V, Hash, KeyEqual, Allocator>;
 
     [[nodiscard]] static Result push(lua_State* L, const Type& map)
     {
