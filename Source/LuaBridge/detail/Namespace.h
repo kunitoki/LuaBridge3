@@ -727,6 +727,12 @@ class Namespace : public detail::Registrar
             return *this;
         }
 
+        template <class Field>
+        Class<T>& addStaticPropertyReadWrite(const char* name, Field member)
+        {
+            return addStaticProperty(name, member, member);
+        }
+
         //=========================================================================================
         /**
          * @brief Add or replace a single static function or multiple overloaded functions.
@@ -908,6 +914,12 @@ class Namespace : public detail::Registrar
             detail::add_property_setter(L, name, -3); // Stack: co, cl, st
 
             return *this;
+        }
+
+        template <class Field>
+        Class<T>& addPropertyReadWrite(const char* name, Field T::*member)
+        {
+            return addProperty(name, member, member);
         }
 
         //=========================================================================================

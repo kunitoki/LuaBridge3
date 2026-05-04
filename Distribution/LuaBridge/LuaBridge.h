@@ -11437,6 +11437,12 @@ class Namespace : public detail::Registrar
             return *this;
         }
 
+        template <class Field>
+        Class<T>& addStaticPropertyReadWrite(const char* name, Field member)
+        {
+            return addStaticProperty(name, member, member);
+        }
+
         template <class... Functions>
         auto addStaticFunction(const char* name, Functions... functions)
             -> std::enable_if_t<(detail::is_callable_v<Functions> && ...) && (sizeof...(Functions) > 0), Class<T>&>
@@ -11592,6 +11598,12 @@ class Namespace : public detail::Registrar
             detail::add_property_setter(L, name, -3); 
 
             return *this;
+        }
+
+        template <class Field>
+        Class<T>& addPropertyReadWrite(const char* name, Field T::*member)
+        {
+            return addProperty(name, member, member);
         }
 
         template <class... Functions>
