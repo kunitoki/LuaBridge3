@@ -59,6 +59,7 @@ set (LUABRIDGE_TEST_SOURCE_FILES
   Source/TestsMain.cpp
   Source/UnorderedMapTests.cpp
   Source/UserdataTests.cpp
+  Source/VariantTests.cpp
   Source/VectorTests.cpp
 )
 
