@@ -34,6 +34,7 @@
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
+#include <variant>
 #include <vector>
 
 
@@ -299,8 +300,32 @@ struct function_traits_impl<R (__fastcall C::*)(Args...) const noexcept, true> :
 };
 #endif
 
+template <class F, class = void>
+struct has_call_operator : std::false_type
+{
+};
+
 template <class F>
-struct functor_traits_impl : function_traits_impl<decltype(&F::operator()), true>
+struct has_call_operator<F, std::void_t<decltype(&F::operator())>> : std::true_type
+{
+};
+
+template <class F>
+inline static constexpr bool has_call_operator_v = has_call_operator<F>::value;
+
+template <class F, class = void>
+struct functor_traits_impl
+{
+};
+
+template <class F>
+struct functor_traits_impl<F, std::enable_if_t<has_call_operator_v<F>>> : function_traits_impl<decltype(&F::operator()), true>
+{
+};
+
+template <class F>
+struct functor_traits_impl<F, std::enable_if_t<!has_call_operator_v<F> && std::is_invocable_v<F&>>>
+    : function_traits_base<false, false, std::invoke_result_t<F&>>
 {
 };
 
@@ -310,6 +335,19 @@ struct function_traits : std::conditional_t<std::is_class_v<F>,
                                             detail::function_traits_impl<F, true>>
 {
 };
+
+template <class T, bool IsClass = std::is_class_v<T>, class = void>
+struct has_function_traits : std::false_type
+{
+};
+
+template <class T>
+struct has_function_traits<T, true, std::void_t<typename function_traits<T>::result_type, typename function_traits<T>::argument_types>> : std::true_type
+{
+};
+
+template <class T>
+inline static constexpr bool has_function_traits_v = has_function_traits<T>::value;
 
 template <std::size_t I, class F, class = void>
 struct function_argument_or_void
@@ -352,6 +390,12 @@ struct is_callable
 
 template <class T>
 struct is_callable<T, std::void_t<decltype(&T::operator())>>
+{
+    static constexpr bool value = true;
+};
+
+template <class T>
+struct is_callable<T, std::enable_if_t<std::is_class_v<T> && !has_call_operator_v<T> && has_function_traits_v<T>>>
 {
     static constexpr bool value = true;
 };
@@ -539,7 +583,172 @@ struct remove_first_type<std::tuple<T, Ts...>>
 template <class T>
 using remove_first_type_t = typename remove_first_type<T>::type;
 
+template <std::size_t N, class Tuple>
+struct tuple_drop_first
+{
+    using type = typename tuple_drop_first<N - 1, remove_first_type_t<Tuple>>::type;
+};
+
+template <class Tuple>
+struct tuple_drop_first<0, Tuple>
+{
+    using type = Tuple;
+};
+
+template <std::size_t N, class Tuple>
+using tuple_drop_first_t = typename tuple_drop_first<N, Tuple>::type;
+
+template <class T, class Tuple>
+struct tuple_prepend;
+
+template <class T, class... Ts>
+struct tuple_prepend<T, std::tuple<Ts...>>
+{
+    using type = std::tuple<T, Ts...>;
+};
+
+template <class T, class Tuple>
+using tuple_prepend_t = typename tuple_prepend<T, Tuple>::type;
+
+template <std::size_t N, class Tuple, class Accum = std::tuple<>>
+struct tuple_take_first_impl
+{
+    using type = Accum;
+};
+
+template <std::size_t N, class T, class... Ts, class... Acc>
+struct tuple_take_first_impl<N, std::tuple<T, Ts...>, std::tuple<Acc...>>
+{
+    using type = typename tuple_take_first_impl<N - 1, std::tuple<Ts...>, std::tuple<Acc..., T>>::type;
+};
+
+template <class T, class... Ts, class... Acc>
+struct tuple_take_first_impl<0, std::tuple<T, Ts...>, std::tuple<Acc...>>
+{
+    using type = std::tuple<Acc...>;
+};
+
+template <std::size_t N, class Tuple>
+using tuple_take_first_t = typename tuple_take_first_impl<N, Tuple>::type;
+
+template <class F>
+struct member_function_class;
+
+template <class C, class R, class... Args>
+struct member_function_class<R (C::*)(Args...)> { using type = C; };
+
+template <class C, class R, class... Args>
+struct member_function_class<R (C::*)(Args...) const> { using type = const C; };
+
+template <class C, class R, class... Args>
+struct member_function_class<R (C::*)(Args...) noexcept> { using type = C; };
+
+template <class C, class R, class... Args>
+struct member_function_class<R (C::*)(Args...) const noexcept> { using type = const C; };
+
+template <class F>
+using member_function_class_t = typename member_function_class<F>::type;
+
+template <class Fn, class ExplicitRemaining, bool IsMember>
+struct bind_back_leading_impl
+{
+    using type = ExplicitRemaining;
+};
+
+template <class Fn, class ExplicitRemaining>
+struct bind_back_leading_impl<Fn, ExplicitRemaining, true>
+{
+    using type = tuple_prepend_t<member_function_class_t<Fn>*, ExplicitRemaining>;
+};
+
+template <class Fn, class ExplicitRemaining>
+using bind_back_leading_t =
+    typename bind_back_leading_impl<Fn, ExplicitRemaining, std::is_member_function_pointer_v<Fn>>::type;
+
+template <class R, class RemainingArgsTuple, class Fn, class... BoundArgs>
+struct bind_front_wrapper;
+
+template <class R, class... Remaining, class Fn, class... BoundArgs>
+struct bind_front_wrapper<R, std::tuple<Remaining...>, Fn, BoundArgs...>
+{
+    Fn fn_;
+    std::tuple<BoundArgs...> bound_;
+
+    template <class F, class... BA>
+    bind_front_wrapper(F&& f, BA&&... ba)
+        : fn_(std::forward<F>(f)), bound_(std::forward<BA>(ba)...)
+    {
+    }
+
+    R operator()(Remaining... args) const
+    {
+        return std::apply([&](const auto&... ba) { return std::invoke(fn_, ba..., args...); }, bound_);
+    }
+};
+
 } 
+
+template <class F, class... BoundArgs>
+auto bind_front(F&& f, BoundArgs&&... args)
+{
+    using Fn = std::decay_t<F>;
+    using FnTraits = detail::function_traits<Fn>;
+
+    static constexpr std::size_t skip = std::is_member_function_pointer_v<Fn> ? 1u : 0u;
+    static constexpr std::size_t num_effective_bound = sizeof...(BoundArgs) - skip;
+
+    using remaining = detail::tuple_drop_first_t<num_effective_bound, typename FnTraits::argument_types>;
+    using R = typename FnTraits::result_type;
+
+    return detail::bind_front_wrapper<R, remaining, Fn, std::decay_t<BoundArgs>...>(
+        std::forward<F>(f), std::forward<BoundArgs>(args)...);
+}
+
+namespace detail {
+
+template <class R, class LeadingArgsTuple, class Fn, class... BoundArgs>
+struct bind_back_wrapper;
+
+template <class R, class... Leading, class Fn, class... BoundArgs>
+struct bind_back_wrapper<R, std::tuple<Leading...>, Fn, BoundArgs...>
+{
+    Fn fn_;
+    std::tuple<BoundArgs...> bound_;
+
+    template <class F, class... BA>
+    bind_back_wrapper(F&& f, BA&&... ba)
+        : fn_(std::forward<F>(f)), bound_(std::forward<BA>(ba)...)
+    {
+    }
+
+    R operator()(Leading... args) const
+    {
+        return std::apply([&](const auto&... ba) { return std::invoke(fn_, args..., ba...); }, bound_);
+    }
+};
+
+} 
+
+template <class F, class... BoundArgs>
+auto bind_back(F&& f, BoundArgs&&... args)
+{
+    using Fn = std::decay_t<F>;
+    using FnTraits = detail::function_traits<Fn>;
+
+    static constexpr std::size_t num_explicit = FnTraits::arity;
+    static constexpr std::size_t num_bound = sizeof...(BoundArgs);
+    static constexpr std::size_t num_remaining = num_explicit - num_bound;
+
+    using explicit_remaining = detail::tuple_take_first_t<num_remaining, typename FnTraits::argument_types>;
+
+    using leading = detail::bind_back_leading_t<Fn, explicit_remaining>;
+
+    using R = typename FnTraits::result_type;
+
+    return detail::bind_back_wrapper<R, leading, Fn, std::decay_t<BoundArgs>...>(
+        std::forward<F>(f), std::forward<BoundArgs>(args)...);
+}
+
 } 
 
 
@@ -6066,10 +6275,10 @@ inline void dumpState(lua_State* L, unsigned maxDepth = 1, std::ostream& stream 
 
 namespace luabridge {
 
-template <class T>
-struct Stack<std::list<T>>
+template <class T, class Allocator>
+struct Stack<std::list<T, Allocator>>
 {
-    using Type = std::list<T>;
+    using Type = std::list<T, Allocator>;
     
     [[nodiscard]] static Result push(lua_State* L, const Type& list)
     {
@@ -12663,10 +12872,10 @@ ScopeGuard(F&&) -> ScopeGuard<F>;
 
 namespace luabridge {
 
-template <class K, class V>
-struct Stack<std::map<K, V>>
+template <class K, class V, class Compare, class Allocator>
+struct Stack<std::map<K, V, Compare, Allocator>>
 {
-    using Type = std::map<K, V>;
+    using Type = std::map<K, V, Compare, Allocator>;
 
     [[nodiscard]] static Result push(lua_State* L, const Type& map)
     {
@@ -12740,10 +12949,10 @@ struct Stack<std::map<K, V>>
 
 namespace luabridge {
 
-template <class K>
-struct Stack<std::set<K>>
+template <class K, class Compare, class Allocator>
+struct Stack<std::set<K, Compare, Allocator>>
 {
-    using Type = std::set<K>;
+    using Type = std::set<K, Compare, Allocator>;
     
     [[nodiscard]] static Result push(lua_State* L, const Type& set)
     {
@@ -12812,10 +13021,10 @@ struct Stack<std::set<K>>
 
 namespace luabridge {
 
-template <class K, class V>
-struct Stack<std::unordered_map<K, V>>
+template <class K, class V, class Hash, class KeyEqual, class Allocator>
+struct Stack<std::unordered_map<K, V, Hash, KeyEqual, Allocator>>
 {
-    using Type = std::unordered_map<K, V>;
+    using Type = std::unordered_map<K, V, Hash, KeyEqual, Allocator>;
 
     [[nodiscard]] static Result push(lua_State* L, const Type& map)
     {
@@ -12885,14 +13094,87 @@ struct Stack<std::unordered_map<K, V>>
 
 // End File: Source/LuaBridge/UnorderedMap.h
 
+// Begin File: Source/LuaBridge/Variant.h
+
+namespace luabridge {
+
+template <class... Args>
+struct Stack<std::variant<Args...>>
+{
+    using Type = std::variant<Args...>;
+
+    [[nodiscard]] static Result push(lua_State* L, const Type& variant)
+    {
+        return std::visit([L](const auto& value) { return Stack<std::decay_t<decltype(value)>>::push(L, value); }, variant);
+    }
+
+    [[nodiscard]] static TypeResult<Type> get(lua_State* L, int index)
+    {
+        return tryGet<Args...>(L, index);
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        return (Stack<Args>::isInstance(L, index) || ...);
+    }
+
+private:
+    template <class T, class... Rest>
+    [[nodiscard]] static TypeResult<Type> tryGet(lua_State* L, int index)
+    {
+        if (auto value = Stack<T>::get(L, index))
+            return Type{ std::in_place_type<T>, std::move(*value) };
+
+        if constexpr (sizeof...(Rest) > 0)
+            return tryGet<Rest...>(L, index);
+
+        return makeErrorCode(ErrorCode::InvalidTypeCast);
+    }
+};
+
+template <>
+struct Stack<std::monostate>
+{
+    using Type = std::monostate;
+
+    [[nodiscard]] static Result push(lua_State* L, const Type&)
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 1))
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
+        lua_pushnil(L);
+        return {};
+    }
+
+    [[nodiscard]] static TypeResult<Type> get(lua_State* L, int index)
+    {
+        if (lua_isnoneornil(L, index))
+            return Type{};
+
+        return makeErrorCode(ErrorCode::InvalidTypeCast);
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        return lua_isnoneornil(L, index);
+    }
+};
+
+} 
+
+
+// End File: Source/LuaBridge/Variant.h
+
 // Begin File: Source/LuaBridge/Vector.h
 
 namespace luabridge {
 
-template <class T>
-struct Stack<std::vector<T>>
+template <class T, class Allocator>
+struct Stack<std::vector<T, Allocator>>
 {
-    using Type = std::vector<T>;
+    using Type = std::vector<T, Allocator>;
 
     [[nodiscard]] static Result push(lua_State* L, const Type& vector)
     {
