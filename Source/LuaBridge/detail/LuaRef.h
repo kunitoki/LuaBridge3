@@ -17,6 +17,7 @@
 #include <exception>
 #include <map>
 #include <string>
+#include <string_view>
 #include <optional>
 #include <type_traits>
 #include <vector>
@@ -299,7 +300,7 @@ public:
      *
      * @returns An optional string containing the name used to register the class with `beginClass`, nullopt in case it's not a registered class.
      */
-    std::optional<std::string> getClassName()
+    std::optional<std::string> getClassName() const
     {
         if (! isUserdata())
             return std::nullopt;
@@ -556,7 +557,7 @@ public:
      * @returns True if the referred value is equal to the specified one.
      */
     template <class T>
-    bool rawequal(const T& v) const
+    [[nodiscard]] bool rawequal(const T& v) const
     {
         const StackRestore stackRestore(m_L);
 
@@ -576,7 +577,7 @@ public:
      *
      * @returns The length of the referred array.
      */
-    int length() const
+    [[nodiscard]] int length() const
     {
         const StackRestore stackRestore(m_L);
 
@@ -596,7 +597,7 @@ public:
      * @returns True if all values were successfully appended.
      */
     template <class... Ts>
-    bool append(const Ts&... vs) const
+    [[nodiscard]] bool append(const Ts&... vs) const
     {
         static_assert(sizeof...(vs) > 0);
 
@@ -772,6 +773,77 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
 
             if (m_tableRef != LUA_NOREF)
                 luaL_unref(m_L, LUA_REGISTRYINDEX, m_tableRef);
+        }
+
+        //=========================================================================================
+        /**
+         * @brief Indicate whether this TableItem proxy is in a valid state.
+         *
+         * @returns True if the table reference is valid, false otherwise.
+         */
+        bool isValid() const { return m_tableRef != LUA_NOREF; }
+
+        //=========================================================================================
+        /**
+         * @brief Copy assignment operator (copy-and-swap idiom).
+         *
+         * Makes this TableItem refer to the same table slot as `other`.
+         *
+         * @param other Another Lua table item reference.
+         *
+         * @returns This reference.
+         */
+        TableItem& operator=(const TableItem& other)
+        {
+            if (this == &other)
+                return *this;
+            TableItem tmp(other);
+            swap(tmp);
+            return *this;
+        }
+
+        //=========================================================================================
+        /**
+         * @brief Move constructor.
+         *
+         * Transfers ownership of the table and key refs from `other` to this.
+         *
+         * @param other Another Lua table item reference (moved-from).
+         */
+        TableItem(TableItem&& other) noexcept
+            : LuaRefBase(other.m_L)
+            , m_tableRef(std::exchange(other.m_tableRef, LUA_NOREF))
+            , m_keyRef(std::exchange(other.m_keyRef, LUA_NOREF))
+            , m_keyLiteral(std::exchange(other.m_keyLiteral, nullptr))
+        {
+        }
+
+        //=========================================================================================
+        /**
+         * @brief Move assignment operator.
+         *
+         * Releases this TableItem's refs and takes ownership of `other`'s refs.
+         *
+         * @param other Another Lua table item reference (moved-from).
+         *
+         * @returns This reference.
+         */
+        TableItem& operator=(TableItem&& other) noexcept
+        {
+            if (this == &other)
+                return *this;
+
+            if (m_keyRef != LUA_NOREF)
+                luaL_unref(m_L, LUA_REGISTRYINDEX, m_keyRef);
+            if (m_tableRef != LUA_NOREF)
+                luaL_unref(m_L, LUA_REGISTRYINDEX, m_tableRef);
+
+            m_L = other.m_L;
+            m_tableRef = std::exchange(other.m_tableRef, LUA_NOREF);
+            m_keyRef = std::exchange(other.m_keyRef, LUA_NOREF);
+            m_keyLiteral = std::exchange(other.m_keyLiteral, nullptr);
+
+            return *this;
         }
 
         //=========================================================================================
@@ -1003,6 +1075,15 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         }
 
     private:
+        void swap(TableItem& other) noexcept
+        {
+            using std::swap;
+            swap(m_L, other.m_L);
+            swap(m_tableRef, other.m_tableRef);
+            swap(m_keyRef, other.m_keyRef);
+            swap(m_keyLiteral, other.m_keyLiteral);
+        }
+
         int m_tableRef = LUA_NOREF;
         int m_keyRef = LUA_NOREF;
         const char* m_keyLiteral = nullptr;
@@ -1139,13 +1220,13 @@ public:
 
     //=============================================================================================
     /**
-     * @brief Return a reference to a top Lua stack item.
+     * @brief Return a reference to the top Lua stack item and pop it.
      *
-     * The stack item is not popped.
+     * The stack item is popped.
      *
      * @param L A Lua state.
      *
-     * @returns A reference to a value on the top of a Lua stack.
+     * @returns A reference to a value that was on the top of the Lua stack.
      */
     static LuaRef fromStack(lua_State* L)
     {
@@ -1367,11 +1448,17 @@ public:
      */
     void moveTo(lua_State* newL)
     {
-        push();
+        push();                                              // push value onto m_L
 
-        lua_xmove(m_L, newL, 1);
+        lua_xmove(m_L, newL, 1);                            // move value from m_L to newL (pops m_L, pushes newL)
+
+        const int oldRef = m_ref;
+        lua_State* const oldL = m_L;
 
         m_L = newL;
+        m_ref = luaL_ref(newL, LUA_REGISTRYINDEX);          // register on newL (pops from newL's stack)
+
+        luaL_unref(oldL, LUA_REGISTRYINDEX, oldRef);        // release old registry entry
     }
 
     //=============================================================================================
@@ -1385,7 +1472,7 @@ public:
      * @returns A reference to the table item.
      */
     template <class T>
-    TableItem operator[](const T& key) const
+    TableItem operator[](const T& key) const&
     {
         if (! Stack<T>::push(m_L, key))
             return TableItem(m_L, m_ref);
@@ -1393,10 +1480,25 @@ public:
         return TableItem(m_L, m_ref);
     }
 
+    template <class T>
+    TableItem operator[](const T& key) &&
+    {
+        if (! Stack<T>::push(m_L, key))
+            return TableItem(m_L, m_ref);
+
+        return TableItem(m_L, std::exchange(m_ref, LUA_NOREF), typename TableItem::AdoptTableRef{});
+    }
+
     template <std::size_t N>
-    TableItem operator[](const char (&key)[N]) const
+    TableItem operator[](const char (&key)[N]) const&
     {
         return TableItem(m_L, m_ref, key);
+    }
+
+    template <std::size_t N>
+    TableItem operator[](const char (&key)[N]) &&
+    {
+        return TableItem(m_L, std::exchange(m_ref, LUA_NOREF), typename TableItem::AdoptTableRef{}, key);
     }
 
     //=============================================================================================
@@ -1410,7 +1512,7 @@ public:
      * @returns A reference to the table item.
      */
     template <class T>
-    LuaRef rawget(const T& key) const
+    [[nodiscard]] LuaRef rawget(const T& key) const
     {
         const StackRestore stackRestore(m_L);
 
@@ -1435,7 +1537,7 @@ public:
      * @returns A converted value or an error.
      */
     template <class T>
-    TypeResult<T> getField(const char* key) const
+    [[nodiscard]] TypeResult<T> getField(const char* key) const
     {
         const StackRestore stackRestore(m_L);
 
@@ -1443,6 +1545,31 @@ public:
         lua_getfield(m_L, -1, key);
 
         return Stack<T>::get(m_L, -1);
+    }
+
+    //=============================================================================================
+    /**
+     * @brief Try to get a table field by C-string key and convert to T.
+     *
+     * This invokes metamethods and returns std::nullopt when the referred value is not a table
+     * or the field cannot be converted to the requested type.
+     */
+    template <class T>
+    [[nodiscard]] std::optional<T> tryGetField(const char* key) const
+    {
+        const StackRestore stackRestore(m_L);
+
+        push(m_L);
+        if (! lua_istable(m_L, -1))
+            return std::nullopt;
+
+        lua_getfield(m_L, -1, key);
+
+        auto result = Stack<std::decay_t<T>>::get(m_L, -1);
+        if (! result)
+            return std::nullopt;
+
+        return *result;
     }
 
     //=============================================================================================
@@ -1457,7 +1584,7 @@ public:
      * @returns True if value push succeeded, false otherwise.
      */
     template <class T>
-    bool setField(const char* key, T&& value) const
+    [[nodiscard]] bool setField(const char* key, T&& value) const
     {
         const StackRestore stackRestore(m_L);
 
@@ -1479,7 +1606,7 @@ public:
      * @returns A converted value or an error.
      */
     template <class T>
-    TypeResult<T> rawgetField(const char* key) const
+    [[nodiscard]] TypeResult<T> rawgetField(const char* key) const
     {
         const StackRestore stackRestore(m_L);
 
@@ -1500,7 +1627,7 @@ public:
      * @returns True if key/value push succeeded, false otherwise.
      */
     template <class T>
-    bool rawsetField(const char* key, T&& value) const
+    [[nodiscard]] bool rawsetField(const char* key, T&& value) const
     {
         const StackRestore stackRestore(m_L);
 
@@ -1568,39 +1695,54 @@ public:
     /**
      * @brief Get the unique hash of a LuaRef.
      */
-    std::size_t hash() const
+    [[nodiscard]] std::size_t hash() const
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(m_L, 1))
+            return 0;
+#endif
+
+        lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_ref);
+
+        const int t = lua_type(m_L, -1);
+
         std::size_t value;
-        switch (type())
+        switch (t)
         {
         case LUA_TNONE:
+        case LUA_TNIL:
             value = std::hash<std::nullptr_t>{}(nullptr);
             break;
 
         case LUA_TBOOLEAN:
-            value = std::hash<bool>{}(unsafe_cast<bool>());
+            value = std::hash<bool>{}(lua_toboolean(m_L, -1) != 0);
             break;
 
         case LUA_TNUMBER:
-            value = std::hash<lua_Number>{}(unsafe_cast<lua_Number>());
+            value = std::hash<lua_Number>{}(lua_tonumber(m_L, -1));
             break;
 
         case LUA_TSTRING:
-            value = std::hash<const char*>{}(unsafe_cast<const char*>());
+        {
+            std::size_t len = 0;
+            const char* s = lua_tolstring(m_L, -1, &len);
+            value = std::hash<std::string_view>{}(std::string_view(s, len));
             break;
+        }
 
-        case LUA_TNIL:
         case LUA_TTABLE:
         case LUA_TFUNCTION:
         case LUA_TTHREAD:
         case LUA_TUSERDATA:
         case LUA_TLIGHTUSERDATA:
         default:
-            value = static_cast<std::size_t>(m_ref);
+            value = reinterpret_cast<std::size_t>(lua_topointer(m_L, -1));
             break;
         }
 
-        const std::size_t seed = std::hash<int>{}(type());
+        lua_pop(m_L, 1);
+
+        const std::size_t seed = std::hash<int>{}(t == LUA_TNONE ? LUA_TNIL : t);
         return value + 0x9e3779b9u + (seed << 6) + (seed >> 2);
     }
 
@@ -1644,7 +1786,7 @@ template <class T>
 auto operator<(const T& lhs, const LuaRef& rhs)
     -> std::enable_if_t<!std::is_same_v<T, LuaRef> && !std::is_same_v<T, LuaRefBase<LuaRef, LuaRef>>, bool>
 {
-    return !(rhs >= lhs);
+    return rhs > lhs;
 }
 
 /**
@@ -1654,7 +1796,7 @@ template <class T>
 auto operator<=(const T& lhs, const LuaRef& rhs)
     -> std::enable_if_t<!std::is_same_v<T, LuaRef> && !std::is_same_v<T, LuaRefBase<LuaRef, LuaRef>>, bool>
 {
-    return !(rhs > lhs);
+    return rhs >= lhs;
 }
 
 /**
@@ -1664,7 +1806,7 @@ template <class T>
 auto operator>(const T& lhs, const LuaRef& rhs)
     -> std::enable_if_t<!std::is_same_v<T, LuaRef> && !std::is_same_v<T, LuaRefBase<LuaRef, LuaRef>>, bool>
 {
-    return rhs <= lhs;
+    return rhs < lhs;
 }
 
 /**
@@ -1674,7 +1816,7 @@ template <class T>
 auto operator>=(const T& lhs, const LuaRef& rhs)
     -> std::enable_if_t<!std::is_same_v<T, LuaRef> && !std::is_same_v<T, LuaRefBase<LuaRef, LuaRef>>, bool>
 {
-    return !(rhs > lhs);
+    return rhs <= lhs;
 }
 
 //=================================================================================================

@@ -11,8 +11,9 @@ Build/
 *.vcxproj.filters
 *.vcxproj.user
 .vs/
-.vscode
-.DS_store
+.vscode/
 .idea/
+.gitnexus/
+.DS_Store
 cmake-build-*/
 tmpunwind.o

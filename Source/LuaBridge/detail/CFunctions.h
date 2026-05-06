@@ -1676,6 +1676,31 @@ struct function<void, ArgsPack, Start>
     }
 };
 
+template <class T>
+TypeResult<T*> get_member_object(lua_State* L, bool canBeConst)
+{
+    const int selfIndex = lua_absindex(L, 1);
+
+    if (lua_getmetatable(L, selfIndex))
+    {
+        if (lua_type(L, lua_upvalueindex(2)) == LUA_TTABLE && lua_rawequal(L, -1, lua_upvalueindex(2)))
+        {
+            lua_pop(L, 1);
+            return Userdata::getExactPointer<T>(L, selfIndex);
+        }
+
+        if (canBeConst && lua_type(L, lua_upvalueindex(3)) == LUA_TTABLE && lua_rawequal(L, -1, lua_upvalueindex(3)))
+        {
+            lua_pop(L, 1);
+            return Userdata::getExactPointer<T>(L, selfIndex);
+        }
+
+        lua_pop(L, 1);
+    }
+
+    return Userdata::get<T>(L, selfIndex, canBeConst);
+}
+
 //=================================================================================================
 /**
  * @brief lua_CFunction to call a class member function with a return value.
@@ -1689,7 +1714,7 @@ int invoke_member_function(lua_State* L)
 
     LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
-    auto ptr = Userdata::get<T>(L, 1, false);
+    auto ptr = get_member_object<T>(L, false);
     if (! ptr)
         raise_lua_error(L, "%s", ptr.error_cstr());
 
@@ -1706,7 +1731,7 @@ int invoke_const_member_function(lua_State* L)
 
     LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
-    auto ptr = Userdata::get<T>(L, 1, true);
+    auto ptr = get_member_object<T>(L, true);
     if (! ptr)
         raise_lua_error(L, "%s", ptr.error_cstr());
 
@@ -2195,7 +2220,8 @@ void push_member_function(lua_State* L, ReturnType (U::*mfp)(Params...), const c
     using F = decltype(mfp);
 
     new (lua_newuserdata_x<F>(L, sizeof(F))) F(mfp);
-    lua_pushcclosure_x(L, &invoke_member_function<F, T>, debugname, 1);
+    lua_rawgetp_x(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>());
+    lua_pushcclosure_x(L, &invoke_member_function<F, T>, debugname, 2);
 }
 
 template <class T, class U, class ReturnType, class... Params>
@@ -2206,7 +2232,8 @@ void push_member_function(lua_State* L, ReturnType (U::*mfp)(Params...) noexcept
     using F = decltype(mfp);
 
     new (lua_newuserdata_x<F>(L, sizeof(F))) F(mfp);
-    lua_pushcclosure_x(L, &invoke_member_function<F, T>, debugname, 1);
+    lua_rawgetp_x(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>());
+    lua_pushcclosure_x(L, &invoke_member_function<F, T>, debugname, 2);
 }
 
 // Const member function pointer
@@ -2218,7 +2245,9 @@ void push_member_function(lua_State* L, ReturnType (U::*mfp)(Params...) const, c
     using F = decltype(mfp);
 
     new (lua_newuserdata_x<F>(L, sizeof(F))) F(mfp);
-    lua_pushcclosure_x(L, &detail::invoke_const_member_function<F, T>, debugname, 1);
+    lua_rawgetp_x(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>());
+    lua_rawgetp_x(L, LUA_REGISTRYINDEX, detail::getConstRegistryKey<T>());
+    lua_pushcclosure_x(L, &detail::invoke_const_member_function<F, T>, debugname, 3);
 }
 
 template <class T, class U, class ReturnType, class... Params>
@@ -2229,7 +2258,9 @@ void push_member_function(lua_State* L, ReturnType (U::*mfp)(Params...) const no
     using F = decltype(mfp);
 
     new (lua_newuserdata_x<F>(L, sizeof(F))) F(mfp);
-    lua_pushcclosure_x(L, &detail::invoke_const_member_function<F, T>, debugname, 1);
+    lua_rawgetp_x(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>());
+    lua_rawgetp_x(L, LUA_REGISTRYINDEX, detail::getConstRegistryKey<T>());
+    lua_pushcclosure_x(L, &detail::invoke_const_member_function<F, T>, debugname, 3);
 }
 
 // Non const member Lua CFunction pointer

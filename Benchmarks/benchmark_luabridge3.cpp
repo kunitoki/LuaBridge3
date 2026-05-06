@@ -397,14 +397,8 @@ void optional_success_measure(benchmark::State& state)
     for (auto _ : state)
     {
         (void) _;
-        luabridge::LuaRef warble = luabridge::getGlobal(L, "warble");
-        if (warble.isTable())
-        {
-            auto result = warble.getField<double>("value");
-            x += result ? *result : 1.0;
-        }
-        else
-            x += 1.0;
+        auto result = luabridge::tryGetGlobalField<double>(L, "warble", "value");
+        x += result ? *result : 1.0;
     }
 
     benchmark::DoNotOptimize(x);
@@ -419,14 +413,8 @@ void optional_half_failure_measure(benchmark::State& state)
     for (auto _ : state)
     {
         (void) _;
-        luabridge::LuaRef warble = luabridge::getGlobal(L, "warble");
-        if (warble.isTable())
-        {
-            auto result = warble.getField<double>("value");
-            x += result ? *result : 1.0;
-        }
-        else
-            x += 1.0;
+        auto result = luabridge::tryGetGlobalField<double>(L, "warble", "value");
+        x += result ? *result : 1.0;
     }
 
     benchmark::DoNotOptimize(x);
@@ -440,14 +428,8 @@ void optional_failure_measure(benchmark::State& state)
     for (auto _ : state)
     {
         (void) _;
-        luabridge::LuaRef warble = luabridge::getGlobal(L, "warble");
-        if (warble.isTable())
-        {
-            auto result = warble.getField<double>("value");
-            x += result ? *result : 1.0;
-        }
-        else
-            x += 1.0;
+        auto result = luabridge::tryGetGlobalField<double>(L, "warble", "value");
+        x += result ? *result : 1.0;
     }
 
     benchmark::DoNotOptimize(x);

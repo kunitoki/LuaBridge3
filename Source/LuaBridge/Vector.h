@@ -30,16 +30,15 @@ struct Stack<std::vector<T, Allocator>>
         StackRestore stackRestore(L);
 
         lua_createtable(L, static_cast<int>(vector.size()), 0);
+        const int tableIndex = lua_gettop(L);
 
         for (std::size_t i = 0; i < vector.size(); ++i)
         {
-            lua_pushinteger(L, static_cast<lua_Integer>(i + 1));
-            
             auto result = Stack<T>::push(L, vector[i]);
             if (! result)
                 return result;
 
-            lua_settable(L, -3);
+            lua_rawseti(L, tableIndex, i + 1);
         }
         
         stackRestore.reset();

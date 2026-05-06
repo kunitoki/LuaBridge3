@@ -740,9 +740,7 @@ auto bind_back(F&& f, BoundArgs&&... args)
     static constexpr std::size_t num_remaining = num_explicit - num_bound;
 
     using explicit_remaining = detail::tuple_take_first_t<num_remaining, typename FnTraits::argument_types>;
-
     using leading = detail::bind_back_leading_t<Fn, explicit_remaining>;
-
     using R = typename FnTraits::result_type;
 
     return detail::bind_back_wrapper<R, leading, Fn, std::decay_t<BoundArgs>...>(
@@ -4032,6 +4030,12 @@ public:
     }
 
     template <class T>
+    static T* getExactPointer(lua_State* L, int index) noexcept
+    {
+        return static_cast<T*>(static_cast<Userdata*>(lua_touserdata(L, index))->getPointer());
+    }
+
+    template <class T>
     static bool isInstance(lua_State* L, int index)
     {
         return isInstance(L, index, detail::getClassRegistryKey<T>())
@@ -6083,16 +6087,15 @@ struct Stack<std::array<T, Size>>
         StackRestore stackRestore(L);
 
         lua_createtable(L, static_cast<int>(Size), 0);
+        const int tableIndex = lua_gettop(L);
 
         for (std::size_t i = 0; i < Size; ++i)
         {
-            lua_pushinteger(L, static_cast<lua_Integer>(i + 1));
-
             auto result = Stack<T>::push(L, array[i]);
             if (! result)
                 return result;
 
-            lua_settable(L, -3);
+            lua_rawseti(L, tableIndex, i + 1);
         }
         
         stackRestore.reset();
@@ -8016,6 +8019,31 @@ struct function<void, ArgsPack, Start>
     }
 };
 
+template <class T>
+TypeResult<T*> get_member_object(lua_State* L, bool canBeConst)
+{
+    const int selfIndex = lua_absindex(L, 1);
+
+    if (lua_getmetatable(L, selfIndex))
+    {
+        if (lua_type(L, lua_upvalueindex(2)) == LUA_TTABLE && lua_rawequal(L, -1, lua_upvalueindex(2)))
+        {
+            lua_pop(L, 1);
+            return Userdata::getExactPointer<T>(L, selfIndex);
+        }
+
+        if (canBeConst && lua_type(L, lua_upvalueindex(3)) == LUA_TTABLE && lua_rawequal(L, -1, lua_upvalueindex(3)))
+        {
+            lua_pop(L, 1);
+            return Userdata::getExactPointer<T>(L, selfIndex);
+        }
+
+        lua_pop(L, 1);
+    }
+
+    return Userdata::get<T>(L, selfIndex, canBeConst);
+}
+
 template <class F, class T>
 int invoke_member_function(lua_State* L)
 {
@@ -8023,7 +8051,7 @@ int invoke_member_function(lua_State* L)
 
     LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
-    auto ptr = Userdata::get<T>(L, 1, false);
+    auto ptr = get_member_object<T>(L, false);
     if (! ptr)
         raise_lua_error(L, "%s", ptr.error_cstr());
 
@@ -8040,7 +8068,7 @@ int invoke_const_member_function(lua_State* L)
 
     LUABRIDGE_ASSERT(isfulluserdata(L, lua_upvalueindex(1)));
 
-    auto ptr = Userdata::get<T>(L, 1, true);
+    auto ptr = get_member_object<T>(L, true);
     if (! ptr)
         raise_lua_error(L, "%s", ptr.error_cstr());
 
@@ -8444,7 +8472,8 @@ void push_member_function(lua_State* L, ReturnType (U::*mfp)(Params...), const c
     using F = decltype(mfp);
 
     new (lua_newuserdata_x<F>(L, sizeof(F))) F(mfp);
-    lua_pushcclosure_x(L, &invoke_member_function<F, T>, debugname, 1);
+    lua_rawgetp_x(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>());
+    lua_pushcclosure_x(L, &invoke_member_function<F, T>, debugname, 2);
 }
 
 template <class T, class U, class ReturnType, class... Params>
@@ -8455,7 +8484,8 @@ void push_member_function(lua_State* L, ReturnType (U::*mfp)(Params...) noexcept
     using F = decltype(mfp);
 
     new (lua_newuserdata_x<F>(L, sizeof(F))) F(mfp);
-    lua_pushcclosure_x(L, &invoke_member_function<F, T>, debugname, 1);
+    lua_rawgetp_x(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>());
+    lua_pushcclosure_x(L, &invoke_member_function<F, T>, debugname, 2);
 }
 
 template <class T, class U, class ReturnType, class... Params>
@@ -8466,7 +8496,9 @@ void push_member_function(lua_State* L, ReturnType (U::*mfp)(Params...) const, c
     using F = decltype(mfp);
 
     new (lua_newuserdata_x<F>(L, sizeof(F))) F(mfp);
-    lua_pushcclosure_x(L, &detail::invoke_const_member_function<F, T>, debugname, 1);
+    lua_rawgetp_x(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>());
+    lua_rawgetp_x(L, LUA_REGISTRYINDEX, detail::getConstRegistryKey<T>());
+    lua_pushcclosure_x(L, &detail::invoke_const_member_function<F, T>, debugname, 3);
 }
 
 template <class T, class U, class ReturnType, class... Params>
@@ -8477,7 +8509,9 @@ void push_member_function(lua_State* L, ReturnType (U::*mfp)(Params...) const no
     using F = decltype(mfp);
 
     new (lua_newuserdata_x<F>(L, sizeof(F))) F(mfp);
-    lua_pushcclosure_x(L, &detail::invoke_const_member_function<F, T>, debugname, 1);
+    lua_rawgetp_x(L, LUA_REGISTRYINDEX, detail::getClassRegistryKey<T>());
+    lua_rawgetp_x(L, LUA_REGISTRYINDEX, detail::getConstRegistryKey<T>());
+    lua_pushcclosure_x(L, &detail::invoke_const_member_function<F, T>, debugname, 3);
 }
 
 template <class T, class U = T>
@@ -9532,6 +9566,24 @@ TypeResult<T> getGlobal(lua_State* L, const char* name)
 }
 
 template <class T>
+std::optional<T> tryGetGlobalField(lua_State* L, const char* globalName, const char* fieldName)
+{
+    const StackRestore stackRestore(L);
+
+    lua_getglobal(L, globalName);
+    if (! lua_istable(L, -1))
+        return std::nullopt;
+
+    lua_getfield(L, -1, fieldName);
+
+    auto result = Stack<std::decay_t<T>>::get(L, -1);
+    if (! result)
+        return std::nullopt;
+
+    return *result;
+}
+
+template <class T>
 bool setGlobal(lua_State* L, T&& t, const char* name)
 {
     if (auto result = push(L, std::forward<T>(t)))
@@ -9705,7 +9757,7 @@ public:
         return metatable.isTable() && metatable["__call"].isFunction();
     }
 
-    std::optional<std::string> getClassName()
+    std::optional<std::string> getClassName() const
     {
         if (! isUserdata())
             return std::nullopt;
@@ -9866,7 +9918,7 @@ public:
     }
 
     template <class T>
-    bool rawequal(const T& v) const
+    [[nodiscard]] bool rawequal(const T& v) const
     {
         const StackRestore stackRestore(m_L);
 
@@ -9878,7 +9930,7 @@ public:
         return lua_rawequal(m_L, -1, -2) == 1;
     }
 
-    int length() const
+    [[nodiscard]] int length() const
     {
         const StackRestore stackRestore(m_L);
 
@@ -9888,7 +9940,7 @@ public:
     }
 
     template <class... Ts>
-    bool append(const Ts&... vs) const
+    [[nodiscard]] bool append(const Ts&... vs) const
     {
         static_assert(sizeof...(vs) > 0);
 
@@ -10013,6 +10065,43 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
 
             if (m_tableRef != LUA_NOREF)
                 luaL_unref(m_L, LUA_REGISTRYINDEX, m_tableRef);
+        }
+
+        bool isValid() const { return m_tableRef != LUA_NOREF; }
+
+        TableItem& operator=(const TableItem& other)
+        {
+            if (this == &other)
+                return *this;
+            TableItem tmp(other);
+            swap(tmp);
+            return *this;
+        }
+
+        TableItem(TableItem&& other) noexcept
+            : LuaRefBase(other.m_L)
+            , m_tableRef(std::exchange(other.m_tableRef, LUA_NOREF))
+            , m_keyRef(std::exchange(other.m_keyRef, LUA_NOREF))
+            , m_keyLiteral(std::exchange(other.m_keyLiteral, nullptr))
+        {
+        }
+
+        TableItem& operator=(TableItem&& other) noexcept
+        {
+            if (this == &other)
+                return *this;
+
+            if (m_keyRef != LUA_NOREF)
+                luaL_unref(m_L, LUA_REGISTRYINDEX, m_keyRef);
+            if (m_tableRef != LUA_NOREF)
+                luaL_unref(m_L, LUA_REGISTRYINDEX, m_tableRef);
+
+            m_L = other.m_L;
+            m_tableRef = std::exchange(other.m_tableRef, LUA_NOREF);
+            m_keyRef = std::exchange(other.m_keyRef, LUA_NOREF);
+            m_keyLiteral = std::exchange(other.m_keyLiteral, nullptr);
+
+            return *this;
         }
 
         template <class T>
@@ -10177,6 +10266,15 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         }
 
     private:
+        void swap(TableItem& other) noexcept
+        {
+            using std::swap;
+            swap(m_L, other.m_L);
+            swap(m_tableRef, other.m_tableRef);
+            swap(m_keyRef, other.m_keyRef);
+            swap(m_keyLiteral, other.m_keyLiteral);
+        }
+
         int m_tableRef = LUA_NOREF;
         int m_keyRef = LUA_NOREF;
         const char* m_keyLiteral = nullptr;
@@ -10369,15 +10467,21 @@ public:
 
     void moveTo(lua_State* newL)
     {
-        push();
+        push();                                              
 
-        lua_xmove(m_L, newL, 1);
+        lua_xmove(m_L, newL, 1);                            
+
+        const int oldRef = m_ref;
+        lua_State* const oldL = m_L;
 
         m_L = newL;
+        m_ref = luaL_ref(newL, LUA_REGISTRYINDEX);          
+
+        luaL_unref(oldL, LUA_REGISTRYINDEX, oldRef);        
     }
 
     template <class T>
-    TableItem operator[](const T& key) const
+    TableItem operator[](const T& key) const&
     {
         if (! Stack<T>::push(m_L, key))
             return TableItem(m_L, m_ref);
@@ -10385,14 +10489,29 @@ public:
         return TableItem(m_L, m_ref);
     }
 
+    template <class T>
+    TableItem operator[](const T& key) &&
+    {
+        if (! Stack<T>::push(m_L, key))
+            return TableItem(m_L, m_ref);
+
+        return TableItem(m_L, std::exchange(m_ref, LUA_NOREF), typename TableItem::AdoptTableRef{});
+    }
+
     template <std::size_t N>
-    TableItem operator[](const char (&key)[N]) const
+    TableItem operator[](const char (&key)[N]) const&
     {
         return TableItem(m_L, m_ref, key);
     }
 
+    template <std::size_t N>
+    TableItem operator[](const char (&key)[N]) &&
+    {
+        return TableItem(m_L, std::exchange(m_ref, LUA_NOREF), typename TableItem::AdoptTableRef{}, key);
+    }
+
     template <class T>
-    LuaRef rawget(const T& key) const
+    [[nodiscard]] LuaRef rawget(const T& key) const
     {
         const StackRestore stackRestore(m_L);
 
@@ -10406,7 +10525,7 @@ public:
     }
 
     template <class T>
-    TypeResult<T> getField(const char* key) const
+    [[nodiscard]] TypeResult<T> getField(const char* key) const
     {
         const StackRestore stackRestore(m_L);
 
@@ -10417,7 +10536,25 @@ public:
     }
 
     template <class T>
-    bool setField(const char* key, T&& value) const
+    [[nodiscard]] std::optional<T> tryGetField(const char* key) const
+    {
+        const StackRestore stackRestore(m_L);
+
+        push(m_L);
+        if (! lua_istable(m_L, -1))
+            return std::nullopt;
+
+        lua_getfield(m_L, -1, key);
+
+        auto result = Stack<std::decay_t<T>>::get(m_L, -1);
+        if (! result)
+            return std::nullopt;
+
+        return *result;
+    }
+
+    template <class T>
+    [[nodiscard]] bool setField(const char* key, T&& value) const
     {
         const StackRestore stackRestore(m_L);
 
@@ -10431,7 +10568,7 @@ public:
     }
 
     template <class T>
-    TypeResult<T> rawgetField(const char* key) const
+    [[nodiscard]] TypeResult<T> rawgetField(const char* key) const
     {
         const StackRestore stackRestore(m_L);
 
@@ -10443,7 +10580,7 @@ public:
     }
 
     template <class T>
-    bool rawsetField(const char* key, T&& value) const
+    [[nodiscard]] bool rawsetField(const char* key, T&& value) const
     {
         const StackRestore stackRestore(m_L);
 
@@ -10490,39 +10627,54 @@ public:
         lua_pop(m_L, 1);
     }
 
-    std::size_t hash() const
+    [[nodiscard]] std::size_t hash() const
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(m_L, 1))
+            return 0;
+#endif
+
+        lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_ref);
+
+        const int t = lua_type(m_L, -1);
+
         std::size_t value;
-        switch (type())
+        switch (t)
         {
         case LUA_TNONE:
+        case LUA_TNIL:
             value = std::hash<std::nullptr_t>{}(nullptr);
             break;
 
         case LUA_TBOOLEAN:
-            value = std::hash<bool>{}(unsafe_cast<bool>());
+            value = std::hash<bool>{}(lua_toboolean(m_L, -1) != 0);
             break;
 
         case LUA_TNUMBER:
-            value = std::hash<lua_Number>{}(unsafe_cast<lua_Number>());
+            value = std::hash<lua_Number>{}(lua_tonumber(m_L, -1));
             break;
 
         case LUA_TSTRING:
-            value = std::hash<const char*>{}(unsafe_cast<const char*>());
+        {
+            std::size_t len = 0;
+            const char* s = lua_tolstring(m_L, -1, &len);
+            value = std::hash<std::string_view>{}(std::string_view(s, len));
             break;
+        }
 
-        case LUA_TNIL:
         case LUA_TTABLE:
         case LUA_TFUNCTION:
         case LUA_TTHREAD:
         case LUA_TUSERDATA:
         case LUA_TLIGHTUSERDATA:
         default:
-            value = static_cast<std::size_t>(m_ref);
+            value = reinterpret_cast<std::size_t>(lua_topointer(m_L, -1));
             break;
         }
 
-        const std::size_t seed = std::hash<int>{}(type());
+        lua_pop(m_L, 1);
+
+        const std::size_t seed = std::hash<int>{}(t == LUA_TNONE ? LUA_TNIL : t);
         return value + 0x9e3779b9u + (seed << 6) + (seed >> 2);
     }
 
@@ -10556,28 +10708,28 @@ template <class T>
 auto operator<(const T& lhs, const LuaRef& rhs)
     -> std::enable_if_t<!std::is_same_v<T, LuaRef> && !std::is_same_v<T, LuaRefBase<LuaRef, LuaRef>>, bool>
 {
-    return !(rhs >= lhs);
+    return rhs > lhs;
 }
 
 template <class T>
 auto operator<=(const T& lhs, const LuaRef& rhs)
     -> std::enable_if_t<!std::is_same_v<T, LuaRef> && !std::is_same_v<T, LuaRefBase<LuaRef, LuaRef>>, bool>
 {
-    return !(rhs > lhs);
+    return rhs >= lhs;
 }
 
 template <class T>
 auto operator>(const T& lhs, const LuaRef& rhs)
     -> std::enable_if_t<!std::is_same_v<T, LuaRef> && !std::is_same_v<T, LuaRefBase<LuaRef, LuaRef>>, bool>
 {
-    return rhs <= lhs;
+    return rhs < lhs;
 }
 
 template <class T>
 auto operator>=(const T& lhs, const LuaRef& rhs)
     -> std::enable_if_t<!std::is_same_v<T, LuaRef> && !std::is_same_v<T, LuaRefBase<LuaRef, LuaRef>>, bool>
 {
-    return !(rhs > lhs);
+    return rhs <= lhs;
 }
 
 template <>
@@ -13186,16 +13338,15 @@ struct Stack<std::vector<T, Allocator>>
         StackRestore stackRestore(L);
 
         lua_createtable(L, static_cast<int>(vector.size()), 0);
+        const int tableIndex = lua_gettop(L);
 
         for (std::size_t i = 0; i < vector.size(); ++i)
         {
-            lua_pushinteger(L, static_cast<lua_Integer>(i + 1));
-            
             auto result = Stack<T>::push(L, vector[i]);
             if (! result)
                 return result;
 
-            lua_settable(L, -3);
+            lua_rawseti(L, tableIndex, i + 1);
         }
         
         stackRestore.reset();

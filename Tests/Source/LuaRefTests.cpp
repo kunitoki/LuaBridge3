@@ -1059,6 +1059,50 @@ TEST_F(LuaRefTests, FieldHelpersRespectMetamethodsAndRawAccess)
     EXPECT_EQ(99, *rawValue);
 }
 
+TEST_F(LuaRefTests, TryGetFieldReturnsOptionalAndKeepsStackBalanced)
+{
+    runLua("indexCalls = 0 "
+           "result = setmetatable({ value = 42 }, {"
+           "  __index = function(_, key) indexCalls = indexCalls + 1; if key == 'metaValue' then return 84 end end"
+           "})");
+
+    auto table = result();
+
+    const int topBefore = lua_gettop(L);
+    EXPECT_EQ(42, *table.tryGetField<int>("value"));
+    EXPECT_EQ(topBefore, lua_gettop(L));
+
+    EXPECT_EQ(84, *table.tryGetField<int>("metaValue"));
+    EXPECT_EQ(1, luabridge::getGlobal(L, "indexCalls").unsafe_cast<int>());
+
+    EXPECT_FALSE(table.tryGetField<int>("missing"));
+    EXPECT_FALSE(table.tryGetField<int>("metaValueTypo"));
+
+    runLua("result = 5");
+    EXPECT_FALSE(result().tryGetField<int>("value"));
+    EXPECT_EQ(topBefore, lua_gettop(L));
+}
+
+TEST_F(LuaRefTests, TryGetGlobalFieldReturnsOptionalAndKeepsStackBalanced)
+{
+    runLua("indexCalls = 0 "
+           "warble = setmetatable({ value = 24.0, text = 'x' }, {"
+           "  __index = function(_, key) indexCalls = indexCalls + 1; if key == 'metaValue' then return 48.0 end end"
+           "})");
+
+    const int topBefore = lua_gettop(L);
+    EXPECT_EQ(24.0, *luabridge::tryGetGlobalField<double>(L, "warble", "value"));
+    EXPECT_EQ(topBefore, lua_gettop(L));
+
+    EXPECT_EQ(48.0, *luabridge::tryGetGlobalField<double>(L, "warble", "metaValue"));
+    EXPECT_EQ(1, luabridge::getGlobal(L, "indexCalls").unsafe_cast<int>());
+
+    EXPECT_FALSE(luabridge::tryGetGlobalField<double>(L, "warble", "text"));
+    EXPECT_FALSE(luabridge::tryGetGlobalField<double>(L, "warble", "missing"));
+    EXPECT_FALSE(luabridge::tryGetGlobalField<double>(L, "missingGlobal", "value"));
+    EXPECT_EQ(topBefore, lua_gettop(L));
+}
+
 TEST_F(LuaRefTests, UnsafeRawFieldHelpersKeepStackBalanced)
 {
     runLua("indexCalls = 0 "
@@ -1514,4 +1558,354 @@ TEST_F(LuaRefTests, LuaRefConstructorPushFailure)
         luabridge::LuaRef ref(L, huge); // push fails - early return at line 1085
         EXPECT_FALSE(ref.isValid());
     }
+}
+
+TEST_F(LuaRefTests, NonMemberComparisonCorrectness)
+{
+    luabridge::LuaRef seven(L, 7);
+    luabridge::LuaRef eight(L, 8);
+
+    // Equal values: T op LuaRef
+    EXPECT_FALSE(7 < seven);
+    EXPECT_TRUE(7 <= seven);
+    EXPECT_FALSE(7 > seven);
+    EXPECT_TRUE(7 >= seven);
+
+    // lhs < rhs: T op LuaRef
+    EXPECT_TRUE(7 < eight);
+    EXPECT_TRUE(7 <= eight);
+    EXPECT_FALSE(7 > eight);
+    EXPECT_FALSE(7 >= eight);
+
+    // lhs > rhs: T op LuaRef
+    EXPECT_FALSE(8 < seven);
+    EXPECT_FALSE(8 <= seven);
+    EXPECT_TRUE(8 > seven);
+    EXPECT_TRUE(8 >= seven);
+}
+
+TEST_F(LuaRefTests, HashContract)
+{
+    // Invalid ref and nil ref compare equal — must hash equal
+    luabridge::LuaRef invalid(L);
+    luabridge::LuaRef nil(L, luabridge::LuaNil());
+    EXPECT_TRUE(invalid == nil);
+    EXPECT_EQ(invalid.hash(), nil.hash());
+
+    // Two nil refs must hash equal
+    luabridge::LuaRef nil2(L, luabridge::LuaNil());
+    EXPECT_EQ(nil.hash(), nil2.hash());
+
+    // Copies of a table ref must hash equal (same object identity)
+    runLua("result = {}");
+    luabridge::LuaRef t1 = result();
+    luabridge::LuaRef t2 = result();
+    EXPECT_TRUE(t1 == t2);
+    EXPECT_EQ(t1.hash(), t2.hash());
+
+    // Copies of a function ref must hash equal
+    runLua("result = function() end");
+    luabridge::LuaRef f1 = result();
+    luabridge::LuaRef f2 = result();
+    EXPECT_EQ(f1.hash(), f2.hash());
+
+    // Strings with same content must hash equal
+    luabridge::LuaRef s1(L, "hello");
+    luabridge::LuaRef s2(L, "hello");
+    EXPECT_TRUE(s1 == s2);
+    EXPECT_EQ(s1.hash(), s2.hash());
+
+    // Strings with different content must hash differently (very high probability)
+    luabridge::LuaRef s3(L, "world");
+    EXPECT_NE(s1.hash(), s3.hash());
+}
+
+TEST_F(LuaRefTests, TableItemCopyAssignmentAndMove)
+{
+    runLua("result = { a = 10, b = 20 }");
+
+    auto a = result()["a"];
+    auto b = result()["b"];
+
+    EXPECT_EQ(10, luabridge::cast<int>(luabridge::LuaRef(a)).valueOr(0));
+    EXPECT_EQ(20, luabridge::cast<int>(luabridge::LuaRef(b)).valueOr(0));
+
+    // Copy assignment: b = a (b now refers to same slot as a)
+    b = a;
+    EXPECT_EQ(10, luabridge::cast<int>(luabridge::LuaRef(b)).valueOr(0));
+
+    // Move constructor
+    auto c = std::move(b);
+    EXPECT_EQ(10, luabridge::cast<int>(luabridge::LuaRef(c)).valueOr(0));
+
+    // Move assignment
+    runLua("result = { x = 99 }");
+    auto x = result()["x"];
+    auto y = result()["x"];
+    y = std::move(x);
+    EXPECT_EQ(99, luabridge::cast<int>(luabridge::LuaRef(y)).valueOr(0));
+}
+
+TEST_F(LuaRefTests, GetClassNameConst)
+{
+    struct MyClass {};
+    luabridge::getGlobalNamespace(L)
+        .beginClass<MyClass>("MyClass")
+        .addConstructor<void (*)()>()
+        .endClass();
+
+    runLua("result = MyClass()");
+    const luabridge::LuaRef constRef = result();
+    EXPECT_EQ("MyClass", constRef.getClassName().value_or(""));
+}
+
+TEST_F(LuaRefTests, MoveToStackBalance)
+{
+    runLua("result = 42");
+    luabridge::LuaRef ref = result();
+    EXPECT_TRUE(ref.isNumber());
+    EXPECT_EQ(42, ref.cast<int>().valueOr(0));
+
+    const int mainTopBefore = lua_gettop(L);
+
+    lua_State* thread = lua_newthread(L);
+    const int threadTop = lua_gettop(thread);
+
+    ref.moveTo(thread);
+
+    // Main state: only the thread object was added by lua_newthread
+    EXPECT_EQ(mainTopBefore + 1, lua_gettop(L));
+
+    // Thread stack must be balanced after moveTo (luaL_ref consumes the xmoved value)
+    EXPECT_EQ(threadTop, lua_gettop(thread));
+
+    // The ref now lives on the thread state with the correct value
+    EXPECT_TRUE(ref.isNumber());
+    EXPECT_EQ(42, ref.cast<int>().valueOr(0));
+}
+
+TEST_F(LuaRefTests, TableItemIsValid)
+{
+    runLua("result = { key = 1 }");
+
+    // Valid TableItem from string literal key
+    auto item = result()["key"];
+    EXPECT_TRUE(item.isValid());
+
+    // Valid TableItem from dynamic key
+    std::string dynKey = "key";
+    auto item2 = result()[dynKey];
+    EXPECT_TRUE(item2.isValid());
+
+    // After move: target is valid, source is invalid
+    auto moved = std::move(item2);
+    EXPECT_TRUE(moved.isValid());
+    EXPECT_FALSE(item2.isValid());
+
+    // Copy-constructed and copy-assigned TableItems are valid
+    auto copied = item;
+    EXPECT_TRUE(item.isValid());
+    EXPECT_TRUE(copied.isValid());
+}
+
+// --- NonMemberComparison additional coverage ---
+
+TEST_F(LuaRefTests, NonMemberComparisonStrings)
+{
+    luabridge::LuaRef hello(L, "hello");
+    luabridge::LuaRef world(L, "world");
+
+    // "hello" < "world" lexicographically
+    EXPECT_TRUE(std::string("hello") < world);
+    EXPECT_TRUE(std::string("hello") <= world);
+    EXPECT_FALSE(std::string("hello") > world);
+    EXPECT_FALSE(std::string("hello") >= world);
+
+    // Equal string values
+    EXPECT_FALSE(std::string("hello") < hello);
+    EXPECT_TRUE(std::string("hello") <= hello);
+    EXPECT_FALSE(std::string("hello") > hello);
+    EXPECT_TRUE(std::string("hello") >= hello);
+
+    EXPECT_FALSE(std::string("world") < world);
+    EXPECT_TRUE(std::string("world") <= world);
+    EXPECT_FALSE(std::string("world") > world);
+    EXPECT_TRUE(std::string("world") >= world);
+}
+
+TEST_F(LuaRefTests, NonMemberComparisonSymmetry)
+{
+    luabridge::LuaRef seven(L, 7);
+    luabridge::LuaRef eight(L, 8);
+
+    // (T op LuaRef) must produce the same answer as (LuaRef reverse-op T)
+    EXPECT_EQ((7 < eight),  static_cast<bool>(eight > 7));
+    EXPECT_EQ((7 <= eight), static_cast<bool>(eight >= 7));
+    EXPECT_EQ((8 > seven),  static_cast<bool>(seven < 8));
+    EXPECT_EQ((8 >= seven), static_cast<bool>(seven <= 8));
+
+    // Equal values
+    EXPECT_EQ((7 < seven),  static_cast<bool>(seven > 7));
+    EXPECT_EQ((7 <= seven), static_cast<bool>(seven >= 7));
+    EXPECT_EQ((7 > seven),  static_cast<bool>(seven < 7));
+    EXPECT_EQ((7 >= seven), static_cast<bool>(seven <= 7));
+}
+
+TEST_F(LuaRefTests, NonMemberEqualityAndInequality)
+{
+    luabridge::LuaRef seven(L, 7);
+    luabridge::LuaRef eight(L, 8);
+
+    EXPECT_TRUE(7 == seven);
+    EXPECT_FALSE(7 == eight);
+    EXPECT_FALSE(8 == seven);
+    EXPECT_TRUE(8 == eight);
+
+    EXPECT_FALSE(7 != seven);
+    EXPECT_TRUE(7 != eight);
+}
+
+// --- Hash additional coverage ---
+
+TEST_F(LuaRefTests, HashBooleans)
+{
+    luabridge::LuaRef t1(L, true);
+    luabridge::LuaRef t2(L, true);
+    luabridge::LuaRef f1(L, false);
+
+    EXPECT_EQ(t1.hash(), t2.hash());
+    EXPECT_NE(t1.hash(), f1.hash());
+}
+
+TEST_F(LuaRefTests, HashNumbers)
+{
+    luabridge::LuaRef a(L, 42);
+    luabridge::LuaRef b(L, 42);
+    luabridge::LuaRef c(L, 43);
+
+    EXPECT_EQ(a.hash(), b.hash());
+    EXPECT_NE(a.hash(), c.hash());
+}
+
+TEST_F(LuaRefTests, HashDistinctTablesDistinct)
+{
+    runLua("hashT1 = {}; hashT2 = {}");
+    auto t1 = luabridge::getGlobal(L, "hashT1");
+    auto t2 = luabridge::getGlobal(L, "hashT2");
+
+    EXPECT_FALSE(t1 == t2);
+    EXPECT_NE(t1.hash(), t2.hash());
+}
+
+TEST_F(LuaRefTests, HashUsableInUnorderedMap)
+{
+    std::unordered_map<luabridge::LuaRef, int> map;
+
+    luabridge::LuaRef key1(L, "mapkey1");
+    luabridge::LuaRef key2(L, "mapkey2");
+
+    map[key1] = 100;
+    map[key2] = 200;
+
+    luabridge::LuaRef key1Copy(L, "mapkey1");
+    EXPECT_EQ(100, map.at(key1Copy));
+    EXPECT_EQ(200, map.at(key2));
+}
+
+// --- TableItem copy/move additional coverage ---
+
+TEST_F(LuaRefTests, TableItemCopyAssignmentSelfAssign)
+{
+    runLua("result = { a = 42 }");
+    auto item = result()["a"];
+    EXPECT_TRUE(item.isValid());
+
+#if __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wself-assign-overloaded"
+#endif
+    item = item;
+#if __clang__
+#pragma clang diagnostic pop
+#endif
+
+    EXPECT_TRUE(item.isValid());
+    EXPECT_EQ(42, item.unsafe_cast<int>());
+}
+
+TEST_F(LuaRefTests, TableItemCopyAssignmentSharesSlot)
+{
+    // After b = a, b proxies the same table slot as a.
+    // Writing through b must also be visible when reading through a.
+    runLua("result = { a = 1, b = 2 }");
+    auto table = result();
+
+    auto a = table["a"];
+    auto b = table["b"];
+
+    b = a;
+    EXPECT_EQ(1, luabridge::LuaRef(b).unsafe_cast<int>());
+
+    b = 99;
+    EXPECT_EQ(99, table["a"].unsafe_cast<int>());
+    EXPECT_EQ(99, luabridge::LuaRef(a).unsafe_cast<int>());
+}
+
+TEST_F(LuaRefTests, TableItemMovedFromDestructible)
+{
+    runLua("result = { key = 1 }");
+    auto item = result()["key"];
+
+    auto moved = std::move(item);
+
+    EXPECT_FALSE(item.isValid());
+    EXPECT_TRUE(moved.isValid());
+    // item goes out of scope here — must not double-unref or crash
+}
+
+TEST_F(LuaRefTests, TableItemMoveAssignReleasesOldRefs)
+{
+    runLua("result = { a = 10, b = 20 }");
+    auto a = result()["a"];
+    auto b = result()["b"];
+
+    b = std::move(a);
+
+    EXPECT_FALSE(a.isValid());
+    EXPECT_TRUE(b.isValid());
+    EXPECT_EQ(10, luabridge::LuaRef(b).unsafe_cast<int>());
+}
+
+// --- moveTo() additional coverage ---
+
+TEST_F(LuaRefTests, MoveToTransfersString)
+{
+    runLua("result = 'hello'");
+    luabridge::LuaRef ref = result();
+    EXPECT_TRUE(ref.isString());
+
+    lua_State* thread = lua_newthread(L);
+    const int threadTop = lua_gettop(thread);
+
+    ref.moveTo(thread);
+
+    EXPECT_EQ(threadTop, lua_gettop(thread));
+    EXPECT_TRUE(ref.isString());
+    EXPECT_EQ("hello", ref.cast<std::string>().valueOr(""));
+}
+
+TEST_F(LuaRefTests, MoveToNilRef)
+{
+    luabridge::LuaRef nilRef(L, luabridge::LuaNil());
+    EXPECT_TRUE(nilRef.isNil());
+
+    lua_State* thread = lua_newthread(L);
+    const int mainTop = lua_gettop(L);
+    const int threadTop = lua_gettop(thread);
+
+    nilRef.moveTo(thread);
+
+    EXPECT_EQ(mainTop, lua_gettop(L));
+    EXPECT_EQ(threadTop, lua_gettop(thread));
+    EXPECT_TRUE(nilRef.isNil());
 }

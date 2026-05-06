@@ -821,9 +821,7 @@ auto bind_back(F&& f, BoundArgs&&... args)
     static constexpr std::size_t num_remaining = num_explicit - num_bound;
 
     using explicit_remaining = detail::tuple_take_first_t<num_remaining, typename FnTraits::argument_types>;
-
     using leading = detail::bind_back_leading_t<Fn, explicit_remaining>;
-
     using R = typename FnTraits::result_type;
 
     return detail::bind_back_wrapper<R, leading, Fn, std::decay_t<BoundArgs>...>(

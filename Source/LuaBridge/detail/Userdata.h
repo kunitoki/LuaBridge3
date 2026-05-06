@@ -355,6 +355,12 @@ public:
     }
 
     template <class T>
+    static T* getExactPointer(lua_State* L, int index) noexcept
+    {
+        return static_cast<T*>(static_cast<Userdata*>(lua_touserdata(L, index))->getPointer());
+    }
+
+    template <class T>
     static bool isInstance(lua_State* L, int index)
     {
         return isInstance(L, index, detail::getClassRegistryKey<T>())
