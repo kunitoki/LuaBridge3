@@ -86,6 +86,31 @@ void registerBasicLarge(sol::state& lua)
         "var49", &BasicLarge::var49);
 }
 
+void registerBasicGetterSetter(sol::state& lua)
+{
+    lua.new_usertype<Basic>("c",
+        sol::constructors<Basic()>(),
+        "val", sol::property(&Basic::get, &Basic::set));
+}
+
+void registerCounter(sol::state& lua)
+{
+    lua.new_usertype<Counter>("Counter",
+        sol::constructors<Counter()>(),
+        "get", &Counter::get,
+        "static_add", &Counter::static_add);
+}
+
+void registerSharedObject(sol::state& lua)
+{
+    lua.new_usertype<SharedObject>("SharedObject",
+        sol::call_constructor,
+        sol::factories([]() { return std::make_shared<SharedObject>(); }),
+        "get", &SharedObject::get);
+    lua.set_function("get_shared", &shared_object_return);
+    lua.set_function("use_shared", &shared_object_get_value);
+}
+
 void table_global_string_get_measure(benchmark::State& state)
 {
     sol::state lua;
@@ -414,6 +439,127 @@ void return_userdata_measure(benchmark::State& state)
     }
 }
 
+void userdata_variable_write_measure(benchmark::State& state)
+{
+    sol::state lua;
+    registerBasic(lua);
+    lua.script("b = c.new()\nfunction write_var() b.var = 24.0 end");
+
+    for (auto _ : state)
+    {
+        (void) _;
+        lua["write_var"]();
+    }
+}
+
+void userdata_property_getter_measure(benchmark::State& state)
+{
+    sol::state lua;
+    registerBasicGetterSetter(lua);
+    lua.script("b = c.new()\nfunction read_getter() return b.val end");
+
+    for (auto _ : state)
+    {
+        (void) _;
+        lua["read_getter"]();
+    }
+}
+
+void userdata_property_setter_measure(benchmark::State& state)
+{
+    sol::state lua;
+    registerBasicGetterSetter(lua);
+    lua.script("b = c.new()\nfunction write_setter() b.val = 24.0 end");
+
+    for (auto _ : state)
+    {
+        (void) _;
+        lua["write_setter"]();
+    }
+}
+
+void lambda_capture_measure(benchmark::State& state)
+{
+    sol::state lua;
+    double extra = kMagicValue;
+    lua.set_function("f", [extra](double v) { return v + extra; });
+    lua.script("function invoke_lambda() return f(24.0) end");
+
+    for (auto _ : state)
+    {
+        (void) _;
+        lua["invoke_lambda"]();
+    }
+}
+
+void shared_ptr_return_measure(benchmark::State& state)
+{
+    sol::state lua;
+    registerSharedObject(lua);
+    lua.script("function invoke_shared() return get_shared():get() end");
+
+    for (auto _ : state)
+    {
+        (void) _;
+        lua["invoke_shared"]();
+    }
+}
+
+void shared_ptr_pass_measure(benchmark::State& state)
+{
+    sol::state lua;
+    registerSharedObject(lua);
+    lua.script("obj = SharedObject()\nfunction invoke_pass_shared() return use_shared(obj) end");
+
+    for (auto _ : state)
+    {
+        (void) _;
+        lua["invoke_pass_shared"]();
+    }
+}
+
+void static_member_function_call_measure(benchmark::State& state)
+{
+    sol::state lua;
+    registerCounter(lua);
+    lua.script("function invoke_static() return Counter.static_add(10, 32) end");
+
+    for (auto _ : state)
+    {
+        (void) _;
+        lua["invoke_static"]();
+    }
+}
+
+void derived_method_call_measure(benchmark::State& state)
+{
+    sol::state lua;
+
+    lua.new_usertype<ComplexBaseA>("ComplexBaseA",
+        "a_func", &ComplexBaseA::a_func,
+        "a", &ComplexBaseA::a);
+
+    lua.new_usertype<ComplexBaseB>("ComplexBaseB",
+        "b_func", &ComplexBaseB::b_func,
+        "b", &ComplexBaseB::b);
+
+    lua.new_usertype<ComplexAB>("ComplexAB",
+        sol::constructors<ComplexAB()>(),
+        sol::base_classes, sol::bases<ComplexBaseA, ComplexBaseB>(),
+        "ab_func", &ComplexAB::ab_func,
+        "ab", &ComplexAB::ab);
+
+    ComplexAB ab;
+    lua["obj"] = &ab;
+    lua.script("function call_derived() return obj:ab_func() end");
+
+    for (auto _ : state)
+    {
+        (void) _;
+        lua["call_derived"]();
+    }
+}
+
 void implicit_inheritance_measure(benchmark::State& state)
 {
     sol::state lua;
@@ -462,3 +608,11 @@ BENCHMARK(optional_success_measure)->Name("optional_success_measure");
 BENCHMARK(optional_half_failure_measure)->Name("optional_half_failure_measure");
 BENCHMARK(optional_failure_measure)->Name("optional_failure_measure");
 BENCHMARK(implicit_inheritance_measure)->Name("implicit_inheritance_measure");
+BENCHMARK(userdata_variable_write_measure)->Name("userdata_variable_write_measure");
+BENCHMARK(userdata_property_getter_measure)->Name("userdata_property_getter_measure");
+BENCHMARK(userdata_property_setter_measure)->Name("userdata_property_setter_measure");
+BENCHMARK(lambda_capture_measure)->Name("lambda_capture_measure");
+BENCHMARK(shared_ptr_return_measure)->Name("shared_ptr_return_measure");
+BENCHMARK(shared_ptr_pass_measure)->Name("shared_ptr_pass_measure");
+BENCHMARK(static_member_function_call_measure)->Name("static_member_function_call_measure");
+BENCHMARK(derived_method_call_measure)->Name("derived_method_call_measure");

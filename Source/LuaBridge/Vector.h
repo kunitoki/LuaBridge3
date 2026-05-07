@@ -38,7 +38,7 @@ struct Stack<std::vector<T, Allocator>>
             if (! result)
                 return result;
 
-            lua_rawseti(L, tableIndex, i + 1);
+            lua_rawseti(L, tableIndex, static_cast<int>(i + 1));
         }
         
         stackRestore.reset();

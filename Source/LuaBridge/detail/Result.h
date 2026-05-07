@@ -120,6 +120,16 @@ struct TypeResult
         return std::move(m_value.value());
     }
 
+    T* operator->()
+    {
+        return &m_value.value();
+    }
+
+    const T* operator->() const
+    {
+        return &m_value.value();
+    }
+
     template <class U>
     T valueOr(U&& defaultValue) const&
     {

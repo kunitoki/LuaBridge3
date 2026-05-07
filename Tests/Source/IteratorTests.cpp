@@ -125,3 +125,51 @@ TEST_F(IteratorTests, StackOverflowDuringIteration)
 
     lua_settop(L, 0);
 }
+
+#if LUABRIDGE_HAS_CXX20_RANGES
+
+TEST_F(IteratorTests, RangesForLoop)
+{
+    runLua("result = {10, 20, 30}");
+
+    std::vector<luabridge::LuaRef> values;
+    for (auto&& [key, value] : luabridge::pairs(result()))
+    {
+        values.push_back(value);
+    }
+    EXPECT_EQ(3u, values.size());
+}
+
+TEST_F(IteratorTests, SentinelEquality)
+{
+    runLua("result = {1, 2, 3}");
+
+    luabridge::Iterator begin(result(), false);
+    luabridge::Iterator end(result(), true);
+    luabridge::IteratorSentinel sentinel;
+
+    EXPECT_FALSE(begin == sentinel);
+    EXPECT_TRUE(end == sentinel);
+    EXPECT_TRUE(sentinel == end);
+}
+
+TEST_F(IteratorTests, IteratorEquality)
+{
+    runLua("result = {1, 2}");
+
+    luabridge::Iterator it1(result(), false);
+    luabridge::Iterator it2(result(), false);
+    luabridge::Iterator endIt(result(), true);
+
+    EXPECT_TRUE(it1 == it2);
+    EXPECT_FALSE(it1 == endIt);
+    EXPECT_TRUE(endIt == endIt);
+}
+
+TEST_F(IteratorTests, EnableBorrowedRangeFalse)
+{
+    static_assert(!std::ranges::enable_borrowed_range<luabridge::Range>,
+        "Range should not be a borrowed range");
+}
+
+#endif // LUABRIDGE_HAS_CXX20_RANGES

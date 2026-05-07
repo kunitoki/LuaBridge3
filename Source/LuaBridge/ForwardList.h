@@ -1,5 +1,5 @@
 // https://github.com/kunitoki/LuaBridge3
-// Copyright 2020, kunitoki
+// Copyright 2026, kunitoki
 // Copyright 2020, Dmitry Tarakanov
 // SPDX-License-Identifier: MIT
 
@@ -7,20 +7,20 @@
 
 #include "detail/Stack.h"
 
-#include <array>
+#include <forward_list>
 
 namespace luabridge {
 
 //=================================================================================================
 /**
- * @brief Stack specialization for `std::array`.
+ * @brief Stack specialization for `std::forward_list`.
  */
-template <class T, std::size_t Size>
-struct Stack<std::array<T, Size>>
+template <class T, class Allocator>
+struct Stack<std::forward_list<T, Allocator>>
 {
-    using Type = std::array<T, Size>;
+    using Type = std::forward_list<T, Allocator>;
 
-    [[nodiscard]] static Result push(lua_State* L, const Type& array)
+    [[nodiscard]] static Result push(lua_State* L, const Type& list)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 3))
@@ -29,18 +29,20 @@ struct Stack<std::array<T, Size>>
 
         StackRestore stackRestore(L);
 
-        lua_createtable(L, static_cast<int>(Size), 0);
-        const int tableIndex = lua_gettop(L);
+        lua_createtable(L, 0, 0);
 
-        for (std::size_t i = 0; i < Size; ++i)
+        auto it = list.cbegin();
+        for (std::size_t tableIndex = 1; it != list.cend(); ++tableIndex, ++it)
         {
-            auto result = Stack<T>::push(L, array[i]);
+            lua_pushinteger(L, static_cast<int>(tableIndex));
+
+            auto result = Stack<T>::push(L, *it);
             if (! result)
                 return result;
 
-            lua_rawseti(L, tableIndex, static_cast<int>(i + 1));
+            lua_settable(L, -3);
         }
-        
+
         stackRestore.reset();
         return {};
     }
@@ -50,33 +52,30 @@ struct Stack<std::array<T, Size>>
         if (!lua_istable(L, index))
             return makeErrorCode(ErrorCode::InvalidTypeCast);
 
-        if (get_length(L, index) != Size)
-            return makeErrorCode(ErrorCode::InvalidTableSizeInCast);
-
         const StackRestore stackRestore(L);
 
-        Type array;
+        Type list;
+        auto insertPos = list.before_begin();
 
         int absIndex = lua_absindex(L, index);
         lua_pushnil(L);
 
-        int arrayIndex = 0;
         while (lua_next(L, absIndex) != 0)
         {
             auto item = Stack<T>::get(L, -1);
-            if (!item)
+            if (! item)
                 return makeErrorCode(ErrorCode::InvalidTypeCast);
 
-            array[arrayIndex++] = *item;
+            insertPos = list.insert_after(insertPos, *item);
             lua_pop(L, 1);
         }
 
-        return array;
+        return list;
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
     {
-        return lua_istable(L, index) && get_length(L, index) == Size;
+        return lua_istable(L, index);
     }
 };
 

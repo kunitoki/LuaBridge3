@@ -14,8 +14,7 @@
 
 #if LUABRIDGE_ON_LUAJIT || LUA_VERSION_NUM == 501 || LUABRIDGE_ON_LUAU
 #ifndef LUABRIDGE_DISABLE_COROUTINE_INTEGRATION
-#error "C++20 coroutine integration requires Lua 5.2+ with lua_yieldk support. \
-Define LUABRIDGE_DISABLE_COROUTINE_INTEGRATION to suppress this error."
+#error "C++20 coroutine integration requires Lua 5.2+ with lua_yieldk support. Define LUABRIDGE_DISABLE_COROUTINE_INTEGRATION to suppress this error."
 #endif
 #else
 

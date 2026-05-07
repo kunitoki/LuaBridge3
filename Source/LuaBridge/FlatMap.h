@@ -1,26 +1,27 @@
 // https://github.com/kunitoki/LuaBridge3
 // Copyright 2020, kunitoki
-// Copyright 2020, Dmitry Tarakanov
 // SPDX-License-Identifier: MIT
 
 #pragma once
 
 #include "detail/Stack.h"
 
-#include <array>
+#if LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS
+
+#include <flat_map>
 
 namespace luabridge {
 
 //=================================================================================================
 /**
- * @brief Stack specialization for `std::array`.
+ * @brief Stack specialization for `std::flat_map`.
  */
-template <class T, std::size_t Size>
-struct Stack<std::array<T, Size>>
+template <class K, class V, class Compare, class KeyContainer, class MappedContainer>
+struct Stack<std::flat_map<K, V, Compare, KeyContainer, MappedContainer>>
 {
-    using Type = std::array<T, Size>;
+    using Type = std::flat_map<K, V, Compare, KeyContainer, MappedContainer>;
 
-    [[nodiscard]] static Result push(lua_State* L, const Type& array)
+    [[nodiscard]] static Result push(lua_State* L, const Type& map)
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 3))
@@ -29,18 +30,21 @@ struct Stack<std::array<T, Size>>
 
         StackRestore stackRestore(L);
 
-        lua_createtable(L, static_cast<int>(Size), 0);
-        const int tableIndex = lua_gettop(L);
+        lua_createtable(L, 0, static_cast<int>(map.size()));
 
-        for (std::size_t i = 0; i < Size; ++i)
+        for (auto it = map.begin(); it != map.end(); ++it)
         {
-            auto result = Stack<T>::push(L, array[i]);
+            auto result = Stack<K>::push(L, it->first);
             if (! result)
                 return result;
 
-            lua_rawseti(L, tableIndex, static_cast<int>(i + 1));
+            result = Stack<V>::push(L, it->second);
+            if (! result)
+                return result;
+
+            lua_settable(L, -3);
         }
-        
+
         stackRestore.reset();
         return {};
     }
@@ -50,34 +54,36 @@ struct Stack<std::array<T, Size>>
         if (!lua_istable(L, index))
             return makeErrorCode(ErrorCode::InvalidTypeCast);
 
-        if (get_length(L, index) != Size)
-            return makeErrorCode(ErrorCode::InvalidTableSizeInCast);
-
         const StackRestore stackRestore(L);
 
-        Type array;
+        Type map;
 
         int absIndex = lua_absindex(L, index);
         lua_pushnil(L);
 
-        int arrayIndex = 0;
         while (lua_next(L, absIndex) != 0)
         {
-            auto item = Stack<T>::get(L, -1);
-            if (!item)
+            auto value = Stack<V>::get(L, -1);
+            if (! value)
                 return makeErrorCode(ErrorCode::InvalidTypeCast);
 
-            array[arrayIndex++] = *item;
+            auto key = Stack<K>::get(L, -2);
+            if (! key)
+                return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+            map.emplace(*key, *value);
             lua_pop(L, 1);
         }
 
-        return array;
+        return map;
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
     {
-        return lua_istable(L, index) && get_length(L, index) == Size;
+        return lua_istable(L, index);
     }
 };
 
 } // namespace luabridge
+
+#endif // LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS

@@ -208,6 +208,19 @@ struct has_call_operator<F, std::void_t<decltype(&F::operator())>> : std::true_t
 template <class F>
 inline static constexpr bool has_call_operator_v = has_call_operator<F>::value;
 
+template <class F>
+struct is_move_only_function : std::false_type {};
+
+#if LUABRIDGE_HAS_CXX23_MOVE_ONLY_FUNCTION
+template <class R, class... Args> struct is_move_only_function<std::move_only_function<R(Args...)>> : std::true_type {};
+template <class R, class... Args> struct is_move_only_function<std::move_only_function<R(Args...) noexcept>> : std::true_type {};
+template <class R, class... Args> struct is_move_only_function<std::move_only_function<R(Args...) const>> : std::true_type {};
+template <class R, class... Args> struct is_move_only_function<std::move_only_function<R(Args...) const noexcept>> : std::true_type {};
+#endif
+
+template <class F>
+inline static constexpr bool is_move_only_function_v = is_move_only_function<F>::value;
+
 template <class F, class = void>
 struct functor_traits_impl
 {
@@ -219,10 +232,38 @@ struct functor_traits_impl<F, std::enable_if_t<has_call_operator_v<F>>> : functi
 };
 
 template <class F>
-struct functor_traits_impl<F, std::enable_if_t<!has_call_operator_v<F> && std::is_invocable_v<F&>>>
+struct functor_traits_impl<F, std::enable_if_t<!has_call_operator_v<F> && std::is_invocable_v<F&> && !is_move_only_function_v<F>>>
     : function_traits_base<false, false, std::invoke_result_t<F&>>
 {
 };
+
+#if LUABRIDGE_HAS_CXX23_MOVE_ONLY_FUNCTION
+
+template <class R, class... Args>
+struct functor_traits_impl<std::move_only_function<R(Args...)>>
+    : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class R, class... Args>
+struct functor_traits_impl<std::move_only_function<R(Args...) noexcept>>
+    : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class R, class... Args>
+struct functor_traits_impl<std::move_only_function<R(Args...) const>>
+    : function_traits_base<false, true, R, Args...>
+{
+};
+
+template <class R, class... Args>
+struct functor_traits_impl<std::move_only_function<R(Args...) const noexcept>>
+    : function_traits_base<false, true, R, Args...>
+{
+};
+
+#endif // LUABRIDGE_HAS_CXX23_MOVE_ONLY_FUNCTION
 
 //=================================================================================================
 /**

@@ -19,6 +19,8 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <memory>
+#include <new>
 #include <optional>
 #include <string>
 #include <vector>
@@ -31,25 +33,100 @@ namespace detail {
 
 //=================================================================================================
 /**
- * @brief Make argument lists extracting them from the lua state, starting at a stack index.
+ * @brief Extract exactly what Stack<T>::get() produces.
  *
- * @tparam ArgsPack Arguments pack to extract from the lua stack.
- * @tparam Start Start index where stack variables are located in the lua stack.
+ * Allows that implicit conversions (e.g. std::reference_wrapper<T> → T&) happen correctly at the call site.
  */
 template <class T>
-auto unwrap_argument_or_error(lua_State* L, std::size_t index, std::size_t start)
-{
-    auto result = Stack<T>::get(L, static_cast<int>(index + start));
-    if (! result)
-        raise_lua_error(L, "Error decoding argument #%d: %s", static_cast<int>(index + 1), result.error_cstr());
+using stack_value_t = remove_cvref_t<
+    decltype(*std::declval<decltype(Stack<T>::get(std::declval<lua_State*>(), 0))>())>;
 
-    return std::move(*result);
+//=================================================================================================
+/**
+ * @brief Trivially-destructible storage for one decoded function argument.
+ *
+ * Longjmp-safe: the raw byte array and the construction flag are trivially
+ * destructible, so raise_lua_error (longjmp) while ArgStorage objects sit on
+ * the C++ stack does not skip any live C++ destructor.  The contained T must
+ * be managed explicitly via construct/destroy.
+ */
+template <class T>
+struct ArgStorage
+{
+    using StoredType = stack_value_t<T>;
+
+    alignas(StoredType) std::byte data[sizeof(StoredType)];
+    bool constructed = false;
+
+    StoredType* ptr() noexcept { return std::launder(reinterpret_cast<StoredType*>(data)); }
+
+    void destroy() noexcept
+    {
+        if (constructed)
+        {
+            std::destroy_at(ptr());
+            constructed = false;
+        }
+    }
+};
+
+//=================================================================================================
+/**
+ * @brief Decode one argument from the Lua stack into storage element I.
+ *
+ * Sets error_arg/error_msg on the first failure; subsequent calls are no-ops.
+ */
+template <std::size_t I, class ArgsPack, std::size_t Start, class StorageTuple>
+void decode_arg(lua_State* L, StorageTuple& storage, int& error_arg, const char*& error_msg)
+{
+    using T = std::tuple_element_t<I, ArgsPack>;
+    using StoredType = typename std::tuple_element_t<I, StorageTuple>::StoredType;
+
+    if (error_arg)
+        return;
+
+    auto result = Stack<T>::get(L, static_cast<int>(I + Start));
+    if (! result)
+    {
+        error_arg = static_cast<int>(I + 1);
+        error_msg = result.error_cstr();
+        return;
+    }
+
+    ::new (std::get<I>(storage).data) StoredType(std::move(*result));
+    std::get<I>(storage).constructed = true;
 }
 
+//=================================================================================================
+/**
+ * @brief Make argument lists extracting them from the lua state, starting at a stack index.
+ *
+ * Arguments are decoded sequentially left to right.  On failure every already-
+ * constructed argument is explicitly destroyed before raise_lua_error is called,
+ * so longjmp never skips a live C++ destructor.
+ *
+ * @tparam ArgsPack Arguments pack to extract from the lua stack.
+ * @tparam Start    Start index where stack variables are located in the lua stack.
+ */
 template <class ArgsPack, std::size_t Start, std::size_t... Indices>
 auto make_arguments_list_impl([[maybe_unused]] lua_State* L, std::index_sequence<Indices...>)
 {
-    return tupleize(unwrap_argument_or_error<std::tuple_element_t<Indices, ArgsPack>>(L, Indices, Start)...);
+    std::tuple<ArgStorage<std::tuple_element_t<Indices, ArgsPack>>...> storage;
+
+    int error_arg = 0;
+    const char* error_msg = nullptr;
+
+    (decode_arg<Indices, ArgsPack, Start>(L, storage, error_arg, error_msg), ...);
+
+    if (error_arg)
+    {
+        (std::get<Indices>(storage).destroy(), ...);
+        raise_lua_error(L, "Error decoding argument #%d: %s", error_arg, error_msg);
+    }
+
+    auto result = tupleize(std::move(*std::get<Indices>(storage).ptr())...);
+    (std::get<Indices>(storage).destroy(), ...);
+    return result;
 }
 
 template <class ArgsPack, std::size_t Start>
@@ -1482,40 +1559,18 @@ inline void add_property_setter(lua_State* L, const char* name, int tableIndex)
 /**
  * @brief Function generator.
  */
-template <class ArgsPack, std::size_t Start, class F, std::size_t... Indices>
-decltype(auto) invoke_callable_from_stack_impl(lua_State* L, F&& func, std::index_sequence<Indices...>)
-{
-    return std::invoke(
-        std::forward<F>(func),
-        unwrap_argument_or_error<std::tuple_element_t<Indices, ArgsPack>>(L, Indices, Start)...);
-}
-
 template <class ArgsPack, std::size_t Start, class F>
 decltype(auto) invoke_callable_from_stack(lua_State* L, F&& func)
 {
-    return invoke_callable_from_stack_impl<ArgsPack, Start>(
-        L,
-        std::forward<F>(func),
-        std::make_index_sequence<std::tuple_size_v<ArgsPack>>());
-}
-
-template <class ArgsPack, std::size_t Start, class T, class F, std::size_t... Indices>
-decltype(auto) invoke_member_callable_from_stack_impl(lua_State* L, T* ptr, F&& func, std::index_sequence<Indices...>)
-{
-    return std::invoke(
-        std::forward<F>(func),
-        ptr,
-        unwrap_argument_or_error<std::tuple_element_t<Indices, ArgsPack>>(L, Indices, Start)...);
+    return std::apply(std::forward<F>(func), make_arguments_list<ArgsPack, Start>(L));
 }
 
 template <class ArgsPack, std::size_t Start, class T, class F>
 decltype(auto) invoke_member_callable_from_stack(lua_State* L, T* ptr, F&& func)
 {
-    return invoke_member_callable_from_stack_impl<ArgsPack, Start>(
-        L,
-        ptr,
+    return std::apply(
         std::forward<F>(func),
-        std::make_index_sequence<std::tuple_size_v<ArgsPack>>());
+        std::tuple_cat(std::tuple<T*>(ptr), make_arguments_list<ArgsPack, Start>(L)));
 }
 
 template <class ReturnType, class ArgsPack, std::size_t Start = 1u>
@@ -2711,7 +2766,7 @@ int constructor_container_proxy(lua_State* L)
     try
     {
 #endif
-        object = constructor<T, Args>::construct(detail::make_arguments_list<Args, 2>(L));
+        object = constructor<T, Args>::construct(make_arguments_list<Args, 2>(L));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
     }
@@ -2755,7 +2810,7 @@ int constructor_placement_proxy(lua_State* L)
         raise_lua_error(L, "%s", e.what());
     }
 #endif
-        
+
     value->commit();
 
     return 1;
@@ -2786,7 +2841,7 @@ struct constructor_forwarder
             raise_lua_error(L, "%s", detail::ErrorCategory::errorString(ec.value()));
 
         T* object = nullptr;
-        
+
 #if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
@@ -2899,27 +2954,56 @@ struct container_forwarder
         using FnTraits = function_traits<F>;
         using FnArgs = typename FnTraits::argument_types;
 
-        C object;
-        
+        alignas(C) std::byte object_storage[sizeof(C)];
+        C* object = nullptr;
+
 #if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
 #endif
-            object = container_constructor<C>::construct(m_func, make_arguments_list<FnArgs, 2>(L));
+            object = ::new (object_storage) C(
+                container_constructor<C>::construct(m_func, make_arguments_list<FnArgs, 2>(L)));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
         {
+            if (object != nullptr)
+                std::destroy_at(object);
+
             raise_lua_error(L, "%s", e.what());
         }
 #endif
 
-        auto result = UserdataSharedHelper<C, false>::push(L, object);
-        if (! result)
-            raise_lua_error(L, "%s", result.error_cstr());
+        LUABRIDGE_ASSERT(object != nullptr);
 
-        return object;
+        Result result;
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        try
+        {
+#endif
+            result = UserdataSharedHelper<C, false>::push(L, *object);
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        }
+        catch (const std::exception& e)
+        {
+            std::destroy_at(object);
+
+            raise_lua_error(L, "%s", e.what());
+        }
+#endif
+
+        if (! result)
+        {
+            std::destroy_at(object);
+            raise_lua_error(L, "%s", result.error_cstr());
+        }
+
+        C ret = std::move(*object);
+        std::destroy_at(object);
+        return ret;
     }
 
 private:

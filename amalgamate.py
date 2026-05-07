@@ -16,6 +16,21 @@ PRAGMA_ONCE_MATCHER = re.compile(r'#pragma once')
 INCLUDE_FILE_MATCHER = re.compile(r'#include\s*[<\"]([\w.\\/]*)[>\"]')
 LOCAL_INCLUDE_FILE_MATCHER = re.compile(r'#include\s*\"([\w.\\/]*)\"')
 
+GUARDED_INCLUDES = [
+	{ "header": "coroutine", "condition": "(__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))" },
+	{ "header": "ranges", "condition": "(__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))" },
+	{ "header": "span", "condition": "(__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))" },
+	{ "header": "flat_map", "condition": "(__cplusplus >= 202302L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202302L))" },
+	{ "header": "flat_set", "condition": "(__cplusplus >= 202302L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202302L))" },
+	{ "header": "expected", "condition": "(__cplusplus >= 202302L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202302L))" },
+	{ "header": "move_only_function", "condition": "(__cplusplus >= 202302L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202302L))" },
+]
+
+def GetGuardedInclude(header):
+	for guarded in GUARDED_INCLUDES:
+		if guarded["header"] == header:
+			return guarded
+	return None
 
 def IsCppHeaderFile(ext):
 	return  ext in CPP_HEADER_FILE_EXT
@@ -196,8 +211,22 @@ class SourceInfo:
 			headerAmalgamation.write(f"// clang-format off\n\n")
 			headerAmalgamation.write(f"#pragma once\n\n")
 
-			for header in sorted(list(self.systemHeaders)):
-				headerAmalgamation.write(f"#include <{header}>\n")
+			systemHeaders = sorted(list(self.systemHeaders))
+			for header in systemHeaders:
+				if GetGuardedInclude(header) is None:
+					headerAmalgamation.write(f"#include <{header}>\n")
+			headerAmalgamation.write("\n")
+
+			for header in systemHeaders:
+				guard = GetGuardedInclude(header)
+				if guard is not None:
+					headerAmalgamation.write(f"#if defined(__has_include) && __has_include(<{header}>)")
+					if "condition" in guard and guard["condition"] is not None:
+						headerAmalgamation.write(f" && {guard['condition']}\n")
+					else:
+						headerAmalgamation.write("\n")
+					headerAmalgamation.write(f"#include <{header}>\n")
+					headerAmalgamation.write(f"#endif\n\n")
 			headerAmalgamation.write("\n")
 
 			self.AmalgamateQueue(self.headerQueue, headerAmalgamation)

@@ -650,6 +650,7 @@ TEST_F(NamespaceTests, StdBindFunctions)
 
 TEST_F(NamespaceTests, StdBindFrontFunctions)
 {
+#if LUABRIDGE_CXX20_OR_GREATER
     {
         luabridge::getGlobalNamespace(L).addFunction("Function", std::bind_front(&Function<int>, 1));
 
@@ -657,6 +658,7 @@ TEST_F(NamespaceTests, StdBindFrontFunctions)
         ASSERT_TRUE(result().isNumber());
         ASSERT_EQ(1, result<int>());
     }
+#endif
 
     {
         luabridge::getGlobalNamespace(L).addFunction("Function",

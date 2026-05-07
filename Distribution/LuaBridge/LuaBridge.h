@@ -7,22 +7,27 @@
 #pragma once
 
 #include <algorithm>
+#include <any>
 #include <array>
 #include <cassert>
 #include <cmath>
-#include <coroutine>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <deque>
 #include <exception>
+#include <filesystem>
+#include <forward_list>
 #include <functional>
 #include <initializer_list>
 #include <iostream>
+#include <iterator>
 #include <limits>
 #include <list>
 #include <map>
 #include <memory>
+#include <new>
 #include <optional>
 #include <set>
 #include <sstream>
@@ -32,16 +37,49 @@
 #include <system_error>
 #include <tuple>
 #include <type_traits>
+#include <typeindex>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <variant>
 #include <vector>
+
+#if defined(__has_include) && __has_include(<coroutine>) && (__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))
+#include <coroutine>
+#endif
+
+#if defined(__has_include) && __has_include(<expected>) && (__cplusplus >= 202302L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202302L))
+#include <expected>
+#endif
+
+#if defined(__has_include) && __has_include(<flat_map>) && (__cplusplus >= 202302L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202302L))
+#include <flat_map>
+#endif
+
+#if defined(__has_include) && __has_include(<flat_set>) && (__cplusplus >= 202302L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202302L))
+#include <flat_set>
+#endif
+
+#if defined(__has_include) && __has_include(<ranges>) && (__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))
+#include <ranges>
+#endif
+
+#if defined(__has_include) && __has_include(<span>) && (__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))
+#include <span>
+#endif
+
 
 
 // Begin File: Source/LuaBridge/detail/Config.h
 
 #if !(__cplusplus >= 201703L || (defined(_MSC_VER) && _HAS_CXX17))
 #error LuaBridge 3 requires a compliant C++17 compiler, or C++17 has not been enabled !
+#endif
+
+#if __cplusplus >= 202302L || (defined(_MSC_VER) && _HAS_CXX23)
+#define LUABRIDGE_CXX23_OR_GREATER 1
+#elif __cplusplus >= 202002L || (defined(_MSC_VER) && _HAS_CXX20)
+#define LUABRIDGE_CXX20_OR_GREATER 1
 #endif
 
 #if defined(LUAU_FASTMATH_BEGIN)
@@ -54,14 +92,6 @@
 #define LUABRIDGE_ON_LUA 1
 #else
 #error "Lua headers must be included prior to LuaBridge ones"
-#endif
-
-#if !defined(LUABRIDGE_HAS_CXX20_COROUTINES)
-#if !defined(LUABRIDGE_DISABLE_CXX20_COROUTINES) && (__cplusplus >= 202002L || (defined(_MSC_VER) && _HAS_CXX20)) && !(LUABRIDGE_ON_LUAU || LUABRIDGE_ON_LUAJIT || LUABRIDGE_ON_RAVI || LUA_VERSION_NUM < 502)
-#define LUABRIDGE_HAS_CXX20_COROUTINES 1
-#else
-#define LUABRIDGE_HAS_CXX20_COROUTINES 0
-#endif
 #endif
 
 #if !defined(LUABRIDGE_HAS_EXCEPTIONS)
@@ -129,6 +159,70 @@
 #define LUABRIDGE_ASSERT(expr) ((void)(expr))
 #else
 #define LUABRIDGE_ASSERT(expr) assert(expr)
+#endif
+#endif
+
+#if !defined(LUABRIDGE_HAS_CXX17_FILESYSTEM)
+#if !defined(LUABRIDGE_DISABLE_CXX17_FILESYSTEM) && __has_include(<filesystem>) && defined(__cpp_lib_filesystem)
+#define LUABRIDGE_HAS_CXX17_FILESYSTEM 1
+#else
+#define LUABRIDGE_HAS_CXX17_FILESYSTEM 0
+#endif
+#endif
+
+#if !defined(LUABRIDGE_HAS_CXX17_ANY)
+#if !defined(LUABRIDGE_DISABLE_CXX17_ANY) && __has_include(<any>) && defined(__cpp_lib_any)
+#define LUABRIDGE_HAS_CXX17_ANY 1
+#else
+#define LUABRIDGE_HAS_CXX17_ANY 0
+#endif
+#endif
+
+#if !defined(LUABRIDGE_HAS_CXX20_SPAN)
+#if !defined(LUABRIDGE_DISABLE_CXX20_SPAN) && LUABRIDGE_CXX20_OR_GREATER && __has_include(<span>) && defined(__cpp_lib_span)
+#define LUABRIDGE_HAS_CXX20_SPAN 1
+#else
+#define LUABRIDGE_HAS_CXX20_SPAN 0
+#endif
+#endif
+
+#if !defined(LUABRIDGE_HAS_CXX20_RANGES)
+#if !defined(LUABRIDGE_DISABLE_CXX20_RANGES) && LUABRIDGE_CXX20_OR_GREATER && defined(__cpp_lib_ranges)
+#define LUABRIDGE_HAS_CXX20_RANGES 1
+#else
+#define LUABRIDGE_HAS_CXX20_RANGES 0
+#endif
+#endif
+
+#if !defined(LUABRIDGE_HAS_CXX20_COROUTINES)
+#if !defined(LUABRIDGE_DISABLE_CXX20_COROUTINES) && LUABRIDGE_CXX20_OR_GREATER && !(LUABRIDGE_ON_LUAU || LUABRIDGE_ON_LUAJIT || LUABRIDGE_ON_RAVI || LUA_VERSION_NUM < 502)
+#define LUABRIDGE_HAS_CXX20_COROUTINES 1
+#else
+#define LUABRIDGE_HAS_CXX20_COROUTINES 0
+#endif
+#endif
+
+#if !defined(LUABRIDGE_HAS_CXX23_EXPECTED)
+#if !defined(LUABRIDGE_DISABLE_CXX23_EXPECTED) && LUABRIDGE_CXX23_OR_GREATER && __has_include(<expected>) && defined(__cpp_lib_expected)
+#define LUABRIDGE_HAS_CXX23_EXPECTED 1
+#else
+#define LUABRIDGE_HAS_CXX23_EXPECTED 0
+#endif
+#endif
+
+#if !defined(LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS)
+#if !defined(LUABRIDGE_DISABLE_CXX23_FLAT_CONTAINERS) && LUABRIDGE_CXX23_OR_GREATER && __has_include(<flat_map>) && __has_include(<flat_set>) && defined(__cpp_lib_flat_map)
+#define LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS 1
+#else
+#define LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS 0
+#endif
+#endif
+
+#if !defined(LUABRIDGE_HAS_CXX23_MOVE_ONLY_FUNCTION)
+#if !defined(LUABRIDGE_DISABLE_CXX23_MOVE_ONLY_FUNCTION) && LUABRIDGE_CXX23_OR_GREATER && defined(__cpp_lib_move_only_function)
+#define LUABRIDGE_HAS_CXX23_MOVE_ONLY_FUNCTION 1
+#else
+#define LUABRIDGE_HAS_CXX23_MOVE_ONLY_FUNCTION 0
 #endif
 #endif
 
@@ -313,6 +407,19 @@ struct has_call_operator<F, std::void_t<decltype(&F::operator())>> : std::true_t
 template <class F>
 inline static constexpr bool has_call_operator_v = has_call_operator<F>::value;
 
+template <class F>
+struct is_move_only_function : std::false_type {};
+
+#if LUABRIDGE_HAS_CXX23_MOVE_ONLY_FUNCTION
+template <class R, class... Args> struct is_move_only_function<std::move_only_function<R(Args...)>> : std::true_type {};
+template <class R, class... Args> struct is_move_only_function<std::move_only_function<R(Args...) noexcept>> : std::true_type {};
+template <class R, class... Args> struct is_move_only_function<std::move_only_function<R(Args...) const>> : std::true_type {};
+template <class R, class... Args> struct is_move_only_function<std::move_only_function<R(Args...) const noexcept>> : std::true_type {};
+#endif
+
+template <class F>
+inline static constexpr bool is_move_only_function_v = is_move_only_function<F>::value;
+
 template <class F, class = void>
 struct functor_traits_impl
 {
@@ -324,10 +431,38 @@ struct functor_traits_impl<F, std::enable_if_t<has_call_operator_v<F>>> : functi
 };
 
 template <class F>
-struct functor_traits_impl<F, std::enable_if_t<!has_call_operator_v<F> && std::is_invocable_v<F&>>>
+struct functor_traits_impl<F, std::enable_if_t<!has_call_operator_v<F> && std::is_invocable_v<F&> && !is_move_only_function_v<F>>>
     : function_traits_base<false, false, std::invoke_result_t<F&>>
 {
 };
+
+#if LUABRIDGE_HAS_CXX23_MOVE_ONLY_FUNCTION
+
+template <class R, class... Args>
+struct functor_traits_impl<std::move_only_function<R(Args...)>>
+    : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class R, class... Args>
+struct functor_traits_impl<std::move_only_function<R(Args...) noexcept>>
+    : function_traits_base<false, false, R, Args...>
+{
+};
+
+template <class R, class... Args>
+struct functor_traits_impl<std::move_only_function<R(Args...) const>>
+    : function_traits_base<false, true, R, Args...>
+{
+};
+
+template <class R, class... Args>
+struct functor_traits_impl<std::move_only_function<R(Args...) const noexcept>>
+    : function_traits_base<false, true, R, Args...>
+{
+};
+
+#endif 
 
 template <class F>
 struct function_traits : std::conditional_t<std::is_class_v<F>,
@@ -3242,6 +3377,16 @@ struct TypeResult
         return std::move(m_value.value());
     }
 
+    T* operator->()
+    {
+        return &m_value.value();
+    }
+
+    const T* operator->() const
+    {
+        return &m_value.value();
+    }
+
     template <class U>
     T valueOr(U&& defaultValue) const&
     {
@@ -3735,6 +3880,17 @@ struct ContainerTraits<std::shared_ptr<T>>
     }
 
     static T* get(const std::shared_ptr<T>& c)
+    {
+        return c.get();
+    }
+};
+
+template <class T>
+struct ContainerTraits<std::unique_ptr<T>>
+{
+    using Type = T;
+
+    static T* get(const std::unique_ptr<T>& c)
     {
         return c.get();
     }
@@ -4685,6 +4841,9 @@ struct StackOpSelector<const T&, true>
 
 // Begin File: Source/LuaBridge/detail/Stack.h
 
+#if LUABRIDGE_HAS_CXX17_FILESYSTEM
+#endif
+
 namespace luabridge {
 
 class StackRestore final
@@ -5625,6 +5784,54 @@ struct Stack<std::optional<T>>
     }
 };
 
+template <class T, class E>
+struct Stack<Expected<T, E>>
+{
+    using Type = Expected<T, E>;
+
+    [[nodiscard]] static Result push(lua_State* L, const Type& value)
+    {
+        if (value.hasValue())
+        {
+            StackRestore stackRestore(L);
+
+            auto result = Stack<T>::push(L, *value);
+            if (! result)
+                return result;
+
+            stackRestore.reset();
+            return {};
+        }
+
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 1))
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
+        lua_pushnil(L);
+        return {};
+    }
+
+    [[nodiscard]] static TypeResult<Type> get(lua_State* L, int index)
+    {
+        const auto type = lua_type(L, index);
+        if (type == LUA_TNIL || type == LUA_TNONE)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        auto result = Stack<T>::get(L, index);
+        if (! result)
+            return result.error();
+
+        return Type(*result);
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        const auto type = lua_type(L, index);
+        return (type != LUA_TNIL && type != LUA_TNONE) && Stack<T>::isInstance(L, index);
+    }
+};
+
 template <class T1, class T2>
 struct Stack<std::pair<T1, T2>>
 {
@@ -6045,6 +6252,39 @@ struct Stack<const T*>
     [[nodiscard]] static bool isInstance(lua_State* L, int index) { return Helper::isInstance(L, index); }
 };
 
+#if LUABRIDGE_HAS_CXX17_FILESYSTEM
+
+template <>
+struct Stack<std::filesystem::path>
+{
+    [[nodiscard]] static Result push(lua_State* L, const std::filesystem::path& path)
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 1))
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
+        lua_pushlstring(L, path.string().c_str(), path.string().size());
+        return {};
+    }
+
+    [[nodiscard]] static TypeResult<std::filesystem::path> get(lua_State* L, int index)
+    {
+        if (lua_type(L, index) != LUA_TSTRING)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        std::size_t len = 0;
+        const char* str = lua_tolstring(L, index, &len);
+        return std::filesystem::path(std::string(str, len));
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        return lua_type(L, index) == LUA_TSTRING;
+    }
+};
+#endif 
+
 template <class T>
 [[nodiscard]] Result push(lua_State* L, const T& t)
 {
@@ -6067,6 +6307,72 @@ template <class T>
 
 
 // End File: Source/LuaBridge/detail/Stack.h
+
+// Begin File: Source/LuaBridge/Any.h
+
+#if LUABRIDGE_HAS_CXX17_ANY
+
+namespace luabridge {
+
+namespace detail {
+
+using AnyPushFn = std::function<Result(lua_State*, const std::any&)>;
+
+inline std::unordered_map<std::type_index, AnyPushFn>& anyPushRegistry()
+{
+    static std::unordered_map<std::type_index, AnyPushFn> registry;
+    return registry;
+}
+
+} 
+
+template <class T>
+void registerAnyPush(lua_State*)
+{
+    detail::anyPushRegistry()[std::type_index(typeid(T))] =
+        [](lua_State* L, const std::any& value) -> Result
+        {
+            return Stack<T>::push(L, std::any_cast<const T&>(value));
+        };
+}
+
+template <>
+struct Stack<std::any>
+{
+    [[nodiscard]] static Result push(lua_State* L, const std::any& value)
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 1))
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
+        if (! value.has_value())
+        {
+            lua_pushnil(L);
+            return {};
+        }
+
+        auto& registry = detail::anyPushRegistry();
+
+        auto it = registry.find(std::type_index(value.type()));
+        if (it == registry.end())
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        return it->second(L, value);
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State*, int)
+    {
+        return false; 
+    }
+};
+
+} 
+
+#endif 
+
+
+// End File: Source/LuaBridge/Any.h
 
 // Begin File: Source/LuaBridge/Array.h
 
@@ -6095,7 +6401,7 @@ struct Stack<std::array<T, Size>>
             if (! result)
                 return result;
 
-            lua_rawseti(L, tableIndex, i + 1);
+            lua_rawseti(L, tableIndex, static_cast<int>(i + 1));
         }
         
         stackRestore.reset();
@@ -6141,6 +6447,77 @@ struct Stack<std::array<T, Size>>
 
 
 // End File: Source/LuaBridge/Array.h
+
+// Begin File: Source/LuaBridge/Deque.h
+
+namespace luabridge {
+
+template <class T, class Allocator>
+struct Stack<std::deque<T, Allocator>>
+{
+    using Type = std::deque<T, Allocator>;
+
+    [[nodiscard]] static Result push(lua_State* L, const Type& deque)
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 3))
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
+        StackRestore stackRestore(L);
+
+        lua_createtable(L, static_cast<int>(deque.size()), 0);
+        const int tableIndex = lua_gettop(L);
+
+        auto it = deque.cbegin();
+        for (std::size_t i = 1; it != deque.cend(); ++i, ++it)
+        {
+            auto result = Stack<T>::push(L, *it);
+            if (! result)
+                return result;
+
+            lua_rawseti(L, tableIndex, static_cast<int>(i));
+        }
+
+        stackRestore.reset();
+        return {};
+    }
+
+    [[nodiscard]] static TypeResult<Type> get(lua_State* L, int index)
+    {
+        if (!lua_istable(L, index))
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        const StackRestore stackRestore(L);
+
+        Type deque;
+
+        int absIndex = lua_absindex(L, index);
+        lua_pushnil(L);
+
+        while (lua_next(L, absIndex) != 0)
+        {
+            auto item = Stack<T>::get(L, -1);
+            if (! item)
+                return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+            deque.emplace_back(*item);
+            lua_pop(L, 1);
+        }
+
+        return deque;
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        return lua_istable(L, index);
+    }
+};
+
+} 
+
+
+// End File: Source/LuaBridge/Deque.h
 
 // Begin File: Source/LuaBridge/Dump.h
 
@@ -6274,6 +6651,236 @@ inline void dumpState(lua_State* L, unsigned maxDepth = 1, std::ostream& stream 
 
 // End File: Source/LuaBridge/Dump.h
 
+// Begin File: Source/LuaBridge/FlatMap.h
+
+#if LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS
+
+namespace luabridge {
+
+template <class K, class V, class Compare, class KeyContainer, class MappedContainer>
+struct Stack<std::flat_map<K, V, Compare, KeyContainer, MappedContainer>>
+{
+    using Type = std::flat_map<K, V, Compare, KeyContainer, MappedContainer>;
+
+    [[nodiscard]] static Result push(lua_State* L, const Type& map)
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 3))
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
+        StackRestore stackRestore(L);
+
+        lua_createtable(L, 0, static_cast<int>(map.size()));
+
+        for (auto it = map.begin(); it != map.end(); ++it)
+        {
+            auto result = Stack<K>::push(L, it->first);
+            if (! result)
+                return result;
+
+            result = Stack<V>::push(L, it->second);
+            if (! result)
+                return result;
+
+            lua_settable(L, -3);
+        }
+
+        stackRestore.reset();
+        return {};
+    }
+
+    [[nodiscard]] static TypeResult<Type> get(lua_State* L, int index)
+    {
+        if (!lua_istable(L, index))
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        const StackRestore stackRestore(L);
+
+        Type map;
+
+        int absIndex = lua_absindex(L, index);
+        lua_pushnil(L);
+
+        while (lua_next(L, absIndex) != 0)
+        {
+            auto value = Stack<V>::get(L, -1);
+            if (! value)
+                return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+            auto key = Stack<K>::get(L, -2);
+            if (! key)
+                return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+            map.emplace(*key, *value);
+            lua_pop(L, 1);
+        }
+
+        return map;
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        return lua_istable(L, index);
+    }
+};
+
+} 
+
+#endif 
+
+
+// End File: Source/LuaBridge/FlatMap.h
+
+// Begin File: Source/LuaBridge/FlatSet.h
+
+#if LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS
+
+namespace luabridge {
+
+template <class K, class Compare, class Container>
+struct Stack<std::flat_set<K, Compare, Container>>
+{
+    using Type = std::flat_set<K, Compare, Container>;
+
+    [[nodiscard]] static Result push(lua_State* L, const Type& set)
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 3))
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
+        StackRestore stackRestore(L);
+
+        lua_createtable(L, 0, static_cast<int>(set.size()));
+
+        auto it = set.cbegin();
+        for (lua_Integer tableIndex = 1; it != set.cend(); ++tableIndex, ++it)
+        {
+            lua_pushinteger(L, tableIndex);
+
+            auto result = Stack<K>::push(L, *it);
+            if (! result)
+                return result;
+
+            lua_settable(L, -3);
+        }
+
+        stackRestore.reset();
+        return {};
+    }
+
+    [[nodiscard]] static TypeResult<Type> get(lua_State* L, int index)
+    {
+        if (!lua_istable(L, index))
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        const StackRestore stackRestore(L);
+
+        Type set;
+
+        int absIndex = lua_absindex(L, index);
+        lua_pushnil(L);
+
+        while (lua_next(L, absIndex) != 0)
+        {
+            auto item = Stack<K>::get(L, -1);
+            if (! item)
+                return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+            set.emplace(*item);
+            lua_pop(L, 1);
+        }
+
+        return set;
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        return lua_istable(L, index);
+    }
+};
+
+} 
+
+#endif 
+
+
+// End File: Source/LuaBridge/FlatSet.h
+
+// Begin File: Source/LuaBridge/ForwardList.h
+
+namespace luabridge {
+
+template <class T, class Allocator>
+struct Stack<std::forward_list<T, Allocator>>
+{
+    using Type = std::forward_list<T, Allocator>;
+
+    [[nodiscard]] static Result push(lua_State* L, const Type& list)
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 3))
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
+        StackRestore stackRestore(L);
+
+        lua_createtable(L, 0, 0);
+
+        auto it = list.cbegin();
+        for (std::size_t tableIndex = 1; it != list.cend(); ++tableIndex, ++it)
+        {
+            lua_pushinteger(L, static_cast<int>(tableIndex));
+
+            auto result = Stack<T>::push(L, *it);
+            if (! result)
+                return result;
+
+            lua_settable(L, -3);
+        }
+
+        stackRestore.reset();
+        return {};
+    }
+
+    [[nodiscard]] static TypeResult<Type> get(lua_State* L, int index)
+    {
+        if (!lua_istable(L, index))
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        const StackRestore stackRestore(L);
+
+        Type list;
+        auto insertPos = list.before_begin();
+
+        int absIndex = lua_absindex(L, index);
+        lua_pushnil(L);
+
+        while (lua_next(L, absIndex) != 0)
+        {
+            auto item = Stack<T>::get(L, -1);
+            if (! item)
+                return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+            insertPos = list.insert_after(insertPos, *item);
+            lua_pop(L, 1);
+        }
+
+        return list;
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        return lua_istable(L, index);
+    }
+};
+
+} 
+
+
+// End File: Source/LuaBridge/ForwardList.h
+
 // Begin File: Source/LuaBridge/List.h
 
 namespace luabridge {
@@ -6293,17 +6900,16 @@ struct Stack<std::list<T, Allocator>>
         StackRestore stackRestore(L);
 
         lua_createtable(L, static_cast<int>(list.size()), 0);
+        const int tableIndex = lua_gettop(L);
 
         auto it = list.cbegin();
-        for (lua_Integer tableIndex = 1; it != list.cend(); ++tableIndex, ++it)
+        for (std::size_t i = 1; it != list.cend(); ++i, ++it)
         {
-            lua_pushinteger(L, tableIndex);
-
             auto result = Stack<T>::push(L, *it);
             if (! result)
                 return result;
 
-            lua_settable(L, -3);
+            lua_rawseti(L, tableIndex, static_cast<int>(i));
         }
 
         stackRestore.reset();
@@ -6501,19 +7107,69 @@ class LuaRef;
 namespace detail {
 
 template <class T>
-auto unwrap_argument_or_error(lua_State* L, std::size_t index, std::size_t start)
-{
-    auto result = Stack<T>::get(L, static_cast<int>(index + start));
-    if (! result)
-        raise_lua_error(L, "Error decoding argument #%d: %s", static_cast<int>(index + 1), result.error_cstr());
+using stack_value_t = remove_cvref_t<
+    decltype(*std::declval<decltype(Stack<T>::get(std::declval<lua_State*>(), 0))>())>;
 
-    return std::move(*result);
+template <class T>
+struct ArgStorage
+{
+    using StoredType = stack_value_t<T>;
+
+    alignas(StoredType) std::byte data[sizeof(StoredType)];
+    bool constructed = false;
+
+    StoredType* ptr() noexcept { return std::launder(reinterpret_cast<StoredType*>(data)); }
+
+    void destroy() noexcept
+    {
+        if (constructed)
+        {
+            std::destroy_at(ptr());
+            constructed = false;
+        }
+    }
+};
+
+template <std::size_t I, class ArgsPack, std::size_t Start, class StorageTuple>
+void decode_arg(lua_State* L, StorageTuple& storage, int& error_arg, const char*& error_msg)
+{
+    using T = std::tuple_element_t<I, ArgsPack>;
+    using StoredType = typename std::tuple_element_t<I, StorageTuple>::StoredType;
+
+    if (error_arg)
+        return;
+
+    auto result = Stack<T>::get(L, static_cast<int>(I + Start));
+    if (! result)
+    {
+        error_arg = static_cast<int>(I + 1);
+        error_msg = result.error_cstr();
+        return;
+    }
+
+    ::new (std::get<I>(storage).data) StoredType(std::move(*result));
+    std::get<I>(storage).constructed = true;
 }
 
 template <class ArgsPack, std::size_t Start, std::size_t... Indices>
 auto make_arguments_list_impl([[maybe_unused]] lua_State* L, std::index_sequence<Indices...>)
 {
-    return tupleize(unwrap_argument_or_error<std::tuple_element_t<Indices, ArgsPack>>(L, Indices, Start)...);
+    std::tuple<ArgStorage<std::tuple_element_t<Indices, ArgsPack>>...> storage;
+
+    int error_arg = 0;
+    const char* error_msg = nullptr;
+
+    (decode_arg<Indices, ArgsPack, Start>(L, storage, error_arg, error_msg), ...);
+
+    if (error_arg)
+    {
+        (std::get<Indices>(storage).destroy(), ...);
+        raise_lua_error(L, "Error decoding argument #%d: %s", error_arg, error_msg);
+    }
+
+    auto result = tupleize(std::move(*std::get<Indices>(storage).ptr())...);
+    (std::get<Indices>(storage).destroy(), ...);
+    return result;
 }
 
 template <class ArgsPack, std::size_t Start>
@@ -7825,40 +8481,18 @@ inline void add_property_setter(lua_State* L, const char* name, int tableIndex)
     lua_pop(L, 2); 
 }
 
-template <class ArgsPack, std::size_t Start, class F, std::size_t... Indices>
-decltype(auto) invoke_callable_from_stack_impl(lua_State* L, F&& func, std::index_sequence<Indices...>)
-{
-    return std::invoke(
-        std::forward<F>(func),
-        unwrap_argument_or_error<std::tuple_element_t<Indices, ArgsPack>>(L, Indices, Start)...);
-}
-
 template <class ArgsPack, std::size_t Start, class F>
 decltype(auto) invoke_callable_from_stack(lua_State* L, F&& func)
 {
-    return invoke_callable_from_stack_impl<ArgsPack, Start>(
-        L,
-        std::forward<F>(func),
-        std::make_index_sequence<std::tuple_size_v<ArgsPack>>());
-}
-
-template <class ArgsPack, std::size_t Start, class T, class F, std::size_t... Indices>
-decltype(auto) invoke_member_callable_from_stack_impl(lua_State* L, T* ptr, F&& func, std::index_sequence<Indices...>)
-{
-    return std::invoke(
-        std::forward<F>(func),
-        ptr,
-        unwrap_argument_or_error<std::tuple_element_t<Indices, ArgsPack>>(L, Indices, Start)...);
+    return std::apply(std::forward<F>(func), make_arguments_list<ArgsPack, Start>(L));
 }
 
 template <class ArgsPack, std::size_t Start, class T, class F>
 decltype(auto) invoke_member_callable_from_stack(lua_State* L, T* ptr, F&& func)
 {
-    return invoke_member_callable_from_stack_impl<ArgsPack, Start>(
-        L,
-        ptr,
+    return std::apply(
         std::forward<F>(func),
-        std::make_index_sequence<std::tuple_size_v<ArgsPack>>());
+        std::tuple_cat(std::tuple<T*>(ptr), make_arguments_list<ArgsPack, Start>(L)));
 }
 
 template <class ReturnType, class ArgsPack, std::size_t Start = 1u>
@@ -8917,7 +9551,7 @@ int constructor_container_proxy(lua_State* L)
     try
     {
 #endif
-        object = constructor<T, Args>::construct(detail::make_arguments_list<Args, 2>(L));
+        object = constructor<T, Args>::construct(make_arguments_list<Args, 2>(L));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
     }
@@ -8958,7 +9592,7 @@ int constructor_placement_proxy(lua_State* L)
         raise_lua_error(L, "%s", e.what());
     }
 #endif
-        
+
     value->commit();
 
     return 1;
@@ -8985,7 +9619,7 @@ struct constructor_forwarder
             raise_lua_error(L, "%s", detail::ErrorCategory::errorString(ec.value()));
 
         T* object = nullptr;
-        
+
 #if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
@@ -9086,27 +9720,56 @@ struct container_forwarder
         using FnTraits = function_traits<F>;
         using FnArgs = typename FnTraits::argument_types;
 
-        C object;
-        
+        alignas(C) std::byte object_storage[sizeof(C)];
+        C* object = nullptr;
+
 #if LUABRIDGE_HAS_EXCEPTIONS
         try
         {
 #endif
-            object = container_constructor<C>::construct(m_func, make_arguments_list<FnArgs, 2>(L));
+            object = ::new (object_storage) C(
+                container_constructor<C>::construct(m_func, make_arguments_list<FnArgs, 2>(L)));
 
 #if LUABRIDGE_HAS_EXCEPTIONS
         }
         catch (const std::exception& e)
         {
+            if (object != nullptr)
+                std::destroy_at(object);
+
             raise_lua_error(L, "%s", e.what());
         }
 #endif
 
-        auto result = UserdataSharedHelper<C, false>::push(L, object);
-        if (! result)
-            raise_lua_error(L, "%s", result.error_cstr());
+        LUABRIDGE_ASSERT(object != nullptr);
 
-        return object;
+        Result result;
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        try
+        {
+#endif
+            result = UserdataSharedHelper<C, false>::push(L, *object);
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+        }
+        catch (const std::exception& e)
+        {
+            std::destroy_at(object);
+
+            raise_lua_error(L, "%s", e.what());
+        }
+#endif
+
+        if (! result)
+        {
+            std::destroy_at(object);
+            raise_lua_error(L, "%s", result.error_cstr());
+        }
+
+        C ret = std::move(*object);
+        std::destroy_at(object);
+        return ret;
     }
 
 private:
@@ -9125,8 +9788,7 @@ private:
 
 #if LUABRIDGE_ON_LUAJIT || LUA_VERSION_NUM == 501 || LUABRIDGE_ON_LUAU
 #ifndef LUABRIDGE_DISABLE_COROUTINE_INTEGRATION
-#error "C++20 coroutine integration requires Lua 5.2+ with lua_yieldk support. \
-Define LUABRIDGE_DISABLE_COROUTINE_INTEGRATION to suppress this error."
+#error "C++20 coroutine integration requires Lua 5.2+ with lua_yieldk support. Define LUABRIDGE_DISABLE_COROUTINE_INTEGRATION to suppress this error."
 #endif
 #else
 
@@ -11046,6 +11708,9 @@ LuaFunction<Signature> LuaRefBase<Impl, LuaRef>::callable() const
 
 // Begin File: Source/LuaBridge/detail/Iterator.h
 
+#if LUABRIDGE_HAS_CXX20_RANGES
+#endif
+
 namespace luabridge {
 
 class Iterator
@@ -11062,6 +11727,12 @@ public:
             next(); 
         }
     }
+
+#if LUABRIDGE_HAS_CXX20_RANGES
+    using value_type = std::pair<LuaRef, LuaRef>;
+    using difference_type = std::ptrdiff_t;
+    using iterator_concept = std::input_iterator_tag;
+#endif
 
     lua_State* state() const noexcept
     {
@@ -11181,7 +11852,37 @@ inline Range pairs(const LuaRef& table)
     return Range{ Iterator(table, false), Iterator(table, true) };
 }
 
+#if LUABRIDGE_HAS_CXX20_RANGES
+
+inline bool operator==(const Iterator& lhs, const Iterator& rhs)
+{
+    if (lhs.isNil() && rhs.isNil())
+        return true;
+    if (lhs.isNil() != rhs.isNil())
+        return false;
+    return lhs.key().rawequal(rhs.key()) && lhs.value().rawequal(rhs.value());
+}
+
+struct IteratorSentinel {};
+
+inline bool operator==(const Iterator& it, IteratorSentinel)
+{
+    return it.isNil();
+}
+
+inline bool operator==(IteratorSentinel, const Iterator& it)
+{
+    return it.isNil();
+}
+
+#endif 
+
 } 
+
+#if LUABRIDGE_HAS_CXX20_RANGES
+template <>
+inline constexpr bool std::ranges::enable_borrowed_range<luabridge::Range> = false;
+#endif
 
 
 // End File: Source/LuaBridge/detail/Iterator.h
@@ -13097,6 +13798,105 @@ struct Stack<std::map<K, V, Compare, Allocator>>
 
 // End File: Source/LuaBridge/Map.h
 
+// Begin File: Source/LuaBridge/MultiMap.h
+
+namespace luabridge {
+
+template <class K, class V, class Compare, class Allocator>
+struct Stack<std::multimap<K, V, Compare, Allocator>>
+{
+    using Type = std::multimap<K, V, Compare, Allocator>;
+
+    [[nodiscard]] static Result push(lua_State* L, const Type& map)
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 3))
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
+        StackRestore stackRestore(L);
+
+        lua_createtable(L, 0, 0);
+
+        auto it = map.begin();
+        while (it != map.end())
+        {
+            auto result = Stack<K>::push(L, it->first);
+            if (! result)
+                return result;
+
+            auto range = map.equal_range(it->first);
+            lua_createtable(L, static_cast<int>(std::distance(range.first, range.second)), 0);
+
+            int innerIndex = 1;
+            for (auto innerIt = range.first; innerIt != range.second; ++innerIt, ++innerIndex)
+            {
+                result = Stack<V>::push(L, innerIt->second);
+                if (! result)
+                    return result;
+
+                lua_rawseti(L, -2, innerIndex);
+            }
+            
+            lua_settable(L, -3);
+            it = range.second;
+        }
+
+        stackRestore.reset();
+        return {};
+    }
+
+    [[nodiscard]] static TypeResult<Type> get(lua_State* L, int index)
+    {
+        if (! lua_istable(L, index))
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        const StackRestore stackRestore(L);
+
+        Type map;
+
+        int absIndex = lua_absindex(L, index);
+        lua_pushnil(L);
+
+        while (lua_next(L, absIndex) != 0)
+        {
+            auto key = Stack<K>::get(L, -2);
+            if (! key)
+                return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+            if (! lua_istable(L, -1))
+                return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+            int innerAbsIndex = lua_absindex(L, -1);
+            lua_pushnil(L);
+
+            while (lua_next(L, innerAbsIndex) != 0)
+            {
+                auto value = Stack<V>::get(L, -1);
+                if (! value)
+                    return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+                map.emplace(*key, *value);
+                lua_pop(L, 1);
+            }
+
+            lua_pop(L, 1);
+        }
+
+        return map;
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        return lua_istable(L, index);
+    }
+};
+
+} 
+
+
+// End File: Source/LuaBridge/MultiMap.h
+
 // Begin File: Source/LuaBridge/Set.h
 
 namespace luabridge {
@@ -13168,6 +13968,125 @@ struct Stack<std::set<K, Compare, Allocator>>
 
 
 // End File: Source/LuaBridge/Set.h
+
+// Begin File: Source/LuaBridge/Span.h
+
+#if LUABRIDGE_HAS_CXX20_SPAN
+
+namespace luabridge {
+
+template <class T, std::size_t Extent>
+struct Stack<std::span<T, Extent>>
+{
+    using Type = std::span<T, Extent>;
+
+    [[nodiscard]] static Result push(lua_State* L, Type span)
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 3))
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
+        StackRestore stackRestore(L);
+
+        lua_createtable(L, static_cast<int>(span.size()), 0);
+        const int tableIndex = lua_gettop(L);
+
+        int i = 1;
+        for (const auto& element : span)
+        {
+            auto result = Stack<std::remove_cv_t<T>>::push(L, element);
+            if (! result)
+                return result;
+
+            lua_rawseti(L, tableIndex, i++);
+        }
+
+        stackRestore.reset();
+        return {};
+    }
+
+    template <class U = T>
+    [[nodiscard]] static TypeResult<Type> get(lua_State*, int)
+    {
+        static_assert(sizeof(U) == 0,
+            "std::span cannot be retrieved from Lua — use std::vector<T> to retrieve sequences from Lua");
+        return makeErrorCode(ErrorCode::InvalidTypeCast);
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        return lua_istable(L, index);
+    }
+};
+
+} 
+
+#endif 
+
+
+// End File: Source/LuaBridge/Span.h
+
+// Begin File: Source/LuaBridge/StdExpected.h
+
+#if LUABRIDGE_HAS_CXX23_EXPECTED
+
+namespace luabridge {
+
+template <class T, class E>
+struct Stack<std::expected<T, E>>
+{
+    using Type = std::expected<T, E>;
+
+    [[nodiscard]] static Result push(lua_State* L, const Type& value)
+    {
+        if (value.has_value())
+        {
+            StackRestore stackRestore(L);
+
+            auto result = Stack<T>::push(L, *value);
+            if (! result)
+                return result;
+
+            stackRestore.reset();
+            return {};
+        }
+
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 1))
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
+        lua_pushnil(L);
+        return {};
+    }
+
+    [[nodiscard]] static TypeResult<Type> get(lua_State* L, int index)
+    {
+        const auto type = lua_type(L, index);
+        if (type == LUA_TNIL || type == LUA_TNONE)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        auto result = Stack<T>::get(L, index);
+        if (! result)
+            return result.error();
+
+        return Type(*result);
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        const auto type = lua_type(L, index);
+        return (type != LUA_TNIL && type != LUA_TNONE) && Stack<T>::isInstance(L, index);
+    }
+};
+
+} 
+
+#endif 
+
+
+// End File: Source/LuaBridge/StdExpected.h
 
 // Begin File: Source/LuaBridge/UnorderedMap.h
 
@@ -13246,6 +14165,177 @@ struct Stack<std::unordered_map<K, V, Hash, KeyEqual, Allocator>>
 
 // End File: Source/LuaBridge/UnorderedMap.h
 
+// Begin File: Source/LuaBridge/UnorderedMultiMap.h
+
+namespace luabridge {
+
+template <class K, class V, class Hash, class KeyEqual, class Allocator>
+struct Stack<std::unordered_multimap<K, V, Hash, KeyEqual, Allocator>>
+{
+    using Type = std::unordered_multimap<K, V, Hash, KeyEqual, Allocator>;
+
+    [[nodiscard]] static Result push(lua_State* L, const Type& map)
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 3))
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
+        StackRestore stackRestore(L);
+
+        lua_createtable(L, 0, 0);
+
+        auto it = map.begin();
+        while (it != map.end())
+        {
+            auto result = Stack<K>::push(L, it->first);
+            if (! result)
+                return result;
+
+            auto range = map.equal_range(it->first);
+            lua_createtable(L, static_cast<int>(std::distance(range.first, range.second)), 0);
+
+            int innerIndex = 1;
+            for (auto innerIt = range.first; innerIt != range.second; ++innerIt, ++innerIndex)
+            {
+                result = Stack<V>::push(L, innerIt->second);
+                if (! result)
+                    return result;
+
+                lua_rawseti(L, -2, innerIndex);
+            }
+
+            lua_settable(L, -3);
+            it = range.second;
+        }
+
+        stackRestore.reset();
+        return {};
+    }
+
+    [[nodiscard]] static TypeResult<Type> get(lua_State* L, int index)
+    {
+        if (! lua_istable(L, index))
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        const StackRestore stackRestore(L);
+
+        Type map;
+
+        int absIndex = lua_absindex(L, index);
+        lua_pushnil(L);
+
+        while (lua_next(L, absIndex) != 0)
+        {
+            auto key = Stack<K>::get(L, -2);
+            if (! key)
+                return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+            if (! lua_istable(L, -1))
+                return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+            int innerAbsIndex = lua_absindex(L, -1);
+            lua_pushnil(L);
+
+            while (lua_next(L, innerAbsIndex) != 0)
+            {
+                auto value = Stack<V>::get(L, -1);
+                if (! value)
+                    return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+                map.emplace(*key, *value);
+                lua_pop(L, 1);
+            }
+
+            lua_pop(L, 1);
+        }
+
+        return map;
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        return lua_istable(L, index);
+    }
+};
+
+} 
+
+
+// End File: Source/LuaBridge/UnorderedMultiMap.h
+
+// Begin File: Source/LuaBridge/UnorderedSet.h
+
+namespace luabridge {
+
+template <class K, class Hash, class KeyEqual, class Allocator>
+struct Stack<std::unordered_set<K, Hash, KeyEqual, Allocator>>
+{
+    using Type = std::unordered_set<K, Hash, KeyEqual, Allocator>;
+
+    [[nodiscard]] static Result push(lua_State* L, const Type& set)
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 3))
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
+        StackRestore stackRestore(L);
+
+        lua_createtable(L, 0, static_cast<int>(set.size()));
+
+        auto it = set.cbegin();
+        for (lua_Integer tableIndex = 1; it != set.cend(); ++tableIndex, ++it)
+        {
+            lua_pushinteger(L, tableIndex);
+
+            auto result = Stack<K>::push(L, *it);
+            if (! result)
+                return result;
+
+            lua_settable(L, -3);
+        }
+
+        stackRestore.reset();
+        return {};
+    }
+
+    [[nodiscard]] static TypeResult<Type> get(lua_State* L, int index)
+    {
+        if (!lua_istable(L, index))
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        const StackRestore stackRestore(L);
+
+        Type set;
+
+        int absIndex = lua_absindex(L, index);
+        lua_pushnil(L);
+
+        while (lua_next(L, absIndex) != 0)
+        {
+            auto item = Stack<K>::get(L, -1);
+            if (! item)
+                return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+            set.emplace(*item);
+            lua_pop(L, 1);
+        }
+
+        return set;
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        return lua_istable(L, index);
+    }
+};
+
+} 
+
+
+// End File: Source/LuaBridge/UnorderedSet.h
+
 // Begin File: Source/LuaBridge/Variant.h
 
 namespace luabridge {
@@ -13275,7 +14365,16 @@ private:
     [[nodiscard]] static TypeResult<Type> tryGet(lua_State* L, int index)
     {
         if (auto value = Stack<T>::get(L, index))
+        {
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
             return Type{ std::in_place_type<T>, std::move(*value) };
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+        }
 
         if constexpr (sizeof...(Rest) > 0)
             return tryGet<Rest...>(L, index);
@@ -13346,7 +14445,7 @@ struct Stack<std::vector<T, Allocator>>
             if (! result)
                 return result;
 
-            lua_rawseti(L, tableIndex, i + 1);
+            lua_rawseti(L, tableIndex, static_cast<int>(i + 1));
         }
         
         stackRestore.reset();

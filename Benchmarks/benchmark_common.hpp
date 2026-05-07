@@ -10,6 +10,7 @@
 #include <benchmark/benchmark.h>
 
 #include <cstdint>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -41,6 +42,11 @@ struct Counter
     void set(int v)
     {
         value = v;
+    }
+
+    static int static_add(int a, int b)
+    {
+        return a + b;
     }
 };
 
@@ -152,6 +158,16 @@ struct StatefulFunction
     }
 };
 
+struct SharedObject : std::enable_shared_from_this<SharedObject>
+{
+    double value = kMagicValue;
+
+    double get() const
+    {
+        return value;
+    }
+};
+
 inline Basic* basic_return()
 {
     static Basic value{};
@@ -161,6 +177,17 @@ inline Basic* basic_return()
 inline double basic_get_var(Basic* b)
 {
     return b ? b->var : 0.0;
+}
+
+inline std::shared_ptr<SharedObject> shared_object_return()
+{
+    static std::shared_ptr<SharedObject> obj = std::make_shared<SharedObject>();
+    return obj;
+}
+
+inline double shared_object_get_value(std::shared_ptr<SharedObject> obj)
+{
+    return obj ? obj->get() : 0.0;
 }
 
 void luaCheckOrThrow(lua_State* L, int status, std::string_view where);

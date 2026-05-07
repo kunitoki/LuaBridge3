@@ -12,6 +12,12 @@
 #error LuaBridge 3 requires a compliant C++17 compiler, or C++17 has not been enabled !
 #endif
 
+#if __cplusplus >= 202302L || (defined(_MSC_VER) && _HAS_CXX23)
+#define LUABRIDGE_CXX23_OR_GREATER 1
+#elif __cplusplus >= 202002L || (defined(_MSC_VER) && _HAS_CXX20)
+#define LUABRIDGE_CXX20_OR_GREATER 1
+#endif
+
 #if defined(LUAU_FASTMATH_BEGIN)
 #define LUABRIDGE_ON_LUAU 1
 #elif defined(LUAJIT_VERSION)
@@ -22,20 +28,6 @@
 #define LUABRIDGE_ON_LUA 1
 #else
 #error "Lua headers must be included prior to LuaBridge ones"
-#endif
-
-/**
- * @brief Enable C++20 coroutine integration with Lua coroutines.
- *
- * Requires C++20 and Lua 5.2+ (lua_yieldk). Not supported on Lua 5.1, LuaJIT, or Luau.
- * Define LUABRIDGE_DISABLE_CXX20_COROUTINES to force-disable even when C++20 is available.
- */
-#if !defined(LUABRIDGE_HAS_CXX20_COROUTINES)
-#if !defined(LUABRIDGE_DISABLE_CXX20_COROUTINES) && (__cplusplus >= 202002L || (defined(_MSC_VER) && _HAS_CXX20)) && !(LUABRIDGE_ON_LUAU || LUABRIDGE_ON_LUAJIT || LUABRIDGE_ON_RAVI || LUA_VERSION_NUM < 502)
-#define LUABRIDGE_HAS_CXX20_COROUTINES 1
-#else
-#define LUABRIDGE_HAS_CXX20_COROUTINES 0
-#endif
 #endif
 
 #if !defined(LUABRIDGE_HAS_EXCEPTIONS)
@@ -135,10 +127,128 @@
 #endif
 #endif
 
+
+/**
+ * @brief Control the assertion mechanism used by the library.
+ * 
+ * @note By default, assertions are enabled in debug builds and disabled in release builds. Define LUABRIDGE_FORCE_ASSERT_RELEASE to enable assertions even in release builds.
+ */
 #if !defined(LUABRIDGE_ASSERT)
 #if defined(NDEBUG) && !defined(LUABRIDGE_FORCE_ASSERT_RELEASE)
 #define LUABRIDGE_ASSERT(expr) ((void)(expr))
 #else
 #define LUABRIDGE_ASSERT(expr) assert(expr)
+#endif
+#endif
+
+/**
+ * @brief Enable C++17 filesystem library support.
+ *
+ * Requires C++17 and the filesystem header to be available.
+ * Define LUABRIDGE_DISABLE_CXX17_FILESYSTEM to force-disable even when available.
+ */
+#if !defined(LUABRIDGE_HAS_CXX17_FILESYSTEM)
+#if !defined(LUABRIDGE_DISABLE_CXX17_FILESYSTEM) && __has_include(<filesystem>) && defined(__cpp_lib_filesystem)
+#define LUABRIDGE_HAS_CXX17_FILESYSTEM 1
+#else
+#define LUABRIDGE_HAS_CXX17_FILESYSTEM 0
+#endif
+#endif
+
+/**
+ * @brief Enable C++17 any library support.
+ *
+ * Requires C++17 and the any header to be available.
+ * Define LUABRIDGE_DISABLE_CXX17_ANY to force-disable even when available.
+ */
+#if !defined(LUABRIDGE_HAS_CXX17_ANY)
+#if !defined(LUABRIDGE_DISABLE_CXX17_ANY) && __has_include(<any>) && defined(__cpp_lib_any)
+#define LUABRIDGE_HAS_CXX17_ANY 1
+#else
+#define LUABRIDGE_HAS_CXX17_ANY 0
+#endif
+#endif
+
+/**
+ * @brief Enable C++20 span library support.
+ *
+ * Requires C++20 and the span header to be available.
+ * Define LUABRIDGE_DISABLE_CXX20_SPAN to force-disable even when available.
+ */
+#if !defined(LUABRIDGE_HAS_CXX20_SPAN)
+#if !defined(LUABRIDGE_DISABLE_CXX20_SPAN) && LUABRIDGE_CXX20_OR_GREATER && __has_include(<span>) && defined(__cpp_lib_span)
+#define LUABRIDGE_HAS_CXX20_SPAN 1
+#else
+#define LUABRIDGE_HAS_CXX20_SPAN 0
+#endif
+#endif
+
+/**
+ * @brief Enable C++20 ranges library support.
+ *
+ * Requires C++20 and the ranges header to be available.
+ * Define LUABRIDGE_DISABLE_CXX20_RANGES to force-disable even when available.
+ */
+#if !defined(LUABRIDGE_HAS_CXX20_RANGES)
+#if !defined(LUABRIDGE_DISABLE_CXX20_RANGES) && LUABRIDGE_CXX20_OR_GREATER && defined(__cpp_lib_ranges)
+#define LUABRIDGE_HAS_CXX20_RANGES 1
+#else
+#define LUABRIDGE_HAS_CXX20_RANGES 0
+#endif
+#endif
+
+/**
+ * @brief Enable C++20 coroutine integration with Lua coroutines.
+ *
+ * Requires C++20 and Lua 5.2+ (lua_yieldk). Not supported on Lua 5.1, LuaJIT, or Luau.
+ * Define LUABRIDGE_DISABLE_CXX20_COROUTINES to force-disable even when C++20 is available.
+ */
+#if !defined(LUABRIDGE_HAS_CXX20_COROUTINES)
+#if !defined(LUABRIDGE_DISABLE_CXX20_COROUTINES) && LUABRIDGE_CXX20_OR_GREATER && !(LUABRIDGE_ON_LUAU || LUABRIDGE_ON_LUAJIT || LUABRIDGE_ON_RAVI || LUA_VERSION_NUM < 502)
+#define LUABRIDGE_HAS_CXX20_COROUTINES 1
+#else
+#define LUABRIDGE_HAS_CXX20_COROUTINES 0
+#endif
+#endif
+
+/**
+ * @brief Enable C++23 expected library support.
+ *
+ * Requires C++23 and the expected header to be available.
+ * Define LUABRIDGE_DISABLE_CXX23_EXPECTED to force-disable even when available.
+ */
+#if !defined(LUABRIDGE_HAS_CXX23_EXPECTED)
+#if !defined(LUABRIDGE_DISABLE_CXX23_EXPECTED) && LUABRIDGE_CXX23_OR_GREATER && __has_include(<expected>) && defined(__cpp_lib_expected)
+#define LUABRIDGE_HAS_CXX23_EXPECTED 1
+#else
+#define LUABRIDGE_HAS_CXX23_EXPECTED 0
+#endif
+#endif
+
+/**
+ * @brief Enable C++23 flat containers library support.
+ *
+ * Requires C++23 and the flat_map header to be available.
+ * Define LUABRIDGE_DISABLE_CXX23_FLAT_CONTAINERS to force-disable even when available.
+ */
+#if !defined(LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS)
+#if !defined(LUABRIDGE_DISABLE_CXX23_FLAT_CONTAINERS) && LUABRIDGE_CXX23_OR_GREATER && __has_include(<flat_map>) && __has_include(<flat_set>) && defined(__cpp_lib_flat_map)
+#define LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS 1
+#else
+#define LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS 0
+#endif
+#endif
+
+/**
+ * @brief Enable C++23 move_only_function library support.
+ *
+ * Requires C++23 and move_only_function to be available.
+ * Define LUABRIDGE_DISABLE_CXX23_MOVE_ONLY_FUNCTION to force-disable even when available.
+ */
+#if !defined(LUABRIDGE_HAS_CXX23_MOVE_ONLY_FUNCTION)
+#if !defined(LUABRIDGE_DISABLE_CXX23_MOVE_ONLY_FUNCTION) && LUABRIDGE_CXX23_OR_GREATER && defined(__cpp_lib_move_only_function)
+#define LUABRIDGE_HAS_CXX23_MOVE_ONLY_FUNCTION 1
+#else
+#define LUABRIDGE_HAS_CXX23_MOVE_ONLY_FUNCTION 0
 #endif
 #endif
