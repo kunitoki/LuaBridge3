@@ -58,7 +58,7 @@ LuaBridge3 is usable from a compliant C++17 compiler and offers the following fe
 * Functions and constructors overloading support.
 * Easy access to Lua objects like tables and functions.
 * Expose C++ classes allowing them to use the flexibility of lua property lookup.
-* Interoperable with most common c++ standard library container types.
+* Interoperable with a wide range of C++ standard library types, including containers, smart pointers, and modern C++17/20/23 additions.
 * Written in a clear and easy to debug style.
 
 ## Performance
@@ -83,6 +83,7 @@ LuaBridge3 offers a set of improvements compared to vanilla LuaBridge:
 * Static metamethod fallbacks via `__index` and `__newindex` in exposed C++ classes on the class static table.
 * Custom destructor hook via `addDestructor` (`__destruct` metamethod) called just before the C++ destructor.
 * Added `std::shared_ptr` to support shared C++/Lua lifetime for types deriving from `std::enable_shared_from_this`.
+* `std::unique_ptr<T>` supported as an ownership container — Lua gets a non-owning view while C++ retains ownership.
 * Supports conversion to and from `std::nullptr_t`, `std::byte`, `std::pair`, `std::tuple` and `std::reference_wrapper`.
 * Supports conversion to and from C style arrays of any supported type.
 * `void*` and `const void*` are transparently mapped to Lua lightuserdata.
@@ -98,6 +99,48 @@ LuaBridge3 offers a set of improvements compared to vanilla LuaBridge:
 * `LuaFunction<Signature>` provides a strongly-typed callable wrapper around a Lua function.
 * `TypeResult<T>::valueOr(default)` allows safe value extraction with an explicit fallback.
 * Can safely register and use classes exposed across shared library boundaries.
+
+### Standard Library Container Support
+
+Optional headers enable transparent Lua↔C++ conversion for a wide range of STL containers. Include only what you need:
+
+| Header | Type | Requirement |
+|--------|------|-------------|
+| `LuaBridge/Array.h` | `std::array<T,N>` | C++17 |
+| `LuaBridge/Vector.h` | `std::vector<T>` | C++17 |
+| `LuaBridge/Deque.h` | `std::deque<T>` | C++17 |
+| `LuaBridge/ForwardList.h` | `std::forward_list<T>` | C++17 |
+| `LuaBridge/List.h` | `std::list<T>` | C++17 |
+| `LuaBridge/Map.h` | `std::map<K,V>` | C++17 |
+| `LuaBridge/MultiMap.h` | `std::multimap<K,V>` | C++17 |
+| `LuaBridge/Set.h` | `std::set<K>` | C++17 |
+| `LuaBridge/UnorderedMap.h` | `std::unordered_map<K,V>` | C++17 |
+| `LuaBridge/UnorderedMultiMap.h` | `std::unordered_multimap<K,V>` | C++17 |
+| `LuaBridge/UnorderedSet.h` | `std::unordered_set<K>` | C++17 |
+| `LuaBridge/Optional.h` | `std::optional<T>` | C++17 |
+| `LuaBridge/Variant.h` | `std::variant<Ts...>` | C++17 |
+| `LuaBridge/Any.h` | `std::any` (push-only) | C++17 |
+| `LuaBridge/Span.h` | `std::span<T>` (push-only) | C++20 |
+| `LuaBridge/StdExpected.h` | `std::expected<T,E>` | C++23 |
+| `LuaBridge/FlatMap.h` | `std::flat_map<K,V>` | C++23 |
+| `LuaBridge/FlatSet.h` | `std::flat_set<K>` | C++23 |
+
+`std::filesystem::path` is automatically converted to/from a Lua string when C++17 filesystem is available — no additional header required.
+
+### Modern C++ Feature Detection
+
+LuaBridge3 auto-detects available C++ standard library features and activates the corresponding support without any manual configuration. Every feature can be force-disabled with a `LUABRIDGE_DISABLE_*` preprocessor flag if needed:
+
+| Macro | Feature | Standard |
+|-------|---------|----------|
+| `LUABRIDGE_HAS_CXX17_FILESYSTEM` | `std::filesystem::path` ↔ string | C++17 |
+| `LUABRIDGE_HAS_CXX17_ANY` | `std::any` push registry | C++17 |
+| `LUABRIDGE_HAS_CXX20_SPAN` | `std::span` push support | C++20 |
+| `LUABRIDGE_HAS_CXX20_RANGES` | `Iterator`/`Range` satisfy `std::ranges` concepts | C++20 |
+| `LUABRIDGE_HAS_CXX20_COROUTINES` | `CppCoroutine<R>` / `LuaCoroutine` | C++20 |
+| `LUABRIDGE_HAS_CXX23_EXPECTED` | `std::expected<T,E>` conversion | C++23 |
+| `LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS` | `std::flat_map` / `std::flat_set` | C++23 |
+| `LUABRIDGE_HAS_CXX23_MOVE_ONLY_FUNCTION` | `std::move_only_function` as callable | C++23 |
 
 ## Documentation
 
@@ -146,17 +189,27 @@ Commit the changed files and create a Pull Request for vcpkg.
 
 Unit test build requires a CMake and C++17 compliant compiler.
 
-There are 14 unit test flavors:
-* `LuaBridgeTests51` - uses Lua 5.1
-* `LuaBridgeTests51Noexcept` - uses Lua 5.1 without exceptions enabled
-* `LuaBridgeTests52` - uses Lua 5.2
-* `LuaBridgeTests52Noexcept` - uses Lua 5.2 without exceptions enabled
-* `LuaBridgeTests53` - uses Lua 5.3
-* `LuaBridgeTests53Noexcept` - uses Lua 5.3 without exceptions enabled
-* `LuaBridgeTests54` - uses Lua 5.4
-* `LuaBridgeTests54Noexcept` - uses Lua 5.4 without exceptions enabled
-* `LuaBridgeTests55` - uses Lua 5.5
-* `LuaBridgeTests55Noexcept` - uses Lua 5.5 without exceptions enabled
+These are the unit test targets:
+* `LuaBridgeTests51` - uses Lua 5.1 in C++ mode
+* `LuaBridgeTests51Noexcept` - uses Lua 5.1 in C++ mode without exceptions enabled
+* `LuaBridgeTests51LuaC` - uses Lua 5.1 in C mode
+* `LuaBridgeTests51LuaCNoexcept` - uses Lua 5.1 in C mode without exceptions enabled
+* `LuaBridgeTests52` - uses Lua 5.2 in C++ mode
+* `LuaBridgeTests52Noexcept` - uses Lua 5.2 in C++ mode without exceptions enabled
+* `LuaBridgeTests52LuaC` - uses Lua 5.2 in C mode
+* `LuaBridgeTests52LuaCNoexcept` - uses Lua 5.2 in C mode without exceptions enabled
+* `LuaBridgeTests53` - uses Lua 5.3 in C++ mode
+* `LuaBridgeTests53Noexcept` - uses Lua 5.3 in C++ mode without exceptions enabled
+* `LuaBridgeTests53LuaC` - uses Lua 5.3 in C mode
+* `LuaBridgeTests53LuaCNoexcept` - uses Lua 5.3 in C mode without exceptions enabled
+* `LuaBridgeTests54` - uses Lua 5.4 in C++ mode
+* `LuaBridgeTests54Noexcept` - uses Lua 5.4 in C++ mode without exceptions enabled
+* `LuaBridgeTests54LuaC` - uses Lua 5.4 in C mode
+* `LuaBridgeTests54LuaCNoexcept` - uses Lua 5.4 in C mode without exceptions enabled
+* `LuaBridgeTests55` - uses Lua 5.5 in C++ mode
+* `LuaBridgeTests55Noexcept` - uses Lua 5.5 in C++ mode without exceptions enabled
+* `LuaBridgeTests55LuaC` - uses Lua 5.5 in C mode
+* `LuaBridgeTests55LuaCNoexcept` - uses Lua 5.5 in C mode without exceptions enabled
 * `LuaBridgeTestsLuaJIT` - uses LuaJIT 2.1
 * `LuaBridgeTestsLuaJITNoexcept` - uses LuaJIT 2.1 without exceptions enabled
 * `LuaBridgeTestsLuau` - uses Luau
@@ -169,12 +222,10 @@ Generate Unix Makefiles and build on Linux:
 ```bash
 git clone --recursive git@github.com:kunitoki/LuaBridge3.git
 
-mkdir -p LuaBridge3/build
-pushd LuaBridge3/build
-cmake -G "Unix Makefiles" ../
-cmake --build . -DCMAKE_BUILD_TYPE=Debug
-# or cmake --build . -DCMAKE_BUILD_TYPE=Release
-# or cmake --build . -DCMAKE_BUILD_TYPE=RelWithDebInfo
+cmake -G "Unix Makefiles" -DCMAKE_CXX_STANDARD=20 -B Build . # Generates Unix Makefiles
+cmake --build Build -DCMAKE_BUILD_TYPE=Debug 
+# or cmake --build Build -DCMAKE_BUILD_TYPE=Release
+# or cmake --build Build -DCMAKE_BUILD_TYPE=RelWithDebInfo
 popd
 ```
 
@@ -182,23 +233,20 @@ Generate XCode project and build on MacOS:
 ```bash
 git clone --recursive git@github.com:kunitoki/LuaBridge3.git
 
-mkdir -p LuaBridge3/build
-pushd LuaBridge3/build
-cmake -G Xcode ../ # Generates XCode project build/LuaBridge.xcodeproj
-cmake --build . -DCMAKE_BUILD_TYPE=Debug
-# or cmake --build . -DCMAKE_BUILD_TYPE=Release
-# or cmake --build . -DCMAKE_BUILD_TYPE=RelWithDebInfo
-popd
+cmake -G Xcode -DCMAKE_CXX_STANDARD=20 -B Build . # Generates XCode project build/LuaBridge.xcodeproj
+cmake --build Build -DCMAKE_BUILD_TYPE=Debug
+# or cmake --build Build -DCMAKE_BUILD_TYPE=Release
+# or cmake --build Build -DCMAKE_BUILD_TYPE=RelWithDebInfo
 ```
 
 Generate VS2019 solution on Windows:
 ```cmd
 git clone --recursive git@github.com:kunitoki/LuaBridge3.git
 
-mkdir LuaBridge3/build
-pushd LuaBridge3/build
-cmake -G "Visual Studio 16" ../ # Generates MSVS solution build/LuaBridge.sln
-popd
+cmake -G "Visual Studio 16" -DCMAKE_CXX_STANDARD=20 -B Build . # Generates MSVS solution build/LuaBridge.sln
+cmake --build Build -DCMAKE_BUILD_TYPE=Debug 
+# or cmake --build Build -DCMAKE_BUILD_TYPE=Release
+# or cmake --build Build -DCMAKE_BUILD_TYPE=RelWithDebInfo
 ```
 
 ## Official Repository

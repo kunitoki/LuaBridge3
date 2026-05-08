@@ -30,17 +30,16 @@ struct Stack<std::list<T, Allocator>>
         StackRestore stackRestore(L);
 
         lua_createtable(L, static_cast<int>(list.size()), 0);
+        const int tableIndex = lua_gettop(L);
 
         auto it = list.cbegin();
-        for (lua_Integer tableIndex = 1; it != list.cend(); ++tableIndex, ++it)
+        for (std::size_t i = 1; it != list.cend(); ++i, ++it)
         {
-            lua_pushinteger(L, tableIndex);
-
             auto result = Stack<T>::push(L, *it);
             if (! result)
                 return result;
 
-            lua_settable(L, -3);
+            lua_rawseti(L, tableIndex, static_cast<int>(i));
         }
 
         stackRestore.reset();

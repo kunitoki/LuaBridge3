@@ -41,15 +41,18 @@ jobs:
     - name: Install Dependencies
       run: sudo apt-get -y install ninja-build
 
-    - name: Create Build Environment
-      run: cmake -E make_directory ${{runner.workspace}}/build
+    - name: Create Build Environments
+      run: |
+        cmake -E make_directory ${{runner.workspace}}/build17
+        cmake -E make_directory ${{runner.workspace}}/build20
+        cmake -E make_directory ${{runner.workspace}}/build23
 
-    - name: Configure
-      working-directory: ${{runner.workspace}}/build
-      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DLUABRIDGE_SANITIZE=address -G Ninja
+    - name: Configure C++17
+      working-directory: ${{runner.workspace}}/build17
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCMAKE_CXX_STANDARD=17 -DLUABRIDGE_SANITIZE=address -G Ninja
 
-    - name: Build Lua ${{ matrix.lua.version }}
-      working-directory: ${{runner.workspace}}/build
+    - name: Build Lua ${{ matrix.lua.version }} (C++17)
+      working-directory: ${{runner.workspace}}/build17
       run: |
         cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target \
           LuaBridgeTests${{ matrix.lua.suffix }} \
@@ -57,12 +60,46 @@ jobs:
           LuaBridgeTests${{ matrix.lua.suffix }}Noexcept \
           LuaBridgeTests${{ matrix.lua.suffix }}LuaCNoexcept
 
-    - name: Test Lua ${{ matrix.lua.version }}
-      working-directory: ${{runner.workspace}}/build/Tests
+    - name: Test Lua ${{ matrix.lua.version }} (C++17)
+      working-directory: ${{runner.workspace}}/build17
       env:
         ASAN_OPTIONS: detect_leaks=0:detect_odr_violation=0
+      run: ctest --parallel $(nproc) -R "LuaBridgeTests${{ matrix.lua.suffix }}" --output-on-failure
+
+    - name: Configure C++20
+      working-directory: ${{runner.workspace}}/build20
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCMAKE_CXX_STANDARD=20 -DLUABRIDGE_SANITIZE=address -G Ninja
+
+    - name: Build Lua ${{ matrix.lua.version }} (C++20)
+      working-directory: ${{runner.workspace}}/build20
       run: |
-        ./LuaBridgeTests${{ matrix.lua.suffix }}
-        ./LuaBridgeTests${{ matrix.lua.suffix }}LuaC
-        ./LuaBridgeTests${{ matrix.lua.suffix }}Noexcept
-        ./LuaBridgeTests${{ matrix.lua.suffix }}LuaCNoexcept
+        cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target \
+          LuaBridgeTests${{ matrix.lua.suffix }} \
+          LuaBridgeTests${{ matrix.lua.suffix }}LuaC \
+          LuaBridgeTests${{ matrix.lua.suffix }}Noexcept \
+          LuaBridgeTests${{ matrix.lua.suffix }}LuaCNoexcept
+
+    - name: Test Lua ${{ matrix.lua.version }} (C++20)
+      working-directory: ${{runner.workspace}}/build20
+      env:
+        ASAN_OPTIONS: detect_leaks=0:detect_odr_violation=0
+      run: ctest --parallel $(nproc) -R "LuaBridgeTests${{ matrix.lua.suffix }}" --output-on-failure
+
+    - name: Configure C++23
+      working-directory: ${{runner.workspace}}/build23
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCMAKE_CXX_STANDARD=23 -DLUABRIDGE_SANITIZE=address -G Ninja
+
+    - name: Build Lua ${{ matrix.lua.version }} (C++23)
+      working-directory: ${{runner.workspace}}/build23
+      run: |
+        cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target \
+          LuaBridgeTests${{ matrix.lua.suffix }} \
+          LuaBridgeTests${{ matrix.lua.suffix }}LuaC \
+          LuaBridgeTests${{ matrix.lua.suffix }}Noexcept \
+          LuaBridgeTests${{ matrix.lua.suffix }}LuaCNoexcept
+
+    - name: Test Lua ${{ matrix.lua.version }} (C++23)
+      working-directory: ${{runner.workspace}}/build23
+      env:
+        ASAN_OPTIONS: detect_leaks=0:detect_odr_violation=0
+      run: ctest --parallel $(nproc) -R "LuaBridgeTests${{ matrix.lua.suffix }}" --output-on-failure

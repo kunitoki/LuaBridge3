@@ -2,37 +2,45 @@
 default:
     @just -l
 
-generate:
-    cmake -G Xcode -B Build -DLUABRIDGE_BENCHMARKS=ON .
+generate CXX="17":
+    cmake -G Xcode -B Build{{CXX}} -DLUABRIDGE_BENCHMARKS=ON -DCMAKE_CXX_STANDARD={{CXX}} .
 
-open: generate
-    -open Build/LuaBridge.xcodeproj
+open CXX="17":
+    @just generate {{CXX}}
+    -open Build{{CXX}}/LuaBridge.xcodeproj
 
-build: generate
-    cmake --build Build --config Debug --target LuaBridgeTests53 -j8
+build CXX="17":
+    @just generate {{CXX}}
+    cmake --build Build{{CXX}} --config Debug -j8
 
-test: build
-    ./Build/Tests/Debug/LuaBridgeTests53
+test CXX="17":
+    @just build {{CXX}}
+    ctest --test-dir Build{{CXX}} -C Debug -j8
 
-sanitize TYPE='address':
-    cmake -G Xcode -B Build -DLUABRIDGE_SANITIZE={{TYPE}} .
+test-all:
+    @just test 17
+    @just test 20
+    @just test 23
 
-benchmark:
-    @just generate
-    cmake --build Build --config Release --target LuaBridge3Benchmark -j8
-    cmake --build Build --config Release --target LuaBridgeVanillaBenchmark -j8
-    cmake --build Build --config Release --target Sol3Benchmark -j8
-    ./Build/Benchmarks/Release/LuaBridge3Benchmark --benchmark_out_format=json --benchmark_out=Build/LuaBridge3Benchmark.json
-    ./Build/Benchmarks/Release/LuaBridgeVanillaBenchmark --benchmark_out_format=json --benchmark_out=Build/LuaBridgeVanillaBenchmark.json
-    ./Build/Benchmarks/Release/Sol3Benchmark --benchmark_out_format=json --benchmark_out=Build/Sol3Benchmark.json
-    @just plot
+sanitize TYPE="address" CXX="17":
+    cmake -G Xcode -B Build{{CXX}} -DLUABRIDGE_SANITIZE={{TYPE}} .
 
-plot:
-    uv run --with-requirements Benchmarks/requirements.txt Benchmarks/plot_benchmarks.py --input Build/*.json --output Images/benchmarks.png
+benchmark CXX="17":
+    @just generate {{CXX}}
+    cmake --build Build{{CXX}} --config Release --target LuaBridge3Benchmark -j8
+    cmake --build Build{{CXX}} --config Release --target LuaBridgeVanillaBenchmark -j8
+    cmake --build Build{{CXX}} --config Release --target Sol3Benchmark -j8
+    ./Build{{CXX}}/Benchmarks/Release/LuaBridge3Benchmark --benchmark_out_format=json --benchmark_out=Build{{CXX}}/LuaBridge3Benchmark.json
+    ./Build{{CXX}}/Benchmarks/Release/LuaBridgeVanillaBenchmark --benchmark_out_format=json --benchmark_out=Build{{CXX}}/LuaBridgeVanillaBenchmark.json
+    ./Build{{CXX}}/Benchmarks/Release/Sol3Benchmark --benchmark_out_format=json --benchmark_out=Build{{CXX}}/Sol3Benchmark.json
+    @just plot {{CXX}}
 
-clean:
-    rm -rf Build
+plot CXX="17":
+    uv run --with-requirements Benchmarks/requirements.txt Benchmarks/plot_benchmarks.py --input Build{{CXX}}/*.json --output Images/benchmarks.png
 
 amalgamate:
     uv run amalgamate.py
+
+clean:
+    rm -rf Build
 

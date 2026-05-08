@@ -28,14 +28,21 @@ endif()
 
 set (LUABRIDGE_TEST_SOURCE_FILES
   Source/AmalgamateTests.cpp
+  Source/AnyTests.cpp
   Source/ArrayTests.cpp
   Source/ClassExtensibleTests.cpp
   Source/ClassTests.cpp
   Source/CoroutineTests.cpp
+  Source/DequeTests.cpp
   Source/DumpTests.cpp
   Source/EnumTests.cpp
   Source/ExceptionTests.cpp
+  Source/ExpectedStackTests.cpp
+  Source/FilesystemTests.cpp
   Source/FlagSetTests.cpp
+  Source/FlatMapTests.cpp
+  Source/FlatSetTests.cpp
+  Source/ForwardListTests.cpp
   Source/IssueTests.cpp
   Source/IteratorTests.cpp
   Source/LegacyTests.cpp
@@ -43,6 +50,8 @@ set (LUABRIDGE_TEST_SOURCE_FILES
   Source/ListTests.cpp
   Source/LuaRefTests.cpp
   Source/MapTests.cpp
+  Source/MoveOnlyFunctionTests.cpp
+  Source/MultiMapTests.cpp
   Source/MultipleInheritanceTests.cpp
   Source/NamespaceTests.cpp
   Source/OptionalTests.cpp
@@ -52,12 +61,16 @@ set (LUABRIDGE_TEST_SOURCE_FILES
   Source/RefCountedPtrTests.cpp
   Source/ScopeGuardTests.cpp
   Source/SetTests.cpp
+  Source/SpanTests.cpp
   Source/StackTests.cpp
+  Source/StdExpectedTests.cpp
   Source/Tests.cpp
   Source/TestBase.h
   Source/TestTypes.h
   Source/TestsMain.cpp
+  Source/UniquePtrTests.cpp
   Source/UnorderedMapTests.cpp
+  Source/UnorderedSetTests.cpp
   Source/UserdataTests.cpp
   Source/VariantTests.cpp
   Source/VectorTests.cpp
@@ -272,9 +285,9 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
   endif ()
 
   if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++17 /W3 /MP /D_CRT_SECURE_NO_WARNINGS")
+    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++${CMAKE_CXX_STANDARD} /W3 /MP /D_CRT_SECURE_NO_WARNINGS")
   else ()
-    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
+    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++${CMAKE_CXX_STANDARD} -Wall")
   endif ()
 
   # Dynamic library test

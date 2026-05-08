@@ -3,8 +3,8 @@ Documentation
 Makefile
 CMakeCache.txt
 CMakeFiles/
-build/
-Build/
+build*/
+Build*/
 *.dir/
 *.sln
 *.vcxproj

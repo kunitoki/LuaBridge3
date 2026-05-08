@@ -2959,7 +2959,7 @@ struct Array
     T& operator[](std::size_t index) { return value; }
     const T& operator[](std::size_t index) const { return value; }
 
-    T value;
+    T value{};
 };
 
 using Color = Array<float, 4>;

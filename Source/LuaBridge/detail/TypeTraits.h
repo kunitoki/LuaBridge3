@@ -112,6 +112,24 @@ struct ContainerTraits<std::shared_ptr<T>>
     }
 };
 
+/**
+ * @brief Register unique_ptr support as container.
+ *
+ * @note Lua gets a non-owning view of the object. The C++ owner must outlive any Lua reference.
+ *
+ * @tparam T Class that is held by the unique_ptr.
+ */
+template <class T>
+struct ContainerTraits<std::unique_ptr<T>>
+{
+    using Type = T;
+
+    static T* get(const std::unique_ptr<T>& c)
+    {
+        return c.get();
+    }
+};
+
 namespace detail {
 
 //=================================================================================================

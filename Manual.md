@@ -46,6 +46,7 @@ Contents
     *   [2.8 - Lua Stack](#28---lua-stack)
         *   [2.8.1 - Enums](#281---enums)
         *   [2.8.2 - lua_State](#282---lua_state)
+        *   [2.8.3 - Standard Library Type Conversions](#283---standard-library-type-conversions)
     *   [2.9 - C++20 Coroutine Integration](#29---c20-coroutine-integration)
         *   [2.9.1 - CppCoroutine\<R\> - Generators callable from Lua](#291---cppcoroutiner----generators-callable-from-lua)
         *   [2.9.2 - Accepting Arguments](#292---accepting-arguments)
@@ -86,6 +87,13 @@ Contents
     * [6.3 - LUABRIDGE_SAFE_LUA_C_EXCEPTION_HANDLING](#63---luabridge-safe-c-exception-handling)
     * [6.4 - LUABRIDGE_RAISE_UNREGISTERED_CLASS_USAGE](#64---luabridge-raise-unregistered-class-usage)
     * [6.5 - LUABRIDGE_HAS_CXX20_COROUTINES / LUABRIDGE_DISABLE_CXX20_COROUTINES](#65---luabridge-has-cxx20-coroutines--luabridge-disable-cxx20-coroutines)
+    * [6.6 - LUABRIDGE_HAS_CXX17_FILESYSTEM / LUABRIDGE_DISABLE_CXX17_FILESYSTEM](#66---luabridge-has-cxx17-filesystem--luabridge-disable-cxx17-filesystem)
+    * [6.7 - LUABRIDGE_HAS_CXX17_ANY / LUABRIDGE_DISABLE_CXX17_ANY](#67---luabridge-has-cxx17-any--luabridge-disable-cxx17-any)
+    * [6.8 - LUABRIDGE_HAS_CXX20_SPAN / LUABRIDGE_DISABLE_CXX20_SPAN](#68---luabridge-has-cxx20-span--luabridge-disable-cxx20-span)
+    * [6.9 - LUABRIDGE_HAS_CXX20_RANGES / LUABRIDGE_DISABLE_CXX20_RANGES](#69---luabridge-has-cxx20-ranges--luabridge-disable-cxx20-ranges)
+    * [6.10 - LUABRIDGE_HAS_CXX23_EXPECTED / LUABRIDGE_DISABLE_CXX23_EXPECTED](#610---luabridge-has-cxx23-expected--luabridge-disable-cxx23-expected)
+    * [6.11 - LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS / LUABRIDGE_DISABLE_CXX23_FLAT_CONTAINERS](#611---luabridge-has-cxx23-flat-containers--luabridge-disable-cxx23-flat-containers)
+    * [6.12 - LUABRIDGE_HAS_CXX23_MOVE_ONLY_FUNCTION / LUABRIDGE_DISABLE_CXX23_MOVE_ONLY_FUNCTION](#612---luabridge-has-cxx23-move-only-function--luabridge-disable-cxx23-move-only-function)
 
 *   [Appendix - API Reference](#appendix---api-reference)
 
@@ -122,6 +130,8 @@ It also offers a set of improvements compared to vanilla LuaBridge:
 * Added `std::shared_ptr` to support shared C++/Lua lifetime for types deriving from `std::enable_shared_from_this`.
 * Supports conversion to and from `std::nullptr_t`, `std::byte`, `std::pair`, `std::tuple` and `std::reference_wrapper`.
 * Supports conversion to and from C style arrays of any supported type.
+* Supports `std::unique_ptr<T>` as an ownership container, giving Lua a non-owning view of the C++ object.
+* Supports `std::move_only_function` (C++23) as a registered callable type alongside `std::function`.
 * Transparent support of all signed and unsigned integer types up to `int64_t`.
 * Consistent numeric handling and conversions (signed, unsigned and floats) across all lua versions.
 * Simplified registration of enum types via the `luabridge::Enum` stack wrapper.
@@ -143,7 +153,7 @@ Because LuaBridge was written with simplicity in mind there are some features th
 LuaBridge does not support:
 
 *   Global types (types must be registered in a named scope).
-*   Automatic conversion between STL container types and Lua tables (but conversion can be enabled for `std::array`, `std::vector`, `std::map`, `std::unordered_map`, `std::set` `std::list`, `std::optional`, by including `LuaBridge/Array.h`, `LuaBridge/Vector.h`, `LuaBridge/Map`, `LuaBridge/UnorderedMap.h`, `LuaBridge/Set.h`, `LuaBridge/List.h`, `LuaBridge/Optional.h` respectively)
+*   Automatic conversion between STL container types and Lua tables (but conversion can be opted in for many standard containers by including the corresponding optional header — see [2.8.3](#283---standard-library-type-conversions))
 *   Inheriting Lua classes from C++ classes.
 *   Passing nil to a C++ function that expects a pointer or reference.
 
@@ -1338,6 +1348,100 @@ When the script calls `useStateAndArgs`, it passes only the integer and string p
 
 The same is applicable for properties.
 
+### 2.8.3 - Standard Library Type Conversions
+
+LuaBridge does not enable STL container-to-Lua-table conversions by default. Each supported container type has its own optional header that must be included explicitly. All conversions map the container to a Lua table and back.
+
+The table below lists every optional header and its requirements:
+
+| Header | Type | C++ Standard | Notes |
+|--------|------|-------------|-------|
+| `LuaBridge/Array.h` | `std::array<T,N>` | C++17 | Fixed-size sequence |
+| `LuaBridge/Vector.h` | `std::vector<T>` | C++17 | Sequence |
+| `LuaBridge/Deque.h` | `std::deque<T>` | C++17 | Double-ended sequence |
+| `LuaBridge/ForwardList.h` | `std::forward_list<T>` | C++17 | Singly-linked sequence |
+| `LuaBridge/List.h` | `std::list<T>` | C++17 | Doubly-linked sequence |
+| `LuaBridge/Map.h` | `std::map<K,V>` | C++17 | Ordered key-value table |
+| `LuaBridge/MultiMap.h` | `std::multimap<K,V>` | C++17 | Ordered multi-value table; each key maps to an array of values in Lua |
+| `LuaBridge/Set.h` | `std::set<K>` | C++17 | Ordered set |
+| `LuaBridge/UnorderedMap.h` | `std::unordered_map<K,V>` | C++17 | Hash key-value table |
+| `LuaBridge/UnorderedMultiMap.h` | `std::unordered_multimap<K,V>` | C++17 | Hash multi-value table; each key maps to an array of values in Lua |
+| `LuaBridge/UnorderedSet.h` | `std::unordered_set<K>` | C++17 | Hash set |
+| `LuaBridge/Optional.h` | `std::optional<T>` | C++17 | Nullable value |
+| `LuaBridge/Variant.h` | `std::variant<Ts...>` | C++17 | Tagged union |
+| `LuaBridge/Any.h` | `std::any` | C++17 (`LUABRIDGE_HAS_CXX17_ANY`) | Push-only; types must be pre-registered with `luabridge::registerAnyPush<T>(L)` |
+| `LuaBridge/Span.h` | `std::span<T>` | C++20 (`LUABRIDGE_HAS_CXX20_SPAN`) | Push-only; use `std::vector<T>` to retrieve sequences from Lua |
+| `LuaBridge/StdExpected.h` | `std::expected<T,E>` | C++23 (`LUABRIDGE_HAS_CXX23_EXPECTED`) | Pushes the value on success, nil on error |
+| `LuaBridge/FlatMap.h` | `std::flat_map<K,V>` | C++23 (`LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS`) | Ordered key-value table backed by contiguous storage |
+| `LuaBridge/FlatSet.h` | `std::flat_set<K>` | C++23 (`LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS`) | Ordered set backed by contiguous storage |
+
+`std::filesystem::path` is also supported as a built-in type when C++17 filesystem is available (`LUABRIDGE_HAS_CXX17_FILESYSTEM`). It is converted to and from a Lua string automatically; no additional header is required beyond `LuaBridge/LuaBridge.h`.
+
+**Example — using `std::deque` and `std::multimap`:**
+
+```cpp
+#include <LuaBridge/LuaBridge.h>
+#include <LuaBridge/Deque.h>
+#include <LuaBridge/MultiMap.h>
+
+// std::deque<int> pushes as a 1-based Lua table: {10, 20, 30}
+std::deque<int> dq = {10, 20, 30};
+luabridge::push(L, dq);
+
+// std::multimap pushes as a table where each key maps to an array of values:
+// { a = {1, 2}, b = {3} }
+std::multimap<std::string, int> mm = {{"a", 1}, {"a", 2}, {"b", 3}};
+luabridge::push(L, mm);
+```
+
+**Example — push-only `std::any`:**
+
+Types stored inside a `std::any` must be registered before they can be pushed:
+
+```cpp
+#include <LuaBridge/LuaBridge.h>
+#include <LuaBridge/Any.h>
+
+luabridge::registerAnyPush<int>(L);
+luabridge::registerAnyPush<std::string>(L);
+
+std::any value = 42;
+luabridge::push(L, value); // pushes integer 42
+```
+
+**Example — `std::expected` (C++23):**
+
+```cpp
+#include <LuaBridge/LuaBridge.h>
+#include <LuaBridge/StdExpected.h>
+
+std::expected<int, std::string> ok = 42;
+luabridge::push(L, ok); // pushes integer 42
+
+std::expected<int, std::string> err = std::unexpected("oops");
+luabridge::push(L, err); // pushes nil
+```
+
+**`std::unique_ptr` as an ownership container:**
+
+`std::unique_ptr<T>` is supported as a container type without any additional header. Lua receives a non-owning view of the object. The C++ side retains ownership and must outlive any Lua reference to the object:
+
+```cpp
+auto obj = std::make_unique<MyClass>();
+luabridge::push(L, obj); // Lua gets a non-owning reference; obj must outlive the Lua reference
+```
+
+**`std::move_only_function` (C++23):**
+
+When `LUABRIDGE_HAS_CXX23_MOVE_ONLY_FUNCTION` is active, `std::move_only_function<R(Args...)>` can be registered in a namespace or class just like `std::function`. This allows registering callables that are move-only (e.g. lambdas capturing unique ownership):
+
+```cpp
+luabridge::getGlobalNamespace(L)
+    .addFunction("compute", std::move_only_function<int(int)>([resource = std::make_unique<MyResource>()](int x) {
+        return resource->process(x);
+    }));
+```
+
 2.9 - C++20 Coroutine Integration
 ----------------------------------
 
@@ -2256,6 +2360,110 @@ You can also override the detection result explicitly:
 ```
 
 Attempting to use coroutine integration on Lua 5.1, LuaJIT, or Luau will emit a compile-time `#error` unless `LUABRIDGE_DISABLE_COROUTINE_INTEGRATION` is also defined.
+
+6.6 - LUABRIDGE_HAS_CXX17_FILESYSTEM / LUABRIDGE_DISABLE_CXX17_FILESYSTEM
+--------------------------------------------------------------------------
+
+**`LUABRIDGE_HAS_CXX17_FILESYSTEM` - auto-detected, override allowed**
+
+When a C++17 compiler and `<filesystem>` are available, LuaBridge automatically enables `std::filesystem::path` ↔ Lua string conversion. No additional header is needed; the specialization lives inside `LuaBridge/LuaBridge.h`.
+
+To force the feature off:
+
+```cpp
+#define LUABRIDGE_DISABLE_CXX17_FILESYSTEM
+#include <LuaBridge/LuaBridge.h>
+```
+
+6.7 - LUABRIDGE_HAS_CXX17_ANY / LUABRIDGE_DISABLE_CXX17_ANY
+------------------------------------------------------------
+
+**`LUABRIDGE_HAS_CXX17_ANY` - auto-detected, override allowed**
+
+When a C++17 compiler and `<any>` are available, LuaBridge enables push support for `std::any` via `LuaBridge/Any.h`. Because `std::any` erases the type at runtime, push is performed through a runtime registry. Types must be pre-registered with `luabridge::registerAnyPush<T>(L)` before a value of that type can be pushed.
+
+To force the feature off:
+
+```cpp
+#define LUABRIDGE_DISABLE_CXX17_ANY
+#include <LuaBridge/LuaBridge.h>
+```
+
+6.8 - LUABRIDGE_HAS_CXX20_SPAN / LUABRIDGE_DISABLE_CXX20_SPAN
+--------------------------------------------------------------
+
+**`LUABRIDGE_HAS_CXX20_SPAN` - auto-detected when C++20 is enabled, override allowed**
+
+When a C++20 compiler and `<span>` are available, LuaBridge enables push support for `std::span<T, Extent>` via `LuaBridge/Span.h`. `std::span` is push-only — it cannot be retrieved from Lua (use `std::vector<T>` to read sequences back).
+
+To force the feature off:
+
+```cpp
+#define LUABRIDGE_DISABLE_CXX20_SPAN
+#include <LuaBridge/LuaBridge.h>
+```
+
+6.9 - LUABRIDGE_HAS_CXX20_RANGES / LUABRIDGE_DISABLE_CXX20_RANGES
+-------------------------------------------------------------------
+
+**`LUABRIDGE_HAS_CXX20_RANGES` - auto-detected when C++20 is enabled, override allowed**
+
+When a C++20 compiler with ranges support is detected, LuaBridge's `luabridge::Iterator` gains the additional members required to satisfy the `std::input_iterator` concept (`value_type`, `difference_type`, `iterator_concept`) and a matching `operator==`. This allows `luabridge::Range` — the object returned by `luabridge::pairs()` — to be used directly in C++20 range-based algorithms and `std::views` pipelines.
+
+```cpp
+// Requires LUABRIDGE_HAS_CXX20_RANGES
+for (auto [key, val] : luabridge::pairs(tableRef))
+    std::cout << key.tostring() << " = " << val.tostring() << "\n";
+```
+
+To force the feature off:
+
+```cpp
+#define LUABRIDGE_DISABLE_CXX20_RANGES
+#include <LuaBridge/LuaBridge.h>
+```
+
+6.10 - LUABRIDGE_HAS_CXX23_EXPECTED / LUABRIDGE_DISABLE_CXX23_EXPECTED
+-----------------------------------------------------------------------
+
+**`LUABRIDGE_HAS_CXX23_EXPECTED` - auto-detected when C++23 is enabled, override allowed**
+
+When a C++23 compiler and `<expected>` are available, LuaBridge enables `std::expected<T,E>` ↔ Lua conversion via `LuaBridge/StdExpected.h`. A successful value is pushed as the contained `T`; a failure pushes `nil`.
+
+To force the feature off:
+
+```cpp
+#define LUABRIDGE_DISABLE_CXX23_EXPECTED
+#include <LuaBridge/LuaBridge.h>
+```
+
+6.11 - LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS / LUABRIDGE_DISABLE_CXX23_FLAT_CONTAINERS
+-------------------------------------------------------------------------------------
+
+**`LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS` - auto-detected when C++23 is enabled, override allowed**
+
+When a C++23 compiler and `<flat_map>` are available, LuaBridge enables conversion support for `std::flat_map` and `std::flat_set` via `LuaBridge/FlatMap.h` and `LuaBridge/FlatSet.h` respectively. These are contiguous-storage analogues of `std::map` and `std::set` with identical Lua table semantics.
+
+To force the feature off:
+
+```cpp
+#define LUABRIDGE_DISABLE_CXX23_FLAT_CONTAINERS
+#include <LuaBridge/LuaBridge.h>
+```
+
+6.12 - LUABRIDGE_HAS_CXX23_MOVE_ONLY_FUNCTION / LUABRIDGE_DISABLE_CXX23_MOVE_ONLY_FUNCTION
+-------------------------------------------------------------------------------------------
+
+**`LUABRIDGE_HAS_CXX23_MOVE_ONLY_FUNCTION` - auto-detected when C++23 is enabled, override allowed**
+
+When a C++23 compiler with `std::move_only_function` support is detected, LuaBridge's function-traits machinery recognises `std::move_only_function<R(Args...)>` and its `noexcept` / `const` variants as valid callable types. This allows registering move-only callables (e.g. lambdas that capture `std::unique_ptr`) directly with `addFunction` / `addStaticFunction` / `addCoroutine`.
+
+To force the feature off:
+
+```cpp
+#define LUABRIDGE_DISABLE_CXX23_MOVE_ONLY_FUNCTION
+#include <LuaBridge/LuaBridge.h>
+```
 
 Appendix - API Reference
 ========================

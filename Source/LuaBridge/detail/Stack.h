@@ -25,6 +25,10 @@
 #include <tuple>
 #include <utility>
 
+#if LUABRIDGE_HAS_CXX17_FILESYSTEM
+#include <filesystem>
+#endif
+
 namespace luabridge {
 
 //=================================================================================================
@@ -1084,6 +1088,58 @@ struct Stack<std::optional<T>>
 
 //=================================================================================================
 /**
+ * @brief Stack specialization for `luabridge::Expected`.
+ */
+template <class T, class E>
+struct Stack<Expected<T, E>>
+{
+    using Type = Expected<T, E>;
+
+    [[nodiscard]] static Result push(lua_State* L, const Type& value)
+    {
+        if (value.hasValue())
+        {
+            StackRestore stackRestore(L);
+
+            auto result = Stack<T>::push(L, *value);
+            if (! result)
+                return result;
+
+            stackRestore.reset();
+            return {};
+        }
+
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 1))
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
+        lua_pushnil(L);
+        return {};
+    }
+
+    [[nodiscard]] static TypeResult<Type> get(lua_State* L, int index)
+    {
+        const auto type = lua_type(L, index);
+        if (type == LUA_TNIL || type == LUA_TNONE)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        auto result = Stack<T>::get(L, index);
+        if (! result)
+            return result.error();
+
+        return Type(*result);
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        const auto type = lua_type(L, index);
+        return (type != LUA_TNIL && type != LUA_TNONE) && Stack<T>::isInstance(L, index);
+    }
+};
+
+//=================================================================================================
+/**
  * @brief Stack specialization for `std::pair`.
  */
 template <class T1, class T2>
@@ -1519,6 +1575,43 @@ struct Stack<const T*>
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index) { return Helper::isInstance(L, index); }
 };
+
+#if LUABRIDGE_HAS_CXX17_FILESYSTEM
+
+//=================================================================================================
+/**
+ * @brief Stack specialization for `std::filesystem::path`.
+ */
+template <>
+struct Stack<std::filesystem::path>
+{
+    [[nodiscard]] static Result push(lua_State* L, const std::filesystem::path& path)
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 1))
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
+        lua_pushlstring(L, path.string().c_str(), path.string().size());
+        return {};
+    }
+
+    [[nodiscard]] static TypeResult<std::filesystem::path> get(lua_State* L, int index)
+    {
+        if (lua_type(L, index) != LUA_TSTRING)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        std::size_t len = 0;
+        const char* str = lua_tolstring(L, index, &len);
+        return std::filesystem::path(std::string(str, len));
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        return lua_type(L, index) == LUA_TSTRING;
+    }
+};
+#endif // LUABRIDGE_HAS_CXX17_FILESYSTEM
 
 //=================================================================================================
 /**

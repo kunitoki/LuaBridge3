@@ -40,7 +40,16 @@ private:
     [[nodiscard]] static TypeResult<Type> tryGet(lua_State* L, int index)
     {
         if (auto value = Stack<T>::get(L, index))
+        {
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
             return Type{ std::in_place_type<T>, std::move(*value) };
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+        }
 
         if constexpr (sizeof...(Rest) > 0)
             return tryGet<Rest...>(L, index);
