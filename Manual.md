@@ -1470,6 +1470,7 @@ The table below lists every optional header and its requirements:
 
 **Example — using `std::deque` and `std::multimap`:**
 
+{% raw %}
 ```cpp
 #include <LuaBridge/LuaBridge.h>
 #include <LuaBridge/Deque.h>
@@ -1484,6 +1485,7 @@ luabridge::push(L, dq);
 std::multimap<std::string, int> mm = {{"a", 1}, {"a", 2}, {"b", 3}};
 luabridge::push(L, mm);
 ```
+{% endraw %}
 
 **Example — push-only `std::any`:**
 
