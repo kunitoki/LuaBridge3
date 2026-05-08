@@ -208,8 +208,9 @@ TEST_F(ConverterTests, Diagnostic_DirectStackGet)
     // Try Stack<Vec3Target>::get directly on the userdata
     auto res = luabridge::Stack<Vec3Target>::get(L, -1);
     EXPECT_TRUE(static_cast<bool>(res)) << "Stack<Vec3Target>::get failed";
-    if (res)
+    if (res) {
         EXPECT_FLOAT_EQ((*res).x + (*res).y + (*res).z, 6.0f);
+    }
 
     lua_pop(L, 1); // pop _src
 }
