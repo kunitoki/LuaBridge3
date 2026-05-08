@@ -15,6 +15,7 @@
 #include "Options.h"
 #include "TypeTraits.h"
 
+#include <cstring>
 #include <stdexcept>
 #include <string_view>
 #include <string>
@@ -1556,6 +1557,42 @@ class Namespace : public detail::Registrar
             lua_pushcclosure_x(L, &detail::invoke_member_function<MemFnPtr, T>, "__newindex", 1);
             lua_rawsetp_x(L, -3, detail::getNewIndexFallbackKey());
             setObjectMetaMethods(-2, false);
+
+            return *this;
+        }
+
+        //=========================================================================================
+        /**
+         * @brief Register a custom type converter from this class (T) to a target type (To).
+         *
+         * Stores a function pointer in the FROM class's (T's) Lua metatable under
+         * getConvertersKey() → getClassRegistryKey<To>(), for both the class table and
+         * the const table.  Phase 3 in Stack<To>::get reads it back during extraction.
+         *
+         * Requirements:
+         *   - StackConversion<To>::enabled must be true (user specializes to opt in).
+         *   - StackConverter<To, T> must provide: static To convert(const T&).
+         *
+         * @tparam To Target type. Stack<To> and Stack<const To&> gain Phase 3 fallback.
+         */
+        template <class To>
+        Class<T>& addConverter()
+        {
+            static_assert(StackConversion<To>::enabled,
+                "Specialize StackConversion<To> with enabled=true before calling addConverter<To>()");
+
+            using FnType = TypeResult<To>(*)(lua_State*, int);
+            static_assert(sizeof(FnType) == sizeof(void*),
+                "Function pointer size must match void* for type-erased storage");
+
+            const FnType fn = &convertFromStack<To, T>;
+            void* fn_vp = nullptr;
+            std::memcpy(&fn_vp, &fn, sizeof(fn_vp));
+
+            // Stack during Class<T> methods: ns, co, cl, st
+            // Store into both cl (-2) and co (-3) so both mutable and const userdatas work.
+            detail::getOrCreateConverterRegistry(L, lua_absindex(L, -2))->converters[detail::getClassRegistryKey<To>()] = fn_vp; // cl
+            detail::getOrCreateConverterRegistry(L, lua_absindex(L, -3))->converters[detail::getClassRegistryKey<To>()] = fn_vp; // co
 
             return *this;
         }

@@ -12,6 +12,7 @@
 #include "Expected.h"
 #include "Result.h"
 #include "Userdata.h"
+#include "Converter.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -1525,7 +1526,7 @@ struct StackOpSelector<const T*, false>
 } // namespace detail
 
 template <class T>
-struct Stack<T&, std::enable_if_t<!std::is_array_v<T&>>>
+struct Stack<T&, std::enable_if_t<!std::is_array_v<T&> && !std::is_const_v<T>>>
 {
     using Helper = detail::StackOpSelector<T&, detail::IsUserdata<T>::value>;
     using ReturnType = typename Helper::ReturnType;
@@ -1538,7 +1539,7 @@ struct Stack<T&, std::enable_if_t<!std::is_array_v<T&>>>
 };
 
 template <class T>
-struct Stack<const T&, std::enable_if_t<!std::is_array_v<const T&>>>
+struct Stack<const T&, std::enable_if_t<!std::is_array_v<const T&> && !StackConversion<T>::enabled>>
 {
     using Helper = detail::StackOpSelector<const T&, detail::IsUserdata<T>::value>;
     using ReturnType = typename Helper::ReturnType;

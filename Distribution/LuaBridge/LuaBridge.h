@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <deque>
 #include <exception>
 #include <filesystem>
@@ -44,20 +45,20 @@
 #include <variant>
 #include <vector>
 
-#if defined(__has_include) && __has_include(<version>)
-#include <version>
+#if defined(__has_include) && __has_include(<flat_set>) && (__cplusplus >= 202302L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202302L))
+#include <flat_set>
 #endif
 
-#if defined(__has_include) && __has_include(<ranges>) && (__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))
-#include <ranges>
+#if defined(__has_include) && __has_include(<coroutine>) && (__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))
+#include <coroutine>
 #endif
 
 #if defined(__has_include) && __has_include(<expected>) && (__cplusplus >= 202302L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202302L))
 #include <expected>
 #endif
 
-#if defined(__has_include) && __has_include(<coroutine>) && (__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))
-#include <coroutine>
+#if defined(__has_include) && __has_include(<ranges>) && (__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))
+#include <ranges>
 #endif
 
 #if defined(__has_include) && __has_include(<span>) && (__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))
@@ -68,8 +69,8 @@
 #include <flat_map>
 #endif
 
-#if defined(__has_include) && __has_include(<flat_set>) && (__cplusplus >= 202302L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202302L))
-#include <flat_set>
+#if defined(__has_include) && __has_include(<version>)
+#include <version>
 #endif
 
 
@@ -3644,6 +3645,11 @@ template <class T, auto = typeName<T>().find_first_of('.')>
     return reinterpret_cast<void*>(0x8108);
 }
 
+[[nodiscard]] inline const void* getConvertersKey() noexcept
+{
+    return reinterpret_cast<void*>(0xc0de);
+}
+
 [[nodiscard]] inline const void* getStaticIndexFallbackKey()
 {
     return reinterpret_cast<void*>(0x81cc);
@@ -4845,6 +4851,124 @@ struct StackOpSelector<const T&, true>
 
 
 // End File: Source/LuaBridge/detail/Userdata.h
+
+// Begin File: Source/LuaBridge/detail/Converter.h
+
+namespace luabridge {
+
+template <class T, class>
+struct Stack;
+
+template <class T>
+struct StackConversion
+{
+    static constexpr bool enabled = false;
+};
+
+template <class To, class From>
+struct StackConverter;
+
+template <class To, class From>
+TypeResult<To> convertFromStack(lua_State* L, int index)
+{
+    auto ptr_result = detail::Userdata::get<From>(L, index, true);
+    if (!ptr_result || !*ptr_result)
+        return makeErrorCode(ErrorCode::InvalidTypeCast);
+    return StackConverter<To, From>::convert(**ptr_result);
+}
+
+template <class T>
+struct Stack<T, std::enable_if_t<StackConversion<T>::enabled>>
+{
+    using IsUserdata = void;
+    using ReturnType = TypeResult<T>;
+
+    [[nodiscard]] static Result push(lua_State* L, const T& value)
+    {
+        return detail::StackHelper<T, detail::IsContainer<T>::value>::push(L, value);
+    }
+
+    [[nodiscard]] static Result push(lua_State* L, T&& value)
+    {
+        return detail::StackHelper<T, detail::IsContainer<T>::value>::push(L, std::move(value));
+    }
+
+    [[nodiscard]] static ReturnType get(lua_State* L, int index)
+    {
+        
+        if (detail::Userdata::isInstance<T>(L, index))
+        {
+            auto ptr_result = detail::Userdata::get<T>(L, index, true);
+            if (ptr_result)
+            {
+                if (T* ptr = *ptr_result)
+                    return *ptr;
+            }
+            return ptr_result.error();
+        }
+
+        if (lua_getmetatable(L, index))
+        {
+            lua_rawgetp_x(L, -1, detail::getConvertersKey());
+            if (lua_istable(L, -1))
+            {
+                lua_rawgetp_x(L, -1, detail::getClassRegistryKey<T>());
+                if (!lua_isnil(L, -1))
+                {
+                    using FnType = TypeResult<T>(*)(lua_State*, int);
+                    static_assert(sizeof(FnType) == sizeof(void*),
+                        "Function pointer size must match void* for light userdata storage");
+                    void* vp = lua_touserdata(L, -1);
+                    lua_pop(L, 3); 
+                    if (vp)
+                    {
+                        FnType fn;
+                        std::memcpy(&fn, &vp, sizeof(fn));
+                        return fn(L, index);
+                    }
+                }
+                else
+                {
+                    lua_pop(L, 1); 
+                }
+            }
+            lua_pop(L, 2); 
+        }
+
+        return makeErrorCode(ErrorCode::InvalidTypeCast);
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        return detail::Userdata::isInstance<T>(L, index);
+    }
+};
+
+template <class T>
+struct Stack<const T&, std::enable_if_t<StackConversion<T>::enabled && !std::is_array_v<T>>>
+{
+    using ReturnType = TypeResult<T>;
+
+    [[nodiscard]] static Result push(lua_State* L, const T& value)
+    {
+        return Stack<T>::push(L, value);
+    }
+
+    [[nodiscard]] static ReturnType get(lua_State* L, int index)
+    {
+        return Stack<T>::get(L, index);
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        return Stack<T>::isInstance(L, index);
+    }
+};
+
+} 
+
+
+// End File: Source/LuaBridge/detail/Converter.h
 
 // Begin File: Source/LuaBridge/detail/Stack.h
 
@@ -6208,7 +6332,7 @@ struct StackOpSelector<const T*, false>
 } 
 
 template <class T>
-struct Stack<T&, std::enable_if_t<!std::is_array_v<T&>>>
+struct Stack<T&, std::enable_if_t<!std::is_array_v<T&> && !std::is_const_v<T>>>
 {
     using Helper = detail::StackOpSelector<T&, detail::IsUserdata<T>::value>;
     using ReturnType = typename Helper::ReturnType;
@@ -6221,7 +6345,7 @@ struct Stack<T&, std::enable_if_t<!std::is_array_v<T&>>>
 };
 
 template <class T>
-struct Stack<const T&, std::enable_if_t<!std::is_array_v<const T&>>>
+struct Stack<const T&, std::enable_if_t<!std::is_array_v<const T&> && !StackConversion<T>::enabled>>
 {
     using Helper = detail::StackOpSelector<const T&, detail::IsUserdata<T>::value>;
     using ReturnType = typename Helper::ReturnType;
@@ -13212,6 +13336,41 @@ class Namespace : public detail::Registrar
             lua_pushcclosure_x(L, &detail::invoke_member_function<MemFnPtr, T>, "__newindex", 1);
             lua_rawsetp_x(L, -3, detail::getNewIndexFallbackKey());
             setObjectMetaMethods(-2, false);
+
+            return *this;
+        }
+
+        template <class To>
+        Class<T>& addConverter()
+        {
+            static_assert(StackConversion<To>::enabled,
+                "Specialize StackConversion<To> with enabled=true before calling addConverter<To>()");
+
+            using FnType = TypeResult<To>(*)(lua_State*, int);
+            static_assert(sizeof(FnType) == sizeof(void*),
+                "Function pointer size must match void* for light userdata storage");
+
+            const FnType fn = &convertFromStack<To, T>;
+            void* fn_vp = nullptr;
+            std::memcpy(&fn_vp, &fn, sizeof(fn_vp));
+
+            const auto storeConverter = [&](int tableIdx)
+            {
+                lua_rawgetp_x(L, tableIdx, detail::getConvertersKey());
+                if (!lua_istable(L, -1))
+                {
+                    lua_pop(L, 1);
+                    lua_newtable(L);
+                    lua_pushvalue(L, -1);
+                    lua_rawsetp_x(L, tableIdx, detail::getConvertersKey());
+                }
+                lua_pushlightuserdata(L, fn_vp);
+                lua_rawsetp_x(L, -2, detail::getClassRegistryKey<To>());
+                lua_pop(L, 1);
+            };
+
+            storeConverter(lua_absindex(L, -2)); 
+            storeConverter(lua_absindex(L, -3)); 
 
             return *this;
         }
