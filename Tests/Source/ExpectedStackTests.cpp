@@ -82,3 +82,32 @@ TEST_F(ExpectedStackTests, PushWithStringValue)
     EXPECT_EQ("hello", *result);
     lua_pop(L, 1);
 }
+
+TEST_F(ExpectedStackTests, PushValueStackOverflow)
+{
+    using ExpectedInt = luabridge::Expected<int, std::error_code>;
+
+    exhaustStackSpace();
+    ExpectedInt value(42);
+    ASSERT_FALSE(luabridge::push(L, value));
+}
+
+TEST_F(ExpectedStackTests, PushNilStackOverflow)
+{
+    using ExpectedInt = luabridge::Expected<int, std::error_code>;
+
+    exhaustStackSpace();
+    ExpectedInt value(luabridge::makeUnexpected(luabridge::makeErrorCode(luabridge::ErrorCode::InvalidTypeCast)));
+    ASSERT_FALSE(luabridge::push(L, value));
+}
+
+TEST_F(ExpectedStackTests, GetInnerTypeMismatch)
+{
+    using ExpectedInt = luabridge::Expected<int, std::error_code>;
+
+    lua_pushstring(L, "not_a_number");
+    auto result = luabridge::Stack<ExpectedInt>::get(L, -1);
+    ASSERT_FALSE(result);
+    EXPECT_EQ(luabridge::ErrorCode::InvalidTypeCast, result.error());
+    lua_pop(L, 1);
+}

@@ -17,6 +17,7 @@ INCLUDE_FILE_MATCHER = re.compile(r'#include\s*[<\"]([\w.\\/]*)[>\"]')
 LOCAL_INCLUDE_FILE_MATCHER = re.compile(r'#include\s*\"([\w.\\/]*)\"')
 
 GUARDED_INCLUDES = [
+	{ "header": "version" },
 	{ "header": "coroutine", "condition": "(__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))" },
 	{ "header": "ranges", "condition": "(__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))" },
 	{ "header": "span", "condition": "(__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))" },
@@ -211,8 +212,8 @@ class SourceInfo:
 			headerAmalgamation.write(f"// clang-format off\n\n")
 			headerAmalgamation.write(f"#pragma once\n\n")
 
-			systemHeaders = sorted(list(self.systemHeaders))
-			for header in systemHeaders:
+			systemHeaders = list(self.systemHeaders)
+			for header in sorted(systemHeaders):
 				if GetGuardedInclude(header) is None:
 					headerAmalgamation.write(f"#include <{header}>\n")
 			headerAmalgamation.write("\n")

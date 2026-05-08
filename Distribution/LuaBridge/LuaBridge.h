@@ -56,10 +56,6 @@
 #include <flat_map>
 #endif
 
-#if defined(__has_include) && __has_include(<flat_set>) && (__cplusplus >= 202302L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202302L))
-#include <flat_set>
-#endif
-
 #if defined(__has_include) && __has_include(<ranges>) && (__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))
 #include <ranges>
 #endif
@@ -68,9 +64,20 @@
 #include <span>
 #endif
 
+#if defined(__has_include) && __has_include(<flat_set>) && (__cplusplus >= 202302L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202302L))
+#include <flat_set>
+#endif
+
+#if defined(__has_include) && __has_include(<version>)
+#include <version>
+#endif
+
 
 
 // Begin File: Source/LuaBridge/detail/Config.h
+
+#if __has_include(<version>)
+#endif
 
 #if !(__cplusplus >= 201703L || (defined(_MSC_VER) && _HAS_CXX17))
 #error LuaBridge 3 requires a compliant C++17 compiler, or C++17 has not been enabled !
