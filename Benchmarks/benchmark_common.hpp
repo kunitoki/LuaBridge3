@@ -168,6 +168,37 @@ struct SharedObject : std::enable_shared_from_this<SharedObject>
     }
 };
 
+struct Vec3Source
+{
+    float x = 0.f, y = 0.f, z = 0.f;
+    Vec3Source() = default;
+    Vec3Source(float x_, float y_, float z_) : x(x_), y(y_), z(z_) {}
+};
+
+struct Vec3Target
+{
+    float x = 0.f, y = 0.f, z = 0.f;
+    Vec3Target() = default;
+    Vec3Target(float x_, float y_, float z_) : x(x_), y(y_), z(z_) {}
+};
+
+struct ColorSource
+{
+    float r = 0.f, g = 0.f, b = 0.f;
+    ColorSource() = default;
+    ColorSource(float r_, float g_, float b_) : r(r_), g(g_), b(b_) {}
+};
+
+inline float sumVec3(Vec3Target v)
+{
+    return v.x + v.y + v.z;
+}
+
+inline float sumVec3Ref(const Vec3Target& v)
+{
+    return v.x + v.y + v.z;
+}
+
 inline Basic* basic_return()
 {
     static Basic value{};

@@ -12,6 +12,34 @@
 #include <cmath>
 #include <tuple>
 
+namespace luabridge {
+
+template <>
+struct StackConversion<lbsbench::Vec3Target>
+{
+    static constexpr bool enabled = true;
+};
+
+template <>
+struct StackConverter<lbsbench::Vec3Target, lbsbench::Vec3Source>
+{
+    static lbsbench::Vec3Target convert(const lbsbench::Vec3Source& s)
+    {
+        return {s.x, s.y, s.z};
+    }
+};
+
+template <>
+struct StackConverter<lbsbench::Vec3Target, lbsbench::ColorSource>
+{
+    static lbsbench::Vec3Target convert(const lbsbench::ColorSource& s)
+    {
+        return {s.r, s.g, s.b};
+    }
+};
+
+} // namespace luabridge
+
 namespace {
 
 using namespace lbsbench;
@@ -396,7 +424,7 @@ void multi_return_measure(benchmark::State& state)
     benchmark::DoNotOptimize(x);
 }
 
-void base_derived_measure(benchmark::State& state)
+void derived_base_measure(benchmark::State& state)
 {
     lua_State* L = makeLua();
 
@@ -657,6 +685,88 @@ void implicit_inheritance_measure(benchmark::State& state)
     }
 }
 
+void registerConverter(lua_State* L)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Vec3Source>("Vec3Source")
+            .addConstructor<void(float, float, float)>()
+            .addConverter<Vec3Target>()
+        .endClass()
+        .beginClass<ColorSource>("ColorSource")
+            .addConstructor<void(float, float, float)>()
+            .addConverter<Vec3Target>()
+        .endClass()
+        .beginClass<Vec3Target>("Vec3Target")
+            .addConstructor<void(float, float, float)>()
+        .endClass()
+        .addFunction("sumVec3", &sumVec3)
+        .addFunction("sumVec3Ref", &sumVec3Ref);
+}
+
+void converter_exact_type_measure(benchmark::State& state)
+{
+    lua_State* L = makeLua();
+    registerConverter(L);
+    luaDoStringOrThrow(L, "obj = Vec3Target(1, 2, 3)", "converter_exact_type setup");
+    luaDoStringOrThrow(L, "function invoke_exact() return sumVec3(obj) end", "converter_exact_type closure setup");
+
+    for (auto _ : state)
+    {
+        (void) _;
+        lua_getglobal(L, "invoke_exact");
+        luaCheckOrThrow(L, lua_pcall(L, 0, 1, 0), "invoke_exact");
+        lua_pop(L, 1);
+    }
+}
+
+void converter_phase3_value_measure(benchmark::State& state)
+{
+    lua_State* L = makeLua();
+    registerConverter(L);
+    luaDoStringOrThrow(L, "obj = Vec3Source(1, 2, 3)", "converter_phase3_value setup");
+    luaDoStringOrThrow(L, "function invoke_conv_value() return sumVec3(obj) end", "converter_phase3_value closure setup");
+
+    for (auto _ : state)
+    {
+        (void) _;
+        lua_getglobal(L, "invoke_conv_value");
+        luaCheckOrThrow(L, lua_pcall(L, 0, 1, 0), "invoke_conv_value");
+        lua_pop(L, 1);
+    }
+}
+
+void converter_phase3_ref_measure(benchmark::State& state)
+{
+    lua_State* L = makeLua();
+    registerConverter(L);
+    luaDoStringOrThrow(L, "obj = Vec3Source(1, 2, 3)", "converter_phase3_ref setup");
+    luaDoStringOrThrow(L, "function invoke_conv_ref() return sumVec3Ref(obj) end", "converter_phase3_ref closure setup");
+
+    for (auto _ : state)
+    {
+        (void) _;
+        lua_getglobal(L, "invoke_conv_ref");
+        luaCheckOrThrow(L, lua_pcall(L, 0, 1, 0), "invoke_conv_ref");
+        lua_pop(L, 1);
+    }
+}
+
+void converter_multi_registered_measure(benchmark::State& state)
+{
+    lua_State* L = makeLua();
+    registerConverter(L);
+    luaDoStringOrThrow(L, "obj = ColorSource(0.5, 1, 0)", "converter_multi_registered setup");
+    luaDoStringOrThrow(L, "function invoke_conv_multi() return sumVec3(obj) end", "converter_multi_registered closure setup");
+
+    for (auto _ : state)
+    {
+        (void) _;
+        lua_getglobal(L, "invoke_conv_multi");
+        luaCheckOrThrow(L, lua_pcall(L, 0, 1, 0), "invoke_conv_multi");
+        lua_pop(L, 1);
+    }
+}
+
 } // namespace
 
 BENCHMARK(table_global_string_get_measure)->Name("table_global_string_get_measure");
@@ -675,7 +785,7 @@ BENCHMARK(userdata_variable_access_last_measure)->Name("userdata_variable_access
 BENCHMARK(multi_return_lua_measure)->Name("multi_return_lua_measure");
 BENCHMARK(multi_return_measure)->Name("multi_return_measure");
 BENCHMARK(stateful_function_object_measure)->Name("stateful_function_object_measure");
-BENCHMARK(base_derived_measure)->Name("base_derived_measure");
+BENCHMARK(derived_base_measure)->Name("derived_base_measure");
 BENCHMARK(return_userdata_measure)->Name("return_userdata_measure");
 BENCHMARK(optional_success_measure)->Name("optional_success_measure");
 BENCHMARK(optional_half_failure_measure)->Name("optional_half_failure_measure");
@@ -689,3 +799,7 @@ BENCHMARK(shared_ptr_return_measure)->Name("shared_ptr_return_measure");
 BENCHMARK(shared_ptr_pass_measure)->Name("shared_ptr_pass_measure");
 BENCHMARK(static_member_function_call_measure)->Name("static_member_function_call_measure");
 BENCHMARK(derived_method_call_measure)->Name("derived_method_call_measure");
+BENCHMARK(converter_exact_type_measure)->Name("converter_exact_type_measure");
+BENCHMARK(converter_phase3_value_measure)->Name("converter_phase3_value_measure");
+BENCHMARK(converter_phase3_ref_measure)->Name("converter_phase3_ref_measure");
+BENCHMARK(converter_multi_registered_measure)->Name("converter_multi_registered_measure");

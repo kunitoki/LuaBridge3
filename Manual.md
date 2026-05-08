@@ -44,9 +44,10 @@ Contents
         *   [2.7.2 - Index and New Index Metamethods Fallback](#272---index-and-new-index-metamethods-fallback)
         *   [2.7.3 - Static Index and New Index Metamethods Fallback](#273---static-index-and-new-index-metamethods-fallback)
     *   [2.8 - Lua Stack](#28---lua-stack)
-        *   [2.8.1 - Enums](#281---enums)
-        *   [2.8.2 - lua_State](#282---lua_state)
-        *   [2.8.3 - Standard Library Type Conversions](#283---standard-library-type-conversions)
+        *   [2.8.1 - Custom Type Converters](#281---custom-type-converters)
+        *   [2.8.2 - Enums](#282---enums)
+        *   [2.8.3 - lua_State](#283---lua_state)
+        *   [2.8.4 - Standard Library Type Conversions](#284---standard-library-type-conversions)
     *   [2.9 - C++20 Coroutine Integration](#29---c20-coroutine-integration)
         *   [2.9.1 - CppCoroutine\<R\> - Generators callable from Lua](#291---cppcoroutiner----generators-callable-from-lua)
         *   [2.9.2 - Accepting Arguments](#292---accepting-arguments)
@@ -135,6 +136,7 @@ It also offers a set of improvements compared to vanilla LuaBridge:
 * Transparent support of all signed and unsigned integer types up to `int64_t`.
 * Consistent numeric handling and conversions (signed, unsigned and floats) across all lua versions.
 * Simplified registration of enum types via the `luabridge::Enum` stack wrapper.
+* Opt-in custom converters between registered C++ userdata types.
 * Opt-out handling of safe stack space checks (automatically avoids exhausting lua stack space when pushing values!).
 
 LuaBridge is distributed as a a collection of header files. You simply add one line, `#include <LuaBridge/LuaBridge.h>` where you want to pass functions, classes, and variables back and forth between C++ and Lua. There are no additional source files, no compilation settings, and no Makefiles or IDE-specific project files. LuaBridge is easy to integrate.
@@ -153,7 +155,7 @@ Because LuaBridge was written with simplicity in mind there are some features th
 LuaBridge does not support:
 
 *   Global types (types must be registered in a named scope).
-*   Automatic conversion between STL container types and Lua tables (but conversion can be opted in for many standard containers by including the corresponding optional header — see [2.8.3](#283---standard-library-type-conversions))
+*   Automatic conversion between STL container types and Lua tables (but conversion can be opted in for many standard containers by including the corresponding optional header — see [2.8.4](#284---standard-library-type-conversions))
 *   Inheriting Lua classes from C++ classes.
 *   Passing nil to a C++ function that expects a pointer or reference.
 
@@ -1263,7 +1265,96 @@ struct Stack<Array<T>>
 } // namespace luabridge
 ```
 
-### 2.8.1 - Enums
+### 2.8.1 - Custom Type Converters
+
+For registered class types, LuaBridge can also convert one C++ userdata type into another C++ value type while reading function arguments from Lua. This is useful when Lua should pass a lightweight or external representation to a function that expects your domain type.
+
+Custom converters are opt-in per target type. To enable them:
+
+* Specialize `luabridge::StackConversion<To>` with `enabled = true`.
+* Specialize `luabridge::StackConverter<To, From>` and provide `static To convert (const From&)`.
+* Register the source class with `.addConverter<To>()`.
+
+```cpp
+struct Vec3Source
+{
+  float x = 0.f;
+  float y = 0.f;
+  float z = 0.f;
+
+  Vec3Source () = default;
+  Vec3Source (float x, float y, float z) : x (x), y (y), z (z) {}
+};
+
+struct Vec3
+{
+  float x = 0.f;
+  float y = 0.f;
+  float z = 0.f;
+
+  Vec3 () = default;
+  Vec3 (float x, float y, float z) : x (x), y (y), z (z) {}
+};
+
+float length (Vec3 v);
+float lengthRef (const Vec3& v);
+```
+
+Define the conversion in the `luabridge` namespace:
+
+```cpp
+namespace luabridge {
+
+template <>
+struct StackConversion<Vec3>
+{
+  static constexpr bool enabled = true;
+};
+
+template <>
+struct StackConverter<Vec3, Vec3Source>
+{
+  static Vec3 convert (const Vec3Source& v)
+  {
+    return { v.x, v.y, v.z };
+  }
+};
+
+} // namespace luabridge
+```
+
+Then register the source type and the converter:
+
+```cpp
+luabridge::getGlobalNamespace (L)
+  .beginClass<Vec3Source> ("Vec3Source")
+    .addConstructor<void (float, float, float)> ()
+    .addConverter<Vec3> ()
+  .endClass ()
+  .addFunction ("length", &length)
+  .addFunction ("lengthRef", &lengthRef);
+```
+
+Lua can now pass a `Vec3Source` where C++ expects `Vec3` by value or by `const Vec3&`:
+
+```lua
+v = Vec3Source (1, 2, 3)
+
+length (v)
+lengthRef (v)
+```
+
+The converter is consulted only after normal userdata extraction fails. If the Lua value already holds the requested target type, LuaBridge uses that object directly. If the value is derived from the requested target type, normal inheritance lookup is used first. The registered converter is the fallback path.
+
+Multiple source classes can register converters to the same target type by specializing `StackConverter<To, From>` for each source type and calling `.addConverter<To>()` on each source class. Registering the same converter more than once is harmless; the later registration replaces the earlier entry.
+
+Converters return an owned target value. That means converted temporaries can be passed to functions taking `To` or `const To&`. They are not a substitute for mutable references or pointers: a function that expects `To&`, `To*`, or `const To*` still requires a Lua value that actually stores the target object.
+
+`Stack<To>::isInstance` remains an exact/inheritance userdata test. It does not report source userdata as instances of the target type just because a converter is registered. This matters mainly for overload selection: converters are most predictable when the overload set does not rely on `isInstance` to distinguish converted arguments.
+
+The target class only needs to be registered with `beginClass<To>` if Lua must construct, store, or receive target objects directly. A converter used only to feed a C++ function argument does not require the target type to be exposed to Lua.
+
+### 2.8.2 - Enums
 
 In order to expose C++ enums to lua and be able to work bidirectionally with them, it's necesary to create a Stack specialization for each exposed enum. As the process might become tedious, a library wrapper class is provided to simplify the steps.
 
@@ -1326,7 +1417,7 @@ luabridge::getGlobalNamespace (L)
   .endNamespace();
 ```
 
-### 2.8.2 - lua_State
+### 2.8.3 - lua_State
 
 Sometimes it is convenient from within a bound function or member function to gain access to the `lua_State*` normally available to a lua_CFunction. With LuaBridge, all you need to do is add a `lua_State*` as the last parameter of your bound function:
 
@@ -1348,7 +1439,7 @@ When the script calls `useStateAndArgs`, it passes only the integer and string p
 
 The same is applicable for properties.
 
-### 2.8.3 - Standard Library Type Conversions
+### 2.8.4 - Standard Library Type Conversions
 
 LuaBridge does not enable STL container-to-Lua-table conversions by default. Each supported container type has its own optional header that must be included explicitly. All conversions map the container to a Lua table and back.
 
@@ -2661,6 +2752,15 @@ template <class Function>
 Class<T> addStaticNewIndexMetaMethod (Function function);
 ```
 
+### Converter Registration
+
+```cpp
+/// Registers a converter from this class type T to target type To.
+/// Requires StackConversion<To>::enabled and StackConverter<To, T>.
+template <class To>
+Class<T> addConverter ();
+```
+
 Lua Variable Reference - LuaRef
 -------------------------------
 
@@ -2850,6 +2950,20 @@ Stack Traits - Stack<T>
 -----------------------
 
 ```cpp
+/// Opt-in trait for enabling registered converter lookup for target type T.
+template <class T>
+struct StackConversion
+{
+  static constexpr bool enabled = false;
+};
+
+/// User-specialized conversion hook from source type From to target type To.
+template <class To, class From>
+struct StackConverter
+{
+  static To convert (const From& from);
+};
+
 /// Converts the C++ value into the Lua value at the top of the Lua stack. Returns true if the push could be performed.
 /// When false is returned, `ec` contains the error code corresponding to the failure.
 Result push (lua_State* L, const T& value);

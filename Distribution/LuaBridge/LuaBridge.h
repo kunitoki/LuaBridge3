@@ -45,6 +45,10 @@
 #include <variant>
 #include <vector>
 
+#if defined(__has_include) && __has_include(<version>)
+#include <version>
+#endif
+
 #if defined(__has_include) && __has_include(<flat_set>) && (__cplusplus >= 202302L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202302L))
 #include <flat_set>
 #endif
@@ -53,24 +57,20 @@
 #include <coroutine>
 #endif
 
-#if defined(__has_include) && __has_include(<expected>) && (__cplusplus >= 202302L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202302L))
-#include <expected>
-#endif
-
 #if defined(__has_include) && __has_include(<ranges>) && (__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))
 #include <ranges>
-#endif
-
-#if defined(__has_include) && __has_include(<span>) && (__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))
-#include <span>
 #endif
 
 #if defined(__has_include) && __has_include(<flat_map>) && (__cplusplus >= 202302L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202302L))
 #include <flat_map>
 #endif
 
-#if defined(__has_include) && __has_include(<version>)
-#include <version>
+#if defined(__has_include) && __has_include(<expected>) && (__cplusplus >= 202302L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202302L))
+#include <expected>
+#endif
+
+#if defined(__has_include) && __has_include(<span>) && (__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))
+#include <span>
 #endif
 
 
@@ -4868,6 +4868,38 @@ struct StackConversion
 template <class To, class From>
 struct StackConverter;
 
+namespace detail {
+
+struct ConverterRegistry
+{
+    std::unordered_map<const void*, void*> converters;
+};
+
+inline ConverterRegistry* getOrCreateConverterRegistry(lua_State* L, int metatableIdx)
+{
+    const int absIdx = lua_absindex(L, metatableIdx);
+
+    lua_rawgetp_x(L, absIdx, getConvertersKey());
+    if (lua_isuserdata(L, -1) && !lua_islightuserdata(L, -1))
+    {
+        auto* reg = align<ConverterRegistry>(lua_touserdata(L, -1));
+        lua_pop(L, 1);
+        return reg;
+    }
+    lua_pop(L, 1); 
+
+    lua_newuserdata_aligned<ConverterRegistry>(L);
+    auto* reg = align<ConverterRegistry>(lua_touserdata(L, -1));
+
+    lua_pushvalue(L, -1); 
+    lua_rawsetp_x(L, absIdx, getConvertersKey()); 
+    lua_pop(L, 1); 
+
+    return reg;
+}
+
+} 
+
 template <class To, class From>
 TypeResult<To> convertFromStack(lua_State* L, int index)
 {
@@ -4910,29 +4942,26 @@ struct Stack<T, std::enable_if_t<StackConversion<T>::enabled>>
         if (lua_getmetatable(L, index))
         {
             lua_rawgetp_x(L, -1, detail::getConvertersKey());
-            if (lua_istable(L, -1))
+            if (lua_isuserdata(L, -1) && !lua_islightuserdata(L, -1))
             {
-                lua_rawgetp_x(L, -1, detail::getClassRegistryKey<T>());
-                if (!lua_isnil(L, -1))
+                auto* reg = align<detail::ConverterRegistry>(lua_touserdata(L, -1));
+                lua_pop(L, 2); 
+
+                auto it = reg->converters.find(detail::getClassRegistryKey<T>());
+                if (it != reg->converters.end() && it->second)
                 {
                     using FnType = TypeResult<T>(*)(lua_State*, int);
                     static_assert(sizeof(FnType) == sizeof(void*),
-                        "Function pointer size must match void* for light userdata storage");
-                    void* vp = lua_touserdata(L, -1);
-                    lua_pop(L, 3); 
-                    if (vp)
-                    {
-                        FnType fn;
-                        std::memcpy(&fn, &vp, sizeof(fn));
-                        return fn(L, index);
-                    }
-                }
-                else
-                {
-                    lua_pop(L, 1); 
+                        "Function pointer size must match void* for type-erased storage");
+                    FnType fn;
+                    std::memcpy(&fn, &it->second, sizeof(fn));
+                    return fn(L, index);
                 }
             }
-            lua_pop(L, 2); 
+            else
+            {
+                lua_pop(L, 2); 
+            }
         }
 
         return makeErrorCode(ErrorCode::InvalidTypeCast);
@@ -13348,29 +13377,14 @@ class Namespace : public detail::Registrar
 
             using FnType = TypeResult<To>(*)(lua_State*, int);
             static_assert(sizeof(FnType) == sizeof(void*),
-                "Function pointer size must match void* for light userdata storage");
+                "Function pointer size must match void* for type-erased storage");
 
             const FnType fn = &convertFromStack<To, T>;
             void* fn_vp = nullptr;
             std::memcpy(&fn_vp, &fn, sizeof(fn_vp));
 
-            const auto storeConverter = [&](int tableIdx)
-            {
-                lua_rawgetp_x(L, tableIdx, detail::getConvertersKey());
-                if (!lua_istable(L, -1))
-                {
-                    lua_pop(L, 1);
-                    lua_newtable(L);
-                    lua_pushvalue(L, -1);
-                    lua_rawsetp_x(L, tableIdx, detail::getConvertersKey());
-                }
-                lua_pushlightuserdata(L, fn_vp);
-                lua_rawsetp_x(L, -2, detail::getClassRegistryKey<To>());
-                lua_pop(L, 1);
-            };
-
-            storeConverter(lua_absindex(L, -2)); 
-            storeConverter(lua_absindex(L, -3)); 
+            detail::getOrCreateConverterRegistry(L, lua_absindex(L, -2))->converters[detail::getClassRegistryKey<To>()] = fn_vp; 
+            detail::getOrCreateConverterRegistry(L, lua_absindex(L, -3))->converters[detail::getClassRegistryKey<To>()] = fn_vp; 
 
             return *this;
         }
