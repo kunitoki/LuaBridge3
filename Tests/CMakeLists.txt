@@ -32,6 +32,7 @@ set (LUABRIDGE_TEST_SOURCE_FILES
   Source/ArrayTests.cpp
   Source/ClassExtensibleTests.cpp
   Source/ClassTests.cpp
+  Source/ConverterTests.cpp
   Source/CoroutineTests.cpp
   Source/DequeTests.cpp
   Source/DumpTests.cpp

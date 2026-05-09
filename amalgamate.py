@@ -218,7 +218,7 @@ class SourceInfo:
 					headerAmalgamation.write(f"#include <{header}>\n")
 			headerAmalgamation.write("\n")
 
-			for header in systemHeaders:
+			for header in reversed(sorted(systemHeaders)):
 				guard = GetGuardedInclude(header)
 				if guard is not None:
 					headerAmalgamation.write(f"#if defined(__has_include) && __has_include(<{header}>)")

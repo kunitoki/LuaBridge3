@@ -22,6 +22,14 @@ test-all:
     @just test 20
     @just test 23
 
+build1 CXX="17":
+    @just generate {{CXX}}
+    cmake --build Build{{CXX}} --config Debug --target LuaBridgeTests54 -j8
+
+test1 CXX="17":
+    @just build1 {{CXX}}
+    ./Build{{CXX}}/Tests/Debug/LuaBridgeTests54
+
 sanitize TYPE="address" CXX="17":
     cmake -G Xcode -B Build{{CXX}} -DLUABRIDGE_SANITIZE={{TYPE}} .
 

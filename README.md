@@ -65,6 +65,10 @@ LuaBridge3 is usable from a compliant C++17 compiler and offers the following fe
 
 LuaBridge3 has been heavily optimized and now competes directly with [sol2](https://github.com/ThePhD/sol2) — one of the fastest C++/Lua binding libraries — across most workloads.
 
+Benchmarks measure the overhead each library adds on top of the plain Lua C API: the cost of abstracting and wrapping it for C++ use. All libraries are compiled together with the benchmark executable (no separate Lua DLL) so that inlining and link-time optimizations reflect real-world usage scenarios. Every library runs with its maximum safety settings enabled — the numbers represent what you actually ship, not a stripped-down, crash-prone configuration.
+
+The benchmark suite covers common operations: global and table access, free and member function calls, userdata property access across class hierarchies, shared-pointer ownership, multi-return functions, lambda captures, custom type converters. Each case is run in isolation so the numbers are directly comparable between libraries.
+
 ![Benchmarks](./Images/benchmarks.png)
 
 ## Improvements Over Vanilla LuaBridge

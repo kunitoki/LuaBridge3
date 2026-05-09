@@ -188,6 +188,15 @@ template <class T, auto = typeName<T>().find_first_of('.')>
 
 //=================================================================================================
 /**
+ * @brief The key of a ConverterRegistry userdata in a class metatable.
+ */
+[[nodiscard]] inline const void* getConvertersKey() noexcept
+{
+    return reinterpret_cast<void*>(0xc0de);
+}
+
+//=================================================================================================
+/**
  * The key of the static index fall back in another metatable.
  */
 [[nodiscard]] inline const void* getStaticIndexFallbackKey()

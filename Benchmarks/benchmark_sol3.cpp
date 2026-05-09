@@ -348,7 +348,7 @@ void multi_return_measure(benchmark::State& state)
     benchmark::DoNotOptimize(x);
 }
 
-void base_derived_measure(benchmark::State& state)
+void derived_base_measure(benchmark::State& state)
 {
     sol::state lua;
 
@@ -602,7 +602,7 @@ BENCHMARK(userdata_variable_access_last_measure)->Name("userdata_variable_access
 BENCHMARK(multi_return_lua_measure)->Name("multi_return_lua_measure");
 BENCHMARK(multi_return_measure)->Name("multi_return_measure");
 BENCHMARK(stateful_function_object_measure)->Name("stateful_function_object_measure");
-BENCHMARK(base_derived_measure)->Name("base_derived_measure");
+BENCHMARK(derived_base_measure)->Name("derived_base_measure");
 BENCHMARK(return_userdata_measure)->Name("return_userdata_measure");
 BENCHMARK(optional_success_measure)->Name("optional_success_measure");
 BENCHMARK(optional_half_failure_measure)->Name("optional_half_failure_measure");

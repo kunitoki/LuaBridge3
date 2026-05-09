@@ -12,6 +12,7 @@
 #include "Expected.h"
 #include "Result.h"
 #include "Userdata.h"
+#include "Converter.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -1464,118 +1465,6 @@ struct Stack<const void*>
     }
 };
 
-//=================================================================================================
-
-namespace detail {
-
-template <class T>
-struct StackOpSelector<T&, false>
-{
-    using ReturnType = TypeResult<T>;
-
-    static Result push(lua_State* L, T& value) { return Stack<T>::push(L, value); }
-
-    static ReturnType get(lua_State* L, int index) { return Stack<T>::get(L, index); }
-
-    static bool isInstance(lua_State* L, int index) { return Stack<T>::isInstance(L, index); }
-};
-
-template <class T>
-struct StackOpSelector<const T&, false>
-{
-    using ReturnType = TypeResult<T>;
-
-    static Result push(lua_State* L, const T& value) { return Stack<T>::push(L, value); }
-
-    static ReturnType get(lua_State* L, int index) { return Stack<T>::get(L, index); }
-
-    static bool isInstance(lua_State* L, int index) { return Stack<T>::isInstance(L, index); }
-};
-
-template <class T>
-struct StackOpSelector<T*, false>
-{
-    using ReturnType = TypeResult<T>;
-
-    static Result push(lua_State* L, T* value)
-    {
-        return value ? Stack<T>::push(L, *value) : Stack<std::nullptr_t>::push(L, nullptr);
-    }
-
-    static ReturnType get(lua_State* L, int index) { return Stack<T>::get(L, index); }
-
-    static bool isInstance(lua_State* L, int index) { return Stack<T>::isInstance(L, index); }
-};
-
-template <class T>
-struct StackOpSelector<const T*, false>
-{
-    using ReturnType = TypeResult<T>;
-
-    static Result push(lua_State* L, const T* value)
-    {
-        return value ? Stack<T>::push(L, *value) : Stack<std::nullptr_t>::push(L, nullptr);
-    }
-
-    static ReturnType get(lua_State* L, int index) { return Stack<T>::get(L, index); }
-
-    static bool isInstance(lua_State* L, int index) { return Stack<T>::isInstance(L, index); }
-};
-
-} // namespace detail
-
-template <class T>
-struct Stack<T&, std::enable_if_t<!std::is_array_v<T&>>>
-{
-    using Helper = detail::StackOpSelector<T&, detail::IsUserdata<T>::value>;
-    using ReturnType = typename Helper::ReturnType;
-
-    [[nodiscard]] static Result push(lua_State* L, T& value) { return Helper::push(L, value); }
-
-    [[nodiscard]] static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
-
-    [[nodiscard]] static bool isInstance(lua_State* L, int index) { return Helper::isInstance(L, index); }
-};
-
-template <class T>
-struct Stack<const T&, std::enable_if_t<!std::is_array_v<const T&>>>
-{
-    using Helper = detail::StackOpSelector<const T&, detail::IsUserdata<T>::value>;
-    using ReturnType = typename Helper::ReturnType;
-
-    [[nodiscard]] static Result push(lua_State* L, const T& value) { return Helper::push(L, value); }
-
-    [[nodiscard]] static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
-
-    [[nodiscard]] static bool isInstance(lua_State* L, int index) { return Helper::isInstance(L, index); }
-};
-
-template <class T>
-struct Stack<T*>
-{
-    using Helper = detail::StackOpSelector<T*, detail::IsUserdata<T>::value>;
-    using ReturnType = typename Helper::ReturnType;
-
-    [[nodiscard]] static Result push(lua_State* L, T* value) { return Helper::push(L, value); }
-
-    [[nodiscard]] static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
-
-    [[nodiscard]] static bool isInstance(lua_State* L, int index) { return Helper::isInstance(L, index); }
-};
-
-template<class T>
-struct Stack<const T*>
-{
-    using Helper = detail::StackOpSelector<const T*, detail::IsUserdata<T>::value>;
-    using ReturnType = typename Helper::ReturnType;
-
-    [[nodiscard]] static Result push(lua_State* L, const T* value) { return Helper::push(L, value); }
-
-    [[nodiscard]] static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
-
-    [[nodiscard]] static bool isInstance(lua_State* L, int index) { return Helper::isInstance(L, index); }
-};
-
 #if LUABRIDGE_HAS_CXX17_FILESYSTEM
 
 //=================================================================================================
@@ -1612,6 +1501,193 @@ struct Stack<std::filesystem::path>
     }
 };
 #endif // LUABRIDGE_HAS_CXX17_FILESYSTEM
+
+//=================================================================================================
+
+namespace detail {
+
+template <class T>
+struct StackOpSelector<T*, false>
+{
+    using ReturnType = TypeResult<T>;
+
+    static Result push(lua_State* L, T* value)
+    {
+        return value ? Stack<T>::push(L, *value) : Stack<std::nullptr_t>::push(L, nullptr);
+    }
+
+    static ReturnType get(lua_State* L, int index) { return Stack<T>::get(L, index); }
+
+    static bool isInstance(lua_State* L, int index) { return Stack<T>::isInstance(L, index); }
+};
+
+template <class T>
+struct StackOpSelector<const T*, false>
+{
+    using ReturnType = TypeResult<T>;
+
+    static Result push(lua_State* L, const T* value)
+    {
+        return value ? Stack<T>::push(L, *value) : Stack<std::nullptr_t>::push(L, nullptr);
+    }
+
+    static ReturnType get(lua_State* L, int index) { return Stack<T>::get(L, index); }
+
+    static bool isInstance(lua_State* L, int index) { return Stack<T>::isInstance(L, index); }
+};
+
+template <class T>
+struct StackOpSelector<T&, false>
+{
+    using ReturnType = TypeResult<T>;
+
+    static Result push(lua_State* L, T& value) { return Stack<T>::push(L, value); }
+
+    static ReturnType get(lua_State* L, int index) { return Stack<T>::get(L, index); }
+
+    static bool isInstance(lua_State* L, int index) { return Stack<T>::isInstance(L, index); }
+};
+
+template <class T>
+struct StackOpSelector<const T&, false>
+{
+    using ReturnType = TypeResult<T>;
+
+    static Result push(lua_State* L, const T& value) { return Stack<T>::push(L, value); }
+
+    static ReturnType get(lua_State* L, int index) { return Stack<T>::get(L, index); }
+
+    static bool isInstance(lua_State* L, int index) { return Stack<T>::isInstance(L, index); }
+};
+
+} // namespace detail
+
+template <class T>
+struct Stack<T*>
+{
+    using Helper = detail::StackOpSelector<T*, detail::IsUserdata<T>::value>;
+    using ReturnType = typename Helper::ReturnType;
+
+    [[nodiscard]] static Result push(lua_State* L, T* value) { return Helper::push(L, value); }
+
+    [[nodiscard]] static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index) { return Helper::isInstance(L, index); }
+};
+
+template<class T>
+struct Stack<const T*>
+{
+    using Helper = detail::StackOpSelector<const T*, detail::IsUserdata<T>::value>;
+    using ReturnType = typename Helper::ReturnType;
+
+    [[nodiscard]] static Result push(lua_State* L, const T* value) { return Helper::push(L, value); }
+
+    [[nodiscard]] static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index) { return Helper::isInstance(L, index); }
+};
+
+template <class T>
+struct Stack<T&, std::enable_if_t<!std::is_array_v<T&> && !std::is_const_v<T>>>
+{
+    using Helper = detail::StackOpSelector<T&, detail::IsUserdata<T>::value>;
+    using ReturnType = typename Helper::ReturnType;
+
+    [[nodiscard]] static Result push(lua_State* L, T& value) { return Helper::push(L, value); }
+
+    [[nodiscard]] static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index) { return Helper::isInstance(L, index); }
+};
+
+template <class T>
+struct Stack<const T&, std::enable_if_t<!std::is_array_v<const T&> && !StackConversion<T>::enabled>>
+{
+    using Helper = detail::StackOpSelector<const T&, detail::IsUserdata<T>::value>;
+    using ReturnType = typename Helper::ReturnType;
+
+    [[nodiscard]] static Result push(lua_State* L, const T& value) { return Helper::push(L, value); }
+
+    [[nodiscard]] static ReturnType get(lua_State* L, int index) { return Helper::get(L, index); }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index) { return Helper::isInstance(L, index); }
+};
+
+template <class T>
+struct Stack<const T&, std::enable_if_t<StackConversion<T>::enabled && !std::is_array_v<T>>>
+{
+    using ReturnType = TypeResult<detail::ConverterConstRef<T>>;
+
+    [[nodiscard]] static Result push(lua_State* L, const T& value)
+    {
+        return Stack<T>::push(L, value);
+    }
+
+    [[nodiscard]] static ReturnType get(lua_State* L, int index)
+    {
+        if (detail::Userdata::isInstance<T>(L, index))
+        {
+            auto result = detail::Userdata::get<T>(L, index, true);
+            if (!result)
+                return result.error();
+
+            if (T* ptr = *result)
+                return detail::ConverterConstRef<T>(*ptr);
+
+            return detail::getNilBadArgError<T>(L, index);
+        }
+
+        auto converted = detail::tryConvertFromRegisteredConverter<T>(L, index);
+        if (!converted)
+            return converted.error();
+
+        return detail::ConverterConstRef<T>(std::move(*converted));
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        return Stack<T>::isInstance(L, index);
+    }
+};
+
+template <class T>
+struct Stack<T, std::enable_if_t<StackConversion<T>::enabled>>
+{
+    using IsUserdata = void;
+    using ReturnType = TypeResult<T>;
+
+    [[nodiscard]] static Result push(lua_State* L, const T& value)
+    {
+        return detail::StackHelper<T, detail::IsContainer<T>::value>::push(L, value);
+    }
+
+    [[nodiscard]] static Result push(lua_State* L, T&& value)
+    {
+        return detail::StackHelper<T, detail::IsContainer<T>::value>::push(L, std::move(value));
+    }
+
+    [[nodiscard]] static ReturnType get(lua_State* L, int index)
+    {
+        if (detail::Userdata::isInstance<T>(L, index))
+        {
+            auto result = detail::Userdata::get<T>(L, index, true);
+            if (result)
+            {
+                if (T* ptr = *result)
+                    return *ptr;
+            }
+            return result.error();
+        }
+
+        return detail::tryConvertFromRegisteredConverter<T>(L, index);
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        return detail::Userdata::isInstance<T>(L, index);
+    }
+};
 
 //=================================================================================================
 /**
