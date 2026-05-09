@@ -127,6 +127,12 @@ namespace {
 // Free functions that accept the target types
 static float sumVec3(Vec3Target v) { return v.x + v.y + v.z; }
 static float sumVec3Ref(const Vec3Target& v) { return v.x + v.y + v.z; }
+static const Vec3Target* capturedVec3Ref = nullptr;
+static float captureVec3Ref(const Vec3Target& v)
+{
+    capturedVec3Ref = &v;
+    return sumVec3Ref(v);
+}
 static int getMultiValue(MultiTarget t) { return t.value; }
 
 void registerAll(lua_State* L)
@@ -160,6 +166,7 @@ void registerAll(lua_State* L)
         .endClass()
         .addFunction("sumVec3", sumVec3)
         .addFunction("sumVec3Ref", sumVec3Ref)
+        .addFunction("captureVec3Ref", captureVec3Ref)
         .addFunction("getMultiValue", getMultiValue);
 }
 
@@ -223,6 +230,24 @@ TEST_F(ConverterTests, ExactTypePassThrough)
     registerAll(L);
     runLua("result = sumVec3(Vec3Target(1, 2, 3))");
     EXPECT_FLOAT_EQ(result<float>(), 6.f);
+}
+
+TEST_F(ConverterTests, ExactTypeConstRefUsesUserdataReference)
+{
+    registerAll(L);
+    capturedVec3Ref = nullptr;
+
+    runLua("_target = Vec3Target(1, 2, 3)");
+    lua_getglobal(L, "_target");
+    auto target = luabridge::detail::Userdata::get<Vec3Target>(L, -1, true);
+    ASSERT_TRUE(target);
+    ASSERT_NE(*target, nullptr);
+    Vec3Target* targetPtr = *target;
+    lua_pop(L, 1);
+
+    runLua("result = captureVec3Ref(_target)");
+    EXPECT_FLOAT_EQ(result<float>(), 6.f);
+    EXPECT_EQ(capturedVec3Ref, targetPtr);
 }
 
 //=================================================================================================

@@ -297,11 +297,7 @@ public:
         const auto classId = detail::getClassRegistryKey<T>();
         const auto constId = detail::getConstRegistryKey<T>();
 
-        // Common-case fast path: compare the object's metatable directly against
-        // the registry class/const tables. This avoids an extra interior table
-        // lookup (getTypeIdentityKey) and the lua_istable guard (lua_getmetatable
-        // always pushes a table when it returns non-zero). Safe because scripts
-        // cannot set metatables on userdata (Lua security model, points 1-3).
+        // Common-case fast path: compare the object's metatable directly against the registry class/const tables.
         if (lua_getmetatable(L, absIndex)) // Stack: ..., mt
         {
             lua_rawgetp_x(L, LUA_REGISTRYINDEX, classId); // Stack: ..., mt, class_mt

@@ -15,7 +15,6 @@
 #include "Options.h"
 #include "TypeTraits.h"
 
-#include <cstring>
 #include <stdexcept>
 #include <string_view>
 #include <string>
@@ -1582,17 +1581,12 @@ class Namespace : public detail::Registrar
                 "Specialize StackConversion<To> with enabled=true before calling addConverter<To>()");
 
             using FnType = TypeResult<To>(*)(lua_State*, int);
-            static_assert(sizeof(FnType) == sizeof(void*),
-                "Function pointer size must match void* for type-erased storage");
-
-            const FnType fn = &convertFromStack<To, T>;
-            void* fn_vp = nullptr;
-            std::memcpy(&fn_vp, &fn, sizeof(fn_vp));
+            static const FnType fn = &detail::convertFromStack<To, T>;
 
             // Stack during Class<T> methods: ns, co, cl, st
             // Store into both cl (-2) and co (-3) so both mutable and const userdatas work.
-            detail::getOrCreateConverterRegistry(L, lua_absindex(L, -2))->converters[detail::getClassRegistryKey<To>()] = fn_vp; // cl
-            detail::getOrCreateConverterRegistry(L, lua_absindex(L, -3))->converters[detail::getClassRegistryKey<To>()] = fn_vp; // co
+            detail::getOrCreateConverterRegistry(L, lua_absindex(L, -2))->converters[detail::getClassRegistryKey<To>()] = &fn; // cl
+            detail::getOrCreateConverterRegistry(L, lua_absindex(L, -3))->converters[detail::getClassRegistryKey<To>()] = &fn; // co
 
             return *this;
         }

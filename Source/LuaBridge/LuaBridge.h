@@ -18,7 +18,6 @@
 
 #include "detail/CFunctions.h"
 #include "detail/ClassInfo.h"
-#include "detail/Converter.h"
 #include "detail/Coroutine.h"
 #include "detail/Enum.h"
 #include "detail/Errors.h"
