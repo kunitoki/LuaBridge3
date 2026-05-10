@@ -117,9 +117,8 @@ void table_global_string_get_measure(benchmark::State& state)
     lua["value"] = kMagicValue;
 
     double x = 0;
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         x += lua["value"].get<double>();
     }
     benchmark::DoNotOptimize(x);
@@ -130,9 +129,8 @@ void table_global_string_set_measure(benchmark::State& state)
     sol::state lua;
     double v = 0;
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         v += kMagicValue;
         lua["value"] = v;
     }
@@ -147,9 +145,8 @@ void table_get_measure(benchmark::State& state)
     sol::table t = lua["warble"];
 
     double x = 0;
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         x += t["value"].get<double>();
     }
 
@@ -163,9 +160,8 @@ void table_set_measure(benchmark::State& state)
     sol::table t = lua["warble"];
 
     double v = 0;
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         v += kMagicValue;
         t["value"] = v;
     }
@@ -179,9 +175,8 @@ void table_chained_get_measure(benchmark::State& state)
     lua.script("ulahibe = { warble = { value = 24.0 } }");
 
     double x = 0;
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         x += lua["ulahibe"]["warble"]["value"].get<double>();
     }
 
@@ -194,9 +189,8 @@ void table_chained_set_measure(benchmark::State& state)
     lua.script("ulahibe = { warble = { value = 24.0 } }");
 
     double v = 0;
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         v += kMagicValue;
         lua["ulahibe"]["warble"]["value"] = v;
     }
@@ -210,9 +204,8 @@ void c_function_measure(benchmark::State& state)
     lua.set_function("f", +[](double value) { return value; });
     lua.script("function invoke_f() return f(24.0) end");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua["invoke_f"]();
     }
 }
@@ -224,9 +217,8 @@ void lua_function_in_c_measure(benchmark::State& state)
     sol::function f = lua["f"];
 
     double x = 0;
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         x += f.call<double>(kMagicValue);
     }
 
@@ -240,9 +232,8 @@ void c_function_through_lua_in_c_measure(benchmark::State& state)
     sol::function f = lua["f"];
 
     double x = 0;
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         x += f.call<double>(kMagicValue);
     }
 
@@ -255,9 +246,8 @@ void member_function_call_measure(benchmark::State& state)
     registerBasic(lua);
     lua.script("b = c.new()\nfunction call_member() b:set(b:get() + 1.0) end");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua["call_member"]();
     }
 }
@@ -268,9 +258,8 @@ void userdata_variable_access_measure(benchmark::State& state)
     registerBasic(lua);
     lua.script("b = c.new()\nfunction access_var() b.var = b.var + 1.0 return b.var end");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua["access_var"]();
     }
 }
@@ -281,9 +270,8 @@ void userdata_variable_access_large_measure(benchmark::State& state)
     registerBasicLarge(lua);
     lua.script("b = cl.new()\nfunction access_var_large() b.var0 = b.var0 + 1 return b.var0 end");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua["access_var_large"]();
     }
 }
@@ -294,9 +282,8 @@ void userdata_variable_access_last_measure(benchmark::State& state)
     registerBasicLarge(lua);
     lua.script("b = cl.new()\nfunction access_var_last() b.var49 = b.var49 + 1 return b.var49 end");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua["access_var_last"]();
     }
 }
@@ -308,9 +295,8 @@ void stateful_function_object_measure(benchmark::State& state)
     sol::function f = lua["f"];
 
     double x = 0;
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         x += f.call<double>(kMagicValue);
     }
 
@@ -323,9 +309,8 @@ void multi_return_lua_measure(benchmark::State& state)
     lua.set_function("f", &sol3_multi_return);
     lua.script("function invoke_multi() local a,b=f(24.0) return a+b end");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua["invoke_multi"]();
     }
 }
@@ -337,9 +322,8 @@ void multi_return_measure(benchmark::State& state)
     sol::function f = lua["f"];
 
     double x = 0;
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         std::tuple<double, double> values = f.call<double, double>(kMagicValue);
         x += std::get<0>(values);
         x += std::get<1>(values);
@@ -370,9 +354,8 @@ void derived_base_measure(benchmark::State& state)
 
     lua.script("function call_base() return b:a_func() + b:b_func() end");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua["call_base"]();
     }
 }
@@ -383,9 +366,8 @@ void optional_success_measure(benchmark::State& state)
     lua.script("warble = { value = 24.0 }");
 
     double x = 0;
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         sol::optional<double> value = lua["warble"]["value"];
         x += value.value_or(1.0);
     }
@@ -399,9 +381,8 @@ void optional_half_failure_measure(benchmark::State& state)
     lua.script("warble = { value = 'x' }");
 
     double x = 0;
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         sol::optional<double> value = lua["warble"]["value"];
         x += value.value_or(1.0);
     }
@@ -414,9 +395,8 @@ void optional_failure_measure(benchmark::State& state)
     sol::state lua;
 
     double x = 0;
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         sol::optional<double> value = lua["warble"]["value"];
         x += value.value_or(1.0);
     }
@@ -432,9 +412,8 @@ void return_userdata_measure(benchmark::State& state)
     lua.set_function("h", &basic_get_var);
     lua.script("function invoke_userdata() return h(f()) end");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua["invoke_userdata"]();
     }
 }
@@ -445,9 +424,8 @@ void userdata_variable_write_measure(benchmark::State& state)
     registerBasic(lua);
     lua.script("b = c.new()\nfunction write_var() b.var = 24.0 end");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua["write_var"]();
     }
 }
@@ -458,9 +436,8 @@ void userdata_property_getter_measure(benchmark::State& state)
     registerBasicGetterSetter(lua);
     lua.script("b = c.new()\nfunction read_getter() return b.val end");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua["read_getter"]();
     }
 }
@@ -471,9 +448,8 @@ void userdata_property_setter_measure(benchmark::State& state)
     registerBasicGetterSetter(lua);
     lua.script("b = c.new()\nfunction write_setter() b.val = 24.0 end");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua["write_setter"]();
     }
 }
@@ -485,9 +461,8 @@ void lambda_capture_measure(benchmark::State& state)
     lua.set_function("f", [extra](double v) { return v + extra; });
     lua.script("function invoke_lambda() return f(24.0) end");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua["invoke_lambda"]();
     }
 }
@@ -498,9 +473,8 @@ void shared_ptr_return_measure(benchmark::State& state)
     registerSharedObject(lua);
     lua.script("function invoke_shared() return get_shared():get() end");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua["invoke_shared"]();
     }
 }
@@ -511,9 +485,8 @@ void shared_ptr_pass_measure(benchmark::State& state)
     registerSharedObject(lua);
     lua.script("obj = SharedObject()\nfunction invoke_pass_shared() return use_shared(obj) end");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua["invoke_pass_shared"]();
     }
 }
@@ -524,9 +497,8 @@ void static_member_function_call_measure(benchmark::State& state)
     registerCounter(lua);
     lua.script("function invoke_static() return Counter.static_add(10, 32) end");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua["invoke_static"]();
     }
 }
@@ -553,9 +525,8 @@ void derived_method_call_measure(benchmark::State& state)
     lua["obj"] = &ab;
     lua.script("function call_derived() return obj:ab_func() end");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua["call_derived"]();
     }
 }
@@ -577,9 +548,8 @@ void implicit_inheritance_measure(benchmark::State& state)
     lua.script("obj = ComplexAB.new()");
     lua.script("function test_implicit() return call_a(obj) end");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua["test_implicit"]();
     }
 }

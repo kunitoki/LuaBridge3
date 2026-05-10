@@ -10889,11 +10889,20 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         {
         };
 
+        struct BorrowTableRef
+        {
+        };
+
+        struct ChainTableRef
+        {
+        };
+
     public:
         
         TableItem(lua_State* L, int tableRef)
             : LuaRefBase(L)
             , m_keyRef(luaL_ref(L, LUA_REGISTRYINDEX))
+            , m_ownsTableRef(true)
         {
 #if LUABRIDGE_SAFE_STACK_CHECKS
             luaL_checkstack(m_L, 1, detail::error_lua_stack_overflow);
@@ -10907,6 +10916,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         TableItem(lua_State* L, int tableRef, const char (&key)[N])
             : LuaRefBase(L)
             , m_keyLiteral(key)
+            , m_ownsTableRef(true)
         {
 #if LUABRIDGE_SAFE_STACK_CHECKS
             luaL_checkstack(m_L, 1, detail::error_lua_stack_overflow);
@@ -10920,6 +10930,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             : LuaRefBase(L)
             , m_tableRef(tableRef)
             , m_keyRef(luaL_ref(L, LUA_REGISTRYINDEX))
+            , m_ownsTableRef(true)
         {
         }
 
@@ -10928,6 +10939,43 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             : LuaRefBase(L)
             , m_tableRef(tableRef)
             , m_keyLiteral(key)
+            , m_ownsTableRef(true)
+        {
+        }
+
+        TableItem(lua_State* L, int tableRef, BorrowTableRef)
+            : LuaRefBase(L)
+            , m_tableRef(tableRef)
+            , m_keyRef(luaL_ref(L, LUA_REGISTRYINDEX))
+        {
+        }
+
+        template <std::size_t N>
+        TableItem(lua_State* L, int tableRef, BorrowTableRef, const char (&key)[N])
+            : LuaRefBase(L)
+            , m_tableRef(tableRef)
+            , m_keyLiteral(key)
+        {
+        }
+
+        TableItem(TableItem&& table, ChainTableRef)
+            : LuaRefBase(table.m_L)
+            , m_tableRef(std::exchange(table.m_tableRef, LUA_NOREF))
+            , m_keyRef(luaL_ref(m_L, LUA_REGISTRYINDEX))
+            , m_parentKeyRef(std::exchange(table.m_keyRef, LUA_NOREF))
+            , m_parentKeyLiteral(std::exchange(table.m_keyLiteral, nullptr))
+            , m_ownsTableRef(std::exchange(table.m_ownsTableRef, false))
+        {
+        }
+
+        template <std::size_t N>
+        TableItem(TableItem&& table, ChainTableRef, const char (&key)[N])
+            : LuaRefBase(table.m_L)
+            , m_tableRef(std::exchange(table.m_tableRef, LUA_NOREF))
+            , m_parentKeyRef(std::exchange(table.m_keyRef, LUA_NOREF))
+            , m_keyLiteral(key)
+            , m_parentKeyLiteral(std::exchange(table.m_keyLiteral, nullptr))
+            , m_ownsTableRef(std::exchange(table.m_ownsTableRef, false))
         {
         }
 
@@ -10939,13 +10987,14 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
                 return;
 #endif
 
-            lua_rawgeti(m_L, LUA_REGISTRYINDEX, other.m_tableRef);
+            other.pushTable(m_L);
             m_tableRef = luaL_ref(m_L, LUA_REGISTRYINDEX);
+            m_ownsTableRef = true;
 
             m_keyLiteral = other.m_keyLiteral;
             if (other.m_keyRef != LUA_NOREF)
             {
-                lua_rawgeti(m_L, LUA_REGISTRYINDEX, other.m_keyRef);
+                other.pushKey(m_L);
                 m_keyRef = luaL_ref(m_L, LUA_REGISTRYINDEX);
             }
         }
@@ -10955,7 +11004,10 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             if (m_keyRef != LUA_NOREF)
                 luaL_unref(m_L, LUA_REGISTRYINDEX, m_keyRef);
 
-            if (m_tableRef != LUA_NOREF)
+            if (m_parentKeyRef != LUA_NOREF)
+                luaL_unref(m_L, LUA_REGISTRYINDEX, m_parentKeyRef);
+
+            if (m_ownsTableRef && m_tableRef != LUA_NOREF)
                 luaL_unref(m_L, LUA_REGISTRYINDEX, m_tableRef);
         }
 
@@ -10974,7 +11026,10 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             : LuaRefBase(other.m_L)
             , m_tableRef(std::exchange(other.m_tableRef, LUA_NOREF))
             , m_keyRef(std::exchange(other.m_keyRef, LUA_NOREF))
+            , m_parentKeyRef(std::exchange(other.m_parentKeyRef, LUA_NOREF))
             , m_keyLiteral(std::exchange(other.m_keyLiteral, nullptr))
+            , m_parentKeyLiteral(std::exchange(other.m_parentKeyLiteral, nullptr))
+            , m_ownsTableRef(std::exchange(other.m_ownsTableRef, false))
         {
         }
 
@@ -10985,13 +11040,18 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
 
             if (m_keyRef != LUA_NOREF)
                 luaL_unref(m_L, LUA_REGISTRYINDEX, m_keyRef);
-            if (m_tableRef != LUA_NOREF)
+            if (m_parentKeyRef != LUA_NOREF)
+                luaL_unref(m_L, LUA_REGISTRYINDEX, m_parentKeyRef);
+            if (m_ownsTableRef && m_tableRef != LUA_NOREF)
                 luaL_unref(m_L, LUA_REGISTRYINDEX, m_tableRef);
 
             m_L = other.m_L;
             m_tableRef = std::exchange(other.m_tableRef, LUA_NOREF);
             m_keyRef = std::exchange(other.m_keyRef, LUA_NOREF);
+            m_parentKeyRef = std::exchange(other.m_parentKeyRef, LUA_NOREF);
             m_keyLiteral = std::exchange(other.m_keyLiteral, nullptr);
+            m_parentKeyLiteral = std::exchange(other.m_parentKeyLiteral, nullptr);
+            m_ownsTableRef = std::exchange(other.m_ownsTableRef, false);
 
             return *this;
         }
@@ -11000,13 +11060,13 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         TableItem& operator=(const T& v)
         {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-            if (! lua_checkstack(m_L, 2))
+            if (! lua_checkstack(m_L, 3))
                 return *this;
 #endif
 
             const StackRestore stackRestore(m_L);
 
-            lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_tableRef);
+            pushTable(m_L);
             if (m_keyLiteral != nullptr)
             {
                 if (! Stack<T>::push(m_L, v))
@@ -11016,7 +11076,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             }
             else
             {
-                lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_keyRef);
+                pushKey(m_L);
 
                 if (! Stack<T>::push(m_L, v))
                     return *this;
@@ -11031,13 +11091,13 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         TableItem& rawset(const T& v)
         {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-            if (! lua_checkstack(m_L, 2))
+            if (! lua_checkstack(m_L, 3))
                 return *this;
 #endif
 
             const StackRestore stackRestore(m_L);
 
-            lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_tableRef);
+            pushTable(m_L);
             if (m_keyLiteral != nullptr)
             {
                 lua_pushstring(m_L, m_keyLiteral);
@@ -11049,7 +11109,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             }
             else
             {
-                lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_keyRef);
+                pushKey(m_L);
 
                 if (! Stack<T>::push(m_L, v))
                     return *this;
@@ -11074,7 +11134,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
                 return;
 #endif
 
-            lua_rawgeti(L, LUA_REGISTRYINDEX, m_tableRef);
+            pushTable(L);
 
             if (m_keyLiteral != nullptr)
             {
@@ -11082,7 +11142,7 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             }
             else
             {
-                lua_rawgeti(L, LUA_REGISTRYINDEX, m_keyRef);
+                pushKey(L);
                 lua_gettable(L, -2);
             }
 
@@ -11090,25 +11150,53 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         }
 
         template <class T>
-        TableItem operator[](const T& key) const
+        TableItem operator[](const T& key) const&
+        {
+            const StackRestore stackRestore(m_L);
+
+            if (! Stack<T>::push(m_L, key))
+                lua_pushnil(m_L);
+
+            return materializedChildFromStackKey();
+        }
+
+        template <class T>
+        TableItem operator[](const T& key) &&
+        {
+            if (canChain())
+            {
+                if (! Stack<T>::push(m_L, key))
+                    lua_pushnil(m_L);
+
+                return TableItem(std::move(*this), ChainTableRef{});
+            }
+
+            const StackRestore stackRestore(m_L);
+
+            if (! Stack<T>::push(m_L, key))
+                lua_pushnil(m_L);
+
+            return materializedChildFromStackKey();
+        }
+
+        template <std::size_t N>
+        TableItem operator[](const char (&key)[N]) const&
         {
             const StackRestore stackRestore(m_L);
 
             push(m_L);
 
-            if (! Stack<T>::push(m_L, key))
-                lua_pushnil(m_L);
-
-            lua_pushvalue(m_L, -2);
             const auto tableRef = luaL_ref(m_L, LUA_REGISTRYINDEX);
-            lua_remove(m_L, -2);
 
-            return TableItem(m_L, tableRef, AdoptTableRef{});
+            return TableItem(m_L, tableRef, AdoptTableRef{}, key);
         }
 
         template <std::size_t N>
-        TableItem operator[](const char (&key)[N]) const
+        TableItem operator[](const char (&key)[N]) &&
         {
+            if (canChain())
+                return TableItem(std::move(*this), ChainTableRef{}, key);
+
             const StackRestore stackRestore(m_L);
 
             push(m_L);
@@ -11164,12 +11252,73 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             swap(m_L, other.m_L);
             swap(m_tableRef, other.m_tableRef);
             swap(m_keyRef, other.m_keyRef);
+            swap(m_parentKeyRef, other.m_parentKeyRef);
             swap(m_keyLiteral, other.m_keyLiteral);
+            swap(m_parentKeyLiteral, other.m_parentKeyLiteral);
+            swap(m_ownsTableRef, other.m_ownsTableRef);
+        }
+
+        bool hasParentKey() const
+        {
+            return m_parentKeyLiteral != nullptr || m_parentKeyRef != LUA_NOREF;
+        }
+
+        bool canChain() const
+        {
+            return m_ownsTableRef && ! hasParentKey();
+        }
+
+        TableItem materializedChildFromStackKey() const
+        {
+            push(m_L);
+            lua_insert(m_L, -2);
+
+            lua_pushvalue(m_L, -2);
+            const auto tableRef = luaL_ref(m_L, LUA_REGISTRYINDEX);
+            lua_remove(m_L, -2);
+
+            return TableItem(m_L, tableRef, AdoptTableRef{});
+        }
+
+        void pushTable(lua_State* L) const
+        {
+            if (m_tableRef == LUA_REFNIL)
+                lua_pushnil(L);
+            else
+                lua_rawgeti(L, LUA_REGISTRYINDEX, m_tableRef);
+
+            if (m_parentKeyLiteral != nullptr)
+            {
+                lua_getfield(L, -1, m_parentKeyLiteral);
+                lua_remove(L, -2);
+            }
+            else if (m_parentKeyRef != LUA_NOREF)
+            {
+                pushRef(L, m_parentKeyRef);
+                lua_gettable(L, -2);
+                lua_remove(L, -2);
+            }
+        }
+
+        void pushKey(lua_State* L) const
+        {
+            pushRef(L, m_keyRef);
+        }
+
+        void pushRef(lua_State* L, int ref) const
+        {
+            if (ref == LUA_REFNIL)
+                lua_pushnil(L);
+            else
+                lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
         }
 
         int m_tableRef = LUA_NOREF;
         int m_keyRef = LUA_NOREF;
+        int m_parentKeyRef = LUA_NOREF;
         const char* m_keyLiteral = nullptr;
+        const char* m_parentKeyLiteral = nullptr;
+        bool m_ownsTableRef = false;
     };
 
     friend struct Stack<TableItem>;
@@ -11376,7 +11525,10 @@ public:
     TableItem operator[](const T& key) const&
     {
         if (! Stack<T>::push(m_L, key))
+        {
+            lua_pushnil(m_L);
             return TableItem(m_L, m_ref);
+        }
 
         return TableItem(m_L, m_ref);
     }
@@ -11385,7 +11537,10 @@ public:
     TableItem operator[](const T& key) &&
     {
         if (! Stack<T>::push(m_L, key))
+        {
+            lua_pushnil(m_L);
             return TableItem(m_L, m_ref);
+        }
 
         return TableItem(m_L, std::exchange(m_ref, LUA_NOREF), typename TableItem::AdoptTableRef{});
     }

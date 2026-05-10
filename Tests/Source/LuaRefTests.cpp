@@ -1247,6 +1247,145 @@ TEST_F(LuaRefTests, TableItemOperatorIndexAdoptPathAndRawRoundTrip)
     EXPECT_EQ(stackTopBefore, lua_gettop(L));
 }
 
+TEST_F(LuaRefTests, TableItemRvalueLiteralChainGetSetKeepsStackBalanced)
+{
+    runLua("result = { outer = { value = 10 } }");
+
+    const int stackTopBefore = lua_gettop(L);
+
+    EXPECT_EQ(10, result()["outer"]["value"].unsafe_cast<int>());
+    EXPECT_EQ(stackTopBefore, lua_gettop(L));
+
+    result()["outer"]["value"] = 44;
+    EXPECT_EQ(stackTopBefore, lua_gettop(L));
+
+    EXPECT_EQ(44, result()["outer"]["value"].unsafe_cast<int>());
+    EXPECT_EQ(stackTopBefore, lua_gettop(L));
+}
+
+TEST_F(LuaRefTests, TableItemRvalueDynamicChainGetSetKeepsStackBalanced)
+{
+    runLua("result = { outer = { value = 11 } }");
+
+    std::string outerKey = "outer";
+    std::string valueKey = "value";
+
+    const int stackTopBefore = lua_gettop(L);
+
+    auto value = result()[outerKey][valueKey];
+    ASSERT_TRUE(value.isValid());
+    EXPECT_EQ(11, value.unsafe_cast<int>());
+    EXPECT_EQ(stackTopBefore, lua_gettop(L));
+
+    value = 22;
+    EXPECT_EQ(stackTopBefore, lua_gettop(L));
+
+    EXPECT_EQ(22, result()[outerKey][valueKey].unsafe_cast<int>());
+    EXPECT_EQ(stackTopBefore, lua_gettop(L));
+}
+
+TEST_F(LuaRefTests, TableItemStoredRvalueChainOwnsRootTable)
+{
+    runLua("result = { outer = { value = 7 } }");
+
+    auto value = result()["outer"]["value"];
+
+    runLua("result = { outer = { value = 99 } }");
+
+    EXPECT_EQ(7, value.unsafe_cast<int>());
+
+    value = 8;
+
+    EXPECT_EQ(8, value.unsafe_cast<int>());
+    EXPECT_EQ(99, result()["outer"]["value"].unsafe_cast<int>());
+}
+
+TEST_F(LuaRefTests, TableItemStoredLvalueItemOwnsParentTable)
+{
+    runLua("result = { value = 31 }");
+
+    auto table = result();
+    auto value = table["value"];
+
+    table = luabridge::LuaRef(L);
+
+    EXPECT_EQ(31, value.unsafe_cast<int>());
+}
+
+TEST_F(LuaRefTests, TableItemRvalueNumericChainGetSetKeepsStackBalanced)
+{
+    runLua("result = { [3] = { [4] = 12 } }");
+
+    const int stackTopBefore = lua_gettop(L);
+
+    EXPECT_EQ(12, result()[3][4].unsafe_cast<int>());
+    EXPECT_EQ(stackTopBefore, lua_gettop(L));
+
+    result()[3][4] = 45;
+    EXPECT_EQ(stackTopBefore, lua_gettop(L));
+
+    EXPECT_EQ(45, result()[3][4].unsafe_cast<int>());
+    EXPECT_EQ(stackTopBefore, lua_gettop(L));
+}
+
+TEST_F(LuaRefTests, TableItemRvalueDeepChainMaterializesAfterDeferredParent)
+{
+    runLua("result = { a = { b = { c = 5 } } }");
+
+    const int stackTopBefore = lua_gettop(L);
+
+    EXPECT_EQ(5, result()["a"]["b"]["c"].unsafe_cast<int>());
+    EXPECT_EQ(stackTopBefore, lua_gettop(L));
+
+    result()["a"]["b"]["c"] = 6;
+    EXPECT_EQ(stackTopBefore, lua_gettop(L));
+
+    EXPECT_EQ(6, result()["a"]["b"]["c"].unsafe_cast<int>());
+    EXPECT_EQ(stackTopBefore, lua_gettop(L));
+}
+
+TEST_F(LuaRefTests, TableItemRvalueChainRawSetAndRawGet)
+{
+    runLua("result = { outer = { value = 1 } }");
+
+    const int stackTopBefore = lua_gettop(L);
+
+    result()["outer"]["value"].rawset(73);
+    EXPECT_EQ(stackTopBefore, lua_gettop(L));
+
+    auto value = result()["outer"].rawget("value");
+    ASSERT_TRUE(value.isNumber());
+    EXPECT_EQ(73, luabridge::unsafe_cast<int>(value));
+    EXPECT_EQ(stackTopBefore, lua_gettop(L));
+}
+
+TEST_F(LuaRefTests, TableItemRvalueChainUsesParentMetamethod)
+{
+    runLua("result = setmetatable({}, { __index = function(_, key) if key == 'outer' then return { value = 64 } end end })");
+
+    const int stackTopBefore = lua_gettop(L);
+
+    EXPECT_EQ(64, result()["outer"]["value"].unsafe_cast<int>());
+    EXPECT_EQ(stackTopBefore, lua_gettop(L));
+}
+
+TEST_F(LuaRefTests, TableItemRvalueChainCopyAndMove)
+{
+    runLua("result = { outer = { value = 9 } }");
+
+    auto value = result()["outer"]["value"];
+    auto valueCopy = value;
+    auto valueMoved = std::move(value);
+
+    EXPECT_EQ(9, valueCopy.unsafe_cast<int>());
+    EXPECT_EQ(9, valueMoved.unsafe_cast<int>());
+
+    valueMoved = 10;
+
+    EXPECT_EQ(10, valueCopy.unsafe_cast<int>());
+    EXPECT_EQ(10, valueMoved.unsafe_cast<int>());
+}
+
 TEST_F(LuaRefTests, GetClassNameNoMetatable)
 {
     // A raw userdata with no metatable causes lua_getmetatable to return 0,
