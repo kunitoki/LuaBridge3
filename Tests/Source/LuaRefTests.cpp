@@ -11,7 +11,24 @@
 
 namespace {
 int addInts(int a, int b) { return a + b; }
+
+struct FailingPushKey
+{
+};
 } // namespace
+
+namespace luabridge {
+
+template <>
+struct Stack<FailingPushKey>
+{
+    [[nodiscard]] static Result push(lua_State*, const FailingPushKey&)
+    {
+        return makeErrorCode(ErrorCode::InvalidTypeCast);
+    }
+};
+
+} // namespace luabridge
 
 struct LuaRefTests : TestBase
 {
@@ -1247,6 +1264,42 @@ TEST_F(LuaRefTests, TableItemOperatorIndexAdoptPathAndRawRoundTrip)
     EXPECT_EQ(stackTopBefore, lua_gettop(L));
 }
 
+TEST_F(LuaRefTests, TableItemCopyPushesNilTableRef)
+{
+    luabridge::LuaRef nilRef(L, luabridge::LuaNil{});
+
+    auto item = nilRef["key"];
+    auto itemCopy = item;
+
+    EXPECT_TRUE(itemCopy.isValid());
+    EXPECT_TRUE(item.isValid());
+}
+
+TEST_F(LuaRefTests, TableItemCopyPushesNilKeyRef)
+{
+    runLua("result = {}");
+
+    auto table = result();
+    auto item = table[luabridge::LuaNil{}];
+    auto itemCopy = item;
+
+    EXPECT_TRUE(itemCopy.isValid());
+    EXPECT_TRUE(item.isValid());
+}
+
+TEST_F(LuaRefTests, LuaRefRvalueOperatorIndexPushFailureKeepsStackBalanced)
+{
+    runLua("result = {}");
+
+    auto table = result();
+    const int stackTopBefore = lua_gettop(L);
+
+    auto item = std::move(table)[FailingPushKey{}];
+
+    EXPECT_TRUE(item.isValid());
+    EXPECT_EQ(stackTopBefore, lua_gettop(L));
+}
+
 TEST_F(LuaRefTests, TableItemRvalueLiteralChainGetSetKeepsStackBalanced)
 {
     runLua("result = { outer = { value = 10 } }");
@@ -1341,6 +1394,45 @@ TEST_F(LuaRefTests, TableItemRvalueDeepChainMaterializesAfterDeferredParent)
     EXPECT_EQ(stackTopBefore, lua_gettop(L));
 
     EXPECT_EQ(6, result()["a"]["b"]["c"].unsafe_cast<int>());
+    EXPECT_EQ(stackTopBefore, lua_gettop(L));
+}
+
+TEST_F(LuaRefTests, TableItemRvalueDynamicDeepChainMaterializesAfterDeferredParent)
+{
+    runLua("result = { outer = { inner = { value = 12 } } }");
+
+    std::string outerKey = "outer";
+    std::string innerKey = "inner";
+    std::string valueKey = "value";
+
+    const int stackTopBefore = lua_gettop(L);
+
+    auto value = result()[outerKey][innerKey][valueKey];
+    ASSERT_TRUE(value.isValid());
+    EXPECT_EQ(12, value.unsafe_cast<int>());
+    EXPECT_EQ(stackTopBefore, lua_gettop(L));
+
+    value = 24;
+    EXPECT_EQ(stackTopBefore, lua_gettop(L));
+
+    EXPECT_EQ(24, result()[outerKey][innerKey][valueKey].unsafe_cast<int>());
+    EXPECT_EQ(stackTopBefore, lua_gettop(L));
+}
+
+TEST_F(LuaRefTests, TableItemRvalueDynamicChainUsesNilKeyWhenPushFails)
+{
+    runLua("result = { outer = { inner = {} } }");
+
+    std::string outerKey = "outer";
+    std::string innerKey = "inner";
+    const int stackTopBefore = lua_gettop(L);
+
+    auto chained = result()[outerKey][FailingPushKey{}];
+    EXPECT_TRUE(chained.isValid());
+    EXPECT_EQ(stackTopBefore, lua_gettop(L));
+
+    auto materialized = result()[outerKey][innerKey][FailingPushKey{}];
+    EXPECT_TRUE(materialized.isValid());
     EXPECT_EQ(stackTopBefore, lua_gettop(L));
 }
 

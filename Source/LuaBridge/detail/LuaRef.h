@@ -681,10 +681,6 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
         {
         };
 
-        struct BorrowTableRef
-        {
-        };
-
         struct ChainTableRef
         {
         };
@@ -743,21 +739,6 @@ class LuaRef : public LuaRefBase<LuaRef, LuaRef>
             , m_tableRef(tableRef)
             , m_keyLiteral(key)
             , m_ownsTableRef(true)
-        {
-        }
-
-        TableItem(lua_State* L, int tableRef, BorrowTableRef)
-            : LuaRefBase(L)
-            , m_tableRef(tableRef)
-            , m_keyRef(luaL_ref(L, LUA_REGISTRYINDEX))
-        {
-        }
-
-        template <std::size_t N>
-        TableItem(lua_State* L, int tableRef, BorrowTableRef, const char (&key)[N])
-            : LuaRefBase(L)
-            , m_tableRef(tableRef)
-            , m_keyLiteral(key)
         {
         }
 
