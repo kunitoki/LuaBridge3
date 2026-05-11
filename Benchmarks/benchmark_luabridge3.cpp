@@ -175,9 +175,8 @@ void table_global_string_get_measure(benchmark::State& state)
     luabridge::setGlobal(L, kMagicValue, "value");
 
     double x = 0;
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         x += static_cast<double>(luabridge::getGlobal(L, "value"));
     }
     benchmark::DoNotOptimize(x);
@@ -188,9 +187,8 @@ void table_global_string_set_measure(benchmark::State& state)
     lua_State* L = makeLua();
 
     double v = 0;
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         v += kMagicValue;
         luabridge::setGlobal(L, v, "value");
     }
@@ -205,9 +203,8 @@ void table_get_measure(benchmark::State& state)
     luabridge::LuaRef t = luabridge::getGlobal(L, "warble");
 
     double x = 0;
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         x += static_cast<double>(t["value"]);
     }
 
@@ -221,9 +218,8 @@ void table_set_measure(benchmark::State& state)
     luabridge::LuaRef t = luabridge::getGlobal(L, "warble");
 
     double v = 0;
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         v += kMagicValue;
         t["value"] = v;
     }
@@ -237,11 +233,10 @@ void table_chained_get_measure(benchmark::State& state)
     luaDoStringOrThrow(L, "ulahibe = { warble = { value = 24.0 } }", "table_chained_get setup");
 
     double x = 0;
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
-        luabridge::LuaRef tw = luabridge::getGlobal(L, "ulahibe")["warble"];
-        x += static_cast<double>(tw["value"]);
+        auto tw = luabridge::getGlobal(L, "ulahibe")["warble"]["value"];
+        x += static_cast<double>(tw);
     }
 
     benchmark::DoNotOptimize(x);
@@ -253,12 +248,10 @@ void table_chained_set_measure(benchmark::State& state)
     luaDoStringOrThrow(L, "ulahibe = { warble = { value = 24.0 } }", "table_chained_set setup");
 
     double v = 0;
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         v += kMagicValue;
-        luabridge::LuaRef tw = luabridge::getGlobal(L, "ulahibe")["warble"];
-        tw["value"] = v;
+        luabridge::getGlobal(L, "ulahibe")["warble"]["value"] = v;
     }
 
     benchmark::DoNotOptimize(v);
@@ -271,9 +264,8 @@ void c_function_measure(benchmark::State& state)
 
     luaDoStringOrThrow(L, "function invoke_f() return f(24.0) end", "c_function setup");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua_getglobal(L, "invoke_f");
         luaCheckOrThrow(L, lua_pcall(L, 0, 1, 0), "invoke_f");
         lua_pop(L, 1);
@@ -287,9 +279,8 @@ void lua_function_in_c_measure(benchmark::State& state)
 
     luabridge::LuaRef f = luabridge::getGlobal(L, "f");
     double x = 0;
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         x += f.call<double>(kMagicValue).valueOr(0.0);
     }
 
@@ -303,9 +294,8 @@ void c_function_through_lua_in_c_measure(benchmark::State& state)
 
     luabridge::LuaRef f = luabridge::getGlobal(L, "f");
     double x = 0;
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         x += f.call<double>(kMagicValue).valueOr(0.0);
     }
 
@@ -319,9 +309,8 @@ void member_function_call_measure(benchmark::State& state)
     luaDoStringOrThrow(L, "b = c()", "member_function setup");
     luaDoStringOrThrow(L, "function call_member() b:set(b:get() + 1.0) end", "member_function closure setup");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua_getglobal(L, "call_member");
         luaCheckOrThrow(L, lua_pcall(L, 0, 0, 0), "call_member");
     }
@@ -334,9 +323,8 @@ void userdata_variable_access_measure(benchmark::State& state)
     luaDoStringOrThrow(L, "b = c()", "userdata_variable_access setup");
     luaDoStringOrThrow(L, "function access_var() return b.var end", "userdata_variable_access closure setup");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua_getglobal(L, "access_var");
         luaCheckOrThrow(L, lua_pcall(L, 0, 1, 0), "access_var");
         lua_pop(L, 1);
@@ -350,9 +338,8 @@ void userdata_variable_access_large_measure(benchmark::State& state)
     luaDoStringOrThrow(L, "b = cl()", "userdata_variable_access_large setup");
     luaDoStringOrThrow(L, "function access_var_large() return b.var0 end", "userdata_variable_access_large closure setup");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua_getglobal(L, "access_var_large");
         luaCheckOrThrow(L, lua_pcall(L, 0, 1, 0), "access_var_large");
         lua_pop(L, 1);
@@ -366,9 +353,8 @@ void userdata_variable_access_last_measure(benchmark::State& state)
     luaDoStringOrThrow(L, "b = cl()", "userdata_variable_access_last setup");
     luaDoStringOrThrow(L, "function access_var_last() return b.var49 end", "userdata_variable_access_last closure setup");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua_getglobal(L, "access_var_last");
         luaCheckOrThrow(L, lua_pcall(L, 0, 1, 0), "access_var_last");
         lua_pop(L, 1);
@@ -382,9 +368,8 @@ void stateful_function_object_measure(benchmark::State& state)
 
     luabridge::LuaRef f = luabridge::getGlobal(L, "f");
     double x = 0;
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         x += f.call<double>(kMagicValue).valueOr(0.0);
     }
 
@@ -397,9 +382,8 @@ void multi_return_lua_measure(benchmark::State& state)
     luabridge::getGlobalNamespace(L).addFunction("f", &lb3_multi_return);
     luaDoStringOrThrow(L, "function invoke_multi() local a,b=f(24.0) return a+b end", "multi_return_lua setup");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua_getglobal(L, "invoke_multi");
         luaCheckOrThrow(L, lua_pcall(L, 0, 1, 0), "invoke_multi");
         lua_pop(L, 1);
@@ -413,9 +397,8 @@ void multi_return_measure(benchmark::State& state)
     luabridge::LuaRef f = luabridge::getGlobal(L, "f");
 
     double x = 0;
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         auto result = f.call<std::tuple<double, double>>(kMagicValue).valueOr(std::make_tuple(0.0, 0.0));
         x += std::get<0>(result);
         x += std::get<1>(result);
@@ -446,9 +429,8 @@ void derived_base_measure(benchmark::State& state)
     luaDoStringOrThrow(L, "obj = ComplexAB()", "base_derived setup");
     luaDoStringOrThrow(L, "function call_base() return obj:a_func() + obj:b_func() end", "base_derived closure setup");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua_getglobal(L, "call_base");
         luaCheckOrThrow(L, lua_pcall(L, 0, 1, 0), "call_base");
         lua_pop(L, 1);
@@ -461,9 +443,8 @@ void optional_success_measure(benchmark::State& state)
     luaDoStringOrThrow(L, "warble = { value = 24.0 }", "optional_success setup");
 
     double x = 0;
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         auto result = luabridge::tryGetGlobalField<double>(L, "warble", "value");
         x += result ? *result : 1.0;
     }
@@ -477,9 +458,8 @@ void optional_half_failure_measure(benchmark::State& state)
     luaDoStringOrThrow(L, "warble = { value = 'x' }", "optional_half_failure setup");
 
     double x = 0;
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         auto result = luabridge::tryGetGlobalField<double>(L, "warble", "value");
         x += result ? *result : 1.0;
     }
@@ -492,9 +472,8 @@ void optional_failure_measure(benchmark::State& state)
     lua_State* L = makeLua();
 
     double x = 0;
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         auto result = luabridge::tryGetGlobalField<double>(L, "warble", "value");
         x += result ? *result : 1.0;
     }
@@ -511,9 +490,8 @@ void return_userdata_measure(benchmark::State& state)
         .addFunction("h", &basic_get_var);
     luaDoStringOrThrow(L, "function invoke_userdata() return h(f()) end", "return_userdata setup");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua_getglobal(L, "invoke_userdata");
         luaCheckOrThrow(L, lua_pcall(L, 0, 1, 0), "invoke_userdata");
         lua_pop(L, 1);
@@ -527,9 +505,8 @@ void userdata_variable_write_measure(benchmark::State& state)
     luaDoStringOrThrow(L, "b = c()", "userdata_variable_write setup");
     luaDoStringOrThrow(L, "function write_var() b.var = 24.0 end", "userdata_variable_write closure setup");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua_getglobal(L, "write_var");
         luaCheckOrThrow(L, lua_pcall(L, 0, 0, 0), "write_var");
     }
@@ -542,9 +519,8 @@ void userdata_property_getter_measure(benchmark::State& state)
     luaDoStringOrThrow(L, "b = c()", "userdata_property_getter setup");
     luaDoStringOrThrow(L, "function read_getter() return b.val end", "userdata_property_getter closure setup");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua_getglobal(L, "read_getter");
         luaCheckOrThrow(L, lua_pcall(L, 0, 1, 0), "read_getter");
         lua_pop(L, 1);
@@ -558,9 +534,8 @@ void userdata_property_setter_measure(benchmark::State& state)
     luaDoStringOrThrow(L, "b = c()", "userdata_property_setter setup");
     luaDoStringOrThrow(L, "function write_setter() b.val = 24.0 end", "userdata_property_setter closure setup");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua_getglobal(L, "write_setter");
         luaCheckOrThrow(L, lua_pcall(L, 0, 0, 0), "write_setter");
     }
@@ -573,9 +548,8 @@ void lambda_capture_measure(benchmark::State& state)
     luabridge::getGlobalNamespace(L).addFunction("f", [extra](double v) { return v + extra; });
     luaDoStringOrThrow(L, "function invoke_lambda() return f(24.0) end", "lambda_capture setup");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua_getglobal(L, "invoke_lambda");
         luaCheckOrThrow(L, lua_pcall(L, 0, 1, 0), "invoke_lambda");
         lua_pop(L, 1);
@@ -588,9 +562,8 @@ void shared_ptr_return_measure(benchmark::State& state)
     registerSharedObject(L);
     luaDoStringOrThrow(L, "function invoke_shared() return get_shared():get() end", "shared_ptr_return setup");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua_getglobal(L, "invoke_shared");
         luaCheckOrThrow(L, lua_pcall(L, 0, 1, 0), "invoke_shared");
         lua_pop(L, 1);
@@ -604,9 +577,8 @@ void shared_ptr_pass_measure(benchmark::State& state)
     luaDoStringOrThrow(L, "obj = SharedObject()", "shared_ptr_pass setup");
     luaDoStringOrThrow(L, "function invoke_pass_shared() return use_shared(obj) end", "shared_ptr_pass closure setup");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua_getglobal(L, "invoke_pass_shared");
         luaCheckOrThrow(L, lua_pcall(L, 0, 1, 0), "invoke_pass_shared");
         lua_pop(L, 1);
@@ -619,9 +591,8 @@ void static_member_function_call_measure(benchmark::State& state)
     registerCounter(L);
     luaDoStringOrThrow(L, "function invoke_static() return Counter.static_add(10, 32) end", "static_member_function setup");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua_getglobal(L, "invoke_static");
         luaCheckOrThrow(L, lua_pcall(L, 0, 1, 0), "invoke_static");
         lua_pop(L, 1);
@@ -650,9 +621,8 @@ void derived_method_call_measure(benchmark::State& state)
     luaDoStringOrThrow(L, "obj = ComplexAB()", "derived_method setup");
     luaDoStringOrThrow(L, "function call_derived() return obj:ab_func() end", "derived_method closure setup");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua_getglobal(L, "call_derived");
         luaCheckOrThrow(L, lua_pcall(L, 0, 1, 0), "call_derived");
         lua_pop(L, 1);
@@ -676,9 +646,8 @@ void implicit_inheritance_measure(benchmark::State& state)
     luaDoStringOrThrow(L, "obj = ComplexAB()", "implicit_inheritance setup");
     luaDoStringOrThrow(L, "function test_implicit() return call_a(obj) end", "implicit_inheritance closure setup");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua_getglobal(L, "test_implicit");
         luaCheckOrThrow(L, lua_pcall(L, 0, 1, 0), "test_implicit");
         lua_pop(L, 1);
@@ -710,9 +679,8 @@ void converter_exact_type_measure(benchmark::State& state)
     luaDoStringOrThrow(L, "obj = Vec3Target(1, 2, 3)", "converter_exact_type setup");
     luaDoStringOrThrow(L, "function invoke_exact() return sumVec3(obj) end", "converter_exact_type closure setup");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua_getglobal(L, "invoke_exact");
         luaCheckOrThrow(L, lua_pcall(L, 0, 1, 0), "invoke_exact");
         lua_pop(L, 1);
@@ -726,9 +694,8 @@ void converter_phase3_value_measure(benchmark::State& state)
     luaDoStringOrThrow(L, "obj = Vec3Source(1, 2, 3)", "converter_phase3_value setup");
     luaDoStringOrThrow(L, "function invoke_conv_value() return sumVec3(obj) end", "converter_phase3_value closure setup");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua_getglobal(L, "invoke_conv_value");
         luaCheckOrThrow(L, lua_pcall(L, 0, 1, 0), "invoke_conv_value");
         lua_pop(L, 1);
@@ -742,9 +709,8 @@ void converter_phase3_ref_measure(benchmark::State& state)
     luaDoStringOrThrow(L, "obj = Vec3Source(1, 2, 3)", "converter_phase3_ref setup");
     luaDoStringOrThrow(L, "function invoke_conv_ref() return sumVec3Ref(obj) end", "converter_phase3_ref closure setup");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua_getglobal(L, "invoke_conv_ref");
         luaCheckOrThrow(L, lua_pcall(L, 0, 1, 0), "invoke_conv_ref");
         lua_pop(L, 1);
@@ -758,9 +724,8 @@ void converter_multi_registered_measure(benchmark::State& state)
     luaDoStringOrThrow(L, "obj = ColorSource(0.5, 1, 0)", "converter_multi_registered setup");
     luaDoStringOrThrow(L, "function invoke_conv_multi() return sumVec3(obj) end", "converter_multi_registered closure setup");
 
-    for (auto _ : state)
+    for ([[maybe_unused]] auto _ : state)
     {
-        (void) _;
         lua_getglobal(L, "invoke_conv_multi");
         luaCheckOrThrow(L, lua_pcall(L, 0, 1, 0), "invoke_conv_multi");
         lua_pop(L, 1);
