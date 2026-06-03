@@ -916,7 +916,7 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
 
             const Options options = get_class_options(L, -2);
             if (! options.test(allowOverridingMethods))
-                luaL_error(L, "immutable member '%s'", key);
+                raise_lua_error(L, "immutable member '%s'", key);
 
             rawset_super_method(L, origClassTableIndex, key); // Stack: ..., candidate_ct
             lua_pop(L, 1); // Stack: ...
@@ -991,7 +991,7 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
 
         const Options options = get_class_options(L, -2);
         if (! options.test(allowOverridingMethods))
-            luaL_error(L, "immutable member '%s'", key);
+            raise_lua_error(L, "immutable member '%s'", key);
 
         rawset_super_method(L, -2, key); // Stack: ..., candidate_ct
         lua_pop(L, 1); // Stack: ...
@@ -1134,7 +1134,7 @@ inline int newindex_metamethod(lua_State* L)
     // Try in the property set table on the current class first.
     lua_rawgetp_x(L, -1, getPropsetKey()); // Stack: mt, propset table (ps) | nil
     if (! lua_istable(L, -1))
-        luaL_error(L, "no member named '%s'", key);
+        raise_lua_error(L, "no member named '%s'", key);
 
     lua_pushvalue(L, 2); // Stack: mt, ps, field name
     lua_rawget(L, -2); // Stack: mt, ps, setter | nil
@@ -1213,7 +1213,7 @@ inline int newindex_metamethod(lua_State* L)
     }
 
     lua_pop(L, 1); // Stack: -
-    luaL_error(L, "no writable member '%s'", key);
+    raise_lua_error(L, "no writable member '%s'", key);
     return 0;
 }
 
@@ -1234,7 +1234,7 @@ inline int newindex_metamethod_simple(lua_State* L)
             const char* key = lua_tostring(L, 2);
 
             if (! lua_istable(L, lua_upvalueindex(1)))
-                luaL_error(L, "no writable member '%s'", key);
+                raise_lua_error(L, "no writable member '%s'", key);
 
             lua_pushvalue(L, 2); // Stack: key
             lua_rawget(L, lua_upvalueindex(1)); // Stack: setter | nil
@@ -1258,7 +1258,7 @@ inline int newindex_metamethod_simple(lua_State* L)
             const char* key = lua_tostring(L, 2);
 
             if (! lua_istable(L, lua_upvalueindex(1)))
-                luaL_error(L, "no writable member '%s'", key);
+                raise_lua_error(L, "no writable member '%s'", key);
 
             lua_pushvalue(L, 2); // Stack: key
             lua_rawget(L, lua_upvalueindex(1)); // Stack: setter | nil
@@ -1270,7 +1270,7 @@ inline int newindex_metamethod_simple(lua_State* L)
                 return 0;
             }
 
-            luaL_error(L, "no writable member '%s'", key);
+            raise_lua_error(L, "no writable member '%s'", key);
         }
     }
 
@@ -1281,7 +1281,7 @@ inline int newindex_metamethod_simple(lua_State* L)
 
     lua_rawgetp_x(L, -1, getPropsetKey()); // Stack: mt, ps | nil
     if (! lua_istable(L, -1))
-        luaL_error(L, "no member named '%s'", key);
+        raise_lua_error(L, "no member named '%s'", key);
 
     lua_pushvalue(L, 2); // Stack: mt, ps, key
     lua_rawget(L, -2); // Stack: mt, ps, setter | nil
@@ -1297,7 +1297,7 @@ inline int newindex_metamethod_simple(lua_State* L)
         return 0;
     }
 
-    luaL_error(L, "no writable member '%s'", key);
+    raise_lua_error(L, "no writable member '%s'", key);
     return 0;
 }
 
@@ -2123,7 +2123,8 @@ inline int try_overload_functions(lua_State* L)
     }
     lua_concat(L, nerrors * 2 + 1);
 
-    lua_error_x(L); // throw error message just built
+    const char* message = lua_tostring(L, -1);
+    raise_lua_error(L, "%s", message ? message : "");
 }
 
 //=================================================================================================

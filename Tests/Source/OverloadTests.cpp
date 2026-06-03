@@ -67,6 +67,25 @@ TEST_F(OverloadTests, NoMatchingArityWithState)
 #endif
 }
 
+TEST_F(OverloadTests, NoMatchingArgumentTypesReportsLine)
+{
+    luabridge::getGlobalNamespace(L)
+        .addFunction("test",
+            +[](int) -> int { return 1; },
+            +[](std::string) -> int { return 2; });
+
+    auto [ok, error] = runLuaCaptureError(R"(
+        local function call_test()
+            test({})
+        end
+        call_test()
+    )");
+
+    EXPECT_FALSE(ok);
+    EXPECT_TRUE(error.find("...") != std::string::npos || error.find("code") != std::string::npos);
+    EXPECT_TRUE(error.find(":3: All 2 overloads of test returned an error:") != std::string::npos);
+}
+
 TEST_F(OverloadTests, SingleArgumentOverloads)
 {
     int x = 100;
