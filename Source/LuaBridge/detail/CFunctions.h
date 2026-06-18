@@ -525,6 +525,28 @@ inline int index_metamethod(lua_State* L)
 
     for (;;)
     {
+        const Options options = get_class_options(L, -1); // Stack: mt
+
+        // For static __index: the static fallback takes priority over registered static
+        // property getters so that a user-defined static __index fallback can shadow
+        // static properties.
+        // For instance __index with allowOverridingMethods: the instance fallback takes
+        // priority over class-table Lua methods, enabling Lua-side method overrides via
+        // __newindex.
+        if constexpr (IsObject)
+        {
+            if (options.test(extensibleClass | allowOverridingMethods))
+            {
+                if (auto result = try_call_index_fallback(L))
+                    return *result;
+            }
+        }
+        else
+        {
+            if (auto result = try_call_static_index_fallback(L))
+                return *result;
+        }
+
         // Search into self or metatable
         if (lua_istable(L, 1))
         {
@@ -560,7 +582,6 @@ inline int index_metamethod(lua_State* L)
         lua_pop(L, 1); // Stack: mt
 
         // Repeat the lookup in the index extensible, for method overrides
-        const Options options = get_class_options(L, -1); // Stack: mt
         if (options.test(extensibleClass | allowOverridingMethods))
         {
             if (auto result = try_call_index_extensible<IsObject>(L, key))
@@ -2476,8 +2497,8 @@ void push_class_property_getter(lua_State* L, T (U::*value), const char* debugna
     lua_pushcclosure_x(L, &property_getter<T, C>::call, debugname, 1);
 }
 
-template <class C, class T>
-void push_class_property_getter(lua_State* L, T (C::*getter)() const, const char* debugname)
+template <class C, class B, class T>
+void push_class_property_getter(lua_State* L, T (B::*getter)() const, const char* debugname)
 {
     using GetType = decltype(getter);
 
@@ -2485,8 +2506,8 @@ void push_class_property_getter(lua_State* L, T (C::*getter)() const, const char
     lua_pushcclosure_x(L, &invoke_const_member_function<GetType, C>, debugname, 1);
 }
 
-template <class C, class T>
-void push_class_property_getter(lua_State* L, T (C::*getter)() const noexcept, const char* debugname)
+template <class C, class B, class T>
+void push_class_property_getter(lua_State* L, T (B::*getter)() const noexcept, const char* debugname)
 {
     using GetType = decltype(getter);
 
@@ -2494,8 +2515,8 @@ void push_class_property_getter(lua_State* L, T (C::*getter)() const noexcept, c
     lua_pushcclosure_x(L, &invoke_const_member_function<GetType, C>, debugname, 1);
 }
 
-template <class C, class T>
-void push_class_property_getter(lua_State* L, T (C::*getter)(lua_State*) const, const char* debugname)
+template <class C, class B, class T>
+void push_class_property_getter(lua_State* L, T (B::*getter)(lua_State*) const, const char* debugname)
 {
     using GetType = decltype(getter);
 
@@ -2503,8 +2524,8 @@ void push_class_property_getter(lua_State* L, T (C::*getter)(lua_State*) const, 
     lua_pushcclosure_x(L, &invoke_const_member_function<GetType, C>, debugname, 1);
 }
 
-template <class C, class T>
-void push_class_property_getter(lua_State* L, T (C::*getter)(lua_State*) const noexcept, const char* debugname)
+template <class C, class B, class T>
+void push_class_property_getter(lua_State* L, T (B::*getter)(lua_State*) const noexcept, const char* debugname)
 {
     using GetType = decltype(getter);
 
@@ -2639,8 +2660,8 @@ void push_class_property_setter(lua_State* L, T U::*value, const char* debugname
     lua_pushcclosure_x(L, &property_setter<T, C>::call, debugname, 1);
 }
 
-template <class C, class T>
-void push_class_property_setter(lua_State* L, void (C::*setter)(T), const char* debugname)
+template <class C, class B, class T>
+void push_class_property_setter(lua_State* L, void (B::*setter)(T), const char* debugname)
 {
     using SetType = decltype(setter);
 
@@ -2648,8 +2669,8 @@ void push_class_property_setter(lua_State* L, void (C::*setter)(T), const char* 
     lua_pushcclosure_x(L, &invoke_member_function<SetType, C>, debugname, 1);
 }
 
-template <class C, class T>
-void push_class_property_setter(lua_State* L, void (C::*setter)(T) noexcept, const char* debugname)
+template <class C, class B, class T>
+void push_class_property_setter(lua_State* L, void (B::*setter)(T) noexcept, const char* debugname)
 {
     using SetType = decltype(setter);
 
@@ -2657,8 +2678,8 @@ void push_class_property_setter(lua_State* L, void (C::*setter)(T) noexcept, con
     lua_pushcclosure_x(L, &invoke_member_function<SetType, C>, debugname, 1);
 }
 
-template <class C, class T>
-void push_class_property_setter(lua_State* L, void (C::*setter)(T, lua_State*), const char* debugname)
+template <class C, class B, class T>
+void push_class_property_setter(lua_State* L, void (B::*setter)(T, lua_State*), const char* debugname)
 {
     using SetType = decltype(setter);
 
@@ -2666,8 +2687,8 @@ void push_class_property_setter(lua_State* L, void (C::*setter)(T, lua_State*), 
     lua_pushcclosure_x(L, &invoke_member_function<SetType, C>, debugname, 1);
 }
 
-template <class C, class T>
-void push_class_property_setter(lua_State* L, void (C::*setter)(T, lua_State*) noexcept, const char* debugname)
+template <class C, class B, class T>
+void push_class_property_setter(lua_State* L, void (B::*setter)(T, lua_State*) noexcept, const char* debugname)
 {
     using SetType = decltype(setter);
 
