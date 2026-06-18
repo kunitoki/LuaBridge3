@@ -1307,10 +1307,9 @@ inline int newindex_metamethod_simple(lua_State* L)
  *
  * The name of the variable is in the first upvalue.
  */
-inline int read_only_error(lua_State* L)
+[[noreturn]] inline int read_only_error(lua_State* L)
 {
     raise_lua_error(L, "'%s' is read-only", lua_tostring(L, lua_upvalueindex(1)));
-    return 0;
 }
 
 //=================================================================================================
