@@ -11,6 +11,11 @@ endif()
 set (CMAKE_CXX_STANDARD_REQUIRED ON)
 set (CMAKE_CXX_EXTENSIONS OFF)
 
+if (MSVC AND CMAKE_CXX_STANDARD GREATER_EQUAL 23)
+    set (CMAKE_CXX23_STANDARD_COMPILE_OPTION "/std:c++latest")
+    set (CMAKE_CXX23_EXTENSION_COMPILE_OPTION "/std:c++latest")
+endif()
+
 find_program (FIND_EXECUTABLE find)
 find_program (LCOV_EXECUTABLE lcov)
 find_program (GENHTML_EXECUTABLE genhtml)

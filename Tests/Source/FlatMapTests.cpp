@@ -6,7 +6,7 @@
 
 #include "LuaBridge/FlatMap.h"
 
-#if LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS
+#if LUABRIDGE_HAS_CXX23_FLAT_MAP
 
 #include <flat_map>
 #include <string>
@@ -168,21 +168,21 @@ TEST_F(FlatMapTests, PassToFunction)
            "end");
 
     auto foo = luabridge::getGlobal(L, "foo");
-    using Int2Bool = std::flat_map<int, bool>;
+    using Int2String = std::flat_map<int, std::string>;
 
     resetResult();
 
-    Int2Bool lvalue{{10, false}, {20, true}, {30, true}};
+    Int2String lvalue{{10, "1"}, {20, "2"}, {30, "3"}};
     ASSERT_TRUE(foo.call(lvalue));
     ASSERT_TRUE(result().isTable());
-    ASSERT_EQ(lvalue, result<Int2Bool>());
+    ASSERT_EQ(lvalue, result<Int2String>());
 
     resetResult();
 
-    const Int2Bool constLvalue = lvalue;
+    const Int2String constLvalue = lvalue;
     ASSERT_TRUE(foo.call(constLvalue));
     ASSERT_TRUE(result().isTable());
-    ASSERT_EQ(constLvalue, result<Int2Bool>());
+    ASSERT_EQ(constLvalue, result<Int2String>());
 }
 
 TEST_F(FlatMapTests, PassFromLua)
@@ -295,4 +295,4 @@ TEST_F(FlatMapTests, PushUnregisteredWithNoExceptionsShouldFailButRestoreStack)
 }
 #endif
 
-#endif // LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS
+#endif // LUABRIDGE_HAS_CXX23_FLAT_MAP
