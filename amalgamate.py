@@ -18,13 +18,13 @@ LOCAL_INCLUDE_FILE_MATCHER = re.compile(r'#include\s*\"([\w.\\/]*)\"')
 
 GUARDED_INCLUDES = [
 	{ "header": "version" },
-	{ "header": "coroutine", "condition": "(__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))" },
-	{ "header": "ranges", "condition": "(__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))" },
-	{ "header": "span", "condition": "(__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))" },
-	{ "header": "flat_map", "condition": "(__cplusplus >= 202302L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202302L))" },
-	{ "header": "flat_set", "condition": "(__cplusplus >= 202302L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202302L))" },
-	{ "header": "expected", "condition": "(__cplusplus >= 202302L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202302L))" },
-	{ "header": "move_only_function", "condition": "(__cplusplus >= 202302L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202302L))" },
+	{ "header": "coroutine", "condition": "(__cplusplus >= 202002L || (defined(_MSC_VER) && _HAS_CXX20))" },
+	{ "header": "ranges", "condition": "(__cplusplus >= 202002L || (defined(_MSC_VER) && _HAS_CXX20))" },
+	{ "header": "span", "condition": "(__cplusplus >= 202002L || (defined(_MSC_VER) && _HAS_CXX20))" },
+	{ "header": "flat_map", "condition": "(__cplusplus >= 202302L || (defined(_MSC_VER) && _HAS_CXX23))" },
+	{ "header": "flat_set", "condition": "(__cplusplus >= 202302L || (defined(_MSC_VER) && _HAS_CXX23))" },
+	{ "header": "expected", "condition": "(__cplusplus >= 202302L || (defined(_MSC_VER) && _HAS_CXX23))" },
+	{ "header": "move_only_function", "condition": "(__cplusplus >= 202302L || (defined(_MSC_VER) && _HAS_CXX23))" },
 ]
 
 def GetGuardedInclude(header):
