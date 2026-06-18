@@ -2500,7 +2500,7 @@ void push_class_property_getter(lua_State* L, T (U::*value), const char* debugna
 template <class C, class B, class T>
 void push_class_property_getter(lua_State* L, T (B::*getter)() const, const char* debugname)
 {
-    static_assert(std::is_same_v<C, B> || std::derived_from<C, B>);
+    static_assert(std::is_same_v<C, B> || std::is_base_of_v<B, C>);
 
     using GetType = decltype(getter);
 
@@ -2511,7 +2511,7 @@ void push_class_property_getter(lua_State* L, T (B::*getter)() const, const char
 template <class C, class B, class T>
 void push_class_property_getter(lua_State* L, T (B::*getter)() const noexcept, const char* debugname)
 {
-    static_assert(std::is_same_v<C, B> || std::derived_from<C, B>);
+    static_assert(std::is_same_v<C, B> || std::is_base_of_v<B, C>);
 
     using GetType = decltype(getter);
 
@@ -2522,7 +2522,7 @@ void push_class_property_getter(lua_State* L, T (B::*getter)() const noexcept, c
 template <class C, class B, class T>
 void push_class_property_getter(lua_State* L, T (B::*getter)(lua_State*) const, const char* debugname)
 {
-    static_assert(std::is_same_v<C, B> || std::derived_from<C, B>);
+    static_assert(std::is_same_v<C, B> || std::is_base_of_v<B, C>);
 
     using GetType = decltype(getter);
 
@@ -2533,7 +2533,7 @@ void push_class_property_getter(lua_State* L, T (B::*getter)(lua_State*) const, 
 template <class C, class B, class T>
 void push_class_property_getter(lua_State* L, T (B::*getter)(lua_State*) const noexcept, const char* debugname)
 {
-    static_assert(std::is_same_v<C, B> || std::derived_from<C, B>);
+    static_assert(std::is_same_v<C, B> || std::is_base_of_v<B, C>);
 
     using GetType = decltype(getter);
 
@@ -2671,7 +2671,7 @@ void push_class_property_setter(lua_State* L, T U::*value, const char* debugname
 template <class C, class B, class T>
 void push_class_property_setter(lua_State* L, void (B::*setter)(T), const char* debugname)
 {
-    static_assert(std::is_same_v<C, B> || std::derived_from<C, B>);
+    static_assert(std::is_same_v<C, B> || std::is_base_of_v<B, C>);
 
     using SetType = decltype(setter);
 
@@ -2682,7 +2682,7 @@ void push_class_property_setter(lua_State* L, void (B::*setter)(T), const char* 
 template <class C, class B, class T>
 void push_class_property_setter(lua_State* L, void (B::*setter)(T) noexcept, const char* debugname)
 {
-    static_assert(std::is_same_v<C, B> || std::derived_from<C, B>);
+    static_assert(std::is_same_v<C, B> || std::is_base_of_v<B, C>);
 
     using SetType = decltype(setter);
 
@@ -2693,7 +2693,7 @@ void push_class_property_setter(lua_State* L, void (B::*setter)(T) noexcept, con
 template <class C, class B, class T>
 void push_class_property_setter(lua_State* L, void (B::*setter)(T, lua_State*), const char* debugname)
 {
-    static_assert(std::is_same_v<C, B> || std::derived_from<C, B>);
+    static_assert(std::is_same_v<C, B> || std::is_base_of_v<B, C>);
 
     using SetType = decltype(setter);
 
@@ -2704,7 +2704,7 @@ void push_class_property_setter(lua_State* L, void (B::*setter)(T, lua_State*), 
 template <class C, class B, class T>
 void push_class_property_setter(lua_State* L, void (B::*setter)(T, lua_State*) noexcept, const char* debugname)
 {
-    static_assert(std::is_same_v<C, B> || std::derived_from<C, B>);
+    static_assert(std::is_same_v<C, B> || std::is_base_of_v<B, C>);
 
     using SetType = decltype(setter);
 
