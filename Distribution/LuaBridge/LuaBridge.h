@@ -8254,7 +8254,7 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
 }
 
 template <bool IsObject>
-inline std::optional<int> try_call_parent_newindex(lua_State* L)
+inline std::optional<int> try_call_parent_newindex_setters(lua_State* L)
 {
     LUABRIDGE_ASSERT(lua_istable(L, -1)); 
 
@@ -8302,6 +8302,37 @@ inline std::optional<int> try_call_parent_newindex(lua_State* L)
         else
         {
             lua_pop(L, 1); 
+        }
+
+        lua_pop(L, 1); 
+    }
+
+    lua_pop(L, 1); 
+    return std::nullopt;
+}
+
+template <bool IsObject>
+inline std::optional<int> try_call_parent_newindex_fallbacks(lua_State* L)
+{
+    LUABRIDGE_ASSERT(lua_istable(L, -1)); 
+
+    lua_rawgetp_x(L, -1, getParentKey()); 
+    if (! lua_istable(L, -1))
+    {
+        lua_pop(L, 1); 
+        return std::nullopt;
+    }
+
+    const int parentListIndex = lua_absindex(L, -1);
+    const int parentCount = get_length(L, parentListIndex);
+
+    for (int i = 1; i <= parentCount; ++i)
+    {
+        lua_rawgeti(L, parentListIndex, i); 
+        if (! lua_istable(L, -1))
+        {
+            lua_pop(L, 1);
+            continue;
         }
 
         lua_rawgetp_x(L, -1, getNewIndexFallbackKey()); 
@@ -8359,6 +8390,9 @@ inline int newindex_metamethod(lua_State* L)
 
     lua_pop(L, 1); 
 
+    if (auto result = try_call_parent_newindex_setters<IsObject>(L))
+        return *result;
+
     if constexpr (IsObject)
     {
         if (auto result = try_call_newindex_fallback(L))
@@ -8384,27 +8418,7 @@ inline int newindex_metamethod(lua_State* L)
         }
     }
 
-    lua_rawgetp_x(L, -1, getPropsetKey()); 
-    if (lua_istable(L, -1))
-    {
-        lua_pushvalue(L, 2); 
-        lua_rawget(L, -2); 
-        lua_remove(L, -2); 
-
-        if (lua_iscfunction(L, -1)) 
-        {
-            lua_remove(L, -2); 
-            if constexpr (IsObject)
-                lua_pushvalue(L, 1); 
-            lua_pushvalue(L, 3); 
-            lua_call(L, IsObject ? 2 : 1, 0); 
-            return 0;
-        }
-    }
-
-    lua_pop(L, 1); 
-
-    if (auto result = try_call_parent_newindex<IsObject>(L))
+    if (auto result = try_call_parent_newindex_fallbacks<IsObject>(L))
         return *result;
 
     if constexpr (IsObject)

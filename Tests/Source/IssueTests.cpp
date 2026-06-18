@@ -4,6 +4,9 @@
 
 #include "TestBase.h"
 
+#include <map>
+#include <string>
+
 struct IssueTests : TestBase
 {
 };
@@ -265,4 +268,155 @@ TEST_F(IssueTests, IssueMainThread)
 
     luabridge::LuaRef test = luabridge::getGlobal(L, "test");
     EXPECT_TRUE(test.call());
+}
+
+// =============================================================================
+// Issue 242: try_call_parent_newindex must scan all parent setters before
+//            considering any __newindex fallback.
+// =============================================================================
+
+namespace {
+
+struct Issue242Base
+{
+    int x = 0;
+    std::map<std::string, int> extra;
+
+    int getX() const { return x; }
+    void setX(int v) { x = v; }
+};
+
+struct Issue242Middle : Issue242Base
+{
+    // Intermediate class that adds a __newindex fallback.
+    // fallbackWritten tracks whether the fallback was called.
+    bool fallbackWritten = false;
+
+    luabridge::LuaRef onNewIndex(const luabridge::LuaRef& key, const luabridge::LuaRef& value, lua_State* L)
+    {
+        fallbackWritten = true;
+        extra[key.tostring()] = value.unsafe_cast<int>();
+        return value;
+    }
+
+    luabridge::LuaRef onIndex(const luabridge::LuaRef& key, lua_State* L)
+    {
+        auto it = extra.find(key.tostring());
+        if (it != extra.end())
+        {
+            auto res = luabridge::push(L, it->second);
+            (void)res;
+            return luabridge::LuaRef::fromStack(L);
+        }
+        lua_pushnil(L);
+        return luabridge::LuaRef::fromStack(L);
+    }
+};
+
+struct Issue242Derived : Issue242Middle
+{
+    // Most-derived class; inherits everything from Middle and Base.
+};
+
+} // namespace
+
+// Scenario 1 (from the issue): Base has a setter for 'x'; Derived has a __newindex
+// fallback.  Setting 'x' on a Derived instance must invoke Base's setter, NOT the
+// fallback.
+TEST_F(IssueTests, Issue242_BaseSetterTakesPriorityOverDerivedNewIndexFallback)
+{
+    Issue242Middle obj;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Issue242Base>("Base")
+            .addProperty("x", &Issue242Base::getX, &Issue242Base::setX)
+        .endClass()
+        .deriveClass<Issue242Middle, Issue242Base>("Middle")
+            .addIndexMetaMethod(&Issue242Middle::onIndex)
+            .addNewIndexMetaMethod(&Issue242Middle::onNewIndex)
+        .endClass();
+
+    luabridge::setGlobal(L, &obj, "obj");
+
+    // Writing 'x' must reach the registered setter, not the fallback.
+    ASSERT_TRUE(runLua("obj.x = 99"));
+    EXPECT_EQ(99, obj.x);
+    EXPECT_FALSE(obj.fallbackWritten);
+
+    // Reading 'x' back must return the value set via the C++ property.
+    ASSERT_TRUE(runLua("result = obj.x"));
+    EXPECT_EQ(99, result<int>());
+}
+
+// Scenario 2: deep hierarchy — A has a setter; B (intermediate) has a __newindex
+// fallback; C (most-derived) has neither.  Setting 'x' on a C instance must invoke
+// A's setter, skipping B's fallback.
+TEST_F(IssueTests, Issue242_DeepHierarchyBaseSetterTakesPriorityOverIntermediateNewIndexFallback)
+{
+    Issue242Derived obj;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Issue242Base>("Base")
+            .addProperty("x", &Issue242Base::getX, &Issue242Base::setX)
+        .endClass()
+        .deriveClass<Issue242Middle, Issue242Base>("Middle")
+            .addIndexMetaMethod(&Issue242Middle::onIndex)
+            .addNewIndexMetaMethod(&Issue242Middle::onNewIndex)
+        .endClass()
+        .deriveClass<Issue242Derived, Issue242Middle>("Derived")
+        .endClass();
+
+    luabridge::setGlobal(L, &obj, "obj");
+
+    ASSERT_TRUE(runLua("obj.x = 42"));
+    EXPECT_EQ(42, obj.x);
+    EXPECT_FALSE(obj.fallbackWritten);
+}
+
+// Scenario 3: the __newindex fallback is still invoked for keys that have no
+// registered setter anywhere in the hierarchy.
+TEST_F(IssueTests, Issue242_NewIndexFallbackCalledForUnregisteredProperties)
+{
+    Issue242Middle obj;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Issue242Base>("Base")
+            .addProperty("x", &Issue242Base::getX, &Issue242Base::setX)
+        .endClass()
+        .deriveClass<Issue242Middle, Issue242Base>("Middle")
+            .addIndexMetaMethod(&Issue242Middle::onIndex)
+            .addNewIndexMetaMethod(&Issue242Middle::onNewIndex)
+        .endClass();
+
+    luabridge::setGlobal(L, &obj, "obj");
+
+    // 'y' has no setter in the hierarchy → fallback must be called.
+    ASSERT_TRUE(runLua("obj.y = 7"));
+    EXPECT_TRUE(obj.fallbackWritten);
+    EXPECT_EQ(7, obj.extra["y"]);
+    // 'x' is still handled by the C++ setter.
+    ASSERT_TRUE(runLua("obj.x = 5"));
+    EXPECT_EQ(5, obj.x);
+}
+
+// Scenario 4: a setter defined on the derived class itself still takes priority
+// over a __newindex fallback on the same class.
+TEST_F(IssueTests, Issue242_DerivedOwnSetterTakesPriorityOverItsOwnNewIndexFallback)
+{
+    Issue242Middle obj;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Issue242Base>("Base")
+        .endClass()
+        .deriveClass<Issue242Middle, Issue242Base>("Middle")
+            .addProperty("x", &Issue242Base::getX, &Issue242Base::setX)
+            .addIndexMetaMethod(&Issue242Middle::onIndex)
+            .addNewIndexMetaMethod(&Issue242Middle::onNewIndex)
+        .endClass();
+
+    luabridge::setGlobal(L, &obj, "obj");
+
+    ASSERT_TRUE(runLua("obj.x = 11"));
+    EXPECT_EQ(11, obj.x);
+    EXPECT_FALSE(obj.fallbackWritten);
 }

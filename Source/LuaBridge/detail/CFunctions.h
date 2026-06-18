@@ -1045,8 +1045,14 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
     return 0;
 }
 
+/**
+ * @brief Scan the flattened parent list for a property setter matching the key (stack[2]).
+ *
+ * Only setters are checked; __newindex fallbacks are intentionally ignored so that a
+ * registered property anywhere in the hierarchy always takes priority over any fallback.
+ */
 template <bool IsObject>
-inline std::optional<int> try_call_parent_newindex(lua_State* L)
+inline std::optional<int> try_call_parent_newindex_setters(lua_State* L)
 {
     LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt
 
@@ -1094,6 +1100,43 @@ inline std::optional<int> try_call_parent_newindex(lua_State* L)
         else
         {
             lua_pop(L, 1); // Stack: mt, parent list, parent mt
+        }
+
+        lua_pop(L, 1); // Stack: mt, parent list
+    }
+
+    lua_pop(L, 1); // Stack: mt
+    return std::nullopt;
+}
+
+/**
+ * @brief Scan the flattened parent list for a __newindex fallback.
+ *
+ * Only fallbacks are checked; property setters are intentionally ignored because they
+ * have already been searched by try_call_parent_newindex_setters.
+ */
+template <bool IsObject>
+inline std::optional<int> try_call_parent_newindex_fallbacks(lua_State* L)
+{
+    LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt
+
+    lua_rawgetp_x(L, -1, getParentKey()); // Stack: mt, parent list | nil
+    if (! lua_istable(L, -1))
+    {
+        lua_pop(L, 1); // Stack: mt
+        return std::nullopt;
+    }
+
+    const int parentListIndex = lua_absindex(L, -1);
+    const int parentCount = get_length(L, parentListIndex);
+
+    for (int i = 1; i <= parentCount; ++i)
+    {
+        lua_rawgeti(L, parentListIndex, i); // Stack: mt, parent list, parent mt
+        if (! lua_istable(L, -1))
+        {
+            lua_pop(L, 1);
+            continue;
         }
 
         lua_rawgetp_x(L, -1, getNewIndexFallbackKey()); // Stack: mt, parent list, parent mt, nifb | nil
@@ -1152,6 +1195,13 @@ inline int newindex_metamethod(lua_State* L)
 
     lua_pop(L, 1); // Stack: mt
 
+    // Before consulting any __newindex fallback, scan the entire parent hierarchy for a
+    // matching property setter.  This ensures that a registered property anywhere in the
+    // inheritance chain always takes priority over a __newindex fallback defined at a
+    // narrower scope (e.g. an intermediate or leaf class).
+    if (auto result = try_call_parent_newindex_setters<IsObject>(L))
+        return *result;
+
     if constexpr (IsObject)
     {
         if (auto result = try_call_newindex_fallback(L))
@@ -1178,28 +1228,7 @@ inline int newindex_metamethod(lua_State* L)
         }
     }
 
-    // Try in the propget key
-    lua_rawgetp_x(L, -1, getPropsetKey()); // Stack: mt, propset table (ps)
-    if (lua_istable(L, -1))
-    {
-        lua_pushvalue(L, 2); // Stack: mt, ps, field name
-        lua_rawget(L, -2); // Stack: mt, ps, setter | nil
-        lua_remove(L, -2); // Stack: mt, setter | nil
-
-        if (lua_iscfunction(L, -1)) // Stack: mt, setter
-        {
-            lua_remove(L, -2); // Stack: setter
-            if constexpr (IsObject)
-                lua_pushvalue(L, 1); // Stack: setter, table | userdata
-            lua_pushvalue(L, 3); // Stack: setter, table | userdata, new value
-            lua_call(L, IsObject ? 2 : 1, 0); // Stack: -
-            return 0;
-        }
-    }
-
-    lua_pop(L, 1); // Stack: mt
-
-    if (auto result = try_call_parent_newindex<IsObject>(L))
+    if (auto result = try_call_parent_newindex_fallbacks<IsObject>(L))
         return *result;
 
     if constexpr (IsObject)
