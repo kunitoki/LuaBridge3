@@ -48,27 +48,27 @@
 #include <version>
 #endif
 
-#if defined(__has_include) && __has_include(<span>) && (__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))
+#if defined(__has_include) && __has_include(<span>) && (__cplusplus >= 202002L || (defined(_MSC_VER) && _HAS_CXX20))
 #include <span>
 #endif
 
-#if defined(__has_include) && __has_include(<ranges>) && (__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))
+#if defined(__has_include) && __has_include(<ranges>) && (__cplusplus >= 202002L || (defined(_MSC_VER) && _HAS_CXX20))
 #include <ranges>
 #endif
 
-#if defined(__has_include) && __has_include(<flat_set>) && (__cplusplus >= 202302L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202302L))
+#if defined(__has_include) && __has_include(<flat_set>) && (__cplusplus >= 202302L || (defined(_MSC_VER) && _HAS_CXX23))
 #include <flat_set>
 #endif
 
-#if defined(__has_include) && __has_include(<flat_map>) && (__cplusplus >= 202302L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202302L))
+#if defined(__has_include) && __has_include(<flat_map>) && (__cplusplus >= 202302L || (defined(_MSC_VER) && _HAS_CXX23))
 #include <flat_map>
 #endif
 
-#if defined(__has_include) && __has_include(<expected>) && (__cplusplus >= 202302L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202302L))
+#if defined(__has_include) && __has_include(<expected>) && (__cplusplus >= 202302L || (defined(_MSC_VER) && _HAS_CXX23))
 #include <expected>
 #endif
 
-#if defined(__has_include) && __has_include(<coroutine>) && (__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))
+#if defined(__has_include) && __has_include(<coroutine>) && (__cplusplus >= 202002L || (defined(_MSC_VER) && _HAS_CXX20))
 #include <coroutine>
 #endif
 
@@ -8505,9 +8505,10 @@ inline int newindex_metamethod_simple(lua_State* L)
     return 0;
 }
 
-[[noreturn]] inline int read_only_error(lua_State* L)
+inline int read_only_error(lua_State* L)
 {
     raise_lua_error(L, "'%s' is read-only", lua_tostring(L, lua_upvalueindex(1)));
+    return 0;
 }
 
 template <class C>
