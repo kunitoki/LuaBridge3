@@ -7640,7 +7640,7 @@ inline std::optional<int> try_call_index_extensible(lua_State* L, const char* ke
 }
 
 template <bool IsObject>
-inline std::optional<int> try_call_parent_index_fallback(lua_State* L, const char* key)
+inline std::optional<int> try_call_parent_index_extensibles(lua_State* L, const char* key)
 {
     LUABRIDGE_ASSERT(lua_istable(L, -1)); 
 
@@ -7675,6 +7675,40 @@ inline std::optional<int> try_call_parent_index_fallback(lua_State* L, const cha
                 lua_remove(L, -2); 
                 return *result;
             }
+        }
+
+        lua_pop(L, 1); 
+    }
+
+    lua_pop(L, 1); 
+    return std::nullopt;
+}
+
+template <bool IsObject>
+inline std::optional<int> try_call_parent_index_fallbacks(lua_State* L, const char* key)
+{
+    LUABRIDGE_ASSERT(lua_istable(L, -1)); 
+
+    if (key == nullptr)
+        return std::nullopt;
+
+    lua_rawgetp_x(L, -1, getParentKey()); 
+    if (! lua_istable(L, -1))
+    {
+        lua_pop(L, 1); 
+        return std::nullopt;
+    }
+
+    const int parentListIndex = lua_absindex(L, -1);
+    const int parentCount = get_length(L, parentListIndex);
+
+    for (int i = 1; i <= parentCount; ++i)
+    {
+        lua_rawgeti(L, parentListIndex, i); 
+        if (! lua_istable(L, -1))
+        {
+            lua_pop(L, 1);
+            continue;
         }
 
         lua_rawgetp_x(L, -1, getIndexFallbackKey()); 
@@ -7727,15 +7761,24 @@ inline int index_metamethod(lua_State* L)
 
     for (;;)
     {
+        const Options options = get_class_options(L, -1); 
+
+        // For static __index: the static fallback takes priority over registered static
+        // property getters so that a user-defined static __index fallback can shadow
+        // static properties.
+        // For instance __index with allowOverridingMethods: the instance fallback takes
+        // priority over class-table Lua methods, enabling Lua-side method overrides via
+        // __newindex.
         if constexpr (IsObject)
         {
-            
-            if (auto result = try_call_index_fallback(L))
-                return *result;
+            if (options.test(extensibleClass | allowOverridingMethods))
+            {
+                if (auto result = try_call_index_fallback(L))
+                    return *result;
+            }
         }
         else
         {
-            
             if (auto result = try_call_static_index_fallback(L))
                 return *result;
         }
@@ -7773,7 +7816,6 @@ inline int index_metamethod(lua_State* L)
         LUABRIDGE_ASSERT(lua_isnil(L, -1)); 
         lua_pop(L, 1); 
 
-        const Options options = get_class_options(L, -1); 
         if (options.test(extensibleClass | allowOverridingMethods))
         {
             if (auto result = try_call_index_extensible<IsObject>(L, key))
@@ -7866,7 +7908,21 @@ inline int index_metamethod(lua_State* L)
             return *result;
     }
 
-    if (auto result = try_call_parent_index_fallback<IsObject>(L, key))
+    if (auto result = try_call_parent_index_extensibles<IsObject>(L, key))
+        return *result;
+
+    if constexpr (IsObject)
+    {
+        if (auto result = try_call_index_fallback(L))
+            return *result;
+    }
+    else
+    {
+        if (auto result = try_call_static_index_fallback(L))
+            return *result;
+    }
+
+    if (auto result = try_call_parent_index_fallbacks<IsObject>(L, key))
         return *result;
 
     lua_pop(L, 1); 
@@ -8262,7 +8318,7 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
 }
 
 template <bool IsObject>
-inline std::optional<int> try_call_parent_newindex(lua_State* L)
+inline std::optional<int> try_call_parent_newindex_setters(lua_State* L)
 {
     LUABRIDGE_ASSERT(lua_istable(L, -1)); 
 
@@ -8310,6 +8366,37 @@ inline std::optional<int> try_call_parent_newindex(lua_State* L)
         else
         {
             lua_pop(L, 1); 
+        }
+
+        lua_pop(L, 1); 
+    }
+
+    lua_pop(L, 1); 
+    return std::nullopt;
+}
+
+template <bool IsObject>
+inline std::optional<int> try_call_parent_newindex_fallbacks(lua_State* L)
+{
+    LUABRIDGE_ASSERT(lua_istable(L, -1)); 
+
+    lua_rawgetp_x(L, -1, getParentKey()); 
+    if (! lua_istable(L, -1))
+    {
+        lua_pop(L, 1); 
+        return std::nullopt;
+    }
+
+    const int parentListIndex = lua_absindex(L, -1);
+    const int parentCount = get_length(L, parentListIndex);
+
+    for (int i = 1; i <= parentCount; ++i)
+    {
+        lua_rawgeti(L, parentListIndex, i); 
+        if (! lua_istable(L, -1))
+        {
+            lua_pop(L, 1);
+            continue;
         }
 
         lua_rawgetp_x(L, -1, getNewIndexFallbackKey()); 
@@ -8367,6 +8454,9 @@ inline int newindex_metamethod(lua_State* L)
 
     lua_pop(L, 1); 
 
+    if (auto result = try_call_parent_newindex_setters<IsObject>(L))
+        return *result;
+
     if constexpr (IsObject)
     {
         if (auto result = try_call_newindex_fallback(L))
@@ -8392,27 +8482,7 @@ inline int newindex_metamethod(lua_State* L)
         }
     }
 
-    lua_rawgetp_x(L, -1, getPropsetKey()); 
-    if (lua_istable(L, -1))
-    {
-        lua_pushvalue(L, 2); 
-        lua_rawget(L, -2); 
-        lua_remove(L, -2); 
-
-        if (lua_iscfunction(L, -1)) 
-        {
-            lua_remove(L, -2); 
-            if constexpr (IsObject)
-                lua_pushvalue(L, 1); 
-            lua_pushvalue(L, 3); 
-            lua_call(L, IsObject ? 2 : 1, 0); 
-            return 0;
-        }
-    }
-
-    lua_pop(L, 1); 
-
-    if (auto result = try_call_parent_newindex<IsObject>(L))
+    if (auto result = try_call_parent_newindex_fallbacks<IsObject>(L))
         return *result;
 
     if constexpr (IsObject)
@@ -9454,36 +9524,44 @@ void push_class_property_getter(lua_State* L, T (U::*value), const char* debugna
     lua_pushcclosure_x(L, &property_getter<T, C>::call, debugname, 1);
 }
 
-template <class C, class T>
-void push_class_property_getter(lua_State* L, T (C::*getter)() const, const char* debugname)
+template <class C, class B, class T>
+void push_class_property_getter(lua_State* L, T (B::*getter)() const, const char* debugname)
 {
+    static_assert(std::is_same_v<C, B> || std::is_base_of_v<B, C>);
+
     using GetType = decltype(getter);
 
     new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(getter);
     lua_pushcclosure_x(L, &invoke_const_member_function<GetType, C>, debugname, 1);
 }
 
-template <class C, class T>
-void push_class_property_getter(lua_State* L, T (C::*getter)() const noexcept, const char* debugname)
+template <class C, class B, class T>
+void push_class_property_getter(lua_State* L, T (B::*getter)() const noexcept, const char* debugname)
 {
+    static_assert(std::is_same_v<C, B> || std::is_base_of_v<B, C>);
+
     using GetType = decltype(getter);
 
     new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(getter);
     lua_pushcclosure_x(L, &invoke_const_member_function<GetType, C>, debugname, 1);
 }
 
-template <class C, class T>
-void push_class_property_getter(lua_State* L, T (C::*getter)(lua_State*) const, const char* debugname)
+template <class C, class B, class T>
+void push_class_property_getter(lua_State* L, T (B::*getter)(lua_State*) const, const char* debugname)
 {
+    static_assert(std::is_same_v<C, B> || std::is_base_of_v<B, C>);
+
     using GetType = decltype(getter);
 
     new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(getter);
     lua_pushcclosure_x(L, &invoke_const_member_function<GetType, C>, debugname, 1);
 }
 
-template <class C, class T>
-void push_class_property_getter(lua_State* L, T (C::*getter)(lua_State*) const noexcept, const char* debugname)
+template <class C, class B, class T>
+void push_class_property_getter(lua_State* L, T (B::*getter)(lua_State*) const noexcept, const char* debugname)
 {
+    static_assert(std::is_same_v<C, B> || std::is_base_of_v<B, C>);
+
     using GetType = decltype(getter);
 
     new (lua_newuserdata_x<GetType>(L, sizeof(GetType))) GetType(getter);
@@ -9609,36 +9687,44 @@ void push_class_property_setter(lua_State* L, T U::*value, const char* debugname
     lua_pushcclosure_x(L, &property_setter<T, C>::call, debugname, 1);
 }
 
-template <class C, class T>
-void push_class_property_setter(lua_State* L, void (C::*setter)(T), const char* debugname)
+template <class C, class B, class T>
+void push_class_property_setter(lua_State* L, void (B::*setter)(T), const char* debugname)
 {
+    static_assert(std::is_same_v<C, B> || std::is_base_of_v<B, C>);
+
     using SetType = decltype(setter);
 
     new (lua_newuserdata_x<SetType>(L, sizeof(SetType))) SetType(setter);
     lua_pushcclosure_x(L, &invoke_member_function<SetType, C>, debugname, 1);
 }
 
-template <class C, class T>
-void push_class_property_setter(lua_State* L, void (C::*setter)(T) noexcept, const char* debugname)
+template <class C, class B, class T>
+void push_class_property_setter(lua_State* L, void (B::*setter)(T) noexcept, const char* debugname)
 {
+    static_assert(std::is_same_v<C, B> || std::is_base_of_v<B, C>);
+
     using SetType = decltype(setter);
 
     new (lua_newuserdata_x<SetType>(L, sizeof(SetType))) SetType(setter);
     lua_pushcclosure_x(L, &invoke_member_function<SetType, C>, debugname, 1);
 }
 
-template <class C, class T>
-void push_class_property_setter(lua_State* L, void (C::*setter)(T, lua_State*), const char* debugname)
+template <class C, class B, class T>
+void push_class_property_setter(lua_State* L, void (B::*setter)(T, lua_State*), const char* debugname)
 {
+    static_assert(std::is_same_v<C, B> || std::is_base_of_v<B, C>);
+
     using SetType = decltype(setter);
 
     new (lua_newuserdata_x<SetType>(L, sizeof(SetType))) SetType(setter);
     lua_pushcclosure_x(L, &invoke_member_function<SetType, C>, debugname, 1);
 }
 
-template <class C, class T>
-void push_class_property_setter(lua_State* L, void (C::*setter)(T, lua_State*) noexcept, const char* debugname)
+template <class C, class B, class T>
+void push_class_property_setter(lua_State* L, void (B::*setter)(T, lua_State*) noexcept, const char* debugname)
 {
+    static_assert(std::is_same_v<C, B> || std::is_base_of_v<B, C>);
+
     using SetType = decltype(setter);
 
     new (lua_newuserdata_x<SetType>(L, sizeof(SetType))) SetType(setter);
