@@ -217,11 +217,19 @@
 #endif
 #endif
 
-#if !defined(LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS)
-#if !defined(LUABRIDGE_DISABLE_CXX23_FLAT_CONTAINERS) && LUABRIDGE_CXX23_OR_GREATER && __has_include(<flat_map>) && __has_include(<flat_set>) && defined(__cpp_lib_flat_map)
-#define LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS 1
+#if !defined(LUABRIDGE_HAS_CXX23_FLAT_MAP)
+#if !defined(LUABRIDGE_DISABLE_CXX23_FLAT_MAP) && LUABRIDGE_CXX23_OR_GREATER && __has_include(<flat_map>) && defined(__cpp_lib_flat_map)
+#define LUABRIDGE_HAS_CXX23_FLAT_MAP 1
 #else
-#define LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS 0
+#define LUABRIDGE_HAS_CXX23_FLAT_MAP 0
+#endif
+#endif
+
+#if !defined(LUABRIDGE_HAS_CXX23_FLAT_SET)
+#if !defined(LUABRIDGE_DISABLE_CXX23_FLAT_SET) && LUABRIDGE_CXX23_OR_GREATER && __has_include(<flat_set>) && defined(__cpp_lib_flat_set)
+#define LUABRIDGE_HAS_CXX23_FLAT_SET 1
+#else
+#define LUABRIDGE_HAS_CXX23_FLAT_SET 0
 #endif
 #endif
 
@@ -433,7 +441,7 @@ struct functor_traits_impl
 };
 
 template <class F>
-struct functor_traits_impl<F, std::enable_if_t<has_call_operator_v<F>>> : function_traits_impl<decltype(&F::operator()), true>
+struct functor_traits_impl<F, std::enable_if_t<has_call_operator_v<F> && !is_move_only_function_v<F>>> : function_traits_impl<decltype(&F::operator()), true>
 {
 };
 
@@ -6883,7 +6891,7 @@ inline void dumpState(lua_State* L, unsigned maxDepth = 1, std::ostream& stream 
 
 // Begin File: Source/LuaBridge/FlatMap.h
 
-#if LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS
+#if LUABRIDGE_HAS_CXX23_FLAT_MAP
 
 namespace luabridge {
 
@@ -6964,7 +6972,7 @@ struct Stack<std::flat_map<K, V, Compare, KeyContainer, MappedContainer>>
 
 // Begin File: Source/LuaBridge/FlatSet.h
 
-#if LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS
+#if LUABRIDGE_HAS_CXX23_FLAT_SET
 
 namespace luabridge {
 
