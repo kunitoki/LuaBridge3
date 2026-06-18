@@ -230,16 +230,30 @@
 #endif
 
 /**
- * @brief Enable C++23 flat containers library support.
+ * @brief Enable C++23 flat map library support.
  *
  * Requires C++23 and the flat_map header to be available.
- * Define LUABRIDGE_DISABLE_CXX23_FLAT_CONTAINERS to force-disable even when available.
+ * Define LUABRIDGE_DISABLE_CXX23_FLAT_MAP to force-disable even when available.
  */
-#if !defined(LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS)
-#if !defined(LUABRIDGE_DISABLE_CXX23_FLAT_CONTAINERS) && LUABRIDGE_CXX23_OR_GREATER && __has_include(<flat_map>) && __has_include(<flat_set>) && defined(__cpp_lib_flat_map)
-#define LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS 1
+#if !defined(LUABRIDGE_HAS_CXX23_FLAT_MAP)
+#if !defined(LUABRIDGE_DISABLE_CXX23_FLAT_MAP) && LUABRIDGE_CXX23_OR_GREATER && __has_include(<flat_map>) && defined(__cpp_lib_flat_map)
+#define LUABRIDGE_HAS_CXX23_FLAT_MAP 1
 #else
-#define LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS 0
+#define LUABRIDGE_HAS_CXX23_FLAT_MAP 0
+#endif
+#endif
+
+/**
+ * @brief Enable C++23 flat set library support.
+ *
+ * Requires C++23 and the flat_set header to be available.
+ * Define LUABRIDGE_DISABLE_CXX23_FLAT_SET to force-disable even when available.
+ */
+#if !defined(LUABRIDGE_HAS_CXX23_FLAT_SET)
+#if !defined(LUABRIDGE_DISABLE_CXX23_FLAT_SET) && LUABRIDGE_CXX23_OR_GREATER && __has_include(<flat_set>) && defined(__cpp_lib_flat_set)
+#define LUABRIDGE_HAS_CXX23_FLAT_SET 1
+#else
+#define LUABRIDGE_HAS_CXX23_FLAT_SET 0
 #endif
 #endif
 

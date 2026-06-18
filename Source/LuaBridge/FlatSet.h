@@ -6,7 +6,7 @@
 
 #include "detail/Stack.h"
 
-#if LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS
+#if LUABRIDGE_HAS_CXX23_FLAT_SET
 
 #include <flat_set>
 
@@ -81,4 +81,4 @@ struct Stack<std::flat_set<K, Compare, Container>>
 
 } // namespace luabridge
 
-#endif // LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS
+#endif // LUABRIDGE_HAS_CXX23_FLAT_SET
