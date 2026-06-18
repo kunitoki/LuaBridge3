@@ -227,7 +227,7 @@ struct functor_traits_impl
 };
 
 template <class F>
-struct functor_traits_impl<F, std::enable_if_t<has_call_operator_v<F>>> : function_traits_impl<decltype(&F::operator()), true>
+struct functor_traits_impl<F, std::enable_if_t<has_call_operator_v<F> && !is_move_only_function_v<F>>> : function_traits_impl<decltype(&F::operator()), true>
 {
 };
 

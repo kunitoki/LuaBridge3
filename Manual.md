@@ -93,8 +93,9 @@ Contents
     * [6.8 - LUABRIDGE_HAS_CXX20_SPAN / LUABRIDGE_DISABLE_CXX20_SPAN](#68---luabridge-has-cxx20-span--luabridge-disable-cxx20-span)
     * [6.9 - LUABRIDGE_HAS_CXX20_RANGES / LUABRIDGE_DISABLE_CXX20_RANGES](#69---luabridge-has-cxx20-ranges--luabridge-disable-cxx20-ranges)
     * [6.10 - LUABRIDGE_HAS_CXX23_EXPECTED / LUABRIDGE_DISABLE_CXX23_EXPECTED](#610---luabridge-has-cxx23-expected--luabridge-disable-cxx23-expected)
-    * [6.11 - LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS / LUABRIDGE_DISABLE_CXX23_FLAT_CONTAINERS](#611---luabridge-has-cxx23-flat-containers--luabridge-disable-cxx23-flat-containers)
-    * [6.12 - LUABRIDGE_HAS_CXX23_MOVE_ONLY_FUNCTION / LUABRIDGE_DISABLE_CXX23_MOVE_ONLY_FUNCTION](#612---luabridge-has-cxx23-move-only-function--luabridge-disable-cxx23-move-only-function)
+    * [6.11 - LUABRIDGE_HAS_CXX23_FLAT_MAP / LUABRIDGE_DISABLE_CXX23_FLAT_MAP](#611---luabridge-has-cxx23-flat-map--luabridge-disable-cxx23-flat-map)
+    * [6.12 - LUABRIDGE_HAS_CXX23_FLAT_SET / LUABRIDGE_DISABLE_CXX23_FLAT_SET](#612---luabridge-has-cxx23-flat-set--luabridge-disable-cxx23-flat-set)
+    * [6.13 - LUABRIDGE_HAS_CXX23_MOVE_ONLY_FUNCTION / LUABRIDGE_DISABLE_CXX23_MOVE_ONLY_FUNCTION](#612---luabridge-has-cxx23-move-only-function--luabridge-disable-cxx23-move-only-function)
 
 *   [Appendix - API Reference](#appendix---api-reference)
 
@@ -1463,8 +1464,8 @@ The table below lists every optional header and its requirements:
 | `LuaBridge/Any.h` | `std::any` | C++17 (`LUABRIDGE_HAS_CXX17_ANY`) | Push-only; types must be pre-registered with `luabridge::registerAnyPush<T>(L)` |
 | `LuaBridge/Span.h` | `std::span<T>` | C++20 (`LUABRIDGE_HAS_CXX20_SPAN`) | Push-only; use `std::vector<T>` to retrieve sequences from Lua |
 | `LuaBridge/StdExpected.h` | `std::expected<T,E>` | C++23 (`LUABRIDGE_HAS_CXX23_EXPECTED`) | Pushes the value on success, nil on error |
-| `LuaBridge/FlatMap.h` | `std::flat_map<K,V>` | C++23 (`LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS`) | Ordered key-value table backed by contiguous storage |
-| `LuaBridge/FlatSet.h` | `std::flat_set<K>` | C++23 (`LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS`) | Ordered set backed by contiguous storage |
+| `LuaBridge/FlatMap.h` | `std::flat_map<K,V>` | C++23 (`LUABRIDGE_HAS_CXX23_FLAT_MAP`) | Ordered key-value table backed by contiguous storage |
+| `LuaBridge/FlatSet.h` | `std::flat_set<K>` | C++23 (`LUABRIDGE_HAS_CXX23_FLAT_SET`) | Ordered set backed by contiguous storage |
 
 `std::filesystem::path` is also supported as a built-in type when C++17 filesystem is available (`LUABRIDGE_HAS_CXX17_FILESYSTEM`). It is converted to and from a Lua string automatically; no additional header is required beyond `LuaBridge/LuaBridge.h`.
 
@@ -2530,21 +2531,35 @@ To force the feature off:
 #include <LuaBridge/LuaBridge.h>
 ```
 
-6.11 - LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS / LUABRIDGE_DISABLE_CXX23_FLAT_CONTAINERS
+6.11 - LUABRIDGE_HAS_CXX23_FLAT_MAP / LUABRIDGE_DISABLE_CXX23_FLAT_MAP
 -------------------------------------------------------------------------------------
 
-**`LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS` - auto-detected when C++23 is enabled, override allowed**
+**`LUABRIDGE_HAS_CXX23_FLAT_MAP` - auto-detected when C++23 is enabled, override allowed**
 
-When a C++23 compiler and `<flat_map>` are available, LuaBridge enables conversion support for `std::flat_map` and `std::flat_set` via `LuaBridge/FlatMap.h` and `LuaBridge/FlatSet.h` respectively. These are contiguous-storage analogues of `std::map` and `std::set` with identical Lua table semantics.
+When a C++23 compiler and `<flat_map>` are available, LuaBridge enables conversion support for `std::flat_map` via `LuaBridge/FlatMap.h`. This is a contiguous-storage analogue of `std::map` with identical Lua table semantics.
 
 To force the feature off:
 
 ```cpp
-#define LUABRIDGE_DISABLE_CXX23_FLAT_CONTAINERS
+#define LUABRIDGE_DISABLE_CXX23_FLAT_MAP
 #include <LuaBridge/LuaBridge.h>
 ```
 
-6.12 - LUABRIDGE_HAS_CXX23_MOVE_ONLY_FUNCTION / LUABRIDGE_DISABLE_CXX23_MOVE_ONLY_FUNCTION
+6.12 - LUABRIDGE_HAS_CXX23_FLAT_SET / LUABRIDGE_DISABLE_CXX23_FLAT_SET
+-------------------------------------------------------------------------------------
+
+**`LUABRIDGE_HAS_CXX23_FLAT_SET` - auto-detected when C++23 is enabled, override allowed**
+
+When a C++23 compiler and `<flat_set>` are available, LuaBridge enables conversion support for `std::flat_set` via `LuaBridge/FlatSet.h`. This is a contiguous-storage analogue of `std::set` with identical Lua table semantics.
+
+To force the feature off:
+
+```cpp
+#define LUABRIDGE_DISABLE_CXX23_FLAT_SET
+#include <LuaBridge/LuaBridge.h>
+```
+
+6.13 - LUABRIDGE_HAS_CXX23_MOVE_ONLY_FUNCTION / LUABRIDGE_DISABLE_CXX23_MOVE_ONLY_FUNCTION
 -------------------------------------------------------------------------------------------
 
 **`LUABRIDGE_HAS_CXX23_MOVE_ONLY_FUNCTION` - auto-detected when C++23 is enabled, override allowed**

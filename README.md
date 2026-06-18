@@ -143,7 +143,8 @@ LuaBridge3 auto-detects available C++ standard library features and activates th
 | `LUABRIDGE_HAS_CXX20_RANGES` | `Iterator`/`Range` satisfy `std::ranges` concepts | C++20 |
 | `LUABRIDGE_HAS_CXX20_COROUTINES` | `CppCoroutine<R>` / `LuaCoroutine` | C++20 |
 | `LUABRIDGE_HAS_CXX23_EXPECTED` | `std::expected<T,E>` conversion | C++23 |
-| `LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS` | `std::flat_map` / `std::flat_set` | C++23 |
+| `LUABRIDGE_HAS_CXX23_FLAT_MAP` | `std::flat_map` | C++23 |
+| `LUABRIDGE_HAS_CXX23_FLAT_SET` | `std::flat_set` | C++23 |
 | `LUABRIDGE_HAS_CXX23_MOVE_ONLY_FUNCTION` | `std::move_only_function` as callable | C++23 |
 
 ## Documentation

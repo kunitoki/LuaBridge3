@@ -6,7 +6,7 @@
 
 #include "LuaBridge/FlatSet.h"
 
-#if LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS
+#if LUABRIDGE_HAS_CXX23_FLAT_SET
 
 #include <flat_set>
 #include <string>
@@ -257,4 +257,4 @@ TEST_F(FlatSetTests, PushUnregisteredWithNoExceptionsShouldFailButRestoreStack)
 }
 #endif
 
-#endif // LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS
+#endif // LUABRIDGE_HAS_CXX23_FLAT_SET

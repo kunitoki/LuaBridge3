@@ -6,7 +6,7 @@
 
 #include "detail/Stack.h"
 
-#if LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS
+#if LUABRIDGE_HAS_CXX23_FLAT_MAP
 
 #include <flat_map>
 
@@ -86,4 +86,4 @@ struct Stack<std::flat_map<K, V, Compare, KeyContainer, MappedContainer>>
 
 } // namespace luabridge
 
-#endif // LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS
+#endif // LUABRIDGE_HAS_CXX23_FLAT_MAP
