@@ -390,8 +390,14 @@ inline std::optional<int> try_call_index_extensible(lua_State* L, const char* ke
     return std::nullopt;
 }
 
+/**
+ * @brief Scan the flattened parent list for an extensible class getter.
+ *
+ * Only extensible checks are performed; __index fallbacks are intentionally ignored so that a
+ * registered getter anywhere in the hierarchy always takes priority over any fallback.
+ */
 template <bool IsObject>
-inline std::optional<int> try_call_parent_index_fallback(lua_State* L, const char* key)
+inline std::optional<int> try_call_parent_index_extensibles(lua_State* L, const char* key)
 {
     LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt
 
@@ -426,6 +432,46 @@ inline std::optional<int> try_call_parent_index_fallback(lua_State* L, const cha
                 lua_remove(L, -2); // Stack: result
                 return *result;
             }
+        }
+
+        lua_pop(L, 1); // Stack: mt, parent list
+    }
+
+    lua_pop(L, 1); // Stack: mt
+    return std::nullopt;
+}
+
+/**
+ * @brief Scan the flattened parent list for a __index fallback.
+ *
+ * Only fallbacks are checked; extensible getters are intentionally ignored because they
+ * have already been searched by try_call_parent_index_extensibles.
+ */
+template <bool IsObject>
+inline std::optional<int> try_call_parent_index_fallbacks(lua_State* L, const char* key)
+{
+    LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt
+
+    if (key == nullptr)
+        return std::nullopt;
+
+    lua_rawgetp_x(L, -1, getParentKey()); // Stack: mt, parent list | nil
+    if (! lua_istable(L, -1))
+    {
+        lua_pop(L, 1); // Stack: mt
+        return std::nullopt;
+    }
+
+    const int parentListIndex = lua_absindex(L, -1);
+    const int parentCount = get_length(L, parentListIndex);
+
+    for (int i = 1; i <= parentCount; ++i)
+    {
+        lua_rawgeti(L, parentListIndex, i); // Stack: mt, parent list, parent mt
+        if (! lua_istable(L, -1))
+        {
+            lua_pop(L, 1);
+            continue;
         }
 
         lua_rawgetp_x(L, -1, getIndexFallbackKey()); // Stack: mt, parent list, parent mt, ifb | nil
@@ -479,19 +525,6 @@ inline int index_metamethod(lua_State* L)
 
     for (;;)
     {
-        if constexpr (IsObject)
-        {
-            // Repeat the lookup in the index fallback
-            if (auto result = try_call_index_fallback(L))
-                return *result;
-        }
-        else
-        {
-            // Repeat the lookup in the static index fallback
-            if (auto result = try_call_static_index_fallback(L))
-                return *result;
-        }
-
         // Search into self or metatable
         if (lua_istable(L, 1))
         {
@@ -624,7 +657,25 @@ inline int index_metamethod(lua_State* L)
             return *result;
     }
 
-    if (auto result = try_call_parent_index_fallback<IsObject>(L, key))
+    // Before consulting any __index fallback, scan the entire parent hierarchy for a
+    // matching extensible getter.  This ensures that a registered getter anywhere in the
+    // inheritance chain always takes priority over a __index fallback defined at a
+    // narrower scope (e.g. an intermediate or leaf class).
+    if (auto result = try_call_parent_index_extensibles<IsObject>(L, key))
+        return *result;
+
+    if constexpr (IsObject)
+    {
+        if (auto result = try_call_index_fallback(L))
+            return *result;
+    }
+    else
+    {
+        if (auto result = try_call_static_index_fallback(L))
+            return *result;
+    }
+
+    if (auto result = try_call_parent_index_fallbacks<IsObject>(L, key))
         return *result;
 
     lua_pop(L, 1); // Stack: -

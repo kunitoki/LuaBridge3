@@ -420,3 +420,106 @@ TEST_F(IssueTests, Issue242_DerivedOwnSetterTakesPriorityOverItsOwnNewIndexFallb
     EXPECT_EQ(11, obj.x);
     EXPECT_FALSE(obj.fallbackWritten);
 }
+
+// =============================================================================
+// Issue 242 (index): try_call_parent_index must scan all parent getters before
+//                    considering any __index fallback.
+// =============================================================================
+
+// Scenario 1: Base has a getter for 'x'; Middle has a __index fallback.
+// Reading 'x' on a Middle instance must invoke Base's getter, NOT the fallback.
+TEST_F(IssueTests, Issue242_BaseGetterTakesPriorityOverDerivedIndexFallback)
+{
+    Issue242Middle obj;
+    obj.x = 55;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Issue242Base>("Base")
+            .addProperty("x", &Issue242Base::getX, &Issue242Base::setX)
+        .endClass()
+        .deriveClass<Issue242Middle, Issue242Base>("Middle")
+            .addIndexMetaMethod(&Issue242Middle::onIndex)
+            .addNewIndexMetaMethod(&Issue242Middle::onNewIndex)
+        .endClass();
+
+    luabridge::setGlobal(L, &obj, "obj");
+
+    // Reading 'x' must reach the registered getter, not the __index fallback.
+    ASSERT_TRUE(runLua("result = obj.x"));
+    EXPECT_EQ(55, result<int>());
+}
+
+// Scenario 2: deep hierarchy — A has a getter; B (intermediate) has a __index
+// fallback; C (most-derived) has neither.  Reading 'x' on a C instance must invoke
+// A's getter, skipping B's fallback.
+TEST_F(IssueTests, Issue242_DeepHierarchyBaseGetterTakesPriorityOverIntermediateIndexFallback)
+{
+    Issue242Derived obj;
+    obj.x = 77;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Issue242Base>("Base")
+            .addProperty("x", &Issue242Base::getX, &Issue242Base::setX)
+        .endClass()
+        .deriveClass<Issue242Middle, Issue242Base>("Middle")
+            .addIndexMetaMethod(&Issue242Middle::onIndex)
+            .addNewIndexMetaMethod(&Issue242Middle::onNewIndex)
+        .endClass()
+        .deriveClass<Issue242Derived, Issue242Middle>("Derived")
+        .endClass();
+
+    luabridge::setGlobal(L, &obj, "obj");
+
+    ASSERT_TRUE(runLua("result = obj.x"));
+    EXPECT_EQ(77, result<int>());
+}
+
+// Scenario 3: the __index fallback is still invoked for keys that have no
+// registered getter anywhere in the hierarchy.
+TEST_F(IssueTests, Issue242_IndexFallbackCalledForUnregisteredProperties)
+{
+    Issue242Middle obj;
+    obj.extra["y"] = 42;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Issue242Base>("Base")
+            .addProperty("x", &Issue242Base::getX, &Issue242Base::setX)
+        .endClass()
+        .deriveClass<Issue242Middle, Issue242Base>("Middle")
+            .addIndexMetaMethod(&Issue242Middle::onIndex)
+            .addNewIndexMetaMethod(&Issue242Middle::onNewIndex)
+        .endClass();
+
+    luabridge::setGlobal(L, &obj, "obj");
+
+    // 'y' has no getter in the hierarchy → fallback must be called.
+    ASSERT_TRUE(runLua("result = obj.y"));
+    EXPECT_EQ(42, result<int>());
+
+    // 'x' is still handled by the C++ getter.
+    obj.x = 99;
+    ASSERT_TRUE(runLua("result = obj.x"));
+    EXPECT_EQ(99, result<int>());
+}
+
+// Scenario 4: a getter defined on the derived class itself still takes priority
+// over a __index fallback on the same class.
+TEST_F(IssueTests, Issue242_DerivedOwnGetterTakesPriorityOverItsOwnIndexFallback)
+{
+    Issue242Middle obj;
+    obj.x = 33;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Issue242Base>("Base")
+        .endClass()
+        .deriveClass<Issue242Middle, Issue242Base>("Middle")
+            .addProperty("x", &Issue242Base::getX, &Issue242Base::setX)
+            .addIndexMetaMethod(&Issue242Middle::onIndex)
+            .addNewIndexMetaMethod(&Issue242Middle::onNewIndex)
+        .endClass();
+
+    luabridge::setGlobal(L, &obj, "obj");
+
+    ASSERT_TRUE(runLua("result = obj.x"));
+    EXPECT_EQ(33, result<int>());
+}
