@@ -289,9 +289,6 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++${CMAKE_CXX_STANDARD} /W3 /MP /D_CRT_SECURE_NO_WARNINGS")
   else ()
     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++${CMAKE_CXX_STANDARD} -Wall")
-    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-      set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-psabi")
-    endif ()
   endif ()
 
   # Dynamic library test
@@ -318,6 +315,10 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
     ${LUABRIDGE_TEST_SOURCE_FILES}
     ${LUABRIDGE_TEST_LUA_LIBRARY_FILES}
   )
+
+  if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_compile_options (${LUABRIDGE_TEST_NAME} PRIVATE -Wno-psabi)
+  endif ()
 
   target_compile_definitions (${LUABRIDGE_TEST_NAME} PRIVATE
     ${LUABRIDGE_DEFINES})
