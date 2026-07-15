@@ -184,8 +184,6 @@ inline void lua_pushcclosure_x(lua_State* L, lua_CFunction fn, const char* debug
 [[noreturn]] inline void lua_error_x(lua_State* L)
 {
     lua_error(L);
-
-    detail::unreachable();
 }
 
 inline int lua_getstack_x(lua_State* L, int level, lua_Debug* ar)

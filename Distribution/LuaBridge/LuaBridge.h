@@ -217,11 +217,19 @@
 #endif
 #endif
 
-#if !defined(LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS)
-#if !defined(LUABRIDGE_DISABLE_CXX23_FLAT_CONTAINERS) && LUABRIDGE_CXX23_OR_GREATER && __has_include(<flat_map>) && __has_include(<flat_set>) && defined(__cpp_lib_flat_map)
-#define LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS 1
+#if !defined(LUABRIDGE_HAS_CXX23_FLAT_MAP)
+#if !defined(LUABRIDGE_DISABLE_CXX23_FLAT_MAP) && LUABRIDGE_CXX23_OR_GREATER && __has_include(<flat_map>) && defined(__cpp_lib_flat_map)
+#define LUABRIDGE_HAS_CXX23_FLAT_MAP 1
 #else
-#define LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS 0
+#define LUABRIDGE_HAS_CXX23_FLAT_MAP 0
+#endif
+#endif
+
+#if !defined(LUABRIDGE_HAS_CXX23_FLAT_SET)
+#if !defined(LUABRIDGE_DISABLE_CXX23_FLAT_SET) && LUABRIDGE_CXX23_OR_GREATER && __has_include(<flat_set>) && defined(__cpp_lib_flat_set)
+#define LUABRIDGE_HAS_CXX23_FLAT_SET 1
+#else
+#define LUABRIDGE_HAS_CXX23_FLAT_SET 0
 #endif
 #endif
 
@@ -433,7 +441,7 @@ struct functor_traits_impl
 };
 
 template <class F>
-struct functor_traits_impl<F, std::enable_if_t<has_call_operator_v<F>>> : function_traits_impl<decltype(&F::operator()), true>
+struct functor_traits_impl<F, std::enable_if_t<has_call_operator_v<F> && !is_move_only_function_v<F>>> : function_traits_impl<decltype(&F::operator()), true>
 {
 };
 
@@ -1059,8 +1067,6 @@ inline void lua_pushcclosure_x(lua_State* L, lua_CFunction fn, const char* debug
 [[noreturn]] inline void lua_error_x(lua_State* L)
 {
     lua_error(L);
-
-    detail::unreachable();
 }
 
 inline int lua_getstack_x(lua_State* L, int level, lua_Debug* ar)
@@ -2691,7 +2697,7 @@ private:
 
 namespace detail {
 template <class E>
-inline void throw_bad_expected_access_or_abort(E e)
+inline void throw_bad_expected_access_or_abort([[maybe_unused]] E e)
 {
 #if LUABRIDGE_HAS_EXCEPTIONS
     throw BadExpectedAccess<E>(std::move(e));
@@ -6883,7 +6889,7 @@ inline void dumpState(lua_State* L, unsigned maxDepth = 1, std::ostream& stream 
 
 // Begin File: Source/LuaBridge/FlatMap.h
 
-#if LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS
+#if LUABRIDGE_HAS_CXX23_FLAT_MAP
 
 namespace luabridge {
 
@@ -6964,7 +6970,7 @@ struct Stack<std::flat_map<K, V, Compare, KeyContainer, MappedContainer>>
 
 // Begin File: Source/LuaBridge/FlatSet.h
 
-#if LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS
+#if LUABRIDGE_HAS_CXX23_FLAT_SET
 
 namespace luabridge {
 
@@ -9193,8 +9199,7 @@ inline int try_overload_functions(lua_State* L)
     }
     lua_concat(L, nerrors * 2 + 1);
 
-    const char* message = lua_tostring(L, -1);
-    raise_lua_error(L, "%s", message ? message : "");
+    lua_error_x(L);
 }
 
 inline void push_function(lua_State* L, lua_CFunction fp, const char* debugname)
@@ -10281,7 +10286,7 @@ int do_yield(lua_State* L, int nresults, int frame_abs_idx)
 }
 #endif
 
-[[noreturn]] inline void raise_from_exception(lua_State* L, int frame_abs_idx, std::exception_ptr ex)
+[[noreturn]] inline void raise_from_exception(lua_State* L, int frame_abs_idx, [[maybe_unused]] std::exception_ptr ex)
 {
     lua_settop(L, frame_abs_idx - 1); 
 
