@@ -2697,7 +2697,7 @@ private:
 
 namespace detail {
 template <class E>
-inline void throw_bad_expected_access_or_abort(E e)
+inline void throw_bad_expected_access_or_abort([[maybe_unused]] E e)
 {
 #if LUABRIDGE_HAS_EXCEPTIONS
     throw BadExpectedAccess<E>(std::move(e));
@@ -8547,6 +8547,9 @@ inline int newindex_metamethod(lua_State* L)
 
     lua_pop(L, 1); 
 
+    if (auto result = try_call_parent_newindex_setters<IsObject>(L))
+        return *result;
+
     if constexpr (IsObject)
     {
         if (auto result = try_call_instance_static_newindex(L, -1))
@@ -10481,7 +10484,7 @@ int do_yield(lua_State* L, int nresults, int frame_abs_idx)
 }
 #endif
 
-[[noreturn]] inline void raise_from_exception(lua_State* L, int frame_abs_idx, std::exception_ptr ex)
+[[noreturn]] inline void raise_from_exception(lua_State* L, int frame_abs_idx, [[maybe_unused]] std::exception_ptr ex)
 {
     lua_settop(L, frame_abs_idx - 1); 
 
