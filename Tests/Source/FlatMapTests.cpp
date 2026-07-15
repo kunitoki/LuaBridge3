@@ -14,9 +14,14 @@
 namespace {
 struct Unregistered
 {
+    bool operator==(const Unregistered& other) const
+    {
+        return this == std::addressof(other);
+    }
+
     bool operator<(const Unregistered& other) const
     {
-        return true;
+        return this < std::addressof(other);
     }
 };
 

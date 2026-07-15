@@ -16,7 +16,7 @@ struct Unregistered
 {
     bool operator<(const Unregistered& other) const
     {
-        return true;
+        return false;
     }
 };
 

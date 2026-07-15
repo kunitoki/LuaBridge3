@@ -1013,8 +1013,9 @@ struct UserdataGetter
     }
 };
 
+// Specialization for default-constructible types (but exclude move-only functions)
 template <class T>
-struct UserdataGetter<T, std::void_t<T (*)()>>
+struct UserdataGetter<T, std::enable_if_t<!is_move_only_function_v<T>, std::void_t<T (*)()>>>
 {
     using ReturnType = TypeResult<T>;
 
@@ -1027,6 +1028,26 @@ struct UserdataGetter<T, std::void_t<T (*)()>>
         return *result;
     }
 };
+
+#if LUABRIDGE_HAS_CXX23_MOVE_ONLY_FUNCTION
+template <class T>
+struct UserdataGetter<T, std::enable_if_t<is_move_only_function_v<T>>>
+{
+    using ReturnType = TypeResult<T>;
+
+    static ReturnType get(lua_State* L, int index)
+    {
+        auto result = Userdata::get<T>(L, index, true);
+        if (! result)
+            return result.error();
+
+        if (*result == nullptr)
+            return getNilBadArgError<T>(L, index);
+
+        return std::move(**result);
+    }
+};
+#endif
 
 } // namespace detail
 

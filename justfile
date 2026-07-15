@@ -33,6 +33,14 @@ test1 CXX="17":
 sanitize TYPE="address" CXX="17":
     cmake -G Xcode -B Build{{CXX}} -DLUABRIDGE_SANITIZE={{TYPE}} .
 
+gcc CXX="17":
+    cmake -G "Unix Makefiles" \
+        -DCMAKE_C_COMPILER=/opt/homebrew/bin/gcc-15 \
+        -DCMAKE_CXX_COMPILER=/opt/homebrew/bin/g++-15 \
+        -B BuildGCC{{CXX}} -DLUABRIDGE_BENCHMARKS=ON -DCMAKE_CXX_STANDARD={{CXX}} .
+    cmake --build BuildGCC{{CXX}} --config Debug --target LuaBridgeTests54 -j8
+    ./BuildGCC{{CXX}}/Tests/LuaBridgeTests54 --gtest_filter=MoveOnlyFunctionTests.*
+
 benchmark CXX="17":
     @just generate {{CXX}}
     cmake --build Build{{CXX}} --config Release --target LuaBridge3Benchmark -j8
