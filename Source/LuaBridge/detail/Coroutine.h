@@ -351,7 +351,7 @@ int do_yield(lua_State* L, int nresults, int frame_abs_idx)
  * @brief Raises a Lua error from a stored C++ exception (or a generic message).
  * Removes the frame userdata from the stack before raising so GC can collect it.
  */
-[[noreturn]] inline void raise_from_exception(lua_State* L, int frame_abs_idx, std::exception_ptr ex)
+[[noreturn]] inline void raise_from_exception(lua_State* L, int frame_abs_idx, [[maybe_unused]] std::exception_ptr ex)
 {
     lua_settop(L, frame_abs_idx - 1); // pop frame (and any value above it) — GC will collect it
 

@@ -1067,8 +1067,6 @@ inline void lua_pushcclosure_x(lua_State* L, lua_CFunction fn, const char* debug
 [[noreturn]] inline void lua_error_x(lua_State* L)
 {
     lua_error(L);
-
-    detail::unreachable();
 }
 
 inline int lua_getstack_x(lua_State* L, int level, lua_Debug* ar)
@@ -2699,7 +2697,7 @@ private:
 
 namespace detail {
 template <class E>
-inline void throw_bad_expected_access_or_abort(E e)
+inline void throw_bad_expected_access_or_abort([[maybe_unused]] E e)
 {
 #if LUABRIDGE_HAS_EXCEPTIONS
     throw BadExpectedAccess<E>(std::move(e));
@@ -10289,7 +10287,7 @@ int do_yield(lua_State* L, int nresults, int frame_abs_idx)
 }
 #endif
 
-[[noreturn]] inline void raise_from_exception(lua_State* L, int frame_abs_idx, std::exception_ptr ex)
+[[noreturn]] inline void raise_from_exception(lua_State* L, int frame_abs_idx, [[maybe_unused]] std::exception_ptr ex)
 {
     lua_settop(L, frame_abs_idx - 1); 
 
