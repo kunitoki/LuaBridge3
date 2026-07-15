@@ -2122,7 +2122,8 @@ inline int try_overload_functions(lua_State* L)
     }
     lua_concat(L, nerrors * 2 + 1);
 
-    lua_error_x(L);
+    const char* message = lua_tostring(L, -1);
+    raise_lua_error(L, "%s", message ? message : "");
 }
 
 //=================================================================================================
