@@ -39,7 +39,7 @@ gcc CXX="17":
         -DCMAKE_CXX_COMPILER=/opt/homebrew/bin/g++-15 \
         -B BuildGCC{{CXX}} -DLUABRIDGE_BENCHMARKS=ON -DCMAKE_CXX_STANDARD={{CXX}} .
     cmake --build BuildGCC{{CXX}} --config Debug --target LuaBridgeTests54 -j8
-    ./BuildGCC{{CXX}}/Tests/LuaBridgeTests54
+    ./BuildGCC{{CXX}}/Tests/LuaBridgeTests54 --gtest_filter=*
 
 benchmark CXX="17":
     @just generate {{CXX}}

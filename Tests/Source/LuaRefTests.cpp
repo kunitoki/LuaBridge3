@@ -2140,3 +2140,47 @@ TEST_F(LuaRefTests, MoveToNilRef)
     EXPECT_EQ(threadTop, lua_gettop(thread));
     EXPECT_TRUE(nilRef.isNil());
 }
+
+namespace {
+struct Event
+{
+    explicit Event(lua_State* L)
+        : onClick(L)
+    {
+    }
+
+    luabridge::LuaRef onClick;
+};
+} // namespace
+
+TEST_F(LuaRefTests, PreservesLuaTableMutations)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Event>("Event")
+            .addConstructor<void (*)(lua_State*)>()
+            .addPropertyReadWrite("OnClick", &Event::onClick)
+        .endClass();
+
+    runLua(R"(
+        local event = Event()
+        event.OnClick = {}
+
+        table.insert(event.OnClick, function() return 100 end)
+        table.insert(event.OnClick, function() return 200 end)
+
+        result = event
+    )");
+
+    auto* event = result<Event*>();
+    ASSERT_NE(nullptr, event);
+    ASSERT_TRUE(event->onClick.isTable());
+    ASSERT_EQ(2, event->onClick.length());
+
+    auto firstResult = event->onClick[1].call<int>();
+    ASSERT_TRUE(firstResult);
+    EXPECT_EQ(100, *firstResult);
+
+    auto secondResult = event->onClick[2].call<int>();
+    ASSERT_TRUE(secondResult);
+    EXPECT_EQ(200, *secondResult);
+}
