@@ -4017,23 +4017,3 @@ TEST_F(ClassTests, StaticClassAccessReturnsMethodFromConstTable)
     EXPECT_TRUE(runLua("result = type(SimpleClass.getValue)"));
     EXPECT_EQ("function", result<std::string>());
 }
-
-/*
-namespace {
-class TestClass
-{
-public:
-    void method1(std::function<void()>) { }
-    void method2(std::move_only_function<void()>) { }
-};
-} // namespace
-
-TEST_F(ClassTests, MoveOnlyFunctionAsArgument)
-{
-    luabridge::getGlobalNamespace(L)
-        .beginClass<TestClass>("TestClass")
-            .addFunction("Method1", &TestClass::method1)
-            .addFunction("Method2", &TestClass::method2)
-        .endClass();
-}
-*/
