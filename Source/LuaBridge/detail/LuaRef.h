@@ -1831,6 +1831,24 @@ public:
 
     //=============================================================================================
     /**
+     * @brief Get the Lua pointer of the referenced value.
+     */
+    void* getPointer() const
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(m_L, 1))
+            return nullptr;
+#endif
+
+        lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_ref);
+        void* ptr = lua_topointer(m_L, -1);
+        lua_pop(m_L, 1);
+
+        return ptr;
+    }
+
+    //=============================================================================================
+    /**
      * @brief Get the unique hash of a LuaRef.
      */
     [[nodiscard]] std::size_t hash() const
