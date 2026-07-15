@@ -1047,7 +1047,7 @@ private:
 
 namespace detail {
 template <class E>
-inline void throw_bad_expected_access_or_abort(E e)
+inline void throw_bad_expected_access_or_abort([[maybe_unused]] E e)
 {
 #if LUABRIDGE_HAS_EXCEPTIONS
     throw BadExpectedAccess<E>(std::move(e));

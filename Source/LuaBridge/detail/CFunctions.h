@@ -1354,6 +1354,13 @@ inline int newindex_metamethod(lua_State* L)
 
     lua_pop(L, 1); // Stack: mt
 
+    // Before consulting any __newindex fallback, scan the entire parent hierarchy for a
+    // matching property setter.  This ensures that a registered property anywhere in the
+    // inheritance chain always takes priority over a __newindex fallback defined at a
+    // narrower scope (e.g. an intermediate or leaf class).
+    if (auto result = try_call_parent_newindex_setters<IsObject>(L))
+        return *result;
+
     if constexpr (IsObject)
     {
         if (auto result = try_call_instance_static_newindex(L, -1))
