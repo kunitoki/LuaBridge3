@@ -7763,12 +7763,6 @@ inline int index_metamethod(lua_State* L)
     {
         const Options options = get_class_options(L, -1); 
 
-        // For static __index: the static fallback takes priority over registered static
-        // property getters so that a user-defined static __index fallback can shadow
-        // static properties.
-        // For instance __index with allowOverridingMethods: the instance fallback takes
-        // priority over class-table Lua methods, enabling Lua-side method overrides via
-        // __newindex.
         if constexpr (IsObject)
         {
             if (options.test(extensibleClass | allowOverridingMethods))
