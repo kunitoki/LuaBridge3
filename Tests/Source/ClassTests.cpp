@@ -3250,6 +3250,158 @@ TEST_F(ClassTests, NonVirtualMethodInBaseClassCannotBeExposed)
     ASSERT_EQ(1, result<DerivedExampleClass>().virtualCFunctionConst_);
 }
 
+namespace {
+struct FloatRectExample
+{
+    float left = 0.0f;
+    float top = 0.0f;
+    float width = 0.0f;
+    float height = 0.0f;
+};
+
+class TransformableExample
+{
+public:
+    TransformableExample() = default;
+    virtual ~TransformableExample() = default;
+
+    void setPosition(float x, float y) { positionX_ = x; positionY_ = y; }
+    float getPositionX() const { return positionX_; }
+    float getPositionY() const { return positionY_; }
+
+    FloatRectExample getLocalBounds() const { return { 0.0f, 0.0f, 64.0f, 32.0f }; }
+
+private:
+    float positionX_ = 0.0f;
+    float positionY_ = 0.0f;
+};
+
+class SpriteExample : public TransformableExample
+{
+public:
+    SpriteExample() = default;
+
+    void setRotation(float rotation) { rotation_ = rotation; }
+    float getRotation() const { return rotation_; }
+
+private:
+    float rotation_ = 0.0f;
+};
+} // namespace
+
+TEST_F(ClassTests, BaseClassMethodsCanBeBoundOnDerivedClass)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<FloatRectExample>("FloatRect")
+        .addProperty("left", &FloatRectExample::left)
+        .addProperty("top", &FloatRectExample::top)
+        .addProperty("width", &FloatRectExample::width)
+        .addProperty("height", &FloatRectExample::height)
+        .endClass()
+        .beginClass<SpriteExample>("Sprite")
+        .addConstructor<void (*)()>()
+        .addFunction("setPosition", &SpriteExample::setPosition) // void (TransformableExample::*)(float, float)
+        .addFunction("getPositionX", &SpriteExample::getPositionX) // float (TransformableExample::*)() const
+        .addFunction("getPositionY", &SpriteExample::getPositionY)
+        .addFunction("getLocalBounds", &SpriteExample::getLocalBounds) // FloatRectExample (TransformableExample::*)() const
+        .addFunction("setRotation", &SpriteExample::setRotation)
+        .addFunction("getRotation", &SpriteExample::getRotation)
+        .endClass();
+
+    runLua(R"(
+        local sprite = Sprite ()
+        sprite:setPosition (10.0, 20.0)
+        sprite:setRotation (45.0)
+        local bounds = sprite:getLocalBounds ()
+        result = {
+            x = sprite:getPositionX (),
+            y = sprite:getPositionY (),
+            rotation = sprite:getRotation (),
+            width = bounds.width,
+            height = bounds.height
+        }
+    )");
+
+    ASSERT_TRUE(result().isTable());
+    ASSERT_EQ(10.0f, result()["x"].cast<float>());
+    ASSERT_EQ(20.0f, result()["y"].cast<float>());
+    ASSERT_EQ(45.0f, result()["rotation"].cast<float>());
+    ASSERT_EQ(64.0f, result()["width"].cast<float>());
+    ASSERT_EQ(32.0f, result()["height"].cast<float>());
+}
+
+TEST_F(ClassTests, BaseClassMethodsCanBeBoundOnDerivedClassViaStaticCast)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<FloatRectExample>("FloatRect")
+        .addProperty("width", &FloatRectExample::width)
+        .addProperty("height", &FloatRectExample::height)
+        .endClass()
+        .beginClass<SpriteExample>("Sprite")
+        .addConstructor<void (*)()>()
+        .addFunction("setPosition", static_cast<void (SpriteExample::*)(float, float)>(&SpriteExample::setPosition))
+        .addFunction("getPositionX", static_cast<float (SpriteExample::*)() const>(&SpriteExample::getPositionX))
+        .addFunction("getLocalBounds", static_cast<FloatRectExample (SpriteExample::*)() const>(&SpriteExample::getLocalBounds))
+        .endClass();
+
+    runLua(R"(
+        local sprite = Sprite ()
+        sprite:setPosition (10.0, 20.0)
+        local bounds = sprite:getLocalBounds ()
+        result = {
+            x = sprite:getPositionX (),
+            width = bounds.width,
+            height = bounds.height
+        }
+    )");
+
+    ASSERT_TRUE(result().isTable());
+    ASSERT_EQ(10.0f, result()["x"].cast<float>());
+    ASSERT_EQ(64.0f, result()["width"].cast<float>());
+    ASSERT_EQ(32.0f, result()["height"].cast<float>());
+}
+
+TEST_F(ClassTests, BaseClassMethodsAreInheritedThroughDeriveClass)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<FloatRectExample>("FloatRect")
+        .addProperty("width", &FloatRectExample::width)
+        .addProperty("height", &FloatRectExample::height)
+        .endClass()
+        .beginClass<TransformableExample>("Transformable")
+        .addFunction("setPosition", &TransformableExample::setPosition)
+        .addFunction("getPositionX", &TransformableExample::getPositionX)
+        .addFunction("getPositionY", &TransformableExample::getPositionY)
+        .addFunction("getLocalBounds", &TransformableExample::getLocalBounds)
+        .endClass()
+        .deriveClass<SpriteExample, TransformableExample>("Sprite")
+        .addConstructor<void (*)()>()
+        .addFunction("setRotation", &SpriteExample::setRotation)
+        .addFunction("getRotation", &SpriteExample::getRotation)
+        .endClass();
+
+    runLua(R"(
+        local sprite = Sprite ()
+        sprite:setPosition (10.0, 20.0)
+        sprite:setRotation (45.0)
+        local bounds = sprite:getLocalBounds ()
+        result = {
+            x = sprite:getPositionX (),
+            y = sprite:getPositionY (),
+            rotation = sprite:getRotation (),
+            width = bounds.width,
+            height = bounds.height
+        }
+    )");
+
+    ASSERT_TRUE(result().isTable());
+    ASSERT_EQ(10.0f, result()["x"].cast<float>());
+    ASSERT_EQ(20.0f, result()["y"].cast<float>());
+    ASSERT_EQ(45.0f, result()["rotation"].cast<float>());
+    ASSERT_EQ(64.0f, result()["width"].cast<float>());
+    ASSERT_EQ(32.0f, result()["height"].cast<float>());
+}
+
 TEST_F(ClassTests, NilCanBeConvertedToNullptrButNotToReference)
 {
     struct X {};
