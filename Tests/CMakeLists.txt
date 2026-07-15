@@ -473,18 +473,16 @@ add_test_app (LuaBridgeTests55LuaC 505 "${LUABRIDGE_TEST_LUA55_C_FILES}" 1 "${LU
 add_test_app (LuaBridgeTests55Noexcept 505 "${LUABRIDGE_TEST_LUA55_FILES}" 0 "" "")
 add_test_app (LuaBridgeTests55LuaCNoexcept 505 "${LUABRIDGE_TEST_LUA55_C_FILES}" 0 "${LUABRIDGE_LUA_C_DEFINES}" "")
 
-if (NOT EMSCRIPTEN)
-  add_test_app (LuaBridgeTestsLuaJIT "LUAJIT" "${LUABRIDGE_TEST_LUAJIT_FILES}" 1 "" "liblua-static")
-  add_test_app (LuaBridgeTestsLuaJITNoexcept "LUAJIT" "${LUABRIDGE_TEST_LUAJIT_FILES}" 0 "" "liblua-static")
-endif ()
-
 add_test_app (LuaBridgeTestsLuau "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 1 "" "")
 #add_test_app (LuaBridgeTestsLuauNoexcept "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 0 "" "")
 
 if (NOT EMSCRIPTEN)
+  add_test_app (LuaBridgeTestsLuaJIT "LUAJIT" "${LUABRIDGE_TEST_LUAJIT_FILES}" 1 "" "liblua-static")
+  add_test_app (LuaBridgeTestsLuaJITNoexcept "LUAJIT" "${LUABRIDGE_TEST_LUAJIT_FILES}" 0 "" "liblua-static")
+
   add_test_app (LuaBridgeTestsRavi "RAVI" "${LUABRIDGE_TEST_RAVI_FILES}" 1 "${LUABRIDGE_LUA_C_DEFINES}" "libravi")
+  #add_test_app (LuaBridgeTestsRaviNoexcept "RAVI" "${LUABRIDGE_TEST_RAVI_FILES}" 0 "" "libravi")
 endif ()
-#add_test_app (LuaBridgeTestsRaviNoexcept "RAVI" "${LUABRIDGE_TEST_RAVI_FILES}" 0 "" "libravi")
 
 if (LUABRIDGE_COVERAGE)
   setup_coverage_single_target ()

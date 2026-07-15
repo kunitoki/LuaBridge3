@@ -2333,6 +2333,89 @@ TEST_F(ClassStaticProperties, SubsequentRegistration)
     ASSERT_EQ(20, Int::staticData);
 }
 
+TEST_F(ClassStaticProperties, InstanceAccess)
+{
+    using Int = Class<int, EmptyBase>;
+    Int instance;
+
+    Int::staticData = 10;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addStaticPropertyReadWrite("staticData", &Int::staticData)
+        .addFunction("getData", &Int::getData)
+        .endClass()
+        .addVariable("instance", &instance);
+
+    // Write via class name (always works)
+    runLua("Int.staticData = 55");
+    ASSERT_EQ(55, Int::staticData);
+
+    Int::staticData = 10;
+
+    // Read via instance
+    runLua("result = instance.staticData");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(10, result<int>());
+
+    // Write via instance
+    runLua("instance.staticData = 42");
+    ASSERT_EQ(42, Int::staticData);
+}
+
+TEST_F(ClassStaticProperties, ReadOnlyViaInstance)
+{
+    using Int = Class<int, EmptyBase>;
+
+    Int::staticData = 10;
+    Int instance;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addStaticProperty("staticData", &Int::staticData)
+        .endClass()
+        .addVariable("instance", &instance);
+
+    runLua("result = instance.staticData");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(10, result<int>());
+
+    // Setting a read-only static property via instance should fail
+#if LUABRIDGE_HAS_EXCEPTIONS
+    ASSERT_THROW(runLua("instance.staticData = 20"), std::exception);
+#else
+    ASSERT_FALSE(runLua("instance.staticData = 20"));
+#endif
+
+    ASSERT_EQ(10, Int::staticData);
+}
+
+TEST_F(ClassStaticProperties, StaticFunctionViaInstance)
+{
+    using Int = Class<int, EmptyBase>;
+
+    int value = 10;
+    Int instance;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Int>("Int")
+        .addStaticFunction("getValue", [&value] { return value; })
+        .addStaticFunction("setValue", [&value](int x) { value = x; })
+        .endClass()
+        .addVariable("instance", &instance);
+
+    runLua("result = instance.getValue()");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(10, result<int>());
+
+    runLua("instance.setValue(99)");
+    ASSERT_EQ(99, value);
+
+    runLua("result = instance.getValue()");
+    ASSERT_TRUE(result().isNumber());
+    ASSERT_EQ(99, result<int>());
+}
+
 struct ClassMetaMethods : ClassTests
 {
 };
