@@ -7564,6 +7564,76 @@ inline void push_class_or_const_table(lua_State* L, int index)
     }
 }
 
+inline std::optional<int> try_call_instance_static_index(lua_State* L, int classMetatableIndex)
+{
+    lua_rawgetp_x(L, classMetatableIndex, getStaticKey()); 
+    if (! lua_istable(L, -1))
+    {
+        lua_pop(L, 1);
+        return std::nullopt;
+    }
+
+    lua_pushvalue(L, 2); 
+    lua_rawget(L, -2); 
+    if (! lua_isnil(L, -1))
+    {
+        lua_remove(L, -2); 
+        return 1;
+    }
+
+    lua_pop(L, 1); 
+    lua_rawgetp_x(L, -1, getPropgetKey()); 
+    if (! lua_istable(L, -1))
+    {
+        lua_pop(L, 2);
+        return std::nullopt;
+    }
+
+    lua_pushvalue(L, 2); 
+    lua_rawget(L, -2); 
+    if (! lua_iscfunction(L, -1))
+    {
+        lua_pop(L, 3);
+        return std::nullopt;
+    }
+
+    lua_remove(L, -2); 
+    lua_remove(L, -2); 
+    lua_call(L, 0, 1); 
+    return 1;
+}
+
+inline std::optional<int> try_call_instance_static_newindex(lua_State* L, int classMetatableIndex)
+{
+    lua_rawgetp_x(L, classMetatableIndex, getStaticKey()); 
+    if (! lua_istable(L, -1))
+    {
+        lua_pop(L, 1);
+        return std::nullopt;
+    }
+
+    lua_rawgetp_x(L, -1, getPropsetKey()); 
+    if (! lua_istable(L, -1))
+    {
+        lua_pop(L, 2);
+        return std::nullopt;
+    }
+
+    lua_pushvalue(L, 2); 
+    lua_rawget(L, -2); 
+    if (! lua_iscfunction(L, -1))
+    {
+        lua_pop(L, 3);
+        return std::nullopt;
+    }
+
+    lua_remove(L, -2); 
+    lua_remove(L, -2); 
+    lua_pushvalue(L, 3); 
+    lua_call(L, 1, 0);
+    return 0;
+}
+
 inline std::optional<int> try_call_index_fallback(lua_State* L)
 {
     LUABRIDGE_ASSERT(lua_istable(L, -1)); 
@@ -7832,6 +7902,12 @@ inline int index_metamethod(lua_State* L)
         LUABRIDGE_ASSERT(lua_isnil(L, -1)); 
         lua_pop(L, 1); 
 
+        if constexpr (IsObject)
+        {
+            if (auto result = try_call_instance_static_index(L, -1))
+                return *result;
+        }
+
         lua_rawgetp_x(L, -1, getParentKey()); 
 
         if (lua_istable(L, -1))
@@ -7965,6 +8041,10 @@ inline int index_metamethod_simple(lua_State* L)
                 return 1;
 
             lua_pop(L, 1);
+
+            if (auto result = try_call_instance_static_index(L, lua_upvalueindex(2)))
+                return *result;
+
             lua_pushnil(L);
             return 1;
         }
@@ -8451,6 +8531,15 @@ inline int newindex_metamethod(lua_State* L)
 
     if constexpr (IsObject)
     {
+        if (auto result = try_call_instance_static_newindex(L, -1))
+            return *result;
+    }
+
+    if (auto result = try_call_parent_newindex_setters<IsObject>(L))
+        return *result;
+
+    if constexpr (IsObject)
+    {
         if (auto result = try_call_newindex_fallback(L))
             return *result;
     }
@@ -8520,6 +8609,13 @@ inline int newindex_metamethod_simple(lua_State* L)
                 lua_call(L, 2, 0);
                 return 0;
             }
+
+            lua_pop(L, 1);
+            lua_getmetatable(L, 1); 
+            LUABRIDGE_ASSERT(lua_istable(L, -1));
+            if (auto result = try_call_instance_static_newindex(L, -1))
+                return *result;
+            lua_pop(L, 1);
 
             luaL_error(L, "no writable member '%s'", key);
         }
