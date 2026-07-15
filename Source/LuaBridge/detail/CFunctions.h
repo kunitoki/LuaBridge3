@@ -1049,7 +1049,7 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
 
         const int mtIndex = lua_absindex(L, -2);
         const int origClassTableIndex = lua_absindex(L, -1);
-        const auto process_metatable = [L, key, origClassTableIndex](int candidateMtIndex)
+        const auto process_metatable = [=](int candidateMtIndex)
         {
             push_class_or_const_table(L, candidateMtIndex); // Stack: ..., candidate_ct | nil
             if (! lua_istable(L, -1))
@@ -1121,7 +1121,7 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
     lua_pushvalue(L, rootMetatableIndex); // Stack: mt, target mt
     const int targetMetatableIndex = lua_absindex(L, -1);
 
-    const auto process_metatable = [L, key, targetMetatableIndex](int candidateMtIndex)
+    const auto process_metatable = [=](int candidateMtIndex)
     {
         push_class_or_const_table(L, candidateMtIndex); // Stack: ..., candidate_ct | nil
         if (! lua_istable(L, -1))

@@ -188,7 +188,7 @@ class Namespace : public detail::Registrar
             LUABRIDGE_ASSERT(lua_istable(L, visitedIndex));
             LUABRIDGE_ASSERT(lua_istable(L, baseMetatableIndex));
 
-            const auto appendUnique = [L, parentsIndex, visitedIndex](int metatableIndex)
+            const auto appendUnique = [=](int metatableIndex)
             {
                 metatableIndex = lua_absindex(L, metatableIndex);
 
