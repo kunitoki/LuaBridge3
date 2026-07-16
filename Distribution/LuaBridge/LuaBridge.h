@@ -1018,6 +1018,8 @@ inline void lua_pushcclosure_x(lua_State* L, lua_CFunction fn, const char* debug
 [[noreturn]] inline void lua_error_x(lua_State* L)
 {
     lua_error(L);
+
+    detail::unreachable();
 }
 
 inline int lua_getstack_x(lua_State* L, int level, lua_Debug* ar)
@@ -1067,6 +1069,8 @@ inline void lua_pushcclosure_x(lua_State* L, lua_CFunction fn, const char* debug
 [[noreturn]] inline void lua_error_x(lua_State* L)
 {
     lua_error(L);
+
+    detail::unreachable();
 }
 
 inline int lua_getstack_x(lua_State* L, int level, lua_Debug* ar)
@@ -4217,13 +4221,14 @@ public:
             || isInstance(L, index, detail::getConstRegistryKey<T>());
     }
 
-protected:
-    Userdata() = default;
-
+public:
     void* getPointer() const noexcept
     {
         return m_p;
     }
+
+protected:
+    Userdata() = default;
 
     void* m_p = nullptr; 
 };
@@ -11870,11 +11875,29 @@ public:
     const void* getPointer() const
     {
 #if LUABRIDGE_SAFE_STACK_CHECKS
-        if (! lua_checkstack(m_L, 1))
+        if (! lua_checkstack(m_L, 3))
             return nullptr;
 #endif
 
         lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_ref);
+
+        if (lua_isuserdata(m_L, -1) && lua_getmetatable(m_L, -1))
+        {
+            const void* key = static_cast<const void*>(detail::getTypeKey());
+            lua_pushlightuserdata(m_L, const_cast<void*>(key));
+            lua_rawget(m_L, -2);
+            const bool isLuaBridgeType = lua_isstring(m_L, -1);
+            lua_pop(m_L, 2);
+
+            if (isLuaBridgeType)
+            {
+                const auto* ud = static_cast<detail::Userdata*>(lua_touserdata(m_L, -1));
+                const void* ptr = ud->getPointer();
+                lua_pop(m_L, 1);
+                return ptr;
+            }
+        }
+
         const void* ptr = lua_topointer(m_L, -1);
         lua_pop(m_L, 1);
 
