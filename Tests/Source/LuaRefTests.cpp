@@ -2184,3 +2184,135 @@ TEST_F(LuaRefTests, PreservesLuaTableMutations)
     ASSERT_TRUE(secondResult);
     EXPECT_EQ(200, *secondResult);
 }
+
+TEST_F(LuaRefTests, GetPointerDefaultConstructed)
+{
+    luabridge::LuaRef ref(L);
+    EXPECT_EQ(nullptr, ref.getPointer());
+}
+
+TEST_F(LuaRefTests, GetPointerNil)
+{
+    runLua("result = nil");
+    EXPECT_EQ(nullptr, result().getPointer());
+
+    luabridge::LuaRef nilRef(L, luabridge::LuaNil());
+    EXPECT_EQ(nullptr, nilRef.getPointer());
+}
+
+TEST_F(LuaRefTests, GetPointerBoolean)
+{
+    runLua("result = true");
+    EXPECT_EQ(nullptr, result().getPointer());
+
+    runLua("result = false");
+    EXPECT_EQ(nullptr, result().getPointer());
+}
+
+TEST_F(LuaRefTests, GetPointerNumber)
+{
+    runLua("result = 42");
+    EXPECT_EQ(nullptr, result().getPointer());
+
+    runLua("result = 3.14");
+    EXPECT_EQ(nullptr, result().getPointer());
+}
+
+TEST_F(LuaRefTests, GetPointerString)
+{
+    runLua("result = 'hello'");
+
+#if LUA_VERSION_NUM >= 504 || LUABRIDGE_ON_LUAU || LUABRIDGE_ON_LUAJIT
+    // Lua 5.4+, Luau, and LuaJIT return a pointer for strings via lua_topointer
+    EXPECT_NE(nullptr, result().getPointer());
+#else
+    EXPECT_EQ(nullptr, result().getPointer());
+#endif
+}
+
+TEST_F(LuaRefTests, GetPointerTable)
+{
+    runLua("result = {}");
+    EXPECT_NE(nullptr, result().getPointer());
+}
+
+TEST_F(LuaRefTests, GetPointerTableIdentity)
+{
+    runLua("result = {}");
+    const void* p1 = result().getPointer();
+    const void* p2 = result().getPointer();
+    EXPECT_NE(nullptr, p1);
+    EXPECT_EQ(p1, p2);
+}
+
+TEST_F(LuaRefTests, GetPointerDistinctTables)
+{
+    runLua("t1 = {}; t2 = {}");
+    auto t1 = luabridge::getGlobal(L, "t1");
+    auto t2 = luabridge::getGlobal(L, "t2");
+
+    const void* p1 = t1.getPointer();
+    const void* p2 = t2.getPointer();
+    EXPECT_NE(nullptr, p1);
+    EXPECT_NE(nullptr, p2);
+    EXPECT_NE(p1, p2);
+}
+
+TEST_F(LuaRefTests, GetPointerFunction)
+{
+    runLua("result = function() end");
+    EXPECT_NE(nullptr, result().getPointer());
+}
+
+TEST_F(LuaRefTests, GetPointerLightUserdata)
+{
+    int dummy = 0;
+    lua_pushlightuserdata(L, &dummy);
+    auto ref = luabridge::LuaRef::fromStack(L);
+    EXPECT_EQ(&dummy, ref.getPointer());
+}
+
+TEST_F(LuaRefTests, GetPointerLightUserdataNull)
+{
+    lua_pushlightuserdata(L, nullptr);
+    auto ref = luabridge::LuaRef::fromStack(L);
+    EXPECT_EQ(nullptr, ref.getPointer());
+}
+
+TEST_F(LuaRefTests, GetPointerUserdata)
+{
+    void* p = lua_newuserdata(L, 100);
+    auto ref = luabridge::LuaRef::fromStack(L);
+    EXPECT_NE(nullptr, ref.getPointer());
+    EXPECT_EQ(p, ref.getPointer());
+}
+
+TEST_F(LuaRefTests, GetPointerRegisteredClass)
+{
+    luabridge::getGlobalNamespace(L).beginClass<Class>("Class").endClass();
+
+    Class obj;
+    auto ref = luabridge::LuaRef(L, &obj);
+    EXPECT_EQ(&obj, ref.getPointer());
+}
+
+TEST_F(LuaRefTests, GetPointerThread)
+{
+    lua_State* threadL = lua_newthread(L);
+    lua_pushthread(threadL);
+    auto ref = luabridge::LuaRef::fromStack(L);
+    EXPECT_NE(nullptr, ref.getPointer());
+    EXPECT_EQ(threadL, ref.getPointer());
+}
+
+#if LUABRIDGE_SAFE_STACK_CHECKS
+TEST_F(LuaRefTests, GetPointerStackOverflow)
+{
+    runLua("result = {}");
+    auto ref = result();
+    exhaustStackSpace();
+    const void* p = ref.getPointer();
+    lua_settop(L, 0);
+    EXPECT_EQ(nullptr, p);
+}
+#endif

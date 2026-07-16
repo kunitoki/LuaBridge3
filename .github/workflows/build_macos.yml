@@ -51,7 +51,7 @@ jobs:
     - name: Build Lua ${{ matrix.lua.version }} (C++17)
       working-directory: ${{runner.workspace}}/build17
       run: |
-        cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target \
+        cmake --build . --config $BUILD_TYPE --parallel $(sysctl -n hw.ncpu) --target \
           LuaBridgeTests${{ matrix.lua.suffix }} \
           LuaBridgeTests${{ matrix.lua.suffix }}LuaC \
           LuaBridgeTests${{ matrix.lua.suffix }}Noexcept \
@@ -59,7 +59,7 @@ jobs:
 
     - name: Test Lua ${{ matrix.lua.version }} (C++17)
       working-directory: ${{runner.workspace}}/build17
-      run: ctest --parallel $(nproc) -R "LuaBridgeTests${{ matrix.lua.suffix }}" --output-on-failure
+      run: ctest --parallel $(sysctl -n hw.ncpu) -R "LuaBridgeTests${{ matrix.lua.suffix }}" --output-on-failure
 
     - name: Configure C++20
       working-directory: ${{runner.workspace}}/build20
@@ -68,7 +68,7 @@ jobs:
     - name: Build Lua ${{ matrix.lua.version }} (C++20)
       working-directory: ${{runner.workspace}}/build20
       run: |
-        cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target \
+        cmake --build . --config $BUILD_TYPE --parallel $(sysctl -n hw.ncpu) --target \
           LuaBridgeTests${{ matrix.lua.suffix }} \
           LuaBridgeTests${{ matrix.lua.suffix }}LuaC \
           LuaBridgeTests${{ matrix.lua.suffix }}Noexcept \
@@ -76,7 +76,7 @@ jobs:
 
     - name: Test Lua ${{ matrix.lua.version }} (C++20)
       working-directory: ${{runner.workspace}}/build20
-      run: ctest --parallel $(nproc) -R "LuaBridgeTests${{ matrix.lua.suffix }}" --output-on-failure
+      run: ctest --parallel $(sysctl -n hw.ncpu) -R "LuaBridgeTests${{ matrix.lua.suffix }}" --output-on-failure
 
     - name: Configure C++23
       working-directory: ${{runner.workspace}}/build23
@@ -85,7 +85,7 @@ jobs:
     - name: Build Lua ${{ matrix.lua.version }} (C++23)
       working-directory: ${{runner.workspace}}/build23
       run: |
-        cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target \
+        cmake --build . --config $BUILD_TYPE --parallel $(sysctl -n hw.ncpu) --target \
           LuaBridgeTests${{ matrix.lua.suffix }} \
           LuaBridgeTests${{ matrix.lua.suffix }}LuaC \
           LuaBridgeTests${{ matrix.lua.suffix }}Noexcept \
@@ -93,7 +93,7 @@ jobs:
 
     - name: Test Lua ${{ matrix.lua.version }} (C++23)
       working-directory: ${{runner.workspace}}/build23
-      run: ctest --parallel $(nproc) -R "LuaBridgeTests${{ matrix.lua.suffix }}" --output-on-failure
+      run: ctest --parallel $(sysctl -n hw.ncpu) -R "LuaBridgeTests${{ matrix.lua.suffix }}" --output-on-failure
 
   luajit:
     runs-on: macos-latest
@@ -116,13 +116,13 @@ jobs:
     - name: Build LuaJIT (C++17)
       working-directory: ${{runner.workspace}}/build17
       run: |
-        cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target \
+        cmake --build . --config $BUILD_TYPE --parallel $(sysctl -n hw.ncpu) --target \
           LuaBridgeTestsLuaJIT \
           LuaBridgeTestsLuaJITNoexcept
 
     - name: Test LuaJIT (C++17)
       working-directory: ${{runner.workspace}}/build17
-      run: ctest --parallel $(nproc) -R "LuaBridgeTestsLuaJIT" --output-on-failure
+      run: ctest --parallel $(sysctl -n hw.ncpu) -R "LuaBridgeTestsLuaJIT" --output-on-failure
 
     - name: Configure C++20
       working-directory: ${{runner.workspace}}/build20
@@ -131,13 +131,13 @@ jobs:
     - name: Build LuaJIT (C++20)
       working-directory: ${{runner.workspace}}/build20
       run: |
-        cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target \
+        cmake --build . --config $BUILD_TYPE --parallel $(sysctl -n hw.ncpu) --target \
           LuaBridgeTestsLuaJIT \
           LuaBridgeTestsLuaJITNoexcept
 
     - name: Test LuaJIT (C++20)
       working-directory: ${{runner.workspace}}/build20
-      run: ctest --parallel $(nproc) -R "LuaBridgeTestsLuaJIT" --output-on-failure
+      run: ctest --parallel $(sysctl -n hw.ncpu) -R "LuaBridgeTestsLuaJIT" --output-on-failure
 
     - name: Configure C++23
       working-directory: ${{runner.workspace}}/build23
@@ -146,13 +146,13 @@ jobs:
     - name: Build LuaJIT (C++23)
       working-directory: ${{runner.workspace}}/build23
       run: |
-        cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target \
+        cmake --build . --config $BUILD_TYPE --parallel $(sysctl -n hw.ncpu) --target \
           LuaBridgeTestsLuaJIT \
           LuaBridgeTestsLuaJITNoexcept
 
     - name: Test LuaJIT (C++23)
       working-directory: ${{runner.workspace}}/build23
-      run: ctest --parallel $(nproc) -R "LuaBridgeTestsLuaJIT" --output-on-failure
+      run: ctest --parallel $(sysctl -n hw.ncpu) -R "LuaBridgeTestsLuaJIT" --output-on-failure
 
   luau:
     runs-on: macos-latest
@@ -174,11 +174,11 @@ jobs:
 
     - name: Build Luau (C++17)
       working-directory: ${{runner.workspace}}/build17
-      run: cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target LuaBridgeTestsLuau
+      run: cmake --build . --config $BUILD_TYPE --parallel $(sysctl -n hw.ncpu) --target LuaBridgeTestsLuau
 
     - name: Test Luau (C++17)
       working-directory: ${{runner.workspace}}/build17
-      run: ctest --parallel $(nproc) -R "LuaBridgeTestsLuau" --output-on-failure
+      run: ctest --parallel $(sysctl -n hw.ncpu) -R "LuaBridgeTestsLuau" --output-on-failure
 
     - name: Configure C++20
       working-directory: ${{runner.workspace}}/build20
@@ -186,11 +186,11 @@ jobs:
 
     - name: Build Luau (C++20)
       working-directory: ${{runner.workspace}}/build20
-      run: cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target LuaBridgeTestsLuau
+      run: cmake --build . --config $BUILD_TYPE --parallel $(sysctl -n hw.ncpu) --target LuaBridgeTestsLuau
 
     - name: Test Luau (C++20)
       working-directory: ${{runner.workspace}}/build20
-      run: ctest --parallel $(nproc) -R "LuaBridgeTestsLuau" --output-on-failure
+      run: ctest --parallel $(sysctl -n hw.ncpu) -R "LuaBridgeTestsLuau" --output-on-failure
 
     - name: Configure C++23
       working-directory: ${{runner.workspace}}/build23
@@ -198,11 +198,11 @@ jobs:
 
     - name: Build Luau (C++23)
       working-directory: ${{runner.workspace}}/build23
-      run: cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target LuaBridgeTestsLuau
+      run: cmake --build . --config $BUILD_TYPE --parallel $(sysctl -n hw.ncpu) --target LuaBridgeTestsLuau
 
     - name: Test Luau (C++23)
       working-directory: ${{runner.workspace}}/build23
-      run: ctest --parallel $(nproc) -R "LuaBridgeTestsLuau" --output-on-failure
+      run: ctest --parallel $(sysctl -n hw.ncpu) -R "LuaBridgeTestsLuau" --output-on-failure
 
   ravi:
     runs-on: macos-latest
@@ -224,11 +224,11 @@ jobs:
 
     - name: Build Ravi (C++17)
       working-directory: ${{runner.workspace}}/build17
-      run: cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target LuaBridgeTestsRavi
+      run: cmake --build . --config $BUILD_TYPE --parallel $(sysctl -n hw.ncpu) --target LuaBridgeTestsRavi
 
     - name: Test Ravi (C++17)
       working-directory: ${{runner.workspace}}/build17
-      run: ctest --parallel $(nproc) -R "LuaBridgeTestsRavi" --output-on-failure
+      run: ctest --parallel $(sysctl -n hw.ncpu) -R "LuaBridgeTestsRavi" --output-on-failure
 
     - name: Configure C++20
       working-directory: ${{runner.workspace}}/build20
@@ -236,11 +236,11 @@ jobs:
 
     - name: Build Ravi (C++20)
       working-directory: ${{runner.workspace}}/build20
-      run: cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target LuaBridgeTestsRavi
+      run: cmake --build . --config $BUILD_TYPE --parallel $(sysctl -n hw.ncpu) --target LuaBridgeTestsRavi
 
     - name: Test Ravi (C++20)
       working-directory: ${{runner.workspace}}/build20
-      run: ctest --parallel $(nproc) -R "LuaBridgeTestsRavi" --output-on-failure
+      run: ctest --parallel $(sysctl -n hw.ncpu) -R "LuaBridgeTestsRavi" --output-on-failure
 
     - name: Configure C++23
       working-directory: ${{runner.workspace}}/build23
@@ -248,8 +248,8 @@ jobs:
 
     - name: Build Ravi (C++23)
       working-directory: ${{runner.workspace}}/build23
-      run: cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target LuaBridgeTestsRavi
+      run: cmake --build . --config $BUILD_TYPE --parallel $(sysctl -n hw.ncpu) --target LuaBridgeTestsRavi
 
     - name: Test Ravi (C++23)
       working-directory: ${{runner.workspace}}/build23
-      run: ctest --parallel $(nproc) -R "LuaBridgeTestsRavi" --output-on-failure
+      run: ctest --parallel $(sysctl -n hw.ncpu) -R "LuaBridgeTestsRavi" --output-on-failure
