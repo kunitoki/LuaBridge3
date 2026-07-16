@@ -363,16 +363,17 @@ public:
             || isInstance(L, index, detail::getConstRegistryKey<T>());
     }
 
-protected:
-    Userdata() = default;
-
     /**
      * @brief Get an untyped pointer to the contained class.
      */
+public:
     void* getPointer() const noexcept
     {
         return m_p;
     }
+
+protected:
+    Userdata() = default;
 
     void* m_p = nullptr; // subclasses must set this
 };
