@@ -38,10 +38,3 @@ endif ()
 if (LUABRIDGE_BENCHMARKS)
     add_subdirectory (Benchmarks)
 endif ()
-
-add_custom_target (Documentation SOURCES
-    CHANGES.md
-    README.md
-    Manual.md
-    Doxyfile
-)

@@ -149,7 +149,7 @@ LuaBridge3 auto-detects available C++ standard library features and activates th
 
 ## Documentation
 
-Please read the [LuaBridge3 Reference Manual](https://kunitoki.github.io/LuaBridge3/Manual) for more details on the API.
+Please read the [LuaBridge3 Documentation](https://luabridge3.readthedocs.io/en/latest/) for more details on the API.
 
 ## Release Notes
 
