@@ -2222,8 +2222,8 @@ TEST_F(LuaRefTests, GetPointerString)
 {
     runLua("result = 'hello'");
 
-#if LUA_VERSION_NUM >= 504 && !LUABRIDGE_ON_LUAU && !LUABRIDGE_ON_LUAJIT
-    // Lua 5.4+ returns a pointer for strings via lua_topointer
+#if LUA_VERSION_NUM >= 504 || LUABRIDGE_ON_LUAU || LUABRIDGE_ON_LUAJIT
+    // Lua 5.4+, Luau, and LuaJIT return a pointer for strings via lua_topointer
     EXPECT_NE(nullptr, result().getPointer());
 #else
     EXPECT_EQ(nullptr, result().getPointer());
@@ -2285,6 +2285,15 @@ TEST_F(LuaRefTests, GetPointerUserdata)
     auto ref = luabridge::LuaRef::fromStack(L);
     EXPECT_NE(nullptr, ref.getPointer());
     EXPECT_EQ(p, ref.getPointer());
+}
+
+TEST_F(LuaRefTests, GetPointerRegisteredClass)
+{
+    luabridge::getGlobalNamespace(L).beginClass<Class>("Class").endClass();
+
+    Class obj;
+    auto ref = luabridge::LuaRef(L, &obj);
+    EXPECT_EQ(&obj, ref.getPointer());
 }
 
 TEST_F(LuaRefTests, GetPointerThread)
