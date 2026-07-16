@@ -72,6 +72,17 @@
 * Converted the manual from html to markdown.
 * Small improvements to code and doxygen comments readability.
 * Support for `__fastcall` function pointers.
+* Split `LUABRIDGE_HAS_CXX23_FLAT_CONTAINERS` into `LUABRIDGE_HAS_CXX23_FLAT_MAP` and `LUABRIDGE_HAS_CXX23_FLAT_SET` for finer-grained C++23 flat container support (#254).
+* Added `[[maybe_unused]]` attributes to suppress compiler warnings in exception helper functions (#254).
+* Updated SFINAE logic in `functor_traits_impl` to exclude move-only functions from certain specializations (#254).
+* Fixed CMake C++23 compile option for MSVC (#254).
+* Fixed `__index` getter priority: registered getters in the hierarchy now take priority over derived-class `__index` fallback (#255, #242).
+* Fixed cross-class member pointer registration: base-class member pointers can now be registered on derived classes (#255, #246).
+* Added ability to access static properties and static functions through class instances (#256, #251).
+* Added `UserdataGetter` specialization for `std::move_only_function` to support registering and invoking move-only functions (#257, #253).
+* Added `LuaRef::getPointer` to retrieve a raw `const void*` to the referenced object (#257).
+* Improved `LuaException` to store and return error messages from error codes (#257).
+* Added GCC build configuration support in justfile and CMakeLists.txt (#257).
 
 ## Version 2.6
 
