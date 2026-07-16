@@ -1049,7 +1049,7 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
 
         const int mtIndex = lua_absindex(L, -2);
         const int origClassTableIndex = lua_absindex(L, -1);
-        const auto process_metatable = [L, key, origClassTableIndex](int candidateMtIndex)
+        const auto process_metatable = [=](int candidateMtIndex)
         {
             push_class_or_const_table(L, candidateMtIndex); // Stack: ..., candidate_ct | nil
             if (! lua_istable(L, -1))
@@ -1121,7 +1121,7 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
     lua_pushvalue(L, rootMetatableIndex); // Stack: mt, target mt
     const int targetMetatableIndex = lua_absindex(L, -1);
 
-    const auto process_metatable = [L, key, targetMetatableIndex](int candidateMtIndex)
+    const auto process_metatable = [=](int candidateMtIndex)
     {
         push_class_or_const_table(L, candidateMtIndex); // Stack: ..., candidate_ct | nil
         if (! lua_istable(L, -1))
@@ -1353,6 +1353,19 @@ inline int newindex_metamethod(lua_State* L)
     }
 
     lua_pop(L, 1); // Stack: mt
+
+    // Before consulting any __newindex fallback, scan the entire parent hierarchy for a
+    // matching property setter.  This ensures that a registered property anywhere in the
+    // inheritance chain always takes priority over a __newindex fallback defined at a
+    // narrower scope (e.g. an intermediate or leaf class).
+    if (auto result = try_call_parent_newindex_setters<IsObject>(L))
+        return *result;
+
+    if constexpr (IsObject)
+    {
+        if (auto result = try_call_instance_static_newindex(L, -1))
+            return *result;
+    }
 
     // Before consulting any __newindex fallback, scan the entire parent hierarchy for a
     // matching property setter.  This ensures that a registered property anywhere in the

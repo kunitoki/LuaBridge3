@@ -23,13 +23,12 @@ class LuaException : public std::exception
 public:
     //=============================================================================================
     /**
-     * @brief Construct a LuaException after a lua_pcall().
-     *
-     * Assumes the error string is on top of the stack, but provides a generic error message otherwise.
+     * @brief Construct a LuaException from a LuaBridge error code.
      */
     LuaException(lua_State* L, std::error_code code)
         : m_L(L)
         , m_code(code)
+        , m_what(code.message())
     {
     }
 

@@ -316,6 +316,10 @@ macro (add_test_app LUABRIDGE_TEST_NAME LUA_VERSION LUABRIDGE_TEST_LUA_LIBRARY_F
     ${LUABRIDGE_TEST_LUA_LIBRARY_FILES}
   )
 
+  if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_compile_options (${LUABRIDGE_TEST_NAME} PRIVATE -Wno-psabi)
+  endif ()
+
   target_compile_definitions (${LUABRIDGE_TEST_NAME} PRIVATE
     ${LUABRIDGE_DEFINES})
 

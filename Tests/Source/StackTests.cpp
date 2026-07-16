@@ -2895,8 +2895,17 @@ TEST_F(StackTests, SetGlobalFailure)
 {
     struct Unregistered2 {};
 
-    // setGlobal should return false when push fails (non-exception mode only)
-#if !LUABRIDGE_HAS_EXCEPTIONS
+#if LUABRIDGE_HAS_EXCEPTIONS
+    try
+    {
+        luabridge::setGlobal(L, Unregistered2{}, "test_var");
+        FAIL() << "Expected an exception";
+    }
+    catch (const luabridge::LuaException& e)
+    {
+        EXPECT_STREQ("The class is not registered in LuaBridge", e.what());
+    }
+#else
     bool ok = luabridge::setGlobal(L, Unregistered2{}, "test_var");
     EXPECT_FALSE(ok);
 #endif

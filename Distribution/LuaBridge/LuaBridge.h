@@ -3705,6 +3705,7 @@ public:
     LuaException(lua_State* L, std::error_code code)
         : m_L(L)
         , m_code(code)
+        , m_what(code.message())
     {
     }
 
@@ -4730,7 +4731,7 @@ struct UserdataGetter
 };
 
 template <class T>
-struct UserdataGetter<T, std::void_t<T (*)()>>
+struct UserdataGetter<T, std::enable_if_t<!is_move_only_function_v<T>, std::void_t<T (*)()>>>
 {
     using ReturnType = TypeResult<T>;
 
@@ -4743,6 +4744,26 @@ struct UserdataGetter<T, std::void_t<T (*)()>>
         return *result;
     }
 };
+
+#if LUABRIDGE_HAS_CXX23_MOVE_ONLY_FUNCTION
+template <class T>
+struct UserdataGetter<T, std::enable_if_t<is_move_only_function_v<T>>>
+{
+    using ReturnType = TypeResult<T>;
+
+    static ReturnType get(lua_State* L, int index)
+    {
+        auto result = Userdata::get<T>(L, index, true);
+        if (! result)
+            return result.error();
+
+        if (*result == nullptr)
+            return getNilBadArgError<T>(L, index);
+
+        return std::move(**result);
+    }
+};
+#endif
 
 } 
 
@@ -8237,7 +8258,7 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
         
         const int mtIndex = lua_absindex(L, -2);
         const int origClassTableIndex = lua_absindex(L, -1);
-        const auto process_metatable = [L, key, origClassTableIndex](int candidateMtIndex)
+        const auto process_metatable = [=](int candidateMtIndex)
         {
             push_class_or_const_table(L, candidateMtIndex); 
             if (! lua_istable(L, -1))
@@ -8307,7 +8328,7 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
     lua_pushvalue(L, rootMetatableIndex); 
     const int targetMetatableIndex = lua_absindex(L, -1);
 
-    const auto process_metatable = [L, key, targetMetatableIndex](int candidateMtIndex)
+    const auto process_metatable = [=](int candidateMtIndex)
     {
         push_class_or_const_table(L, candidateMtIndex); 
         if (! lua_istable(L, -1))
@@ -12576,7 +12597,7 @@ class Namespace : public detail::Registrar
             LUABRIDGE_ASSERT(lua_istable(L, visitedIndex));
             LUABRIDGE_ASSERT(lua_istable(L, baseMetatableIndex));
 
-            const auto appendUnique = [L, parentsIndex, visitedIndex](int metatableIndex)
+            const auto appendUnique = [=](int metatableIndex)
             {
                 metatableIndex = lua_absindex(L, metatableIndex);
 

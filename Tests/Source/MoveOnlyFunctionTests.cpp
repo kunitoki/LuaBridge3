@@ -8,6 +8,15 @@
 
 #include <functional>
 
+namespace {
+class TestClass
+{
+public:
+    void method1(std::function<void()> fn) { fn(); }
+    void method2(std::move_only_function<void()> fn) { fn(); }
+};
+} // namespace
+
 struct MoveOnlyFunctionTests : TestBase
 {
 };
@@ -48,7 +57,7 @@ TEST_F(MoveOnlyFunctionTests, RegisterAndCall)
     std::move_only_function<int(int)> fn = [](int x) { return x * 2; };
 
     luabridge::getGlobalNamespace(L)
-        .addFunction("double_it", std::function<int(int)>([](int x) { return x * 2; }));
+        .addFunction("double_it", std::move(fn));
 
     runLua("result = double_it(21)");
     EXPECT_EQ(42, result<int>());
@@ -58,6 +67,37 @@ TEST_F(MoveOnlyFunctionTests, HasFunctionTraits)
 {
     using F = std::move_only_function<int(double)>;
     EXPECT_TRUE((luabridge::detail::has_function_traits_v<F>));
+}
+
+TEST_F(MoveOnlyFunctionTests, RegisterAsArgument)
+{
+    using Function1 = std::function<void()>;
+    using Function2 = std::move_only_function<void()>;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<TestClass>("TestClass")
+            .addFunction("Method1", &TestClass::method1)
+            .addFunction("Method2", &TestClass::method2)
+        .endClass()
+        .beginClass<Function1>("Function1")
+        .endClass()
+        .beginClass<Function2>("Function2")
+        .endClass();
+
+    TestClass object;
+    luabridge::setGlobal(L, &object, "object");
+
+    bool called1 = false;
+    Function1 fn1 = [&called1] { called1 = true; };
+    luabridge::setGlobal(L, &fn1, "fn1");
+    runLua("object:Method1(fn1)");
+    EXPECT_TRUE(called1);
+
+    bool called2 = false;
+    Function2 fn2 = [&called2] { called2 = true; };
+    luabridge::setGlobal(L, &fn2, "fn2");
+    runLua("object:Method2(fn2)");
+    EXPECT_TRUE(called2);
 }
 
 #endif // LUABRIDGE_HAS_CXX23_MOVE_ONLY_FUNCTION
