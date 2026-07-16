@@ -60,7 +60,7 @@ html_css_files = [
 ]
 
 html_theme_options = {
-    "accent_color": "blue",
+    "accent_color": "jade",
     "color_mode": "auto",
     "github_url": github,
     "nav_socials": ["github"],
