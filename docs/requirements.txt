@@ -1,0 +1,4 @@
+sphinx>=7.0
+myst-parser>=2.0
+linkify-it-py>=2.0
+shibuya>=2026.7.12

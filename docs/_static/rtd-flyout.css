@@ -1,0 +1,41 @@
+/* ==========================================================================
+   Read the Docs Addons flyout theming (Shibuya theme).
+
+   The flyout renders inside an open shadow DOM (<readthedocs-flyout>), so its
+   internals can't be reached with descendant selectors. It does, however,
+   consume a set of `--readthedocs-flyout-*` CSS custom properties (declared by
+   the addon in an `@layer defaults`). Custom properties inherit across the
+   shadow boundary, and these unlayered `:root` rules beat the addon's layered
+   defaults — so setting them here retheme the flyout.
+
+   Shibuya exposes `--sy-c-*` color variables (and `--accent-*` for the accent)
+   that it swaps between `html.light` and `html.dark`. We map the flyout
+   variables onto them, so the flyout automatically follows the active color
+   mode. Hardcoded values are provided only as fallbacks for when the theme
+   variables are unavailable.
+   ========================================================================== */
+
+:root {
+    --readthedocs-flyout-font-family: var(--sy-f-text, -apple-system,
+        BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif);
+
+    --readthedocs-flyout-background-color: var(--sy-c-background, #ffffff);
+    --readthedocs-flyout-color: var(--sy-c-light, #4b5563);
+    --readthedocs-flyout-section-heading-color: var(--sy-c-light, #6b7280);
+    --readthedocs-flyout-item-link-color: var(--sy-c-text, #111827);
+    --readthedocs-flyout-divider-color: var(--sy-c-divider, #e5e7eb);
+    --readthedocs-flyout-link-color: var(--sy-c-link, var(--accent-a11, #2563eb));
+    --readthedocs-flyout-current-version-color: var(--sy-c-link, var(--accent-a11, #2563eb));
+}
+
+/* Explicit fallbacks per mode, in case the theme variables are missing.
+   (When Shibuya is active the mappings above already adapt automatically.) */
+html.dark {
+    --readthedocs-flyout-background-color: var(--sy-c-background, #1b1b1f);
+    --readthedocs-flyout-color: var(--sy-c-light, #a1a1aa);
+    --readthedocs-flyout-section-heading-color: var(--sy-c-light, #9ca3af);
+    --readthedocs-flyout-item-link-color: var(--sy-c-text, #e5e7eb);
+    --readthedocs-flyout-divider-color: var(--sy-c-divider, #2a2a30);
+    --readthedocs-flyout-link-color: var(--sy-c-link, var(--accent-a11, #60a5fa));
+    --readthedocs-flyout-current-version-color: var(--sy-c-link, var(--accent-a11, #60a5fa));
+}

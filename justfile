@@ -57,6 +57,13 @@ plot CXX="17":
 amalgamate:
     uv run amalgamate.py
 
+docs:
+    uv run --with-requirements docs/requirements.txt sphinx-build -W -b html docs docs/_build/html
+
+docs-open:
+    @just docs
+    open docs/_build/html/index.html
+
 clean:
     rm -rf Build
 

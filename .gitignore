@@ -17,3 +17,4 @@ Build*/
 .DS_Store
 cmake-build-*/
 tmpunwind.o
+docs/_build/
