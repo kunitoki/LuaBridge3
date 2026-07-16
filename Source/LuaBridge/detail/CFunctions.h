@@ -254,6 +254,37 @@ inline bool is_metamethod(std::string_view method_name)
     return result != metamethods.end() && *result == method_name;
 }
 
+/**
+ * @brief Check if a method name is a binary operator metamethod.
+ */
+inline bool is_binary_operator_metamethod(std::string_view method_name)
+{
+    static constexpr auto metamethods = make_array<std::string_view>(
+        "__add",
+        "__band",
+        "__bor",
+        "__bxor",
+        "__concat",
+        "__div",
+        "__eq",
+        "__idiv",
+        "__le",
+        "__lt",
+        "__mod",
+        "__mul",
+        "__pow",
+        "__shl",
+        "__shr",
+        "__sub"
+    );
+
+    if (method_name.size() <= 2 || method_name[0] != '_' || method_name[1] != '_')
+        return false;
+
+    auto result = std::lower_bound(metamethods.begin(), metamethods.end(), method_name);
+    return result != metamethods.end() && *result == method_name;
+}
+
 inline void rawset_super_method(lua_State* L, int tableIndex, const char* key)
 {
     LUABRIDGE_ASSERT(key != nullptr);
@@ -2253,6 +2284,18 @@ bool overload_type_checker(lua_State* L, int start)
     return overload_check_args<ArgsPack>(L, start);
 }
 
+/**
+ * @brief Type checker for reversed proxy functions (binary operators with swapped operands).
+ *
+ * Checks all arguments from absolute stack index 1, ignoring @p start, because the class object
+ * is not the first operand on the stack (eg. `3 * vec`).
+ */
+template <class ArgsPack>
+bool reversed_overload_type_checker(lua_State* L, int)
+{
+    return overload_check_args<ArgsPack>(L, 1);
+}
+
 //=================================================================================================
 /**
  * @brief lua_CFunction to resolve an invocation between several overloads.
@@ -2481,7 +2524,8 @@ template <class T, class F, class = std::enable_if<
         !std::is_member_function_pointer_v<F>>>
 void push_member_function(lua_State* L, F&& f, const char* debugname)
 {
-    static_assert(std::is_same_v<T, remove_cvref_t<std::remove_pointer_t<function_argument_or_void_t<0, F>>>>);
+    static_assert(std::is_same_v<T, remove_cvref_t<std::remove_pointer_t<function_argument_or_void_t<0, F>>>> ||
+        is_reversed_proxy_function_v<T, F>);
 
     lua_newuserdata_aligned<F>(L, std::forward<F>(f));
     lua_pushcclosure_x(L, &invoke_proxy_functor<F>, debugname, 1);
