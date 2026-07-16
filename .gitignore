@@ -1,10 +1,10 @@
-Documentation
 *.swp
 Makefile
 CMakeCache.txt
 CMakeFiles/
 build*/
 Build*/
+Documentation/_build/
 *.dir/
 *.sln
 *.vcxproj
@@ -17,4 +17,3 @@ Build*/
 .DS_Store
 cmake-build-*/
 tmpunwind.o
-docs/_build/
