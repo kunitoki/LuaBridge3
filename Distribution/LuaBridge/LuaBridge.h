@@ -8561,6 +8561,15 @@ inline int newindex_metamethod(lua_State* L)
 
     if constexpr (IsObject)
     {
+        if (auto result = try_call_instance_static_newindex(L, -1))
+            return *result;
+    }
+
+    if (auto result = try_call_parent_newindex_setters<IsObject>(L))
+        return *result;
+
+    if constexpr (IsObject)
+    {
         if (auto result = try_call_newindex_fallback(L))
             return *result;
     }
@@ -11856,6 +11865,20 @@ public:
 
         lua_rawset(m_L, -3);
         lua_pop(m_L, 1);
+    }
+
+    const void* getPointer() const
+    {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(m_L, 1))
+            return nullptr;
+#endif
+
+        lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_ref);
+        const void* ptr = lua_topointer(m_L, -1);
+        lua_pop(m_L, 1);
+
+        return ptr;
     }
 
     [[nodiscard]] std::size_t hash() const
