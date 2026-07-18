@@ -169,6 +169,67 @@ private:
     Foo<T> foo;
 };
 
+class Vec2
+{
+public:
+    Vec2(float x, float y)
+        : x(x), y(y)
+    {
+    }
+
+    friend Vec2 operator*(const Vec2& vec, float scalar)
+    {
+        return Vec2(vec.x * scalar, vec.y * scalar);
+    }
+
+    friend Vec2 operator*(float scalar, const Vec2& vec)
+    {
+        return Vec2(vec.x * scalar, vec.y * scalar);
+    }
+
+    friend Vec2 operator+(const Vec2& vec, float scalar)
+    {
+        return Vec2(vec.x + scalar, vec.y + scalar);
+    }
+
+    friend Vec2 operator+(float scalar, const Vec2& vec)
+    {
+        return Vec2(scalar + vec.x, scalar + vec.y);
+    }
+
+    friend Vec2 operator-(const Vec2& vec, float scalar)
+    {
+        return Vec2(vec.x - scalar, vec.y - scalar);
+    }
+
+    friend Vec2 operator-(float scalar, const Vec2& vec)
+    {
+        return Vec2(scalar - vec.x, scalar - vec.y);
+    }
+
+    friend Vec2 operator/(const Vec2& vec, float scalar)
+    {
+        return Vec2(vec.x / scalar, vec.y / scalar);
+    }
+
+    friend Vec2 operator/(float scalar, const Vec2& vec)
+    {
+        return Vec2(scalar / vec.x, scalar / vec.y);
+    }
+
+    friend bool operator==(const Vec2& lhs, const Vec2& rhs)
+    {
+        return lhs.x == rhs.x && lhs.y == rhs.y;
+    }
+
+    float getX() const { return x; }
+    float getY() const { return y; }
+
+private:
+    float x;
+    float y;
+};
+
 } // namespace
 
 TEST_F(ClassTests, Assignment)
@@ -2572,6 +2633,122 @@ TEST_F(ClassMetaMethods, __mul)
     ASSERT_EQ(10, result<Int>().data);
 }
 
+TEST_F(ClassMetaMethods, ReversedAddOperator)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Vec2>("Vec2")
+        .addConstructor<void (*)(float, float)>()
+        .addFunction("__add",
+            [](const Vec2& vec, float scalar) { return vec + scalar; },
+            [](float scalar, const Vec2& vec) { return scalar + vec; })
+        .endClass();
+
+    runLua("result = Vec2 (1, 2) + 3");
+    ASSERT_TRUE(result().isUserdata());
+    ASSERT_EQ(Vec2(4, 5), result<Vec2>());
+
+    runLua("result = 3 + Vec2 (1, 2)");
+    ASSERT_TRUE(result().isUserdata());
+    ASSERT_EQ(Vec2(4, 5), result<Vec2>());
+}
+
+TEST_F(ClassMetaMethods, ReversedSubOperator)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Vec2>("Vec2")
+        .addConstructor<void (*)(float, float)>()
+        .addFunction("__sub",
+            [](const Vec2& vec, float scalar) { return vec - scalar; },
+            [](float scalar, const Vec2& vec) { return scalar - vec; })
+        .endClass();
+
+    runLua("result = Vec2 (5, 7) - 2");
+    ASSERT_TRUE(result().isUserdata());
+    ASSERT_EQ(Vec2(3, 5), result<Vec2>());
+
+    runLua("result = 10 - Vec2 (1, 2)");
+    ASSERT_TRUE(result().isUserdata());
+    ASSERT_EQ(Vec2(9, 8), result<Vec2>());
+}
+
+TEST_F(ClassMetaMethods, ReversedMulOperator)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Vec2>("Vec2")
+        .addConstructor<void (*)(float, float)>()
+        .addFunction("__mul",
+            [](const Vec2& vec, float scalar) { return vec * scalar; },
+            [](float scalar, const Vec2& vec) { return scalar * vec; })
+        .endClass();
+
+    runLua("result = Vec2 (1, 2) * 3");
+    ASSERT_TRUE(result().isUserdata());
+    ASSERT_EQ(Vec2(3, 6), result<Vec2>());
+
+    runLua("result = 3 * Vec2 (1, 2)");
+    ASSERT_TRUE(result().isUserdata());
+    ASSERT_EQ(Vec2(3, 6), result<Vec2>());
+}
+
+TEST_F(ClassMetaMethods, ReversedDivOperator)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Vec2>("Vec2")
+        .addConstructor<void (*)(float, float)>()
+        .addFunction("__div",
+            [](const Vec2& vec, float scalar) { return vec / scalar; },
+            [](float scalar, const Vec2& vec) { return scalar / vec; })
+        .endClass();
+
+    runLua("result = Vec2 (6, 8) / 2");
+    ASSERT_TRUE(result().isUserdata());
+    ASSERT_EQ(Vec2(3, 4), result<Vec2>());
+
+    runLua("result = 12 / Vec2 (2, 4)");
+    ASSERT_TRUE(result().isUserdata());
+    ASSERT_EQ(Vec2(6, 3), result<Vec2>());
+}
+
+TEST_F(ClassMetaMethods, ReversedOperatorOnConstInstance)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Vec2>("Vec2")
+        .addConstructor<void (*)(float, float)>()
+        .addFunction("__mul",
+            [](const Vec2& vec, float scalar) { return vec * scalar; },
+            [](float scalar, const Vec2& vec) { return scalar * vec; })
+        .endClass();
+
+    const Vec2 vec(1, 2);
+    luabridge::setGlobal(L, &vec, "v");
+
+    runLua("result = v * 3");
+    ASSERT_TRUE(result().isUserdata());
+    ASSERT_EQ(Vec2(3, 6), result<Vec2>());
+
+    runLua("result = 3 * v");
+    ASSERT_TRUE(result().isUserdata());
+    ASSERT_EQ(Vec2(3, 6), result<Vec2>());
+}
+
+TEST_F(ClassMetaMethods, ReversedOperatorOnly)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Vec2>("Vec2")
+        .addConstructor<void (*)(float, float)>()
+        .addFunction("__mul",
+            [](float scalar, const Vec2& vec) { return scalar * vec; })
+        .endClass();
+
+    runLua("result = 3 * Vec2 (1, 2)");
+    ASSERT_TRUE(result().isUserdata());
+    ASSERT_EQ(Vec2(3, 6), result<Vec2>());
+
+#if LUABRIDGE_HAS_EXCEPTIONS
+    ASSERT_ANY_THROW(runLua("result = Vec2 (1, 2) * 3"));
+#endif
+}
+
 TEST_F(ClassMetaMethods, __div)
 {
     typedef Class<int, EmptyBase> Int;
@@ -2773,6 +2950,24 @@ TEST_F(ClassMetaMethods, __gcForbidden)
     ASSERT_THROW(luabridge::getGlobalNamespace(L)
                      .beginClass<Int>("Int")
                      .addFunction("__gc", &Int::method)
+                     .endClass(),
+                 std::exception);
+}
+
+TEST_F(ClassMetaMethods, ReversedFunctionsForbiddenOutsideBinaryOperators)
+{
+    ASSERT_THROW(luabridge::getGlobalNamespace(L)
+                     .beginClass<Vec2>("Vec2")
+                     .addFunction("mul",
+                         [](const Vec2& vec, float scalar) { return vec * scalar; },
+                         [](float scalar, const Vec2& vec) { return scalar * vec; })
+                     .endClass(),
+                 std::exception);
+
+    ASSERT_THROW(luabridge::getGlobalNamespace(L)
+                     .beginClass<Vec2>("Vec2")
+                     .addFunction("__tostring",
+                         [](float scalar, const Vec2& vec) { return scalar * vec; })
                      .endClass(),
                  std::exception);
 }
