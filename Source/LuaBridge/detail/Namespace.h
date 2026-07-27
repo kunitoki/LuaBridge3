@@ -566,7 +566,9 @@ class Namespace : public detail::Registrar
                     lua_pop(L, 4); // pop (nil), visited, cast table, cl parents. Stack: ns, co, cl, st
 
                     throw_or_assert<std::logic_error>("Base class is not registered");
+#if !LUABRIDGE_HAS_EXCEPTIONS
                     return;
+#endif
                 }
 
                 lua_rawgetp_x(L, -1, detail::getClassKey()); // Stack: ..., visited, base st, base cl | nil
@@ -575,7 +577,9 @@ class Namespace : public detail::Registrar
                     lua_pop(L, 5); // pop (nil), base st, visited, cast table, cl parents. Stack: ns, co, cl, st
 
                     throw_or_assert<std::logic_error>("Base class is not registered");
+#if !LUABRIDGE_HAS_EXCEPTIONS
                     return;
+#endif
                 }
 
                 appendParentList(L, clParentsIndex, visitedIndex, -1);
@@ -941,7 +945,9 @@ class Namespace : public detail::Registrar
             if (name == std::string_view("__gc"))
             {
                 throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
+#if !LUABRIDGE_HAS_EXCEPTIONS
                 return *this;
+#endif
             }
 
             if constexpr (sizeof...(Functions) == 1)
@@ -1842,7 +1848,9 @@ public:
         {
             throw_or_assert<std::logic_error>("endNamespace() called on global namespace");
 
+#if !LUABRIDGE_HAS_EXCEPTIONS
             return Namespace(std::move(*this));
+#endif
         }
 
         LUABRIDGE_ASSERT(m_stackSize > 1);
@@ -1904,7 +1912,9 @@ public:
         {
             throw_or_assert<std::logic_error>("addProperty() called on global namespace");
 
+#if !LUABRIDGE_HAS_EXCEPTIONS
             return *this;
+#endif
         }
 
         detail::push_property_getter(L, std::move(getter), name); // Stack: ns, getter
@@ -1935,7 +1945,9 @@ public:
         {
             throw_or_assert<std::logic_error>("addProperty() called on global namespace");
 
+#if !LUABRIDGE_HAS_EXCEPTIONS
             return *this;
+#endif
         }
 
         detail::push_property_getter(L, std::move(getter), name); // Stack: ns, getter
