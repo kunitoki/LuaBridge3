@@ -3722,7 +3722,7 @@ public:
         return m_what.c_str();
     }
 
-    static void raise(lua_State* L, std::error_code code)
+    [[noreturn]] static void raise(lua_State* L, std::error_code code)
     {
         LUABRIDGE_ASSERT(areExceptionsEnabled(L));
 
@@ -8613,7 +8613,6 @@ inline int newindex_metamethod(lua_State* L)
 
     lua_pop(L, 1); 
     raise_lua_error(L, "no writable member '%s'", key);
-    return 0;
 }
 
 template <bool IsObject>
@@ -8703,7 +8702,6 @@ inline int newindex_metamethod_simple(lua_State* L)
     }
 
     raise_lua_error(L, "no writable member '%s'", key);
-    return 0;
 }
 
 [[noreturn]] inline int read_only_error(lua_State* L)
@@ -12967,7 +12965,9 @@ class Namespace : public detail::Registrar
                     lua_pop(L, 4); 
 
                     throw_or_assert<std::logic_error>("Base class is not registered");
+#if !LUABRIDGE_HAS_EXCEPTIONS
                     return;
+#endif
                 }
 
                 lua_rawgetp_x(L, -1, detail::getClassKey()); 
@@ -12976,7 +12976,9 @@ class Namespace : public detail::Registrar
                     lua_pop(L, 5); 
 
                     throw_or_assert<std::logic_error>("Base class is not registered");
+#if !LUABRIDGE_HAS_EXCEPTIONS
                     return;
+#endif
                 }
 
                 appendParentList(L, clParentsIndex, visitedIndex, -1);
@@ -13293,7 +13295,9 @@ class Namespace : public detail::Registrar
             if (name == std::string_view("__gc"))
             {
                 throw_or_assert<std::logic_error>("__gc metamethod registration is forbidden");
+#if !LUABRIDGE_HAS_EXCEPTIONS
                 return *this;
+#endif
             }
 
             if constexpr (sizeof...(Functions) == 1)
@@ -14016,7 +14020,9 @@ public:
         {
             throw_or_assert<std::logic_error>("endNamespace() called on global namespace");
 
+#if !LUABRIDGE_HAS_EXCEPTIONS
             return Namespace(std::move(*this));
+#endif
         }
 
         LUABRIDGE_ASSERT(m_stackSize > 1);
@@ -14060,7 +14066,9 @@ public:
         {
             throw_or_assert<std::logic_error>("addProperty() called on global namespace");
 
+#if !LUABRIDGE_HAS_EXCEPTIONS
             return *this;
+#endif
         }
 
         detail::push_property_getter(L, std::move(getter), name); 
@@ -14082,7 +14090,9 @@ public:
         {
             throw_or_assert<std::logic_error>("addProperty() called on global namespace");
 
+#if !LUABRIDGE_HAS_EXCEPTIONS
             return *this;
+#endif
         }
 
         detail::push_property_getter(L, std::move(getter), name); 

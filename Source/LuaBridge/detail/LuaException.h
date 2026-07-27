@@ -49,7 +49,7 @@ public:
     /**
      * @brief Throw an exception or raises a luaerror when exceptions are disabled.
      */
-    static void raise(lua_State* L, std::error_code code)
+    [[noreturn]] static void raise(lua_State* L, std::error_code code)
     {
         LUABRIDGE_ASSERT(areExceptionsEnabled(L));
 

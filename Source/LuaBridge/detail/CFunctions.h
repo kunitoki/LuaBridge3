@@ -1459,7 +1459,6 @@ inline int newindex_metamethod(lua_State* L)
 
     lua_pop(L, 1); // Stack: -
     raise_lua_error(L, "no writable member '%s'", key);
-    return 0;
 }
 
 template <bool IsObject>
@@ -1550,7 +1549,6 @@ inline int newindex_metamethod_simple(lua_State* L)
     }
 
     raise_lua_error(L, "no writable member '%s'", key);
-    return 0;
 }
 
 //=================================================================================================
