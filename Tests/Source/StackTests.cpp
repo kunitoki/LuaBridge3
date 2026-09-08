@@ -32,6 +32,53 @@ TEST_F(StackTests, VoidStackOverflow)
     ASSERT_TRUE(luabridge::Stack<void>::push(L));
 }
 
+TEST_F(StackTests, ReferenceAndPointerToNonUserdataTypes)
+{
+    // Stack<T&>, Stack<const T&>, Stack<T*> and Stack<const T*> all forward to
+    // `Helper::template isInstance<T>(...)`, which requires the selected
+    // StackOpSelector to declare isInstance as a template. The non-userdata
+    // specialisations declared it as a plain static function, so instantiating
+    // isInstance for a reference or pointer to any non-userdata type was a hard
+    // compile error ("'isInstance' following the 'template' keyword does not
+    // refer to a template"). That made luabridge::overload<const T&>(...)
+    // unusable for int, double, std::string and every other non-userdata type.
+    {
+        ASSERT_TRUE(luabridge::push(L, 42));
+
+        EXPECT_TRUE(luabridge::isInstance<int&>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<const int&>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<int*>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<const int*>(L, -1));
+
+        EXPECT_TRUE(luabridge::isInstance<double&>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<const double&>(L, -1));
+
+        lua_pop(L, 1);
+    }
+
+    {
+        ASSERT_TRUE(luabridge::push(L, std::string("abc")));
+
+        EXPECT_TRUE(luabridge::isInstance<std::string&>(L, -1));
+        EXPECT_TRUE(luabridge::isInstance<const std::string&>(L, -1));
+
+        EXPECT_FALSE(luabridge::isInstance<int&>(L, -1));
+        EXPECT_FALSE(luabridge::isInstance<const int&>(L, -1));
+
+        // The userdata specialisations reach isInstance through the same path
+        // and must keep working.
+        EXPECT_FALSE(luabridge::isInstance<Unregistered&>(L, -1));
+        EXPECT_FALSE(luabridge::isInstance<const Unregistered&>(L, -1));
+
+        // An explicit U is forwarded rather than silently replaced by T, which
+        // mirrors how the userdata selectors forward Userdata::isInstance<U>.
+        EXPECT_TRUE(
+            (luabridge::detail::StackOpSelector<const int&, false>::isInstance<std::string>(L, -1)));
+
+        lua_pop(L, 1);
+    }
+}
+
 TEST_F(StackTests, NullptrType)
 {
     {
