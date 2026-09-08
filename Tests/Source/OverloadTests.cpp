@@ -549,6 +549,51 @@ TEST_F(OverloadTests, OverloadOperatorClass)
     EXPECT_EQ(6, result2.value);
 }
 
+TEST_F(OverloadTests, ConstReferenceToNonUserdataParameters)
+{
+    // Registering an overload set whose parameters are references to
+    // non-userdata types instantiates Stack<const T&>::isInstance, which used to
+    // be a compile error. Arity alone selects the overload here, so the runtime
+    // expectations stay unambiguous.
+    struct X
+    {
+        int sum(const int& a) const { return a; }
+        int sum(const int& a, const int& b) const { return a + b; }
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<X>("X")
+            .addConstructor<void()>()
+            .addFunction("sum",
+                luabridge::constOverload<const int&>(&X::sum),
+                luabridge::constOverload<const int&, const int&>(&X::sum))
+        .endClass();
+
+    runLua("x = X(); result = x:sum(3)");
+    EXPECT_EQ(3, result<int>());
+
+    runLua("x = X(); result = x:sum(3, 4)");
+    EXPECT_EQ(7, result<int>());
+}
+
+TEST_F(OverloadTests, ConstReferenceToStringParameters)
+{
+    luabridge::getGlobalNamespace(L)
+        .addFunction("test",
+            [](const std::string& s) -> int {
+                return static_cast<int>(s.size());
+            },
+            [](const std::string& s, const int& factor) -> int {
+                return static_cast<int>(s.size()) * factor;
+            });
+
+    runLua("result = test ('abcd')");
+    EXPECT_EQ(4, result<int>());
+
+    runLua("result = test ('abcd', 3)");
+    EXPECT_EQ(12, result<int>());
+}
+
 TEST_F(OverloadTests, LuaCFunctionFallback)
 {
     struct X

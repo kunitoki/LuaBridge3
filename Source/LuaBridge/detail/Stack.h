@@ -1518,7 +1518,8 @@ struct StackOpSelector<T*, false>
 
     static ReturnType get(lua_State* L, int index) { return Stack<T>::get(L, index); }
 
-    static bool isInstance(lua_State* L, int index) { return Stack<T>::isInstance(L, index); }
+    template <class U = T>
+    static bool isInstance(lua_State* L, int index) { return Stack<U>::isInstance(L, index); }
 };
 
 template <class T>
@@ -1533,7 +1534,8 @@ struct StackOpSelector<const T*, false>
 
     static ReturnType get(lua_State* L, int index) { return Stack<T>::get(L, index); }
 
-    static bool isInstance(lua_State* L, int index) { return Stack<T>::isInstance(L, index); }
+    template <class U = T>
+    static bool isInstance(lua_State* L, int index) { return Stack<U>::isInstance(L, index); }
 };
 
 template <class T>
@@ -1545,7 +1547,8 @@ struct StackOpSelector<T&, false>
 
     static ReturnType get(lua_State* L, int index) { return Stack<T>::get(L, index); }
 
-    static bool isInstance(lua_State* L, int index) { return Stack<T>::isInstance(L, index); }
+    template <class U = T>
+    static bool isInstance(lua_State* L, int index) { return Stack<U>::isInstance(L, index); }
 };
 
 template <class T>
@@ -1557,7 +1560,8 @@ struct StackOpSelector<const T&, false>
 
     static ReturnType get(lua_State* L, int index) { return Stack<T>::get(L, index); }
 
-    static bool isInstance(lua_State* L, int index) { return Stack<T>::isInstance(L, index); }
+    template <class U = T>
+    static bool isInstance(lua_State* L, int index) { return Stack<U>::isInstance(L, index); }
 };
 
 } // namespace detail
