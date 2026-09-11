@@ -668,6 +668,18 @@ inline static constexpr bool is_const_proxy_function_v =
     is_proxy_member_function_v<T, F> &&
     std::is_const_v<std::remove_reference_t<std::remove_pointer_t<function_argument_or_void_t<0, F>>>>;
 
+template <class T, class F>
+inline static constexpr bool is_reversed_proxy_function_v =
+    !std::is_member_function_pointer_v<F> &&
+    !is_proxy_member_function_v<T, F> &&
+    function_arity_v<F> == 2 &&
+    std::is_same_v<T, remove_cvref_t<std::remove_pointer_t<function_argument_or_void_t<1, F>>>>;
+
+template <class T, class F>
+inline static constexpr bool is_const_reversed_proxy_function_v =
+    is_reversed_proxy_function_v<T, F> &&
+    std::is_const_v<std::remove_reference_t<std::remove_pointer_t<function_argument_or_void_t<1, F>>>>;
+
 template <class, class>
 struct function_arity_excluding
 {
@@ -705,7 +717,8 @@ inline static constexpr std::size_t member_function_arity_excluding_v = member_f
 template <class T, class F>
 static constexpr bool is_const_function =
     detail::is_const_member_function_pointer_v<F> ||
-        (detail::function_arity_v<F> > 0 && detail::is_const_proxy_function_v<T, F>);
+        (detail::function_arity_v<F> > 0 && detail::is_const_proxy_function_v<T, F>) ||
+        detail::is_const_reversed_proxy_function_v<T, F>;
 
 template <class T, class... Fs>
 inline static constexpr std::size_t const_functions_count = (0 + ... + (is_const_function<T, Fs> ? 1 : 0));
@@ -7547,6 +7560,34 @@ inline bool is_metamethod(std::string_view method_name)
     return result != metamethods.end() && *result == method_name;
 }
 
+inline bool is_binary_operator_metamethod(std::string_view method_name)
+{
+    static constexpr auto metamethods = make_array<std::string_view>(
+        "__add",
+        "__band",
+        "__bor",
+        "__bxor",
+        "__concat",
+        "__div",
+        "__eq",
+        "__idiv",
+        "__le",
+        "__lt",
+        "__mod",
+        "__mul",
+        "__pow",
+        "__shl",
+        "__shr",
+        "__sub"
+    );
+
+    if (method_name.size() <= 2 || method_name[0] != '_' || method_name[1] != '_')
+        return false;
+
+    auto result = std::lower_bound(metamethods.begin(), metamethods.end(), method_name);
+    return result != metamethods.end() && *result == method_name;
+}
+
 inline void rawset_super_method(lua_State* L, int tableIndex, const char* key)
 {
     LUABRIDGE_ASSERT(key != nullptr);
@@ -9326,6 +9367,12 @@ bool overload_type_checker(lua_State* L, int start)
     return overload_check_args<ArgsPack>(L, start);
 }
 
+template <class ArgsPack>
+bool reversed_overload_type_checker(lua_State* L, int)
+{
+    return overload_check_args<ArgsPack>(L, 1);
+}
+
 template <bool Member>
 inline int try_overload_functions(lua_State* L)
 {
@@ -9525,7 +9572,8 @@ template <class T, class F, class = std::enable_if<
         !std::is_member_function_pointer_v<F>>>
 void push_member_function(lua_State* L, F&& f, const char* debugname)
 {
-    static_assert(std::is_same_v<T, remove_cvref_t<std::remove_pointer_t<function_argument_or_void_t<0, F>>>>);
+    static_assert(std::is_same_v<T, remove_cvref_t<std::remove_pointer_t<function_argument_or_void_t<0, F>>>> ||
+        is_reversed_proxy_function_v<T, F>);
 
     lua_newuserdata_aligned<F>(L, std::forward<F>(f));
     lua_pushcclosure_x(L, &invoke_proxy_functor<F>, debugname, 1);
@@ -13304,6 +13352,15 @@ class Namespace : public detail::Registrar
 #endif
             }
 
+            if constexpr ((detail::is_reversed_proxy_function_v<T, Functions> || ...))
+            {
+                if (!detail::is_binary_operator_metamethod(name))
+                {
+                    throw_or_assert<std::logic_error>("reversed functions are only allowed on binary operator metamethods");
+                    return *this;
+                }
+            }
+
             if constexpr (sizeof...(Functions) == 1)
             {
                 ([&]
@@ -13348,6 +13405,12 @@ class Namespace : public detail::Registrar
                             using ArgsPack = detail::remove_first_type_t<detail::function_arguments_t<Functions>>;
                             entry.arity = static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>);
                             entry.checker = &detail::overload_type_checker<ArgsPack>;
+                        }
+                        else if constexpr (detail::is_reversed_proxy_function_v<T, Functions>)
+                        {
+                            using ArgsPack = detail::function_arguments_t<Functions>;
+                            entry.arity = static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>) - 1;
+                            entry.checker = &detail::reversed_overload_type_checker<ArgsPack>;
                         }
                         else
                         {
@@ -13403,6 +13466,12 @@ class Namespace : public detail::Registrar
                             using ArgsPack = detail::remove_first_type_t<detail::function_arguments_t<Functions>>;
                             entry.arity = static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>);
                             entry.checker = &detail::overload_type_checker<ArgsPack>;
+                        }
+                        else if constexpr (detail::is_reversed_proxy_function_v<T, Functions>)
+                        {
+                            using ArgsPack = detail::function_arguments_t<Functions>;
+                            entry.arity = static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>) - 1;
+                            entry.checker = &detail::reversed_overload_type_checker<ArgsPack>;
                         }
                         else
                         {
