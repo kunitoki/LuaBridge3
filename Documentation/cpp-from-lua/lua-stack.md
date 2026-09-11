@@ -64,7 +64,7 @@ struct Stack<juce::String>
 } // namespace luabridge
 ```
 
-To make sure the library can work without exceptions enabled, if for some reason the push and get of the value on/from the lua stack cannot be performed, it is mandatory to return a `luabridge::Result` object that can be constructed from a `std::error_code`. It also good practice to resotre the stack to it's original state in case of failures:
+To make sure the library can work without exceptions enabled, if for some reason the push and get of the value on/from the lua stack cannot be performed, it is mandatory to return a `luabridge::Result` object that can be constructed from a `std::error_code`. It also good practice to restore the stack to its original state in case of failures:
 
 ```cpp
 namespace luabridge {
@@ -220,7 +220,7 @@ The target class only needs to be registered with `beginClass<To>` if Lua must c
 
 ## Enums
 
-In order to expose C++ enums to lua and be able to work bidirectionally with them, it's necesary to create a Stack specialization for each exposed enum. As the process might become tedious, a library wrapper class is provided to simplify the steps.
+In order to expose C++ enums to lua and be able to work bidirectionally with them, it's necessary to create a Stack specialization for each exposed enum. As the process might become tedious, a library wrapper class is provided to simplify the steps.
 
 ```cpp
 enum class MyEnum : int16_t
@@ -236,7 +236,7 @@ struct luabridge::Stack<MyEnum> : luabridge::Enum<MyEnum>
 };
 ```
 
-This will map the enum to an integer as `int16_t` (the `underlying_type_t` of the enum) that will be converted to a `lua_Integer` in lua space. This has the drawback that any `lua_Integer` could be casted to a C++ enum. In order to provide a runtime check over the possible alternatives a `lua_Integer` could casted to, it's possible to specify the list of values the C++ enum has: the values registered into the `luabridge::Enum` will be checked against the passed integer and LuaBridge will raise an error in case the cast couldn't be made when using a `luabridge::Stack<>::get` method:
+This will map the enum to an integer as `int16_t` (the `underlying_type_t` of the enum) that will be converted to a `lua_Integer` in lua space. This has the drawback that any `lua_Integer` could be cast to a C++ enum. In order to provide a runtime check over the possible alternatives a `lua_Integer` could cast to, it's possible to specify the list of values the C++ enum has: the values registered into the `luabridge::Enum` will be checked against the passed integer and LuaBridge will raise an error in case the cast couldn't be made when using a `luabridge::Stack<>::get` method:
 
 ```cpp
 enum class MyEnum
