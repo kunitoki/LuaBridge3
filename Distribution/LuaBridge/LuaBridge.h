@@ -5961,7 +5961,7 @@ struct Stack<std::optional<T>>
         if (! result)
             return result.error();
 
-        return *result;
+        return std::make_optional(std::move(*result));
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
