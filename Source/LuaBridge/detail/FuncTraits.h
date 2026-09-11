@@ -543,6 +543,28 @@ inline static constexpr bool is_const_proxy_function_v =
 
 //=================================================================================================
 /**
+ * @brief A constexpr check for reversed proxy member functions (binary operators).
+ *
+ * A reversed proxy function is a binary callable where T is the second argument instead of the
+ * first, as needed by binary operator metamethods invoked with swapped operands (eg. `3 * vec`).
+ *
+ * @tparam T Type where the callable should be able to operate.
+ * @tparam F Callable object.
+ */
+template <class T, class F>
+inline static constexpr bool is_reversed_proxy_function_v =
+    !std::is_member_function_pointer_v<F> &&
+    !is_proxy_member_function_v<T, F> &&
+    function_arity_v<F> == 2 &&
+    std::is_same_v<T, remove_cvref_t<std::remove_pointer_t<function_argument_or_void_t<1, F>>>>;
+
+template <class T, class F>
+inline static constexpr bool is_const_reversed_proxy_function_v =
+    is_reversed_proxy_function_v<T, F> &&
+    std::is_const_v<std::remove_reference_t<std::remove_pointer_t<function_argument_or_void_t<1, F>>>>;
+
+//=================================================================================================
+/**
  * @brief An integral constant expression that gives the number of arguments excluding one type (usually used with lua_State*) accepted by the callable object.
  *
  * @tparam F Callable object.
@@ -593,7 +615,8 @@ inline static constexpr std::size_t member_function_arity_excluding_v = member_f
 template <class T, class F>
 static constexpr bool is_const_function =
     detail::is_const_member_function_pointer_v<F> ||
-        (detail::function_arity_v<F> > 0 && detail::is_const_proxy_function_v<T, F>);
+        (detail::function_arity_v<F> > 0 && detail::is_const_proxy_function_v<T, F>) ||
+        detail::is_const_reversed_proxy_function_v<T, F>;
 
 template <class T, class... Fs>
 inline static constexpr std::size_t const_functions_count = (0 + ... + (is_const_function<T, Fs> ? 1 : 0));

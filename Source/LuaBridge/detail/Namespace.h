@@ -950,6 +950,15 @@ class Namespace : public detail::Registrar
 #endif
             }
 
+            if constexpr ((detail::is_reversed_proxy_function_v<T, Functions> || ...))
+            {
+                if (!detail::is_binary_operator_metamethod(name))
+                {
+                    throw_or_assert<std::logic_error>("reversed functions are only allowed on binary operator metamethods");
+                    return *this;
+                }
+            }
+
             if constexpr (sizeof...(Functions) == 1)
             {
                 ([&]
@@ -994,6 +1003,12 @@ class Namespace : public detail::Registrar
                             using ArgsPack = detail::remove_first_type_t<detail::function_arguments_t<Functions>>;
                             entry.arity = static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>);
                             entry.checker = &detail::overload_type_checker<ArgsPack>;
+                        }
+                        else if constexpr (detail::is_reversed_proxy_function_v<T, Functions>)
+                        {
+                            using ArgsPack = detail::function_arguments_t<Functions>;
+                            entry.arity = static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>) - 1;
+                            entry.checker = &detail::reversed_overload_type_checker<ArgsPack>;
                         }
                         else
                         {
@@ -1051,6 +1066,12 @@ class Namespace : public detail::Registrar
                             using ArgsPack = detail::remove_first_type_t<detail::function_arguments_t<Functions>>;
                             entry.arity = static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>);
                             entry.checker = &detail::overload_type_checker<ArgsPack>;
+                        }
+                        else if constexpr (detail::is_reversed_proxy_function_v<T, Functions>)
+                        {
+                            using ArgsPack = detail::function_arguments_t<Functions>;
+                            entry.arity = static_cast<int>(detail::member_function_arity_excluding_v<T, Functions, lua_State*>) - 1;
+                            entry.checker = &detail::reversed_overload_type_checker<ArgsPack>;
                         }
                         else
                         {
