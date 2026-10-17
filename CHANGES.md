@@ -6,7 +6,7 @@
 * Breaking Change: The method `Stack<T>::push` now takes a `std::error_code&` as last parameter and returns a `bool`.
 * Breaking Change: The class `LuaException` has been reworked and it now take a `std::error_code` instead of a int.
 * Breaking Change: The class `LuaException` is now thrown if a unregistered class is pushed via the Stack class, also when calling `LuaRef::operator()`, but only if exceptions are enabled.
-* Breaking Change: `LuaRef::operator()` now returns the class `LuaResult`, where it is possible to obtain the call results or error message.
+* Breaking Change: `LuaRef::call<R>()` returns a strongly-typed `TypeResult<R>`; `LuaRef::operator()` returns `TypeResult<void>`.
 * Breaking Change: LuaBridge does not silently enable exceptions when calling `getGlobalNamespace`. Call `enableExceptions(lua_State*)` if you want to enable them explicitly.
 * Breaking Change: Removed `RefCounterPtr`, maintaining the reference counts in a unsynchronized global table is not production quality.
 * Breaking Change: Removed `Class<T>::addStaticData`, it was just an alias for `Class<T>::addStaticProperty`.
@@ -44,7 +44,6 @@
 * Added support for `std::set` as stack value type by using `LuaBridge/Set.h`.
 * Added support to `LuaRef` for being hashed with `std::hash` (`LuaRef` properly usable in `std::unordered_map`).
 * Added `LuaRef::append` and variadic `LuaRef::append(vs...)` to append values to a Lua sequence table using `lua_rawseti`.
-* Added `LuaRef::call<R>()` now returns a strongly-typed `TypeResult<R>` instead of a generic `LuaResult`; `LuaRef::operator()` returns `TypeResult<void>`.
 * Added `LUABRIDGE_STRICT_STACK_CONVERSIONS` compile-time flag to enforce strict type-safe stack conversions (`bool` requires `LUA_TBOOLEAN`, `std::string` requires `LUA_TSTRING`).
 * Added `LuaFunction<Signature>` strongly-typed wrapper class for invoking Lua functions with compile-time argument and return-type checking.
 * Added `TypeResult<T>::valueOr(default)` to extract the contained value or return a fallback when a cast fails.
