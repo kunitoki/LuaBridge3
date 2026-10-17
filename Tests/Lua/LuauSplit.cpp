@@ -39,9 +39,9 @@
 #endif
 
 // Compiler
+#include "../../ThirdParty/luau/Bytecode/src/BytecodeBuilder.cpp"
 #include "../../ThirdParty/luau/Compiler/src/BuiltinFolding.cpp"
 #include "../../ThirdParty/luau/Compiler/src/Builtins.cpp"
-#include "../../ThirdParty/luau/Compiler/src/BytecodeBuilder.cpp"
 #include "../../ThirdParty/luau/Compiler/src/Compiler.cpp"
 #include "../../ThirdParty/luau/Compiler/src/ConstantFolding.cpp"
 #include "../../ThirdParty/luau/Compiler/src/CostModel.cpp"
@@ -52,6 +52,7 @@
 
 // Common
 #include "../../ThirdParty/luau/Common/src/StringUtils.cpp"
+#include "../../ThirdParty/luau/Common/src/BytecodeWire.cpp"
 
 // Ast
 #include "../../ThirdParty/luau/Ast/src/Allocator.cpp"
