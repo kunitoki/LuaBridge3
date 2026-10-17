@@ -987,3 +987,45 @@ TEST_F(OverloadTests, FunctionFailureVsArgumentConversion)
     ASSERT_TRUE(result().isNumber());
     EXPECT_EQ(2, result<int>());
 }
+
+TEST_F(OverloadTests, LuaRefArguments)
+{
+    luabridge::getGlobalNamespace(L)
+        .addFunction("test",
+            +[](luabridge::LuaRef) -> int { return 1; },
+            +[](const luabridge::LuaRef&, int v) -> int { return v; });
+
+    runLua("result = test ({})");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(1, result<int>());
+
+    runLua("result = test (nil)");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(1, result<int>());
+
+    runLua("result = test ('abc', 42)");
+    ASSERT_TRUE(result().isNumber());
+    EXPECT_EQ(42, result<int>());
+}
+
+TEST_F(OverloadTests, StaticCallMetamethodWithLuaRef)
+{
+    struct Value
+    {
+        int value = 0;
+    };
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<Value>("Value")
+            .addProperty("value", &Value::value)
+            .addStaticFunction("__call",
+                +[](luabridge::LuaRef) { return Value{ 1 }; },
+                +[](luabridge::LuaRef, int a, int b) { return Value{ a + b }; })
+        .endClass();
+
+    runLua("result = Value ().value");
+    EXPECT_EQ(1, result<int>());
+
+    runLua("result = Value (2, 3).value");
+    EXPECT_EQ(5, result<int>());
+}
