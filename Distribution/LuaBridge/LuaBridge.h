@@ -12118,6 +12118,11 @@ struct Stack<LuaRef>
     {
         return LuaRef::fromStack(L, index);
     }
+
+    [[nodiscard]] static bool isInstance(lua_State*, int)
+    {
+        return true;
+    }
 };
 
 template <>
