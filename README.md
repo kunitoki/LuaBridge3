@@ -27,7 +27,7 @@
 [![Lua 5.4](https://img.shields.io/badge/lua-5.4-lightblue?logo=lua)](https://www.lua.org/manual/5.4/readme.html)
 [![Lua 5.5](https://img.shields.io/badge/lua-5.5-lightblue?logo=lua)](https://www.lua.org/manual/5.5/readme.html)
 [![LuaJIT](https://img.shields.io/badge/luajit-2.1-lightblue?logo=lua)](https://luajit.org/luajit.html)
-[![Luau](https://img.shields.io/badge/luau-0.713-lightblue?logo=lua)](https://luau.org/)
+[![Luau](https://img.shields.io/badge/luau-0.743-lightblue?logo=lua)](https://luau.org/)
 [![Ravi](https://img.shields.io/badge/ravi-1.0beta11-lightblue?logo=lua)](https://ravilang.github.io/)
 
 # LuaBridge 3.0
@@ -38,7 +38,7 @@ fast, lightweight, embeddable scripting language). LuaBridge has been tested
 and works with:
 * [PUC-Lua](https://lua.org) 5.1.5, 5.2.4, 5.3.6, 5.4.8 and 5.5.0
 * [LuaJit](https://luajit.org/) 2.1
-* [Luau](https://luau-lang.org/) 0.713
+* [Luau](https://luau-lang.org/) 0.743
 * [Ravi](https://github.com/dibyendumajumdar/ravi) 1.0-beta11
 
 ## Features

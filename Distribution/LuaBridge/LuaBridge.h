@@ -1008,14 +1008,35 @@ inline void luaL_unref(lua_State* L, int idx, int ref)
     lua_unref(L, ref);
 }
 
+template <void (*Dtor)(void*)>
+inline void luau_userdata_dtor(void* x)
+{
+    Dtor(x);
+}
+
+template <void (*Dtor)(void*)>
+inline void luau_userdata_dtor(lua_State*, void* x)
+{
+    Dtor(x);
+}
+
+template <void (*Dtor)(void*)>
+inline void* lua_newuserdatadtor_x(lua_State* L, size_t sz)
+{
+    return lua_newuserdatadtor(L, sz, &luau_userdata_dtor<Dtor>);
+}
+
+template <class T>
+inline void luau_destroy_userdata(void* x)
+{
+    T* object = static_cast<T*>(x);
+    object->~T();
+}
+
 template <class T>
 inline void* lua_newuserdata_x(lua_State* L, size_t sz)
 {
-    return lua_newuserdatadtor(L, sz, [](void* x)
-    {
-        T* object = static_cast<T*>(x);
-        object->~T();
-    });
+    return lua_newuserdatadtor_x<&luau_destroy_userdata<T>>(L, sz);
 }
 
 inline void lua_pushcfunction_x(lua_State *L, lua_CFunction fn, const char* debugname)
@@ -1375,17 +1396,23 @@ int lua_deleteuserdata_aligned(lua_State* L)
     return 0;
 }
 
+#if LUABRIDGE_ON_LUAU
+
+template <class T>
+void luau_destroy_userdata_aligned(void* x)
+{
+    T* aligned = align<T>(x);
+    aligned->~T();
+}
+#endif
+
 template <class T, class... Args>
 void* lua_newuserdata_aligned(lua_State* L, Args&&... args)
 {
     using U = std::remove_reference_t<T>;
 
 #if LUABRIDGE_ON_LUAU
-    void* pointer = lua_newuserdatadtor(L, maximum_space_needed_to_align<U>(), [](void* x)
-    {
-        U* aligned = align<U>(x);
-        aligned->~U();
-    });
+    void* pointer = lua_newuserdatadtor_x<&luau_destroy_userdata_aligned<U>>(L, maximum_space_needed_to_align<U>());
 #else
     void* pointer = lua_newuserdata_x<U>(L, maximum_space_needed_to_align<U>());
 

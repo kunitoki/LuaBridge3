@@ -62,6 +62,7 @@
 #include "../../ThirdParty/luau/VM/src/lcorolib.cpp"
 #include "../../ThirdParty/luau/VM/src/lstate.cpp"
 #include "../../ThirdParty/luau/VM/src/lgc.cpp"
+#include "../../ThirdParty/luau/VM/src/lgcdebug.cpp"
 #include "../../ThirdParty/luau/VM/src/ldo.cpp"
 #include "../../ThirdParty/luau/VM/src/ltablib.cpp"
 #include "../../ThirdParty/luau/VM/src/lstrlib.cpp"
@@ -75,6 +76,10 @@
 #include "../../ThirdParty/luau/VM/src/ldblib.cpp"
 #include "../../ThirdParty/luau/VM/src/lnumprint.cpp"
 #include "../../ThirdParty/luau/VM/src/ludata.cpp"
+#include "../../ThirdParty/luau/VM/src/lintlib.cpp"
+#include "../../ThirdParty/luau/VM/src/lvector.cpp"
+#include "../../ThirdParty/luau/VM/src/lclass.cpp"
+#include "../../ThirdParty/luau/VM/src/lclasslib.cpp"
 
 /* lperf.cpp includes Windows.h, which defines the min and max macro,
    so include it last to prevent errors.

@@ -122,6 +122,7 @@ TEST_F(DumpTests, DumpString)
 
 TEST_F(DumpTests, DumpFunction)
 {
+#if !LUABRIDGE_ON_LUAU // Luau asserts on pushing a null C function
     {
         std::stringstream ss;
 
@@ -135,6 +136,7 @@ TEST_F(DumpTests, DumpFunction)
         luabridge::dumpValue(L, -1, 0, 0, true, ss);
         EXPECT_TRUE(ss.str().find("\n") != std::string::npos);
     }
+#endif
 
     {
         std::stringstream ss;
