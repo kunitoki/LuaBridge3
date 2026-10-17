@@ -285,6 +285,39 @@ inline bool is_binary_operator_metamethod(std::string_view method_name)
     return result != metamethods.end() && *result == method_name;
 }
 
+/**
+ * @brief Get the key at the given stack index as a string, only if it is a string.
+ *
+ * Unlike lua_tostring, a number key is not converted in place, so the original key type is preserved for metamethods.
+ */
+inline const char* get_string_key(lua_State* L, int index)
+{
+    return lua_type(L, index) == LUA_TSTRING ? lua_tostring(L, index) : nullptr;
+}
+
+/**
+ * @brief Get a printable name for the key at the given stack index, for error reporting only.
+ *
+ * May push a value onto the stack.
+ */
+inline const char* get_key_name_for_error(lua_State* L, int index)
+{
+    index = lua_absindex(L, index);
+
+    switch (lua_type(L, index))
+    {
+    case LUA_TSTRING:
+        return lua_tostring(L, index);
+
+    case LUA_TNUMBER:
+        lua_pushvalue(L, index);
+        return lua_tostring(L, -1);
+
+    default:
+        return lua_typename(L, lua_type(L, index));
+    }
+}
+
 inline void rawset_super_method(lua_State* L, int tableIndex, const char* key)
 {
     LUABRIDGE_ASSERT(key != nullptr);
@@ -475,7 +508,7 @@ inline std::optional<int> try_call_static_index_fallback(lua_State* L)
 }
 
 template <bool IsObject>
-inline std::optional<int> try_call_index_extensible(lua_State* L, const char* key)
+inline std::optional<int> try_call_index_extensible(lua_State* L)
 {
     LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt
 
@@ -485,7 +518,8 @@ inline std::optional<int> try_call_index_extensible(lua_State* L, const char* ke
         lua_rawgetp_x(L, -1, getStaticKey()); // Stack: mt, st
 
     LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt, cl | co | st
-    rawgetfield(L, -1, key); // Stack: mt, st, ifbresult | nil
+    lua_pushvalue(L, 2); // Stack: mt, cl | co | st, field name
+    lua_rawget(L, -2); // Stack: mt, cl | co | st, ifbresult | nil
 
     if (! lua_isnoneornil(L, -1)) // Stack: mt, cl | co | st, ifbresult
     {
@@ -505,12 +539,9 @@ inline std::optional<int> try_call_index_extensible(lua_State* L, const char* ke
  * registered getter anywhere in the hierarchy always takes priority over any fallback.
  */
 template <bool IsObject>
-inline std::optional<int> try_call_parent_index_extensibles(lua_State* L, const char* key)
+inline std::optional<int> try_call_parent_index_extensibles(lua_State* L)
 {
     LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt
-
-    if (key == nullptr)
-        return std::nullopt;
 
     lua_rawgetp_x(L, -1, getParentKey()); // Stack: mt, parent list | nil
     if (! lua_istable(L, -1))
@@ -534,7 +565,7 @@ inline std::optional<int> try_call_parent_index_extensibles(lua_State* L, const 
         const Options parentOptions = get_class_options(L, -1); // Stack: mt, parent list, parent mt
         if (parentOptions.test(extensibleClass | ~allowOverridingMethods))
         {
-            if (auto result = try_call_index_extensible<IsObject>(L, key))
+            if (auto result = try_call_index_extensible<IsObject>(L))
             {
                 lua_remove(L, -2); // Stack: mt, result
                 lua_remove(L, -2); // Stack: result
@@ -556,12 +587,9 @@ inline std::optional<int> try_call_parent_index_extensibles(lua_State* L, const 
  * have already been searched by try_call_parent_index_extensibles.
  */
 template <bool IsObject>
-inline std::optional<int> try_call_parent_index_fallbacks(lua_State* L, const char* key)
+inline std::optional<int> try_call_parent_index_fallbacks(lua_State* L)
 {
     LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt
-
-    if (key == nullptr)
-        return std::nullopt;
 
     lua_rawgetp_x(L, -1, getParentKey()); // Stack: mt, parent list | nil
     if (! lua_istable(L, -1))
@@ -624,7 +652,7 @@ inline int index_metamethod(lua_State* L)
     LUABRIDGE_ASSERT(lua_istable(L, -1));
 
     // Protect internal meta methods
-    const char* key = lua_tostring(L, 2);
+    const char* key = get_string_key(L, 2);
     if (key != nullptr && is_metamethod(key))
     {
         lua_pushnil(L);
@@ -692,7 +720,7 @@ inline int index_metamethod(lua_State* L)
         // Repeat the lookup in the index extensible, for method overrides
         if (options.test(extensibleClass | allowOverridingMethods))
         {
-            if (auto result = try_call_index_extensible<IsObject>(L, key))
+            if (auto result = try_call_index_extensible<IsObject>(L))
                 return *result;
         }
 
@@ -788,7 +816,7 @@ inline int index_metamethod(lua_State* L)
     const Options options = get_class_options(L, -1); // Stack: mt
     if (options.test(extensibleClass | ~allowOverridingMethods))
     {
-        if (auto result = try_call_index_extensible<IsObject>(L, key))
+        if (auto result = try_call_index_extensible<IsObject>(L))
             return *result;
     }
 
@@ -796,7 +824,7 @@ inline int index_metamethod(lua_State* L)
     // matching extensible getter.  This ensures that a registered getter anywhere in the
     // inheritance chain always takes priority over a __index fallback defined at a
     // narrower scope (e.g. an intermediate or leaf class).
-    if (auto result = try_call_parent_index_extensibles<IsObject>(L, key))
+    if (auto result = try_call_parent_index_extensibles<IsObject>(L))
         return *result;
 
     if constexpr (IsObject)
@@ -810,7 +838,7 @@ inline int index_metamethod(lua_State* L)
             return *result;
     }
 
-    if (auto result = try_call_parent_index_fallbacks<IsObject>(L, key))
+    if (auto result = try_call_parent_index_fallbacks<IsObject>(L))
         return *result;
 
     lua_pop(L, 1); // Stack: -
@@ -835,7 +863,7 @@ inline int index_metamethod_simple(lua_State* L)
     {
         if (lua_isuserdata(L, 1))
         {
-            const char* key = lua_tostring(L, 2);
+            const char* key = get_string_key(L, 2);
 
             const auto rawlookup = [L](int tableIndex)
             {
@@ -877,7 +905,7 @@ inline int index_metamethod_simple(lua_State* L)
         // Fast path for simple static tables: capture propget/class/metatable as upvalues.
         if (lua_istable(L, 1))
         {
-            const char* key = lua_tostring(L, 2);
+            const char* key = get_string_key(L, 2);
 
             const auto rawlookup = [L](int tableIndex)
             {
@@ -923,7 +951,7 @@ inline int index_metamethod_simple(lua_State* L)
     lua_getmetatable(L, 1); // Stack: mt
     LUABRIDGE_ASSERT(lua_istable(L, -1));
 
-    const char* key = lua_tostring(L, 2);
+    const char* key = get_string_key(L, 2);
 
     const auto rawlookup = [L]()
     {
@@ -1052,7 +1080,6 @@ inline std::optional<int> try_call_static_newindex_fallback(lua_State* L)
 
 inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char* key)
 {
-    LUABRIDGE_ASSERT(key != nullptr);
     LUABRIDGE_ASSERT(lua_istable(L, -1)); // Stack: mt
 
     // For Lua function values (instance methods added from Lua), capture the originating class
@@ -1106,9 +1133,10 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
 
             const Options options = get_class_options(L, -2);
             if (! options.test(allowOverridingMethods))
-                raise_lua_error(L, "immutable member '%s'", key);
+                raise_lua_error(L, "immutable member '%s'", get_key_name_for_error(L, 2));
 
-            rawset_super_method(L, origClassTableIndex, key); // Stack: ..., candidate_ct
+            if (key != nullptr)
+                rawset_super_method(L, origClassTableIndex, key); // Stack: ..., candidate_ct
             lua_pop(L, 1); // Stack: ...
             return true;
         };
@@ -1142,7 +1170,9 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
         // Stack: mt, orig_ct — write to the original (most-derived) class table.
         lua_getmetatable(L, -1); // Stack: mt, orig_ct, orig_ct_mt
         lua_pushvalue(L, 3); // Stack: mt, orig_ct, orig_ct_mt, arg3
-        rawsetfield(L, -2, key); // Stack: mt, orig_ct, orig_ct_mt
+        lua_pushvalue(L, 2); // Stack: mt, orig_ct, orig_ct_mt, arg3, field name
+        lua_insert(L, -2); // Stack: mt, orig_ct, orig_ct_mt, field name, arg3
+        lua_rawset(L, -3); // Stack: mt, orig_ct, orig_ct_mt
         lua_pop(L, 2); // Stack: mt
         return 0;
     }
@@ -1181,9 +1211,10 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
 
         const Options options = get_class_options(L, -2);
         if (! options.test(allowOverridingMethods))
-            raise_lua_error(L, "immutable member '%s'", key);
+            raise_lua_error(L, "immutable member '%s'", get_key_name_for_error(L, 2));
 
-        rawset_super_method(L, -2, key); // Stack: ..., candidate_ct
+        if (key != nullptr)
+            rawset_super_method(L, -2, key); // Stack: ..., candidate_ct
         lua_pop(L, 1); // Stack: ...
         return true;
     };
@@ -1230,7 +1261,9 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
 
     lua_getmetatable(L, -1); // Stack: mt, target mt, ct, ct_mt
     lua_pushvalue(L, 3); // Stack: mt, target mt, ct, ct_mt, arg3
-    rawsetfield(L, -2, key); // Stack: mt, target mt, ct, ct_mt
+    lua_pushvalue(L, 2); // Stack: mt, target mt, ct, ct_mt, arg3, field name
+    lua_insert(L, -2); // Stack: mt, target mt, ct, ct_mt, field name, arg3
+    lua_rawset(L, -3); // Stack: mt, target mt, ct, ct_mt
     lua_pop(L, 3); // Stack: mt
     return 0;
 }
@@ -1360,14 +1393,14 @@ inline int newindex_metamethod(lua_State* L)
     lua_getmetatable(L, 1); // Stack: metatable (mt)
     LUABRIDGE_ASSERT(lua_istable(L, -1));
 
-    const char* key = lua_tostring(L, 2);
+    const char* key = get_string_key(L, 2);
 
     const Options options = get_class_options(L, -1);
 
     // Try in the property set table on the current class first.
     lua_rawgetp_x(L, -1, getPropsetKey()); // Stack: mt, propset table (ps) | nil
     if (! lua_istable(L, -1))
-        raise_lua_error(L, "no member named '%s'", key);
+        raise_lua_error(L, "no member named '%s'", get_key_name_for_error(L, 2));
 
     lua_pushvalue(L, 2); // Stack: mt, ps, field name
     lua_rawget(L, -2); // Stack: mt, ps, setter | nil
@@ -1434,12 +1467,13 @@ inline int newindex_metamethod(lua_State* L)
             // Function values still go through try_call_newindex_extensible to preserve super_* wiring.
             if (! lua_isfunction(L, 3))
             {
+                lua_pushvalue(L, 2);
                 lua_pushvalue(L, 3);
-                rawsetfield(L, 1, key);
+                lua_rawset(L, 1);
                 return 0;
             }
 
-            if (auto result = try_call_newindex_extensible(L,key))
+            if (auto result = try_call_newindex_extensible(L, key))
                 return *result;
         }
     }
@@ -1458,7 +1492,7 @@ inline int newindex_metamethod(lua_State* L)
     }
 
     lua_pop(L, 1); // Stack: -
-    raise_lua_error(L, "no writable member '%s'", key);
+    raise_lua_error(L, "no writable member '%s'", get_key_name_for_error(L, 2));
 }
 
 template <bool IsObject>
@@ -1475,10 +1509,8 @@ inline int newindex_metamethod_simple(lua_State* L)
     {
         if (lua_isuserdata(L, 1))
         {
-            const char* key = lua_tostring(L, 2);
-
             if (! lua_istable(L, lua_upvalueindex(1)))
-                raise_lua_error(L, "no writable member '%s'", key);
+                raise_lua_error(L, "no writable member '%s'", get_key_name_for_error(L, 2));
 
             lua_pushvalue(L, 2); // Stack: key
             lua_rawget(L, lua_upvalueindex(1)); // Stack: setter | nil
@@ -1498,7 +1530,7 @@ inline int newindex_metamethod_simple(lua_State* L)
                 return *result;
             lua_pop(L, 1);
 
-            luaL_error(L, "no writable member '%s'", key);
+            luaL_error(L, "no writable member '%s'", get_key_name_for_error(L, 2));
         }
     }
     else
@@ -1506,10 +1538,8 @@ inline int newindex_metamethod_simple(lua_State* L)
         // Fast path for simple static tables: propset table is captured as upvalue.
         if (lua_istable(L, 1))
         {
-            const char* key = lua_tostring(L, 2);
-
             if (! lua_istable(L, lua_upvalueindex(1)))
-                raise_lua_error(L, "no writable member '%s'", key);
+                raise_lua_error(L, "no writable member '%s'", get_key_name_for_error(L, 2));
 
             lua_pushvalue(L, 2); // Stack: key
             lua_rawget(L, lua_upvalueindex(1)); // Stack: setter | nil
@@ -1521,18 +1551,16 @@ inline int newindex_metamethod_simple(lua_State* L)
                 return 0;
             }
 
-            raise_lua_error(L, "no writable member '%s'", key);
+            raise_lua_error(L, "no writable member '%s'", get_key_name_for_error(L, 2));
         }
     }
 
     lua_getmetatable(L, 1); // Stack: mt
     LUABRIDGE_ASSERT(lua_istable(L, -1));
 
-    const char* key = lua_tostring(L, 2);
-
     lua_rawgetp_x(L, -1, getPropsetKey()); // Stack: mt, ps | nil
     if (! lua_istable(L, -1))
-        raise_lua_error(L, "no member named '%s'", key);
+        raise_lua_error(L, "no member named '%s'", get_key_name_for_error(L, 2));
 
     lua_pushvalue(L, 2); // Stack: mt, ps, key
     lua_rawget(L, -2); // Stack: mt, ps, setter | nil
@@ -1548,7 +1576,7 @@ inline int newindex_metamethod_simple(lua_State* L)
         return 0;
     }
 
-    raise_lua_error(L, "no writable member '%s'", key);
+    raise_lua_error(L, "no writable member '%s'", get_key_name_for_error(L, 2));
 }
 
 //=================================================================================================

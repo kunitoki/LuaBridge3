@@ -62,6 +62,7 @@
 * Fixed floating-point `Stack<T>::push`, `get`, and `isInstance` to correctly allow NaN and Inf values to pass through without error.
 * Fixed issue when `LuaRef::cast<>` fails with exceptions enabled, popping from the now empty stack could trigger the panic handler twice.
 * Fixed unaligned access in user allocated member pointers in 64bit machines reported by ASAN.
+* Fixed `__index` and `__newindex` metamethods converting numeric keys to strings in place, so `addIndexMetaMethod`, `addNewIndexMetaMethod` and `addStaticIndexMetaMethod` callbacks now receive the original key type (e.g. `LUA_TNUMBER` for `t[1]`).
 * Fixed access of `LuaRef` in garbage collected `lua_thread`.
 * Included testing against Luau VM
 * Included testing against Ravi VM
