@@ -7615,6 +7615,29 @@ inline bool is_binary_operator_metamethod(std::string_view method_name)
     return result != metamethods.end() && *result == method_name;
 }
 
+inline const char* get_string_key(lua_State* L, int index)
+{
+    return lua_type(L, index) == LUA_TSTRING ? lua_tostring(L, index) : nullptr;
+}
+
+inline const char* get_key_name_for_error(lua_State* L, int index)
+{
+    index = lua_absindex(L, index);
+
+    switch (lua_type(L, index))
+    {
+    case LUA_TSTRING:
+        return lua_tostring(L, index);
+
+    case LUA_TNUMBER:
+        lua_pushvalue(L, index);
+        return lua_tostring(L, -1);
+
+    default:
+        return lua_typename(L, lua_type(L, index));
+    }
+}
+
 inline void rawset_super_method(lua_State* L, int tableIndex, const char* key)
 {
     LUABRIDGE_ASSERT(key != nullptr);
@@ -7782,7 +7805,7 @@ inline std::optional<int> try_call_static_index_fallback(lua_State* L)
 }
 
 template <bool IsObject>
-inline std::optional<int> try_call_index_extensible(lua_State* L, const char* key)
+inline std::optional<int> try_call_index_extensible(lua_State* L)
 {
     LUABRIDGE_ASSERT(lua_istable(L, -1)); 
 
@@ -7792,7 +7815,8 @@ inline std::optional<int> try_call_index_extensible(lua_State* L, const char* ke
         lua_rawgetp_x(L, -1, getStaticKey()); 
 
     LUABRIDGE_ASSERT(lua_istable(L, -1)); 
-    rawgetfield(L, -1, key); 
+    lua_pushvalue(L, 2); 
+    lua_rawget(L, -2); 
 
     if (! lua_isnoneornil(L, -1)) 
     {
@@ -7806,12 +7830,9 @@ inline std::optional<int> try_call_index_extensible(lua_State* L, const char* ke
 }
 
 template <bool IsObject>
-inline std::optional<int> try_call_parent_index_extensibles(lua_State* L, const char* key)
+inline std::optional<int> try_call_parent_index_extensibles(lua_State* L)
 {
     LUABRIDGE_ASSERT(lua_istable(L, -1)); 
-
-    if (key == nullptr)
-        return std::nullopt;
 
     lua_rawgetp_x(L, -1, getParentKey()); 
     if (! lua_istable(L, -1))
@@ -7835,7 +7856,7 @@ inline std::optional<int> try_call_parent_index_extensibles(lua_State* L, const 
         const Options parentOptions = get_class_options(L, -1); 
         if (parentOptions.test(extensibleClass | ~allowOverridingMethods))
         {
-            if (auto result = try_call_index_extensible<IsObject>(L, key))
+            if (auto result = try_call_index_extensible<IsObject>(L))
             {
                 lua_remove(L, -2); 
                 lua_remove(L, -2); 
@@ -7851,12 +7872,9 @@ inline std::optional<int> try_call_parent_index_extensibles(lua_State* L, const 
 }
 
 template <bool IsObject>
-inline std::optional<int> try_call_parent_index_fallbacks(lua_State* L, const char* key)
+inline std::optional<int> try_call_parent_index_fallbacks(lua_State* L)
 {
     LUABRIDGE_ASSERT(lua_istable(L, -1)); 
-
-    if (key == nullptr)
-        return std::nullopt;
 
     lua_rawgetp_x(L, -1, getParentKey()); 
     if (! lua_istable(L, -1))
@@ -7918,7 +7936,7 @@ inline int index_metamethod(lua_State* L)
     lua_getmetatable(L, 1); 
     LUABRIDGE_ASSERT(lua_istable(L, -1));
 
-    const char* key = lua_tostring(L, 2);
+    const char* key = get_string_key(L, 2);
     if (key != nullptr && is_metamethod(key))
     {
         lua_pushnil(L);
@@ -7978,7 +7996,7 @@ inline int index_metamethod(lua_State* L)
 
         if (options.test(extensibleClass | allowOverridingMethods))
         {
-            if (auto result = try_call_index_extensible<IsObject>(L, key))
+            if (auto result = try_call_index_extensible<IsObject>(L))
                 return *result;
         }
 
@@ -8070,11 +8088,11 @@ inline int index_metamethod(lua_State* L)
     const Options options = get_class_options(L, -1); 
     if (options.test(extensibleClass | ~allowOverridingMethods))
     {
-        if (auto result = try_call_index_extensible<IsObject>(L, key))
+        if (auto result = try_call_index_extensible<IsObject>(L))
             return *result;
     }
 
-    if (auto result = try_call_parent_index_extensibles<IsObject>(L, key))
+    if (auto result = try_call_parent_index_extensibles<IsObject>(L))
         return *result;
 
     if constexpr (IsObject)
@@ -8088,7 +8106,7 @@ inline int index_metamethod(lua_State* L)
             return *result;
     }
 
-    if (auto result = try_call_parent_index_fallbacks<IsObject>(L, key))
+    if (auto result = try_call_parent_index_fallbacks<IsObject>(L))
         return *result;
 
     lua_pop(L, 1); 
@@ -8110,7 +8128,7 @@ inline int index_metamethod_simple(lua_State* L)
     {
         if (lua_isuserdata(L, 1))
         {
-            const char* key = lua_tostring(L, 2);
+            const char* key = get_string_key(L, 2);
 
             const auto rawlookup = [L](int tableIndex)
             {
@@ -8152,7 +8170,7 @@ inline int index_metamethod_simple(lua_State* L)
         
         if (lua_istable(L, 1))
         {
-            const char* key = lua_tostring(L, 2);
+            const char* key = get_string_key(L, 2);
 
             const auto rawlookup = [L](int tableIndex)
             {
@@ -8198,7 +8216,7 @@ inline int index_metamethod_simple(lua_State* L)
     lua_getmetatable(L, 1); 
     LUABRIDGE_ASSERT(lua_istable(L, -1));
 
-    const char* key = lua_tostring(L, 2);
+    const char* key = get_string_key(L, 2);
 
     const auto rawlookup = [L]()
     {
@@ -8318,7 +8336,6 @@ inline std::optional<int> try_call_static_newindex_fallback(lua_State* L)
 
 inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char* key)
 {
-    LUABRIDGE_ASSERT(key != nullptr);
     LUABRIDGE_ASSERT(lua_istable(L, -1)); 
 
     const bool value_is_function = lua_isfunction(L, 3);
@@ -8361,9 +8378,10 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
 
             const Options options = get_class_options(L, -2);
             if (! options.test(allowOverridingMethods))
-                raise_lua_error(L, "immutable member '%s'", key);
+                raise_lua_error(L, "immutable member '%s'", get_key_name_for_error(L, 2));
 
-            rawset_super_method(L, origClassTableIndex, key); 
+            if (key != nullptr)
+                rawset_super_method(L, origClassTableIndex, key); 
             lua_pop(L, 1); 
             return true;
         };
@@ -8396,7 +8414,9 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
 
         lua_getmetatable(L, -1); 
         lua_pushvalue(L, 3); 
-        rawsetfield(L, -2, key); 
+        lua_pushvalue(L, 2); 
+        lua_insert(L, -2); 
+        lua_rawset(L, -3); 
         lua_pop(L, 2); 
         return 0;
     }
@@ -8434,9 +8454,10 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
 
         const Options options = get_class_options(L, -2);
         if (! options.test(allowOverridingMethods))
-            raise_lua_error(L, "immutable member '%s'", key);
+            raise_lua_error(L, "immutable member '%s'", get_key_name_for_error(L, 2));
 
-        rawset_super_method(L, -2, key); 
+        if (key != nullptr)
+            rawset_super_method(L, -2, key); 
         lua_pop(L, 1); 
         return true;
     };
@@ -8482,7 +8503,9 @@ inline std::optional<int> try_call_newindex_extensible(lua_State* L, const char*
 
     lua_getmetatable(L, -1); 
     lua_pushvalue(L, 3); 
-    rawsetfield(L, -2, key); 
+    lua_pushvalue(L, 2); 
+    lua_insert(L, -2); 
+    lua_rawset(L, -3); 
     lua_pop(L, 3); 
     return 0;
 }
@@ -8600,13 +8623,13 @@ inline int newindex_metamethod(lua_State* L)
     lua_getmetatable(L, 1); 
     LUABRIDGE_ASSERT(lua_istable(L, -1));
 
-    const char* key = lua_tostring(L, 2);
+    const char* key = get_string_key(L, 2);
 
     const Options options = get_class_options(L, -1);
 
     lua_rawgetp_x(L, -1, getPropsetKey()); 
     if (! lua_istable(L, -1))
-        raise_lua_error(L, "no member named '%s'", key);
+        raise_lua_error(L, "no member named '%s'", get_key_name_for_error(L, 2));
 
     lua_pushvalue(L, 2); 
     lua_rawget(L, -2); 
@@ -8660,12 +8683,13 @@ inline int newindex_metamethod(lua_State* L)
             
             if (! lua_isfunction(L, 3))
             {
+                lua_pushvalue(L, 2);
                 lua_pushvalue(L, 3);
-                rawsetfield(L, 1, key);
+                lua_rawset(L, 1);
                 return 0;
             }
 
-            if (auto result = try_call_newindex_extensible(L,key))
+            if (auto result = try_call_newindex_extensible(L, key))
                 return *result;
         }
     }
@@ -8684,7 +8708,7 @@ inline int newindex_metamethod(lua_State* L)
     }
 
     lua_pop(L, 1); 
-    raise_lua_error(L, "no writable member '%s'", key);
+    raise_lua_error(L, "no writable member '%s'", get_key_name_for_error(L, 2));
 }
 
 template <bool IsObject>
@@ -8700,10 +8724,8 @@ inline int newindex_metamethod_simple(lua_State* L)
     {
         if (lua_isuserdata(L, 1))
         {
-            const char* key = lua_tostring(L, 2);
-
             if (! lua_istable(L, lua_upvalueindex(1)))
-                raise_lua_error(L, "no writable member '%s'", key);
+                raise_lua_error(L, "no writable member '%s'", get_key_name_for_error(L, 2));
 
             lua_pushvalue(L, 2); 
             lua_rawget(L, lua_upvalueindex(1)); 
@@ -8723,7 +8745,7 @@ inline int newindex_metamethod_simple(lua_State* L)
                 return *result;
             lua_pop(L, 1);
 
-            luaL_error(L, "no writable member '%s'", key);
+            luaL_error(L, "no writable member '%s'", get_key_name_for_error(L, 2));
         }
     }
     else
@@ -8731,10 +8753,8 @@ inline int newindex_metamethod_simple(lua_State* L)
         
         if (lua_istable(L, 1))
         {
-            const char* key = lua_tostring(L, 2);
-
             if (! lua_istable(L, lua_upvalueindex(1)))
-                raise_lua_error(L, "no writable member '%s'", key);
+                raise_lua_error(L, "no writable member '%s'", get_key_name_for_error(L, 2));
 
             lua_pushvalue(L, 2); 
             lua_rawget(L, lua_upvalueindex(1)); 
@@ -8746,18 +8766,16 @@ inline int newindex_metamethod_simple(lua_State* L)
                 return 0;
             }
 
-            raise_lua_error(L, "no writable member '%s'", key);
+            raise_lua_error(L, "no writable member '%s'", get_key_name_for_error(L, 2));
         }
     }
 
     lua_getmetatable(L, 1); 
     LUABRIDGE_ASSERT(lua_istable(L, -1));
 
-    const char* key = lua_tostring(L, 2);
-
     lua_rawgetp_x(L, -1, getPropsetKey()); 
     if (! lua_istable(L, -1))
-        raise_lua_error(L, "no member named '%s'", key);
+        raise_lua_error(L, "no member named '%s'", get_key_name_for_error(L, 2));
 
     lua_pushvalue(L, 2); 
     lua_rawget(L, -2); 
@@ -8773,7 +8791,7 @@ inline int newindex_metamethod_simple(lua_State* L)
         return 0;
     }
 
-    raise_lua_error(L, "no writable member '%s'", key);
+    raise_lua_error(L, "no writable member '%s'", get_key_name_for_error(L, 2));
 }
 
 [[noreturn]] inline int read_only_error(lua_State* L)
