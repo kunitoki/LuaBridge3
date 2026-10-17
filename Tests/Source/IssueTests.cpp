@@ -523,3 +523,79 @@ TEST_F(IssueTests, Issue242_DerivedOwnGetterTakesPriorityOverItsOwnIndexFallback
     ASSERT_TRUE(runLua("result = obj.x"));
     EXPECT_EQ(33, result<int>());
 }
+
+namespace {
+struct IssueNumericKey
+{
+    luabridge::LuaRef onIndex(const luabridge::LuaRef& key, lua_State* L)
+    {
+        return luabridge::LuaRef(L, lua_typename(L, key.type()));
+    }
+
+    luabridge::LuaRef onNewIndex(const luabridge::LuaRef& key, const luabridge::LuaRef&, lua_State* L)
+    {
+        lastNewIndexKeyType = lua_typename(L, key.type());
+        return luabridge::LuaRef(L);
+    }
+
+    std::string lastNewIndexKeyType;
+};
+} // namespace
+
+TEST_F(IssueTests, IndexAndNewIndexMetaMethodsPreserveNumericKeyType)
+{
+    IssueNumericKey obj;
+
+    luabridge::getGlobalNamespace(L)
+        .beginClass<IssueNumericKey>("IssueNumericKey")
+            .addIndexMetaMethod(&IssueNumericKey::onIndex)
+            .addNewIndexMetaMethod(&IssueNumericKey::onNewIndex)
+        .endClass();
+
+    luabridge::setGlobal(L, &obj, "obj");
+
+    ASSERT_TRUE(runLua("result = obj[1]"));
+    EXPECT_EQ("number", result<std::string>());
+
+    ASSERT_TRUE(runLua("result = obj['1']"));
+    EXPECT_EQ("string", result<std::string>());
+
+    ASSERT_TRUE(runLua("result = obj[true]"));
+    EXPECT_EQ("boolean", result<std::string>());
+
+    ASSERT_TRUE(runLua("obj[1] = 42"));
+    EXPECT_EQ("number", obj.lastNewIndexKeyType);
+
+    ASSERT_TRUE(runLua("obj['1'] = 42"));
+    EXPECT_EQ("string", obj.lastNewIndexKeyType);
+}
+
+TEST_F(IssueTests, StaticIndexMetaMethodPreservesNumericKeyType)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<IssueNumericKey>("IssueNumericKeyStatic")
+            .addStaticIndexMetaMethod([](const luabridge::LuaRef& key, lua_State* L)
+            {
+                return luabridge::LuaRef(L, lua_typename(L, key.type()));
+            })
+        .endClass();
+
+    ASSERT_TRUE(runLua("result = IssueNumericKeyStatic[1]"));
+    EXPECT_EQ("number", result<std::string>());
+}
+
+TEST_F(IssueTests, NewIndexErrorWithNumericKeyReportsKey)
+{
+    luabridge::getGlobalNamespace(L)
+        .beginClass<IssueNumericKey>("IssueNumericKeyNoFallback")
+        .endClass();
+
+    IssueNumericKey obj;
+    luabridge::setGlobal(L, &obj, "obj");
+
+    ASSERT_TRUE(runLua("local ok, err = pcall(function() obj[1] = 42 end); result = err"));
+    EXPECT_NE(std::string::npos, result<std::string>().find("no writable member '1'"));
+
+    ASSERT_TRUE(runLua("result = obj[1]"));
+    EXPECT_TRUE(result().isNil());
+}
