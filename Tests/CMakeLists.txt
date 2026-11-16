@@ -50,6 +50,7 @@ set (LUABRIDGE_TEST_SOURCE_FILES
   Source/LegacyTests.h
   Source/ListTests.cpp
   Source/LuaRefTests.cpp
+  Source/LuauInteger64Tests.cpp
   Source/MapTests.cpp
   Source/MoveOnlyFunctionTests.cpp
   Source/MultiMapTests.cpp

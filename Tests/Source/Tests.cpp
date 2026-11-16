@@ -209,25 +209,25 @@ TEST_F(LuaBridgeTest, CFunction)
 
     {
         runLua("result = longFn (-8000)");
-        EXPECT_EQ(true, result().isNumber());
+        EXPECT_EQ(isPushedAsNumber<long>, result().isNumber());
         EXPECT_EQ(-8000, result<long>());
     }
 
     {
         runLua("result = ulongFn (9000)");
-        EXPECT_EQ(true, result().isNumber());
+        EXPECT_EQ(isPushedAsNumber<unsigned long>, result().isNumber());
         EXPECT_EQ(9000u, result<unsigned long>());
     }
 
     {
         runLua("result = longlongFn (-8000)");
-        EXPECT_EQ(true, result().isNumber());
+        EXPECT_EQ(isPushedAsNumber<long long>, result().isNumber());
         EXPECT_EQ(-8000, result<long long>());
     }
 
     {
         runLua("result = ulonglongFn (9000)");
-        EXPECT_EQ(true, result().isNumber());
+        EXPECT_EQ(isPushedAsNumber<unsigned long long>, result().isNumber());
         EXPECT_EQ(9000u, result<unsigned long long>());
     }
 

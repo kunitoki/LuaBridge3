@@ -151,6 +151,12 @@ public:
             os << unsafe_cast<lua_Number>();
             break;
 
+#if LUABRIDGE_LUAU_NATIVE_INTEGER64
+        case LUA_TINTEGER:
+            os << unsafe_cast<int64_t>() << 'i';
+            break;
+#endif
+
         case LUA_TBOOLEAN:
             os << (unsafe_cast<bool>() ? "true" : "false");
             break;
@@ -1895,6 +1901,12 @@ public:
         case LUA_TNUMBER:
             value = std::hash<lua_Number>{}(lua_tonumber(m_L, -1));
             break;
+
+#if LUABRIDGE_LUAU_NATIVE_INTEGER64
+        case LUA_TINTEGER:
+            value = std::hash<int64_t>{}(lua_tointeger64(m_L, -1, nullptr));
+            break;
+#endif
 
         case LUA_TSTRING:
         {

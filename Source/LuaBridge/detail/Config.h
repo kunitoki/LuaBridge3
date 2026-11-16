@@ -75,6 +75,25 @@
 #endif
 
 /**
+ * @brief Luau provides a native 64-bit integer type (`LUA_TINTEGER`).
+ *
+ * When `LUABRIDGE_LUAU_NATIVE_INTEGER64` is enabled, 64-bit integer `Stack` specializations always accept native integers
+ * when reading.
+ *
+ * Values above 2^53 round trip without precision loss. Unsigned values keep their bit pattern (`UINT64_MAX` is seen by
+ * Requires `LUABRIDGE_LUAU_NATIVE_INTEGER64`.
+ *
+ * @note Detected automatically from the Luau headers unless explicitly disabled.
+ */
+#if !defined(LUABRIDGE_LUAU_NATIVE_INTEGER64)
+#if LUABRIDGE_ON_LUAU && defined(lua_isinteger64)
+#define LUABRIDGE_LUAU_NATIVE_INTEGER64 1
+#else
+#define LUABRIDGE_LUAU_NATIVE_INTEGER64 0
+#endif
+#endif
+
+/**
  * @brief Enable safe stack checks to avoid lua stack overflow when pushing values on the stack.
  * 
  * @note Default is enabled. 
@@ -89,6 +108,7 @@
  * When enabled:
  * - `Stack<bool>::get` only accepts `LUA_TBOOLEAN` (nil is not convertible to bool).
  * - Integer `Stack` specializations only accept Lua integer values (not floats with integer representation, on Lua 5.3+).
+ * - 64-bit integer `Stack` specializations only accept Luau native integers when `LUABRIDGE_LUAU_NATIVE_INTEGER64` is enabled.
  * - `Stack<std::string>::get` only accepts `LUA_TSTRING` (numbers are not coerced to strings).
  *
  * When disabled (default), a more permissive conversion is used:
