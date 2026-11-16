@@ -72,10 +72,6 @@
 #include <coroutine>
 #endif
 
-#if defined(__has_include) && __has_include(<Luau/Common.h>) && (defined(lua_isinteger64) && (!defined(LUABRIDGE_LUAU_NATIVE_INTEGER64) || LUABRIDGE_LUAU_NATIVE_INTEGER64))
-#include <Luau/Common.h>
-#endif
-
 
 
 // Begin File: Source/LuaBridge/detail/Config.h
@@ -154,6 +150,7 @@
 #endif
 
 #if LUABRIDGE_LUAU_NATIVE_INTEGER64
+#include <Luau/Common.h>
 
 LUAU_FASTFLAG(LuauIntegerLibrary)
 #endif
