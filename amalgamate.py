@@ -25,7 +25,7 @@ GUARDED_INCLUDES = [
 	{ "header": "flat_set", "condition": "(__cplusplus >= 202302L || (defined(_MSC_VER) && _HAS_CXX23))" },
 	{ "header": "expected", "condition": "(__cplusplus >= 202302L || (defined(_MSC_VER) && _HAS_CXX23))" },
 	{ "header": "move_only_function", "condition": "(__cplusplus >= 202302L || (defined(_MSC_VER) && _HAS_CXX23))" },
-	{ "header": "Luau/Common.h", "condition": "(defined(lua_isinteger64) && (!defined(LUABRIDGE_LUAU_NATIVE_INTEGER64) || LUABRIDGE_LUAU_NATIVE_INTEGER64))" },
+	{ "header": "Luau/Common.h", "inplace": True },
 ]
 
 def GetGuardedInclude(header):
@@ -33,6 +33,10 @@ def GetGuardedInclude(header):
 		if guarded["header"] == header:
 			return guarded
 	return None
+
+def IsInPlaceInclude(header):
+	guarded = GetGuardedInclude(header)
+	return guarded is not None and guarded.get("inplace", False)
 
 def IsCppHeaderFile(ext):
 	return  ext in CPP_HEADER_FILE_EXT
@@ -137,7 +141,7 @@ class SourceInfo:
 					call = self.ScanSourceFile(includeFile , depth + 1)
 					if call == EXTERNAL_FILE:
 						self.scannedFiles.add(includeFile)
-				else:
+				elif not IsInPlaceInclude(includeResult[0]):
 					self.systemHeaders.add(includeResult[0])
 
 		self.AddFileToQueue(path, ext)
@@ -185,7 +189,7 @@ class SourceInfo:
 
 			for line in lines:
 				result = INCLUDE_FILE_MATCHER.findall(line)
-				if result:
+				if result and not IsInPlaceInclude(result[0]):
 					continue
 
 				result = PRAGMA_ONCE_MATCHER.findall(line)

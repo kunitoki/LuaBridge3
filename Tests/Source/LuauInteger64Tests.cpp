@@ -231,7 +231,7 @@ TEST_F(LuauInteger64Tests, NativeIntegersAreNotNumbers)
 
 TEST_F(LuauInteger64Tests, PushNumbersWhenIntegerLibraryFlagIsDisabled)
 {
-    ScopedLuauFlags disabled{ { &FFlag::LuauIntegerLibrary }, false };
+    ScopedLuauFlags disabled({ &FFlag::LuauIntegerLibrary }, false);
 
     ASSERT_TRUE(luabridge::push(L, int64_t(42)));
     EXPECT_EQ(LUA_TNUMBER, lua_type(L, -1));
