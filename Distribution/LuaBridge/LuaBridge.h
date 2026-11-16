@@ -5517,7 +5517,7 @@ namespace detail {
 template <class T>
 struct LuauInteger64Stack
 {
-    static_assert(std::is_integral_v<T> && sizeof(T) == sizeof(int64_t));
+    static_assert(std::is_integral_v<T>);
 
     [[nodiscard]] static Result push(lua_State* L, T value)
     {
