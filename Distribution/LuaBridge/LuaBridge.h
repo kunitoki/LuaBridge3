@@ -994,17 +994,16 @@ inline void* luaL_testudata(lua_State* L, int ud, const char* tname)
     return p;
 }
 #endif
+#endif 
 
 inline int get_length(lua_State* L, int idx)
 {
+#if LUA_VERSION_NUM < 502
     return static_cast<int>(lua_objlen(L, idx));
-}
-#else 
-inline int get_length(lua_State* L, int idx)
-{
+#else
     return static_cast<int>(lua_rawlen(L, idx));
+#endif
 }
-#endif 
 
 #if LUABRIDGE_ON_LUAU
 inline int luaL_ref(lua_State* L, int idx)

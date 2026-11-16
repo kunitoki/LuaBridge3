@@ -467,7 +467,7 @@ jobs:
       - name: Merge Lcov Files
         working-directory: ${{runner.workspace}}/coverage
         run: |
-          lcov \
+          lcov --ignore-errors inconsistent \
             -a "lua51_cxx17.info" \
             -a "lua51_cxx20.info" \
             -a "lua51_cxx23.info" \
