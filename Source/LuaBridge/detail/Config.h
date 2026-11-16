@@ -75,6 +75,30 @@
 #endif
 
 /**
+ * @brief Support Luau native 64-bit integers (`LUA_TINTEGER`).
+ *
+ * When enabled, 64-bit integer `Stack` specializations accept native integers when reading, and push them as native
+ * integers when the Luau `LuauIntegerLibrary` fast flag is set at runtime (otherwise they are pushed as numbers).
+ * Values above 2^53 then round trip without precision loss. Unsigned values keep their bit pattern (`UINT64_MAX` is
+ * seen by Luau as `-1i`). Requires `Luau/Common.h` in the include path.
+ *
+ * @note Detected automatically from the Luau headers.
+ */
+#if !defined(LUABRIDGE_LUAU_NATIVE_INTEGER64)
+#if LUABRIDGE_ON_LUAU && defined(lua_isinteger64)
+#define LUABRIDGE_LUAU_NATIVE_INTEGER64 1
+#else
+#define LUABRIDGE_LUAU_NATIVE_INTEGER64 0
+#endif
+#endif
+
+#if LUABRIDGE_LUAU_NATIVE_INTEGER64
+#include <Luau/Common.h>
+
+LUAU_FASTFLAG(LuauIntegerLibrary)
+#endif
+
+/**
  * @brief Enable safe stack checks to avoid lua stack overflow when pushing values on the stack.
  * 
  * @note Default is enabled. 
@@ -89,6 +113,8 @@
  * When enabled:
  * - `Stack<bool>::get` only accepts `LUA_TBOOLEAN` (nil is not convertible to bool).
  * - Integer `Stack` specializations only accept Lua integer values (not floats with integer representation, on Lua 5.3+).
+ * - 64-bit integer `Stack` specializations only accept Luau native integers when they are pushed as native integers
+ *   (`LUABRIDGE_LUAU_NATIVE_INTEGER64` is enabled and the `LuauIntegerLibrary` flag is set).
  * - `Stack<std::string>::get` only accepts `LUA_TSTRING` (numbers are not coerced to strings).
  *
  * When disabled (default), a more permissive conversion is used:

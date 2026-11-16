@@ -246,7 +246,11 @@ jobs:
 
     - name: Build Luau (C++17)
       working-directory: ${{runner.workspace}}/build17
-      run: cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target LuaBridgeTestsLuau
+      run: |
+        cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target \
+          LuaBridgeTestsLuau \
+          LuaBridgeTestsLuauInteger64 \
+          LuaBridgeTestsLuauInteger64Strict
 
     - name: Test Luau (C++17)
       working-directory: ${{runner.workspace}}/build17
@@ -266,7 +270,11 @@ jobs:
 
     - name: Build Luau (C++20)
       working-directory: ${{runner.workspace}}/build20
-      run: cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target LuaBridgeTestsLuau
+      run: |
+        cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target \
+          LuaBridgeTestsLuau \
+          LuaBridgeTestsLuauInteger64 \
+          LuaBridgeTestsLuauInteger64Strict
 
     - name: Test Luau (C++20)
       working-directory: ${{runner.workspace}}/build20
@@ -286,7 +294,11 @@ jobs:
 
     - name: Build Luau (C++23)
       working-directory: ${{runner.workspace}}/build23
-      run: cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target LuaBridgeTestsLuau
+      run: |
+        cmake --build . --config $BUILD_TYPE --parallel $(nproc) --target \
+          LuaBridgeTestsLuau \
+          LuaBridgeTestsLuauInteger64 \
+          LuaBridgeTestsLuauInteger64Strict
 
     - name: Test Luau (C++23)
       working-directory: ${{runner.workspace}}/build23
@@ -455,7 +467,7 @@ jobs:
       - name: Merge Lcov Files
         working-directory: ${{runner.workspace}}/coverage
         run: |
-          lcov \
+          lcov --ignore-errors inconsistent \
             -a "lua51_cxx17.info" \
             -a "lua51_cxx20.info" \
             -a "lua51_cxx23.info" \
@@ -485,9 +497,28 @@ jobs:
       - name: Install lcov2xml
         run: cargo install lcov2xml
 
+      # lcov >= 2.2 emits FNL/FNA function records that lcov2xml does not understand, rewrite them as FN/FNDA
+      - name: Convert to Legacy Lcov Format
+        working-directory: ${{runner.workspace}}/coverage
+        shell: python3 {0}
+        run: |
+          locations = {}
+          with open("merged.info") as src, open("merged_legacy.info", "w") as dst:
+              for line in src:
+                  if line.startswith("FNL:"):
+                      index, location = line[4:].rstrip("\n").split(",", 1)
+                      locations[index] = location.split(",")[0]
+                  elif line.startswith("FNA:"):
+                      index, hits, name = line[4:].rstrip("\n").split(",", 2)
+                      dst.write(f"FN:{locations[index]},{name}\nFNDA:{hits},{name}\n")
+                  else:
+                      if line.startswith("end_of_record"):
+                          locations.clear()
+                      dst.write(line)
+
       - name: Convert to Cobertura XML
         working-directory: ${{runner.workspace}}/coverage
-        run: lcov2xml merged.info -o cobertura.xml
+        run: lcov2xml merged_legacy.info -o cobertura.xml
 
       #- name: Convert to Coverage TXT
       #  working-directory: ${{runner.workspace}}/build

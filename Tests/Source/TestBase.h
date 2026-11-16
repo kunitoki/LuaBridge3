@@ -24,6 +24,17 @@
 #endif
 
 #include <cstring>
+#include <type_traits>
+
+#if !defined(LUABRIDGE_TEST_LUAU_INTEGER64)
+#define LUABRIDGE_TEST_LUAU_INTEGER64 0
+#endif
+
+// Whether values of type T are pushed as Lua numbers (64-bit integers are pushed as native integers on Luau when the
+// LuauIntegerLibrary flag is set, which TestsMain does when LUABRIDGE_TEST_LUAU_INTEGER64 is enabled)
+template <class T>
+inline constexpr bool isPushedAsNumber =
+    !(LUABRIDGE_TEST_LUAU_INTEGER64 && std::is_integral_v<T> && sizeof(T) == sizeof(int64_t));
 
 // Uncomment this if you want errors to be printed when lua fails to compile or run
 //#define LUABRIDGE_TESTS_PRINT_ERRORS 1

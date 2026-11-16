@@ -50,6 +50,7 @@ set (LUABRIDGE_TEST_SOURCE_FILES
   Source/LegacyTests.h
   Source/ListTests.cpp
   Source/LuaRefTests.cpp
+  Source/LuauInteger64Tests.cpp
   Source/MapTests.cpp
   Source/MoveOnlyFunctionTests.cpp
   Source/MultiMapTests.cpp
@@ -241,6 +242,8 @@ function (setup_coverage_single_target)
       -a "coverage/LuaBridgeTestsLuaJIT.info"
       -a "coverage/LuaBridgeTestsLuaJITNoexcept.info"
       -a "coverage/LuaBridgeTestsLuau.info"
+      -a "coverage/LuaBridgeTestsLuauInteger64.info"
+      -a "coverage/LuaBridgeTestsLuauInteger64Strict.info"
       -a "coverage/LuaBridgeTestsRavi.info"
       -o "coverage/Merged.info"
     COMMAND ${GENHTML_EXECUTABLE}
@@ -269,6 +272,8 @@ function (setup_coverage_single_target)
       "coverage/LuaBridgeTestsLuaJIT.info"
       "coverage/LuaBridgeTestsLuaJITNoexcept.info"
       "coverage/LuaBridgeTestsLuau.info"
+      "coverage/LuaBridgeTestsLuauInteger64.info"
+      "coverage/LuaBridgeTestsLuauInteger64Strict.info"
       "coverage/LuaBridgeTestsRavi.info"
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     VERBATIM)
@@ -480,6 +485,13 @@ add_test_app (LuaBridgeTests55Noexcept 505 "${LUABRIDGE_TEST_LUA55_FILES}" 0 "" 
 add_test_app (LuaBridgeTests55LuaCNoexcept 505 "${LUABRIDGE_TEST_LUA55_C_FILES}" 0 "${LUABRIDGE_LUA_C_DEFINES}" "")
 
 add_test_app (LuaBridgeTestsLuau "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 1 "" "")
+add_test_app (LuaBridgeTestsLuauInteger64 "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 1 "LUABRIDGE_TEST_LUAU_INTEGER64=1" "")
+
+# Strict conversions change the behaviour of the whole suite, only run the focused tests
+set (LUABRIDGE_TEST_SOURCE_FILES_ALL ${LUABRIDGE_TEST_SOURCE_FILES})
+set (LUABRIDGE_TEST_SOURCE_FILES Source/LuauInteger64Tests.cpp Source/TestBase.h Source/TestsMain.cpp)
+add_test_app (LuaBridgeTestsLuauInteger64Strict "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 1 "LUABRIDGE_TEST_LUAU_INTEGER64=1;LUABRIDGE_STRICT_STACK_CONVERSIONS=1" "")
+set (LUABRIDGE_TEST_SOURCE_FILES ${LUABRIDGE_TEST_SOURCE_FILES_ALL})
 #add_test_app (LuaBridgeTestsLuauNoexcept "LUAU" "${LUABRIDGE_TEST_LUAU_FILES}" 0 "" "")
 
 if (NOT EMSCRIPTEN)

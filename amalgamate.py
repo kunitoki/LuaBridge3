@@ -25,6 +25,7 @@ GUARDED_INCLUDES = [
 	{ "header": "flat_set", "condition": "(__cplusplus >= 202302L || (defined(_MSC_VER) && _HAS_CXX23))" },
 	{ "header": "expected", "condition": "(__cplusplus >= 202302L || (defined(_MSC_VER) && _HAS_CXX23))" },
 	{ "header": "move_only_function", "condition": "(__cplusplus >= 202302L || (defined(_MSC_VER) && _HAS_CXX23))" },
+	{ "header": "Luau/Common.h", "condition": "(defined(lua_isinteger64) && (!defined(LUABRIDGE_LUAU_NATIVE_INTEGER64) || LUABRIDGE_LUAU_NATIVE_INTEGER64))" },
 ]
 
 def GetGuardedInclude(header):

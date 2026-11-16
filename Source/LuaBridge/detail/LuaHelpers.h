@@ -80,17 +80,16 @@ inline void* luaL_testudata(lua_State* L, int ud, const char* tname)
     return p;
 }
 #endif
+#endif // LUA_VERSION_NUM < 502
 
 inline int get_length(lua_State* L, int idx)
 {
+#if LUA_VERSION_NUM < 502
     return static_cast<int>(lua_objlen(L, idx));
-}
-#else // LUA_VERSION_NUM >= 502
-inline int get_length(lua_State* L, int idx)
-{
+#else
     return static_cast<int>(lua_rawlen(L, idx));
+#endif
 }
-#endif // LUA_VERSION_NUM < 502
 
 // These functions and defines are for Luau.
 #if LUABRIDGE_ON_LUAU

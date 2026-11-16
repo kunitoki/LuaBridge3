@@ -50,6 +50,12 @@ inline void dumpValue(lua_State* L, int index, unsigned maxDepth = 1, unsigned l
         stream << lua_tonumber(L, index);
         break;
 
+#if LUABRIDGE_LUAU_NATIVE_INTEGER64
+    case LUA_TINTEGER:
+        stream << lua_tointeger64(L, index, nullptr) << 'i';
+        break;
+#endif
+
     case LUA_TSTRING:
         stream << '"' << lua_tostring(L, index) << '"';
         break;
