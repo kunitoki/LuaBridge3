@@ -18,7 +18,7 @@
 * Added C++20 coroutine integration: `CppCoroutine<R>` type that can be registered via `Namespace::addCoroutine()` to expose C++ generators to Lua using `co_yield` and `co_return`.
 * Added `LuaCoroutine` awaitable to resume a child Lua thread synchronously from inside a `CppCoroutine` body using `co_await`.
 * Added `lua_resume_x` and `lua_isyieldable_x` portable helpers in `LuaBridge/detail/LuaHelpers.h`.
-* Added support for Luau native 64-bit integers (`LUA_TINTEGER`): 64-bit integer `Stack` specializations always accept them, and push them when `LUABRIDGE_LUAU_NATIVE_INTEGER64` is enabled (with `LUABRIDGE_STRICT_STACK_CONVERSIONS` numbers are then rejected).
+* Added support for Luau native 64-bit integers (`LUA_TINTEGER`) with `LUABRIDGE_LUAU_NATIVE_INTEGER64` (detected automatically): 64-bit integer `Stack` specializations accept them, and push them when the `LuauIntegerLibrary` flag is set at runtime (with `LUABRIDGE_STRICT_STACK_CONVERSIONS` numbers are then rejected).
 * Updated Luau to 0.743 and support the new `lua_Destructor` signature of `lua_newuserdatadtor` (still compatible with older Luau).
 * Added `LUABRIDGE_HAS_CXX20_COROUTINES` feature-detection macro; opt out with `LUABRIDGE_DISABLE_CXX20_COROUTINES`.
 * Added `ErrorCode::CoroutineYieldFromNonCoroutine` and `ErrorCode::CoroutineAlreadyDone` error codes.

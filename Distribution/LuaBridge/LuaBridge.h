@@ -72,6 +72,10 @@
 #include <coroutine>
 #endif
 
+#if defined(__has_include) && __has_include(<Luau/Common.h>) && (defined(lua_isinteger64) && (!defined(LUABRIDGE_LUAU_NATIVE_INTEGER64) || LUABRIDGE_LUAU_NATIVE_INTEGER64))
+#include <Luau/Common.h>
+#endif
+
 
 
 // Begin File: Source/LuaBridge/detail/Config.h
@@ -147,6 +151,11 @@
 #else
 #define LUABRIDGE_LUAU_NATIVE_INTEGER64 0
 #endif
+#endif
+
+#if LUABRIDGE_LUAU_NATIVE_INTEGER64
+
+LUAU_FASTFLAG(LuauIntegerLibrary)
 #endif
 
 #if !defined(LUABRIDGE_SAFE_STACK_CHECKS)
@@ -5514,6 +5523,11 @@ struct Stack<unsigned int>
 #if LUABRIDGE_LUAU_NATIVE_INTEGER64
 namespace detail {
 
+[[nodiscard]] inline bool isLuauNativeInteger64Enabled() noexcept
+{
+    return ::FFlag::LuauIntegerLibrary;
+}
+
 template <class T>
 struct LuauInteger64Stack
 {
@@ -5537,7 +5551,7 @@ struct LuauInteger64Stack
         if (type == LUA_TINTEGER)
             return static_cast<T>(lua_tointeger64(L, index, nullptr));
 
-        if (type != LUA_TNUMBER || ! acceptsNumbers)
+        if (type != LUA_TNUMBER || ! acceptsNumbers())
             return makeErrorCode(ErrorCode::InvalidTypeCast);
 
         T value{};
@@ -5555,12 +5569,15 @@ struct LuauInteger64Stack
             return true;
 
         T value{};
-        return acceptsNumbers && type == LUA_TNUMBER && fromNumber(lua_tonumber(L, index), value);
+        return acceptsNumbers() && type == LUA_TNUMBER && fromNumber(lua_tonumber(L, index), value);
     }
 
 private:
     
-    static constexpr bool acceptsNumbers = ! (LUABRIDGE_STRICT_STACK_CONVERSIONS && LUABRIDGE_LUAU_NATIVE_INTEGER64);
+    static bool acceptsNumbers() noexcept
+    {
+        return ! (LUABRIDGE_STRICT_STACK_CONVERSIONS && isLuauNativeInteger64Enabled());
+    }
 
     static bool fromNumber(double number, T& value)
     {
@@ -5596,7 +5613,10 @@ struct Stack<long>
     {
 #if LUABRIDGE_LUAU_NATIVE_INTEGER64
         if constexpr (detail::is_luau_integer64_v<long>)
-            return detail::LuauInteger64Stack<long>::push(L, value);
+        {
+            if (detail::isLuauNativeInteger64Enabled())
+                return detail::LuauInteger64Stack<long>::push(L, value);
+        }
 #endif
 
 #if LUABRIDGE_SAFE_STACK_CHECKS
@@ -5648,7 +5668,10 @@ struct Stack<unsigned long>
     {
 #if LUABRIDGE_LUAU_NATIVE_INTEGER64
         if constexpr (detail::is_luau_integer64_v<unsigned long>)
-            return detail::LuauInteger64Stack<unsigned long>::push(L, value);
+        {
+            if (detail::isLuauNativeInteger64Enabled())
+                return detail::LuauInteger64Stack<unsigned long>::push(L, value);
+        }
 #endif
 
 #if LUABRIDGE_SAFE_STACK_CHECKS
@@ -5700,7 +5723,10 @@ struct Stack<long long>
     {
 #if LUABRIDGE_LUAU_NATIVE_INTEGER64
         if constexpr (detail::is_luau_integer64_v<long long>)
-            return detail::LuauInteger64Stack<long long>::push(L, value);
+        {
+            if (detail::isLuauNativeInteger64Enabled())
+                return detail::LuauInteger64Stack<long long>::push(L, value);
+        }
 #endif
 
 #if LUABRIDGE_SAFE_STACK_CHECKS
@@ -5752,7 +5778,10 @@ struct Stack<unsigned long long>
     {
 #if LUABRIDGE_LUAU_NATIVE_INTEGER64
         if constexpr (detail::is_luau_integer64_v<unsigned long long>)
-            return detail::LuauInteger64Stack<unsigned long long>::push(L, value);
+        {
+            if (detail::isLuauNativeInteger64Enabled())
+                return detail::LuauInteger64Stack<unsigned long long>::push(L, value);
+        }
 #endif
 
 #if LUABRIDGE_SAFE_STACK_CHECKS

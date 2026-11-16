@@ -529,10 +529,19 @@ namespace detail {
 
 //=================================================================================================
 /**
+ * @brief Whether 64-bit integers are pushed as Luau native integers.
+ */
+[[nodiscard]] inline bool isLuauNativeInteger64Enabled() noexcept
+{
+    return ::FFlag::LuauIntegerLibrary;
+}
+
+/**
  * @brief Stack implementation for 64-bit integers using Luau native integers (`LUA_TINTEGER`).
  *
  * Reading accepts native integers (unsigned values keep their bit pattern) and numbers with an exact integral value
- * representable by `T`. Numbers are rejected with `LUABRIDGE_STRICT_STACK_CONVERSIONS` and `LUABRIDGE_LUAU_NATIVE_INTEGER64`.
+ * representable by `T`. Numbers are rejected with `LUABRIDGE_STRICT_STACK_CONVERSIONS` when 64-bit integers are pushed as
+ * native integers (see `isLuauNativeInteger64Enabled`).
  */
 template <class T>
 struct LuauInteger64Stack
@@ -557,7 +566,7 @@ struct LuauInteger64Stack
         if (type == LUA_TINTEGER)
             return static_cast<T>(lua_tointeger64(L, index, nullptr));
 
-        if (type != LUA_TNUMBER || ! acceptsNumbers)
+        if (type != LUA_TNUMBER || ! acceptsNumbers())
             return makeErrorCode(ErrorCode::InvalidTypeCast);
 
         T value{};
@@ -575,12 +584,15 @@ struct LuauInteger64Stack
             return true;
 
         T value{};
-        return acceptsNumbers && type == LUA_TNUMBER && fromNumber(lua_tonumber(L, index), value);
+        return acceptsNumbers() && type == LUA_TNUMBER && fromNumber(lua_tonumber(L, index), value);
     }
 
 private:
     // Strict conversions only accept native integers, unless 64-bit integers are still pushed as numbers
-    static constexpr bool acceptsNumbers = ! (LUABRIDGE_STRICT_STACK_CONVERSIONS && LUABRIDGE_LUAU_NATIVE_INTEGER64);
+    static bool acceptsNumbers() noexcept
+    {
+        return ! (LUABRIDGE_STRICT_STACK_CONVERSIONS && isLuauNativeInteger64Enabled());
+    }
 
     static bool fromNumber(double number, T& value)
     {
@@ -621,7 +633,10 @@ struct Stack<long>
     {
 #if LUABRIDGE_LUAU_NATIVE_INTEGER64
         if constexpr (detail::is_luau_integer64_v<long>)
-            return detail::LuauInteger64Stack<long>::push(L, value);
+        {
+            if (detail::isLuauNativeInteger64Enabled())
+                return detail::LuauInteger64Stack<long>::push(L, value);
+        }
 #endif
 
 #if LUABRIDGE_SAFE_STACK_CHECKS
@@ -677,7 +692,10 @@ struct Stack<unsigned long>
     {
 #if LUABRIDGE_LUAU_NATIVE_INTEGER64
         if constexpr (detail::is_luau_integer64_v<unsigned long>)
-            return detail::LuauInteger64Stack<unsigned long>::push(L, value);
+        {
+            if (detail::isLuauNativeInteger64Enabled())
+                return detail::LuauInteger64Stack<unsigned long>::push(L, value);
+        }
 #endif
 
 #if LUABRIDGE_SAFE_STACK_CHECKS
@@ -733,7 +751,10 @@ struct Stack<long long>
     {
 #if LUABRIDGE_LUAU_NATIVE_INTEGER64
         if constexpr (detail::is_luau_integer64_v<long long>)
-            return detail::LuauInteger64Stack<long long>::push(L, value);
+        {
+            if (detail::isLuauNativeInteger64Enabled())
+                return detail::LuauInteger64Stack<long long>::push(L, value);
+        }
 #endif
 
 #if LUABRIDGE_SAFE_STACK_CHECKS
@@ -789,7 +810,10 @@ struct Stack<unsigned long long>
     {
 #if LUABRIDGE_LUAU_NATIVE_INTEGER64
         if constexpr (detail::is_luau_integer64_v<unsigned long long>)
-            return detail::LuauInteger64Stack<unsigned long long>::push(L, value);
+        {
+            if (detail::isLuauNativeInteger64Enabled())
+                return detail::LuauInteger64Stack<unsigned long long>::push(L, value);
+        }
 #endif
 
 #if LUABRIDGE_SAFE_STACK_CHECKS

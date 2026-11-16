@@ -21,12 +21,12 @@ namespace {
 class ScopedLuauFlags
 {
 public:
-    ScopedLuauFlags(std::initializer_list<Luau::FValue<bool>*> flags)
+    ScopedLuauFlags(std::initializer_list<Luau::FValue<bool>*> flags, bool value = true)
     {
         for (Luau::FValue<bool>* flag : flags)
         {
             saved.emplace_back(flag, flag->value);
-            flag->value = true;
+            flag->value = value;
         }
     }
 
@@ -82,7 +82,7 @@ TEST_F(LuauInteger64Tests, GetNativeIntegerLimits)
     EXPECT_EQ(std::numeric_limits<uint64_t>::max(), result<uint64_t>());
 }
 
-#if LUABRIDGE_STRICT_STACK_CONVERSIONS && LUABRIDGE_LUAU_NATIVE_INTEGER64
+#if LUABRIDGE_STRICT_STACK_CONVERSIONS
 
 TEST_F(LuauInteger64Tests, StrictRejectsNumbers)
 {
@@ -135,7 +135,7 @@ TEST_F(LuauInteger64Tests, GetNumbers)
     EXPECT_FALSE(result().cast<int64_t>());
 }
 
-#endif // LUABRIDGE_STRICT_STACK_CONVERSIONS && LUABRIDGE_LUAU_NATIVE_INTEGER64
+#endif // LUABRIDGE_STRICT_STACK_CONVERSIONS
 
 TEST_F(LuauInteger64Tests, BoundFunctionsAcceptNativeIntegers)
 {
@@ -150,10 +150,8 @@ TEST_F(LuauInteger64Tests, BoundFunctionsAcceptNativeIntegers)
     runLua("result = echoUnsigned(42i)");
     EXPECT_EQ(42u, result<uint64_t>());
 
-#if LUABRIDGE_LUAU_NATIVE_INTEGER64
     runLua("result = echoSigned(9007199254740993i)");
     EXPECT_EQ(kAboveDoublePrecision, result<int64_t>());
-#endif
 }
 
 TEST_F(LuauInteger64Tests, LuaRefPrintAndHash)
@@ -229,6 +227,22 @@ TEST_F(LuauInteger64Tests, NativeIntegersAreNotNumbers)
 
     runLua("result = id() == 5i");
     EXPECT_TRUE(result<bool>());
+}
+
+TEST_F(LuauInteger64Tests, PushNumbersWhenIntegerLibraryFlagIsDisabled)
+{
+    ScopedLuauFlags disabled{ { &FFlag::LuauIntegerLibrary }, false };
+
+    ASSERT_TRUE(luabridge::push(L, int64_t(42)));
+    EXPECT_EQ(LUA_TNUMBER, lua_type(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<int64_t>(L, -1));
+    EXPECT_EQ(42, *luabridge::get<int64_t>(L, -1));
+    lua_pop(L, 1);
+
+    ASSERT_TRUE(luabridge::push(L, uint64_t(42)));
+    EXPECT_EQ(LUA_TNUMBER, lua_type(L, -1));
+    EXPECT_EQ(42u, *luabridge::get<uint64_t>(L, -1));
+    lua_pop(L, 1);
 }
 
 #endif // LUABRIDGE_LUAU_NATIVE_INTEGER64

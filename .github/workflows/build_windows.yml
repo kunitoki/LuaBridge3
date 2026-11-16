@@ -194,7 +194,11 @@ jobs:
     - name: Build Luau (C++17)
       working-directory: ${{runner.workspace}}/build17
       shell: bash
-      run: cmake --build . --config $BUILD_TYPE --parallel 4 --target LuaBridgeTestsLuau
+      run: |
+        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
+          LuaBridgeTestsLuau \
+          LuaBridgeTestsLuauInteger64 \
+          LuaBridgeTestsLuauInteger64Strict
 
     - name: Test Luau (C++17)
       working-directory: ${{runner.workspace}}/build17
@@ -209,7 +213,11 @@ jobs:
     - name: Build Luau (C++20)
       working-directory: ${{runner.workspace}}/build20
       shell: bash
-      run: cmake --build . --config $BUILD_TYPE --parallel 4 --target LuaBridgeTestsLuau
+      run: |
+        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
+          LuaBridgeTestsLuau \
+          LuaBridgeTestsLuauInteger64 \
+          LuaBridgeTestsLuauInteger64Strict
 
     - name: Test Luau (C++20)
       working-directory: ${{runner.workspace}}/build20
@@ -224,7 +232,11 @@ jobs:
     - name: Build Luau (C++23)
       working-directory: ${{runner.workspace}}/build23
       shell: bash
-      run: cmake --build . --config $BUILD_TYPE --parallel 4 --target LuaBridgeTestsLuau
+      run: |
+        cmake --build . --config $BUILD_TYPE --parallel 4 --target \
+          LuaBridgeTestsLuau \
+          LuaBridgeTestsLuauInteger64 \
+          LuaBridgeTestsLuauInteger64Strict
 
     - name: Test Luau (C++23)
       working-directory: ${{runner.workspace}}/build23
