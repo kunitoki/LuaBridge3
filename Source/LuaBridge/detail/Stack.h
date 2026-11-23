@@ -617,7 +617,11 @@ private:
 };
 
 template <class T>
-inline constexpr bool is_luau_integer64_v = std::is_integral_v<T> && sizeof(T) == sizeof(int64_t);
+inline constexpr bool is_luau_integer64_v =
+    std::is_same_v<T, std::int64_t> ||
+    std::is_same_v<T, std::uint64_t> ||
+    std::is_same_v<T, long long> ||
+    std::is_same_v<T, unsigned long long>;
 
 } // namespace detail
 #endif
