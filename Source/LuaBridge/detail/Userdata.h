@@ -23,11 +23,11 @@ namespace detail {
 template <class T>
 std::error_code getNilBadArgError(lua_State* L, int index)
 {
-    const std::string message = std::string(typeName<T>()) + " expected, got no value";
-
 #if LUABRIDGE_HAS_EXCEPTIONS
     if (index > 0 && LuaException::areExceptionsEnabled(L))
     {
+        const std::string message = std::string(typeName<T>()) + " expected, got no value";
+
         lua_pushstring(L, message.c_str());
         LuaException::raise(L, makeErrorCode(ErrorCode::InvalidTypeCast));
     }
@@ -35,7 +35,13 @@ std::error_code getNilBadArgError(lua_State* L, int index)
 
     // Lua-call argument path: keep detailed bad-argument text when exceptions are disabled.
     if (index > 0)
-        luaL_argerror(L, lua_absindex(L, index), message.c_str());
+    {
+        const auto name = typeName<T>();
+        lua_pushlstring(L, name.data(), name.size());
+        lua_pushstring(L, " expected, got no value");
+        lua_concat(L, 2);
+        luaL_argerror(L, index, lua_tostring(L, -1));
+    }
 
     return makeErrorCode(ErrorCode::InvalidTypeCast);
 }
@@ -127,16 +133,16 @@ private:
 
         lua_pop(L, 1); // Stack: -
 
-    const auto errorCode = classIsRegistered ? ErrorCode::InvalidTypeCast : ErrorCode::ClassNotRegistered;
+        const auto errorCode = classIsRegistered ? ErrorCode::InvalidTypeCast : ErrorCode::ClassNotRegistered;
 
 #if LUABRIDGE_HAS_EXCEPTIONS
-    if (LuaException::areExceptionsEnabled(L))
-    {
-        const std::string message = std::string(expected) + " expected, got " + got;
-        lua_pushstring(L, message.c_str());
+        if (LuaException::areExceptionsEnabled(L))
+        {
+            const std::string message = std::string(expected) + " expected, got " + got;
+            lua_pushstring(L, message.c_str());
 
-        LuaException::raise(L, makeErrorCode(errorCode));
-    }
+            LuaException::raise(L, makeErrorCode(errorCode));
+        }
 #endif
 
         return makeErrorCode(errorCode);
@@ -290,7 +296,7 @@ public:
     template <class T>
     static TypeResult<T*> get(lua_State* L, int index, bool canBeConst)
     {
-        if (lua_isnil(L, index))
+        if (lua_isnoneornil(L, index))
             return nullptr;
 
         const int absIndex = lua_absindex(L, index);
