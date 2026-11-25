@@ -18,7 +18,7 @@
 
 #if __cplusplus >= 202302L || (defined(_MSC_VER) && _HAS_CXX23)
 #define LUABRIDGE_CXX23_OR_GREATER 1
-#elif __cplusplus >= 202002L || (defined(_MSC_VER) && _HAS_CXX20)
+#elif __cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L)
 #define LUABRIDGE_CXX20_OR_GREATER 1
 #endif
 
@@ -96,6 +96,17 @@
 #include <Luau/Common.h>
 
 LUAU_FASTFLAG(LuauIntegerLibrary)
+#endif
+
+/**
+ * @brief Enable safe portable integers to avoid relying on platform-specific integer sizes.
+ *
+ * When enabled, LuaBridge will use portable integer types for 64-bit integers instead of relying on platform-specific types like `long` or `unsigned long`.
+ *
+ * @note Default is disabled.
+ */
+#if !defined(LUABRIDGE_SAFE_PORTABLE_INTEGERS_ONLY)
+#define LUABRIDGE_SAFE_PORTABLE_INTEGERS_ONLY 0
 #endif
 
 /**

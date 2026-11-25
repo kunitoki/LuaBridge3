@@ -16,11 +16,17 @@ PRAGMA_ONCE_MATCHER = re.compile(r'#pragma once')
 INCLUDE_FILE_MATCHER = re.compile(r'#include\s*[<\"]([\w.\\/]*)[>\"]')
 LOCAL_INCLUDE_FILE_MATCHER = re.compile(r'#include\s*\"([\w.\\/]*)\"')
 
+# Warning push/pop blocks in the main header wrap its includes: they are hoisted around the whole amalgamation
+WARNING_PUSH_BLOCK_MATCHER = re.compile(r'^#if\b[^\n]*\n#pragma warning\(push\)\n(?:#pragma warning\([^\n]*\n)*#endif[ \t]*$', re.MULTILINE)
+WARNING_POP_BLOCK_MATCHER = re.compile(r'^#if\b[^\n]*\n#pragma warning\(pop\)\n#endif[ \t]*$', re.MULTILINE)
+MAIN_HEADER_NAME = "LuaBridge.h"
+CONFIG_HEADER_NAME = "Config.h"
+
 GUARDED_INCLUDES = [
 	{ "header": "version" },
-	{ "header": "coroutine", "condition": "(__cplusplus >= 202002L || (defined(_MSC_VER) && _HAS_CXX20))" },
-	{ "header": "ranges", "condition": "(__cplusplus >= 202002L || (defined(_MSC_VER) && _HAS_CXX20))" },
-	{ "header": "span", "condition": "(__cplusplus >= 202002L || (defined(_MSC_VER) && _HAS_CXX20))" },
+	{ "header": "coroutine", "condition": "(__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))" },
+	{ "header": "ranges", "condition": "(__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))" },
+	{ "header": "span", "condition": "(__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))" },
 	{ "header": "flat_map", "condition": "(__cplusplus >= 202302L || (defined(_MSC_VER) && _HAS_CXX23))" },
 	{ "header": "flat_set", "condition": "(__cplusplus >= 202302L || (defined(_MSC_VER) && _HAS_CXX23))" },
 	{ "header": "expected", "condition": "(__cplusplus >= 202302L || (defined(_MSC_VER) && _HAS_CXX23))" },
@@ -72,6 +78,8 @@ class SourceInfo:
 		self.headerQueue = deque()
 		self.systemHeaders = set()
 		self.scannedFiles = set()
+		self.warningPushBlock = None
+		self.warningPopBlock = None
 
 		self.baseDir = baseDir
 		self.outputDir = outputDir
@@ -184,8 +192,12 @@ class SourceInfo:
 
 			lastLineWasEmpty = False
 
-			text = RemoveComments(source.read())
-			lines = text.replace("\r", "\n").split("\n")
+			text = RemoveComments(source.read()).replace("\r\n", "\n").replace("\r", "\n")
+
+			if self.IsMainHeader(path):
+				text = self.StripWarningBlocks(text)
+
+			lines = text.split("\n")
 
 			for line in lines:
 				result = INCLUDE_FILE_MATCHER.findall(line)
@@ -203,6 +215,30 @@ class SourceInfo:
 				lastLineWasEmpty = not stripped_line
 
 			self.WriteEndFileHeader(path, stream)
+
+			if os.path.basename(path) == CONFIG_HEADER_NAME and self.warningPushBlock:
+				stream.write(f"\n{self.warningPushBlock}\n")
+
+	def IsMainHeader(self, path):
+		return os.path.normpath(path) == os.path.normpath(os.path.join(self.baseDir, MAIN_HEADER_NAME))
+
+	def ExtractWarningBlocks(self):
+		mainHeaderPath = os.path.join(self.baseDir, MAIN_HEADER_NAME)
+		if not os.path.exists(mainHeaderPath):
+			return
+
+		with open(mainHeaderPath, 'r') as source:
+			text = RemoveComments(source.read()).replace("\r\n", "\n").replace("\r", "\n")
+
+		pushMatch = WARNING_PUSH_BLOCK_MATCHER.search(text)
+		popMatch = WARNING_POP_BLOCK_MATCHER.search(text)
+		if pushMatch is not None and popMatch is not None:
+			self.warningPushBlock = pushMatch.group(0)
+			self.warningPopBlock = popMatch.group(0)
+
+	def StripWarningBlocks(self, text):
+		text = WARNING_PUSH_BLOCK_MATCHER.sub("", text, count=1)
+		return WARNING_POP_BLOCK_MATCHER.sub("", text, count=1)
 
 	def WriteAlgamationFiles(self):
 		headerPath = os.path.join(self.outputDir, self.outputName + self.headerFileExt)
@@ -235,7 +271,11 @@ class SourceInfo:
 					headerAmalgamation.write(f"#endif\n\n")
 			headerAmalgamation.write("\n")
 
+			self.ExtractWarningBlocks()
 			self.AmalgamateQueue(self.headerQueue, headerAmalgamation)
+
+			if self.warningPopBlock:
+				headerAmalgamation.write(f"\n{self.warningPopBlock}\n\n")
 
 			headerAmalgamation.write("// clang-format on\n\n")
 

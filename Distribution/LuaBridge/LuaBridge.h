@@ -48,11 +48,11 @@
 #include <version>
 #endif
 
-#if defined(__has_include) && __has_include(<span>) && (__cplusplus >= 202002L || (defined(_MSC_VER) && _HAS_CXX20))
+#if defined(__has_include) && __has_include(<span>) && (__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))
 #include <span>
 #endif
 
-#if defined(__has_include) && __has_include(<ranges>) && (__cplusplus >= 202002L || (defined(_MSC_VER) && _HAS_CXX20))
+#if defined(__has_include) && __has_include(<ranges>) && (__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))
 #include <ranges>
 #endif
 
@@ -68,7 +68,7 @@
 #include <expected>
 #endif
 
-#if defined(__has_include) && __has_include(<coroutine>) && (__cplusplus >= 202002L || (defined(_MSC_VER) && _HAS_CXX20))
+#if defined(__has_include) && __has_include(<coroutine>) && (__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))
 #include <coroutine>
 #endif
 
@@ -85,7 +85,7 @@
 
 #if __cplusplus >= 202302L || (defined(_MSC_VER) && _HAS_CXX23)
 #define LUABRIDGE_CXX23_OR_GREATER 1
-#elif __cplusplus >= 202002L || (defined(_MSC_VER) && _HAS_CXX20)
+#elif __cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L)
 #define LUABRIDGE_CXX20_OR_GREATER 1
 #endif
 
@@ -153,6 +153,10 @@
 #include <Luau/Common.h>
 
 LUAU_FASTFLAG(LuauIntegerLibrary)
+#endif
+
+#if !defined(LUABRIDGE_SAFE_PORTABLE_INTEGERS_ONLY)
+#define LUABRIDGE_SAFE_PORTABLE_INTEGERS_ONLY 0
 #endif
 
 #if !defined(LUABRIDGE_SAFE_STACK_CHECKS)
@@ -257,6 +261,11 @@ LUAU_FASTFLAG(LuauIntegerLibrary)
 
 
 // End File: Source/LuaBridge/detail/Config.h
+
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4702) 
+#endif
 
 // Begin File: Source/LuaBridge/detail/FuncTraits.h
 
@@ -5603,11 +5612,16 @@ private:
 };
 
 template <class T>
-inline constexpr bool is_luau_integer64_v = std::is_integral_v<T> && sizeof(T) == sizeof(int64_t);
+inline constexpr bool is_luau_integer64_v =
+    std::is_same_v<T, std::int64_t> ||
+    std::is_same_v<T, std::uint64_t> ||
+    std::is_same_v<T, long long> ||
+    std::is_same_v<T, unsigned long long>;
 
 } 
 #endif
 
+#if LUABRIDGE_LUAU_NATIVE_INTEGER64 && !LUABRIDGE_SAFE_PORTABLE_INTEGERS_ONLY
 template <>
 struct Stack<long>
 {
@@ -5717,6 +5731,7 @@ struct Stack<unsigned long>
         return false;
     }
 };
+#endif
 
 template <>
 struct Stack<long long>
@@ -8928,7 +8943,7 @@ inline int newindex_metamethod_simple(lua_State* L)
                 return *result;
             lua_pop(L, 1);
 
-            luaL_error(L, "no writable member '%s'", get_key_name_for_error(L, 2));
+            raise_lua_error(L, "no writable member '%s'", get_key_name_for_error(L, 2));
         }
     }
     else
@@ -8958,7 +8973,7 @@ inline int newindex_metamethod_simple(lua_State* L)
 
     lua_rawgetp_x(L, -1, getPropsetKey()); 
     if (! lua_istable(L, -1))
-        raise_lua_error(L, "no member named '%s'", get_key_name_for_error(L, 2));
+        raise_lua_error(L, "no writable member '%s'", get_key_name_for_error(L, 2));
 
     lua_pushvalue(L, 2); 
     lua_rawget(L, -2); 
@@ -9576,7 +9591,7 @@ bool overload_check_one_arg(lua_State* L, int& idx)
 }
 
 template <class ArgsPack, std::size_t... I>
-bool overload_check_args_impl(lua_State* L, int start, std::index_sequence<I...>)
+bool overload_check_args_impl([[maybe_unused]] lua_State* L, int start, std::index_sequence<I...>)
 {
     [[maybe_unused]] int idx = start;
     return (overload_check_one_arg<std::tuple_element_t<I, ArgsPack>>(L, idx) && ...);
@@ -12912,7 +12927,7 @@ class Namespace : public detail::Registrar
 
         s = s + message;
 
-        luaL_error(L, "%s", s.c_str());
+        raise_lua_error(L, "%s", s.c_str());
     }
 #endif
 
@@ -15446,5 +15461,10 @@ struct Stack<std::vector<T, Allocator>>
 
 
 // End File: Source/LuaBridge/Vector.h
+
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
+
 // clang-format on
 
