@@ -5621,7 +5621,7 @@ inline constexpr bool is_luau_integer64_v =
 } 
 #endif
 
-#if LUABRIDGE_LUAU_NATIVE_INTEGER64 && !LUABRIDGE_SAFE_PORTABLE_INTEGERS_ONLY
+#if !LUABRIDGE_SAFE_PORTABLE_INTEGERS_ONLY
 template <>
 struct Stack<long>
 {
