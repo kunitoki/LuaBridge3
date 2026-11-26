@@ -7,7 +7,6 @@
 #pragma once
 
 #include <algorithm>
-#include <any>
 #include <array>
 #include <cassert>
 #include <cmath>
@@ -17,12 +16,10 @@
 #include <cstdlib>
 #include <deque>
 #include <exception>
-#include <filesystem>
 #include <forward_list>
 #include <functional>
 #include <initializer_list>
 #include <iostream>
-#include <iterator>
 #include <limits>
 #include <list>
 #include <map>
@@ -37,56 +34,35 @@
 #include <system_error>
 #include <tuple>
 #include <type_traits>
-#include <typeindex>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <variant>
 #include <vector>
 
-#if defined(__has_include) && __has_include(<version>)
-#include <version>
-#endif
-
-#if defined(__has_include) && __has_include(<span>) && (__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))
-#include <span>
-#endif
-
-#if defined(__has_include) && __has_include(<ranges>) && (__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))
-#include <ranges>
-#endif
-
-#if defined(__has_include) && __has_include(<flat_set>) && (__cplusplus >= 202302L || (defined(_MSC_VER) && _HAS_CXX23))
-#include <flat_set>
-#endif
-
-#if defined(__has_include) && __has_include(<flat_map>) && (__cplusplus >= 202302L || (defined(_MSC_VER) && _HAS_CXX23))
-#include <flat_map>
-#endif
-
-#if defined(__has_include) && __has_include(<expected>) && (__cplusplus >= 202302L || (defined(_MSC_VER) && _HAS_CXX23))
-#include <expected>
-#endif
-
-#if defined(__has_include) && __has_include(<coroutine>) && (__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))
-#include <coroutine>
-#endif
-
-
 
 // Begin File: Source/LuaBridge/detail/Config.h
 
 #if __has_include(<version>)
+#include <version>
 #endif
 
-#if !(__cplusplus >= 201703L || (defined(_MSC_VER) && _HAS_CXX17))
+#if defined(_MSVC_LANG)
+#define LUABRIDGE_CPLUSPLUS _MSVC_LANG
+#else
+#define LUABRIDGE_CPLUSPLUS __cplusplus
+#endif
+
+#if LUABRIDGE_CPLUSPLUS < 201703L
 #error LuaBridge 3 requires a compliant C++17 compiler, or C++17 has not been enabled !
 #endif
 
-#if __cplusplus >= 202302L || (defined(_MSC_VER) && _HAS_CXX23)
-#define LUABRIDGE_CXX23_OR_GREATER 1
-#elif __cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L)
+#if LUABRIDGE_CPLUSPLUS >= 202002L
 #define LUABRIDGE_CXX20_OR_GREATER 1
+#endif
+
+#if LUABRIDGE_CPLUSPLUS > 202002L
+#define LUABRIDGE_CXX23_OR_GREATER 1
 #endif
 
 #if defined(LUAU_FASTMATH_BEGIN)
@@ -1729,6 +1705,7 @@ template <> struct is_error_code_enum<luabridge::ErrorCode> : true_type {};
 // Begin File: Source/LuaBridge/detail/Expected.h
 
 #if LUABRIDGE_HAS_EXCEPTIONS
+#include <stdexcept>
 #endif
 
 namespace luabridge {
@@ -5097,6 +5074,7 @@ TypeResult<To> convertFromStack(lua_State* L, int index)
 // Begin File: Source/LuaBridge/detail/Stack.h
 
 #if LUABRIDGE_HAS_CXX17_FILESYSTEM
+#include <filesystem>
 #endif
 
 namespace luabridge {
@@ -6863,6 +6841,11 @@ template <class T>
 
 #if LUABRIDGE_HAS_CXX17_ANY
 
+#include <any>
+#include <functional>
+#include <typeindex>
+#include <unordered_map>
+
 namespace luabridge {
 
 namespace detail {
@@ -7212,6 +7195,8 @@ inline void dumpState(lua_State* L, unsigned maxDepth = 1, std::ostream& stream 
 
 #if LUABRIDGE_HAS_CXX23_FLAT_MAP
 
+#include <flat_map>
+
 namespace luabridge {
 
 template <class K, class V, class Compare, class KeyContainer, class MappedContainer>
@@ -7292,6 +7277,8 @@ struct Stack<std::flat_map<K, V, Compare, KeyContainer, MappedContainer>>
 // Begin File: Source/LuaBridge/FlatSet.h
 
 #if LUABRIDGE_HAS_CXX23_FLAT_SET
+
+#include <flat_set>
 
 namespace luabridge {
 
@@ -10585,6 +10572,11 @@ private:
 #endif
 #else
 
+#include <coroutine>
+#include <exception>
+#include <type_traits>
+#include <utility>
+
 namespace luabridge {
 
 template <class R>
@@ -12687,6 +12679,8 @@ LuaFunction<Signature> LuaRefBase<Impl, LuaRef>::callable() const
 // Begin File: Source/LuaBridge/detail/Iterator.h
 
 #if LUABRIDGE_HAS_CXX20_RANGES
+#include <iterator>
+#include <ranges>
 #endif
 
 namespace luabridge {
@@ -14999,6 +14993,8 @@ struct Stack<std::set<K, Compare, Allocator>>
 
 #if LUABRIDGE_HAS_CXX20_SPAN
 
+#include <span>
+
 namespace luabridge {
 
 template <class T, std::size_t Extent>
@@ -15056,6 +15052,8 @@ struct Stack<std::span<T, Extent>>
 // Begin File: Source/LuaBridge/StdExpected.h
 
 #if LUABRIDGE_HAS_CXX23_EXPECTED
+
+#include <expected>
 
 namespace luabridge {
 

@@ -12,14 +12,24 @@
 #include <version>
 #endif
 
-#if !(__cplusplus >= 201703L || (defined(_MSC_VER) && _HAS_CXX17))
+// MSVC only reports the real language version in __cplusplus with /Zc:__cplusplus, _MSVC_LANG always does
+#if defined(_MSVC_LANG)
+#define LUABRIDGE_CPLUSPLUS _MSVC_LANG
+#else
+#define LUABRIDGE_CPLUSPLUS __cplusplus
+#endif
+
+#if LUABRIDGE_CPLUSPLUS < 201703L
 #error LuaBridge 3 requires a compliant C++17 compiler, or C++17 has not been enabled !
 #endif
 
-#if __cplusplus >= 202302L || (defined(_MSC_VER) && _HAS_CXX23)
-#define LUABRIDGE_CXX23_OR_GREATER 1
-#elif __cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L)
+#if LUABRIDGE_CPLUSPLUS >= 202002L
 #define LUABRIDGE_CXX20_OR_GREATER 1
+#endif
+
+// Pre-standard C++23 modes report a value between C++20 (202002L) and C++23 (202302L)
+#if LUABRIDGE_CPLUSPLUS > 202002L
+#define LUABRIDGE_CXX23_OR_GREATER 1
 #endif
 
 #if defined(LUAU_FASTMATH_BEGIN)
