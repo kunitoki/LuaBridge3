@@ -12,14 +12,24 @@
 #include <version>
 #endif
 
-#if !(__cplusplus >= 201703L || (defined(_MSC_VER) && _HAS_CXX17))
+// MSVC only reports the real language version in __cplusplus with /Zc:__cplusplus, _MSVC_LANG always does
+#if defined(_MSVC_LANG)
+#define LUABRIDGE_CPLUSPLUS _MSVC_LANG
+#else
+#define LUABRIDGE_CPLUSPLUS __cplusplus
+#endif
+
+#if LUABRIDGE_CPLUSPLUS < 201703L
 #error LuaBridge 3 requires a compliant C++17 compiler, or C++17 has not been enabled !
 #endif
 
-#if __cplusplus >= 202302L || (defined(_MSC_VER) && _HAS_CXX23)
-#define LUABRIDGE_CXX23_OR_GREATER 1
-#elif __cplusplus >= 202002L || (defined(_MSC_VER) && _HAS_CXX20)
+#if LUABRIDGE_CPLUSPLUS >= 202002L
 #define LUABRIDGE_CXX20_OR_GREATER 1
+#endif
+
+// Pre-standard C++23 modes report a value between C++20 (202002L) and C++23 (202302L)
+#if LUABRIDGE_CPLUSPLUS > 202002L
+#define LUABRIDGE_CXX23_OR_GREATER 1
 #endif
 
 #if defined(LUAU_FASTMATH_BEGIN)
@@ -99,6 +109,17 @@ LUAU_FASTFLAG(LuauIntegerLibrary)
 #endif
 
 /**
+ * @brief Enable safe portable integers to avoid relying on platform-specific integer sizes.
+ *
+ * When enabled, LuaBridge will use portable integer types for 64-bit integers instead of relying on platform-specific types like `long` or `unsigned long`.
+ *
+ * @note Default is disabled.
+ */
+#if !defined(LUABRIDGE_SAFE_PORTABLE_INTEGERS_ONLY)
+#define LUABRIDGE_SAFE_PORTABLE_INTEGERS_ONLY 0
+#endif
+
+/**
  * @brief Enable safe stack checks to avoid lua stack overflow when pushing values on the stack.
  * 
  * @note Default is enabled. 
@@ -113,8 +134,9 @@ LUAU_FASTFLAG(LuauIntegerLibrary)
  * When enabled:
  * - `Stack<bool>::get` only accepts `LUA_TBOOLEAN` (nil is not convertible to bool).
  * - Integer `Stack` specializations only accept Lua integer values (not floats with integer representation, on Lua 5.3+).
- * - 64-bit integer `Stack` specializations only accept Luau native integers when they are pushed as native integers
- *   (`LUABRIDGE_LUAU_NATIVE_INTEGER64` is enabled and the `LuauIntegerLibrary` flag is set).
+ * - `long long` and `unsigned long long` `Stack` specializations only accept Luau native integers when they are pushed as
+ *   native integers (`LUABRIDGE_LUAU_NATIVE_INTEGER64` is enabled and the `LuauIntegerLibrary` flag is set). `long`,
+ *   `unsigned long` and `size_t` keep accepting both numbers and native integers, as their width is platform dependent.
  * - `Stack<std::string>::get` only accepts `LUA_TSTRING` (numbers are not coerced to strings).
  *
  * When disabled (default), a more permissive conversion is used:

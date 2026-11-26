@@ -16,6 +16,11 @@
 
 #include "detail/Config.h"
 
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4702) // unreachable code
+#endif
+
 #include "detail/CFunctions.h"
 #include "detail/ClassInfo.h"
 #include "detail/Coroutine.h"
@@ -38,3 +43,7 @@
 #include "detail/Stack.h"
 #include "detail/TypeTraits.h"
 #include "detail/Userdata.h"
+
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif

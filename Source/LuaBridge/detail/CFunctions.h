@@ -1530,7 +1530,7 @@ inline int newindex_metamethod_simple(lua_State* L)
                 return *result;
             lua_pop(L, 1);
 
-            luaL_error(L, "no writable member '%s'", get_key_name_for_error(L, 2));
+            raise_lua_error(L, "no writable member '%s'", get_key_name_for_error(L, 2));
         }
     }
     else
@@ -1560,7 +1560,7 @@ inline int newindex_metamethod_simple(lua_State* L)
 
     lua_rawgetp_x(L, -1, getPropsetKey()); // Stack: mt, ps | nil
     if (! lua_istable(L, -1))
-        raise_lua_error(L, "no member named '%s'", get_key_name_for_error(L, 2));
+        raise_lua_error(L, "no writable member '%s'", get_key_name_for_error(L, 2));
 
     lua_pushvalue(L, 2); // Stack: mt, ps, key
     lua_rawget(L, -2); // Stack: mt, ps, setter | nil
@@ -2285,7 +2285,7 @@ bool overload_check_one_arg(lua_State* L, int& idx)
 }
 
 template <class ArgsPack, std::size_t... I>
-bool overload_check_args_impl(lua_State* L, int start, std::index_sequence<I...>)
+bool overload_check_args_impl([[maybe_unused]] lua_State* L, int start, std::index_sequence<I...>)
 {
     [[maybe_unused]] int idx = start;
     return (overload_check_one_arg<std::tuple_element_t<I, ArgsPack>>(L, idx) && ...);

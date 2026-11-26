@@ -7,7 +7,6 @@
 #pragma once
 
 #include <algorithm>
-#include <any>
 #include <array>
 #include <cassert>
 #include <cmath>
@@ -17,12 +16,10 @@
 #include <cstdlib>
 #include <deque>
 #include <exception>
-#include <filesystem>
 #include <forward_list>
 #include <functional>
 #include <initializer_list>
 #include <iostream>
-#include <iterator>
 #include <limits>
 #include <list>
 #include <map>
@@ -37,56 +34,35 @@
 #include <system_error>
 #include <tuple>
 #include <type_traits>
-#include <typeindex>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <variant>
 #include <vector>
 
-#if defined(__has_include) && __has_include(<version>)
-#include <version>
-#endif
-
-#if defined(__has_include) && __has_include(<span>) && (__cplusplus >= 202002L || (defined(_MSC_VER) && _HAS_CXX20))
-#include <span>
-#endif
-
-#if defined(__has_include) && __has_include(<ranges>) && (__cplusplus >= 202002L || (defined(_MSC_VER) && _HAS_CXX20))
-#include <ranges>
-#endif
-
-#if defined(__has_include) && __has_include(<flat_set>) && (__cplusplus >= 202302L || (defined(_MSC_VER) && _HAS_CXX23))
-#include <flat_set>
-#endif
-
-#if defined(__has_include) && __has_include(<flat_map>) && (__cplusplus >= 202302L || (defined(_MSC_VER) && _HAS_CXX23))
-#include <flat_map>
-#endif
-
-#if defined(__has_include) && __has_include(<expected>) && (__cplusplus >= 202302L || (defined(_MSC_VER) && _HAS_CXX23))
-#include <expected>
-#endif
-
-#if defined(__has_include) && __has_include(<coroutine>) && (__cplusplus >= 202002L || (defined(_MSC_VER) && _HAS_CXX20))
-#include <coroutine>
-#endif
-
-
 
 // Begin File: Source/LuaBridge/detail/Config.h
 
 #if __has_include(<version>)
+#include <version>
 #endif
 
-#if !(__cplusplus >= 201703L || (defined(_MSC_VER) && _HAS_CXX17))
+#if defined(_MSVC_LANG)
+#define LUABRIDGE_CPLUSPLUS _MSVC_LANG
+#else
+#define LUABRIDGE_CPLUSPLUS __cplusplus
+#endif
+
+#if LUABRIDGE_CPLUSPLUS < 201703L
 #error LuaBridge 3 requires a compliant C++17 compiler, or C++17 has not been enabled !
 #endif
 
-#if __cplusplus >= 202302L || (defined(_MSC_VER) && _HAS_CXX23)
-#define LUABRIDGE_CXX23_OR_GREATER 1
-#elif __cplusplus >= 202002L || (defined(_MSC_VER) && _HAS_CXX20)
+#if LUABRIDGE_CPLUSPLUS >= 202002L
 #define LUABRIDGE_CXX20_OR_GREATER 1
+#endif
+
+#if LUABRIDGE_CPLUSPLUS > 202002L
+#define LUABRIDGE_CXX23_OR_GREATER 1
 #endif
 
 #if defined(LUAU_FASTMATH_BEGIN)
@@ -153,6 +129,10 @@
 #include <Luau/Common.h>
 
 LUAU_FASTFLAG(LuauIntegerLibrary)
+#endif
+
+#if !defined(LUABRIDGE_SAFE_PORTABLE_INTEGERS_ONLY)
+#define LUABRIDGE_SAFE_PORTABLE_INTEGERS_ONLY 0
 #endif
 
 #if !defined(LUABRIDGE_SAFE_STACK_CHECKS)
@@ -257,6 +237,11 @@ LUAU_FASTFLAG(LuauIntegerLibrary)
 
 
 // End File: Source/LuaBridge/detail/Config.h
+
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4702) 
+#endif
 
 // Begin File: Source/LuaBridge/detail/FuncTraits.h
 
@@ -1720,6 +1705,7 @@ template <> struct is_error_code_enum<luabridge::ErrorCode> : true_type {};
 // Begin File: Source/LuaBridge/detail/Expected.h
 
 #if LUABRIDGE_HAS_EXCEPTIONS
+#include <stdexcept>
 #endif
 
 namespace luabridge {
@@ -5088,6 +5074,7 @@ TypeResult<To> convertFromStack(lua_State* L, int index)
 // Begin File: Source/LuaBridge/detail/Stack.h
 
 #if LUABRIDGE_HAS_CXX17_FILESYSTEM
+#include <filesystem>
 #endif
 
 namespace luabridge {
@@ -5531,17 +5518,27 @@ namespace detail {
 }
 
 template <class T>
+bool integralFromNumber(double number, T& value)
+{
+    if (! std::isfinite(number) || std::trunc(number) != number)
+        return false;
+
+    const double upper = std::ldexp(1.0, std::numeric_limits<T>::digits);
+    const double lower = std::is_signed_v<T> ? -upper : 0.0;
+    if (number < lower || number >= upper)
+        return false;
+
+    value = static_cast<T>(number);
+    return true;
+}
+
+template <class T>
 struct LuauInteger64Stack
 {
     static_assert(std::is_integral_v<T>);
 
     [[nodiscard]] static Result push(lua_State* L, T value)
     {
-#if LUABRIDGE_SAFE_STACK_CHECKS
-        if (! lua_checkstack(L, 1))
-            return makeErrorCode(ErrorCode::LuaStackOverflow);
-#endif
-
         lua_pushinteger64(L, static_cast<int64_t>(value));
         return {};
     }
@@ -5583,63 +5580,111 @@ private:
 
     static bool fromNumber(double number, T& value)
     {
-        if (! std::isfinite(number) || std::trunc(number) != number)
-            return false;
-
-        if constexpr (std::is_signed_v<T>)
-        {
-            if (number < -9223372036854775808.0 || number >= 9223372036854775808.0)
-                return false;
-        }
-        else
-        {
-            if (number < 0.0 || number >= 18446744073709551616.0)
-                return false;
-        }
-
-        value = static_cast<T>(number);
-        return true;
+        return integralFromNumber(number, value);
     }
 };
 
 template <class T>
-inline constexpr bool is_luau_integer64_v = std::is_integral_v<T> && sizeof(T) == sizeof(int64_t);
+struct LuauPlatformIntegerStack
+{
+    static_assert(std::is_integral_v<T>);
+
+    [[nodiscard]] static Result push(lua_State* L, T value)
+    {
+        if (is_integral_representable_by(value))
+        {
+            lua_pushinteger(L, static_cast<lua_Integer>(value));
+            return {};
+        }
+
+        if (! isLuauNativeInteger64Enabled())
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
+
+        lua_pushinteger64(L, static_cast<int64_t>(value));
+        return {};
+    }
+
+    [[nodiscard]] static TypeResult<T> get(lua_State* L, int index)
+    {
+        const int type = lua_type(L, index);
+        if (type != LUA_TINTEGER && type != LUA_TNUMBER)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        T value{};
+        if (! toValue(L, index, type, value))
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
+
+        return value;
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        const int type = lua_type(L, index);
+
+        T value{};
+        return (type == LUA_TINTEGER || type == LUA_TNUMBER) && toValue(L, index, type, value);
+    }
+
+private:
+    static bool toValue(lua_State* L, int index, int type, T& value)
+    {
+        if (type == LUA_TNUMBER)
+            return integralFromNumber(lua_tonumber(L, index), value);
+
+        const int64_t integer = lua_tointeger64(L, index, nullptr);
+
+        if constexpr (sizeof(T) == sizeof(int64_t))
+        {
+            value = static_cast<T>(integer);
+            return true;
+        }
+        else
+        {
+            if (integer < static_cast<int64_t>((std::numeric_limits<T>::min)())
+                || integer > static_cast<int64_t>((std::numeric_limits<T>::max)()))
+                return false;
+
+            value = static_cast<T>(integer);
+            return true;
+        }
+    }
+};
+
+template <class T>
+inline constexpr bool is_luau_integer64_v =
+    std::is_same_v<T, long long> ||
+    std::is_same_v<T, unsigned long long>;
 
 } 
 #endif
 
+#if !LUABRIDGE_SAFE_PORTABLE_INTEGERS_ONLY
 template <>
 struct Stack<long>
 {
     [[nodiscard]] static Result push(lua_State* L, long value)
     {
-#if LUABRIDGE_LUAU_NATIVE_INTEGER64
-        if constexpr (detail::is_luau_integer64_v<long>)
-        {
-            if (detail::isLuauNativeInteger64Enabled())
-                return detail::LuauInteger64Stack<long>::push(L, value);
-        }
-#endif
-
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 1))
             return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
+#if LUABRIDGE_LUAU_NATIVE_INTEGER64
+        return detail::LuauPlatformIntegerStack<long>::push(L, value);
+#else
         if (! is_integral_representable_by(value))
             return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
         lua_pushinteger(L, static_cast<lua_Integer>(value));
         return {};
+#endif
     }
 
     [[nodiscard]] static TypeResult<long> get(lua_State* L, int index)
     {
 #if LUABRIDGE_LUAU_NATIVE_INTEGER64
-        if constexpr (detail::is_luau_integer64_v<long>)
-            return detail::LuauInteger64Stack<long>::get(L, index);
-#endif
-
+        return detail::LuauPlatformIntegerStack<long>::get(L, index);
+#else
         if (lua_type(L, index) != LUA_TNUMBER)
             return makeErrorCode(ErrorCode::InvalidTypeCast);
 
@@ -5647,19 +5692,19 @@ struct Stack<long>
             return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
         return static_cast<long>(lua_tointeger(L, index));
+#endif
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
     {
 #if LUABRIDGE_LUAU_NATIVE_INTEGER64
-        if constexpr (detail::is_luau_integer64_v<long>)
-            return detail::LuauInteger64Stack<long>::isInstance(L, index);
-#endif
-
+        return detail::LuauPlatformIntegerStack<long>::isInstance(L, index);
+#else
         if (lua_type(L, index) == LUA_TNUMBER)
             return is_integral_representable_by<long>(L, index);
 
         return false;
+#endif
     }
 };
 
@@ -5668,33 +5713,27 @@ struct Stack<unsigned long>
 {
     [[nodiscard]] static Result push(lua_State* L, unsigned long value)
     {
-#if LUABRIDGE_LUAU_NATIVE_INTEGER64
-        if constexpr (detail::is_luau_integer64_v<unsigned long>)
-        {
-            if (detail::isLuauNativeInteger64Enabled())
-                return detail::LuauInteger64Stack<unsigned long>::push(L, value);
-        }
-#endif
-
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 1))
             return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
+#if LUABRIDGE_LUAU_NATIVE_INTEGER64
+        return detail::LuauPlatformIntegerStack<unsigned long>::push(L, value);
+#else
         if (! is_integral_representable_by(value))
             return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
         pushunsigned(L, value);
         return {};
+#endif
     }
 
     [[nodiscard]] static TypeResult<unsigned long> get(lua_State* L, int index)
     {
 #if LUABRIDGE_LUAU_NATIVE_INTEGER64
-        if constexpr (detail::is_luau_integer64_v<unsigned long>)
-            return detail::LuauInteger64Stack<unsigned long>::get(L, index);
-#endif
-
+        return detail::LuauPlatformIntegerStack<unsigned long>::get(L, index);
+#else
         if (lua_type(L, index) != LUA_TNUMBER)
             return makeErrorCode(ErrorCode::InvalidTypeCast);
 
@@ -5702,27 +5741,33 @@ struct Stack<unsigned long>
             return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
         return static_cast<unsigned long>(lua_tointeger(L, index));
+#endif
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
     {
 #if LUABRIDGE_LUAU_NATIVE_INTEGER64
-        if constexpr (detail::is_luau_integer64_v<unsigned long>)
-            return detail::LuauInteger64Stack<unsigned long>::isInstance(L, index);
-#endif
-
+        return detail::LuauPlatformIntegerStack<unsigned long>::isInstance(L, index);
+#else
         if (lua_type(L, index) == LUA_TNUMBER)
             return is_integral_representable_by<unsigned long>(L, index);
 
         return false;
+#endif
     }
 };
+#endif
 
 template <>
 struct Stack<long long>
 {
     [[nodiscard]] static Result push(lua_State* L, long long value)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 1))
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
 #if LUABRIDGE_LUAU_NATIVE_INTEGER64
         if constexpr (detail::is_luau_integer64_v<long long>)
         {
@@ -5730,12 +5775,6 @@ struct Stack<long long>
                 return detail::LuauInteger64Stack<long long>::push(L, value);
         }
 #endif
-
-#if LUABRIDGE_SAFE_STACK_CHECKS
-        if (! lua_checkstack(L, 1))
-            return makeErrorCode(ErrorCode::LuaStackOverflow);
-#endif
-
         if (! is_integral_representable_by(value))
             return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
@@ -5748,15 +5787,17 @@ struct Stack<long long>
 #if LUABRIDGE_LUAU_NATIVE_INTEGER64
         if constexpr (detail::is_luau_integer64_v<long long>)
             return detail::LuauInteger64Stack<long long>::get(L, index);
+        else
 #endif
+        {
+            if (lua_type(L, index) != LUA_TNUMBER)
+                return makeErrorCode(ErrorCode::InvalidTypeCast);
 
-        if (lua_type(L, index) != LUA_TNUMBER)
-            return makeErrorCode(ErrorCode::InvalidTypeCast);
+            if (! is_integral_representable_by<long long>(L, index))
+                return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
-        if (! is_integral_representable_by<long long>(L, index))
-            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
-
-        return static_cast<long long>(lua_tointeger(L, index));
+            return static_cast<long long>(lua_tointeger(L, index));
+        }
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -5764,12 +5805,14 @@ struct Stack<long long>
 #if LUABRIDGE_LUAU_NATIVE_INTEGER64
         if constexpr (detail::is_luau_integer64_v<long long>)
             return detail::LuauInteger64Stack<long long>::isInstance(L, index);
+        else
 #endif
+        {
+            if (lua_type(L, index) == LUA_TNUMBER)
+                return is_integral_representable_by<long long>(L, index);
 
-        if (lua_type(L, index) == LUA_TNUMBER)
-            return is_integral_representable_by<long long>(L, index);
-
-        return false;
+            return false;
+        }
     }
 };
 
@@ -5778,6 +5821,11 @@ struct Stack<unsigned long long>
 {
     [[nodiscard]] static Result push(lua_State* L, unsigned long long value)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 1))
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
 #if LUABRIDGE_LUAU_NATIVE_INTEGER64
         if constexpr (detail::is_luau_integer64_v<unsigned long long>)
         {
@@ -5785,12 +5833,6 @@ struct Stack<unsigned long long>
                 return detail::LuauInteger64Stack<unsigned long long>::push(L, value);
         }
 #endif
-
-#if LUABRIDGE_SAFE_STACK_CHECKS
-        if (! lua_checkstack(L, 1))
-            return makeErrorCode(ErrorCode::LuaStackOverflow);
-#endif
-
         if (! is_integral_representable_by(value))
             return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
@@ -5803,15 +5845,17 @@ struct Stack<unsigned long long>
 #if LUABRIDGE_LUAU_NATIVE_INTEGER64
         if constexpr (detail::is_luau_integer64_v<unsigned long long>)
             return detail::LuauInteger64Stack<unsigned long long>::get(L, index);
+        else
 #endif
+        {
+            if (lua_type(L, index) != LUA_TNUMBER)
+                return makeErrorCode(ErrorCode::InvalidTypeCast);
 
-        if (lua_type(L, index) != LUA_TNUMBER)
-            return makeErrorCode(ErrorCode::InvalidTypeCast);
+            if (! is_integral_representable_by<unsigned long long>(L, index))
+                return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
-        if (! is_integral_representable_by<unsigned long long>(L, index))
-            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
-
-        return static_cast<unsigned long long>(lua_tointeger(L, index));
+            return static_cast<unsigned long long>(lua_tointeger(L, index));
+        }
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -5819,12 +5863,14 @@ struct Stack<unsigned long long>
 #if LUABRIDGE_LUAU_NATIVE_INTEGER64
         if constexpr (detail::is_luau_integer64_v<unsigned long long>)
             return detail::LuauInteger64Stack<unsigned long long>::isInstance(L, index);
+        else
 #endif
+        {
+            if (lua_type(L, index) == LUA_TNUMBER)
+                return is_integral_representable_by<unsigned long long>(L, index);
 
-        if (lua_type(L, index) == LUA_TNUMBER)
-            return is_integral_representable_by<unsigned long long>(L, index);
-
-        return false;
+            return false;
+        }
     }
 };
 
@@ -6795,6 +6841,11 @@ template <class T>
 
 #if LUABRIDGE_HAS_CXX17_ANY
 
+#include <any>
+#include <functional>
+#include <typeindex>
+#include <unordered_map>
+
 namespace luabridge {
 
 namespace detail {
@@ -7144,6 +7195,8 @@ inline void dumpState(lua_State* L, unsigned maxDepth = 1, std::ostream& stream 
 
 #if LUABRIDGE_HAS_CXX23_FLAT_MAP
 
+#include <flat_map>
+
 namespace luabridge {
 
 template <class K, class V, class Compare, class KeyContainer, class MappedContainer>
@@ -7224,6 +7277,8 @@ struct Stack<std::flat_map<K, V, Compare, KeyContainer, MappedContainer>>
 // Begin File: Source/LuaBridge/FlatSet.h
 
 #if LUABRIDGE_HAS_CXX23_FLAT_SET
+
+#include <flat_set>
 
 namespace luabridge {
 
@@ -8928,7 +8983,7 @@ inline int newindex_metamethod_simple(lua_State* L)
                 return *result;
             lua_pop(L, 1);
 
-            luaL_error(L, "no writable member '%s'", get_key_name_for_error(L, 2));
+            raise_lua_error(L, "no writable member '%s'", get_key_name_for_error(L, 2));
         }
     }
     else
@@ -8958,7 +9013,7 @@ inline int newindex_metamethod_simple(lua_State* L)
 
     lua_rawgetp_x(L, -1, getPropsetKey()); 
     if (! lua_istable(L, -1))
-        raise_lua_error(L, "no member named '%s'", get_key_name_for_error(L, 2));
+        raise_lua_error(L, "no writable member '%s'", get_key_name_for_error(L, 2));
 
     lua_pushvalue(L, 2); 
     lua_rawget(L, -2); 
@@ -9576,7 +9631,7 @@ bool overload_check_one_arg(lua_State* L, int& idx)
 }
 
 template <class ArgsPack, std::size_t... I>
-bool overload_check_args_impl(lua_State* L, int start, std::index_sequence<I...>)
+bool overload_check_args_impl([[maybe_unused]] lua_State* L, int start, std::index_sequence<I...>)
 {
     [[maybe_unused]] int idx = start;
     return (overload_check_one_arg<std::tuple_element_t<I, ArgsPack>>(L, idx) && ...);
@@ -10516,6 +10571,11 @@ private:
 #error "C++20 coroutine integration requires Lua 5.2+ with lua_yieldk support. Define LUABRIDGE_DISABLE_COROUTINE_INTEGRATION to suppress this error."
 #endif
 #else
+
+#include <coroutine>
+#include <exception>
+#include <type_traits>
+#include <utility>
 
 namespace luabridge {
 
@@ -12619,6 +12679,8 @@ LuaFunction<Signature> LuaRefBase<Impl, LuaRef>::callable() const
 // Begin File: Source/LuaBridge/detail/Iterator.h
 
 #if LUABRIDGE_HAS_CXX20_RANGES
+#include <iterator>
+#include <ranges>
 #endif
 
 namespace luabridge {
@@ -12912,7 +12974,7 @@ class Namespace : public detail::Registrar
 
         s = s + message;
 
-        luaL_error(L, "%s", s.c_str());
+        raise_lua_error(L, "%s", s.c_str());
     }
 #endif
 
@@ -14931,6 +14993,8 @@ struct Stack<std::set<K, Compare, Allocator>>
 
 #if LUABRIDGE_HAS_CXX20_SPAN
 
+#include <span>
+
 namespace luabridge {
 
 template <class T, std::size_t Extent>
@@ -14988,6 +15052,8 @@ struct Stack<std::span<T, Extent>>
 // Begin File: Source/LuaBridge/StdExpected.h
 
 #if LUABRIDGE_HAS_CXX23_EXPECTED
+
+#include <expected>
 
 namespace luabridge {
 
@@ -15446,5 +15512,10 @@ struct Stack<std::vector<T, Allocator>>
 
 
 // End File: Source/LuaBridge/Vector.h
+
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
+
 // clang-format on
 
