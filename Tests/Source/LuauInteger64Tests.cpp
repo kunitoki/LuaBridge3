@@ -40,7 +40,7 @@ private:
     std::vector<std::pair<Luau::FValue<bool>*, bool>> saved;
 };
 
-constexpr int64_t kAboveDoublePrecision = 9007199254740993ll; // 2^53 + 1
+constexpr long long kAboveDoublePrecision = 9007199254740993ll; // 2^53 + 1
 
 } // namespace
 
@@ -56,30 +56,27 @@ TEST_F(LuauInteger64Tests, GetNativeIntegers)
     lua_getglobal(L, "result");
     ASSERT_EQ(LUA_TINTEGER, lua_type(L, -1));
 
-    EXPECT_TRUE(luabridge::isInstance<int64_t>(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<uint64_t>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<long long>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<unsigned long long>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<int32_t>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<double>(L, -1));
     EXPECT_FALSE(luabridge::isInstance<std::string>(L, -1));
 
-    EXPECT_EQ(kAboveDoublePrecision, *luabridge::get<int64_t>(L, -1));
-    EXPECT_EQ(static_cast<uint64_t>(kAboveDoublePrecision), *luabridge::get<uint64_t>(L, -1));
     EXPECT_EQ(kAboveDoublePrecision, *luabridge::get<long long>(L, -1));
-    if constexpr (sizeof(long) == sizeof(int64_t))
-        EXPECT_EQ(kAboveDoublePrecision, *luabridge::get<long>(L, -1));
+    EXPECT_EQ(static_cast<unsigned long long>(kAboveDoublePrecision), *luabridge::get<unsigned long long>(L, -1));
 }
 
 TEST_F(LuauInteger64Tests, GetNativeIntegerLimits)
 {
     runLua("result = integer.minsigned");
-    EXPECT_EQ(std::numeric_limits<int64_t>::min(), result<int64_t>());
+    EXPECT_EQ(std::numeric_limits<long long>::min(), result<long long>());
 
     runLua("result = integer.maxsigned");
-    EXPECT_EQ(std::numeric_limits<int64_t>::max(), result<int64_t>());
+    EXPECT_EQ(std::numeric_limits<long long>::max(), result<long long>());
 
     runLua("result = -1i");
-    EXPECT_EQ(-1, result<int64_t>());
-    EXPECT_EQ(std::numeric_limits<uint64_t>::max(), result<uint64_t>());
+    EXPECT_EQ(-1, result<long long>());
+    EXPECT_EQ(std::numeric_limits<unsigned long long>::max(), result<unsigned long long>());
 }
 
 #if LUABRIDGE_STRICT_STACK_CONVERSIONS
@@ -87,15 +84,15 @@ TEST_F(LuauInteger64Tests, GetNativeIntegerLimits)
 TEST_F(LuauInteger64Tests, StrictRejectsNumbers)
 {
     runLua("result = 42");
-    EXPECT_FALSE(result().isInstance<int64_t>());
-    EXPECT_FALSE(result().isInstance<uint64_t>());
+    EXPECT_FALSE(result().isInstance<long long>());
+    EXPECT_FALSE(result().isInstance<unsigned long long>());
 
-    auto value = result().cast<int64_t>();
+    auto value = result().cast<long long>();
     ASSERT_FALSE(value);
     EXPECT_EQ(luabridge::ErrorCode::InvalidTypeCast, value.error());
 
     runLua("result = 42i");
-    EXPECT_EQ(42, result<int64_t>());
+    EXPECT_EQ(42, result<long long>());
 }
 
 #else
@@ -103,36 +100,36 @@ TEST_F(LuauInteger64Tests, StrictRejectsNumbers)
 TEST_F(LuauInteger64Tests, GetNumbers)
 {
     runLua("result = 42");
-    EXPECT_TRUE(result().isInstance<int64_t>());
-    EXPECT_EQ(42, result<int64_t>());
-    EXPECT_EQ(42u, result<uint64_t>());
+    EXPECT_TRUE(result().isInstance<long long>());
+    EXPECT_EQ(42, result<long long>());
+    EXPECT_EQ(42u, result<unsigned long long>());
 
     runLua("result = -42");
-    EXPECT_EQ(-42, result<int64_t>());
-    EXPECT_FALSE(result().isInstance<uint64_t>());
-    EXPECT_FALSE(result().cast<uint64_t>());
+    EXPECT_EQ(-42, result<long long>());
+    EXPECT_FALSE(result().isInstance<unsigned long long>());
+    EXPECT_FALSE(result().cast<unsigned long long>());
 
     runLua("result = 1.5");
-    EXPECT_FALSE(result().isInstance<int64_t>());
-    EXPECT_FALSE(result().cast<int64_t>());
+    EXPECT_FALSE(result().isInstance<long long>());
+    EXPECT_FALSE(result().cast<long long>());
 
     runLua("result = 2^63");
-    EXPECT_FALSE(result().isInstance<int64_t>());
-    EXPECT_TRUE(result().isInstance<uint64_t>());
-    EXPECT_EQ(9223372036854775808ull, result<uint64_t>());
+    EXPECT_FALSE(result().isInstance<long long>());
+    EXPECT_TRUE(result().isInstance<unsigned long long>());
+    EXPECT_EQ(9223372036854775808ull, result<unsigned long long>());
 
     runLua("result = 2^64");
-    EXPECT_FALSE(result().isInstance<uint64_t>());
+    EXPECT_FALSE(result().isInstance<unsigned long long>());
 
     runLua("result = math.huge");
-    EXPECT_FALSE(result().isInstance<int64_t>());
+    EXPECT_FALSE(result().isInstance<long long>());
 
     runLua("result = 0/0");
-    EXPECT_FALSE(result().isInstance<int64_t>());
+    EXPECT_FALSE(result().isInstance<long long>());
 
     runLua("result = '42'");
-    EXPECT_FALSE(result().isInstance<int64_t>());
-    EXPECT_FALSE(result().cast<int64_t>());
+    EXPECT_FALSE(result().isInstance<long long>());
+    EXPECT_FALSE(result().cast<long long>());
 }
 
 #endif // LUABRIDGE_STRICT_STACK_CONVERSIONS
@@ -140,18 +137,18 @@ TEST_F(LuauInteger64Tests, GetNumbers)
 TEST_F(LuauInteger64Tests, BoundFunctionsAcceptNativeIntegers)
 {
     luabridge::getGlobalNamespace(L)
-        .addFunction("echoSigned", [](int64_t value) { return value; })
-        .addFunction("echoUnsigned", [](uint64_t value) { return value; })
-        .addFunction("isMax", [](uint64_t value) { return value == std::numeric_limits<uint64_t>::max(); });
+        .addFunction("echoSigned", [](long long value) { return value; })
+        .addFunction("echoUnsigned", [](unsigned long long value) { return value; })
+        .addFunction("isMax", [](unsigned long long value) { return value == std::numeric_limits<unsigned long long>::max(); });
 
     runLua("result = isMax(-1i)");
     EXPECT_TRUE(result<bool>());
 
     runLua("result = echoUnsigned(42i)");
-    EXPECT_EQ(42u, result<uint64_t>());
+    EXPECT_EQ(42u, result<unsigned long long>());
 
     runLua("result = echoSigned(9007199254740993i)");
-    EXPECT_EQ(kAboveDoublePrecision, result<int64_t>());
+    EXPECT_EQ(kAboveDoublePrecision, result<long long>());
 }
 
 TEST_F(LuauInteger64Tests, LuaRefPrintAndHash)
@@ -185,7 +182,7 @@ TEST_F(LuauInteger64Tests, PushNativeIntegers)
     EXPECT_EQ(kAboveDoublePrecision, lua_tointeger64(L, -1, nullptr));
     lua_pop(L, 1);
 
-    ASSERT_TRUE(luabridge::push(L, std::numeric_limits<uint64_t>::max()));
+    ASSERT_TRUE(luabridge::push(L, std::numeric_limits<unsigned long long>::max()));
     EXPECT_EQ(LUA_TINTEGER, lua_type(L, -1));
     EXPECT_EQ(-1, lua_tointeger64(L, -1, nullptr));
     lua_pop(L, 1);
@@ -198,10 +195,10 @@ TEST_F(LuauInteger64Tests, PushNativeIntegers)
 TEST_F(LuauInteger64Tests, RoundTripThroughScripts)
 {
     luabridge::getGlobalNamespace(L)
-        .addFunction("signedId", [] { return std::numeric_limits<int64_t>::max(); })
-        .addFunction("unsignedId", [] { return std::numeric_limits<uint64_t>::max(); })
-        .addFunction("sameSigned", [](int64_t value) { return value == std::numeric_limits<int64_t>::max(); })
-        .addFunction("sameUnsigned", [](uint64_t value) { return value == std::numeric_limits<uint64_t>::max(); });
+        .addFunction("signedId", [] { return std::numeric_limits<long long>::max(); })
+        .addFunction("unsignedId", [] { return std::numeric_limits<unsigned long long>::max(); })
+        .addFunction("sameSigned", [](long long value) { return value == std::numeric_limits<long long>::max(); })
+        .addFunction("sameUnsigned", [](unsigned long long value) { return value == std::numeric_limits<unsigned long long>::max(); });
 
     runLua(R"(
         local s, u = signedId(), unsignedId()
@@ -220,7 +217,7 @@ TEST_F(LuauInteger64Tests, RoundTripThroughScripts)
 TEST_F(LuauInteger64Tests, NativeIntegersAreNotNumbers)
 {
     luabridge::getGlobalNamespace(L)
-        .addFunction("id", [] { return int64_t(5); });
+        .addFunction("id", [] { return 5ll; });
 
     runLua("result = id() == 5");
     EXPECT_FALSE(result<bool>());
@@ -233,16 +230,71 @@ TEST_F(LuauInteger64Tests, PushNumbersWhenIntegerLibraryFlagIsDisabled)
 {
     ScopedLuauFlags disabled({ &FFlag::LuauIntegerLibrary }, false);
 
-    ASSERT_TRUE(luabridge::push(L, int64_t(42)));
+    ASSERT_TRUE(luabridge::push(L, 42ll));
     EXPECT_EQ(LUA_TNUMBER, lua_type(L, -1));
-    EXPECT_TRUE(luabridge::isInstance<int64_t>(L, -1));
-    EXPECT_EQ(42, *luabridge::get<int64_t>(L, -1));
+    EXPECT_TRUE(luabridge::isInstance<long long>(L, -1));
+    EXPECT_EQ(42, *luabridge::get<long long>(L, -1));
     lua_pop(L, 1);
 
-    ASSERT_TRUE(luabridge::push(L, uint64_t(42)));
+    ASSERT_TRUE(luabridge::push(L, 42ull));
     EXPECT_EQ(LUA_TNUMBER, lua_type(L, -1));
-    EXPECT_EQ(42u, *luabridge::get<uint64_t>(L, -1));
+    EXPECT_EQ(42u, *luabridge::get<unsigned long long>(L, -1));
     lua_pop(L, 1);
+}
+
+TEST_F(LuauInteger64Tests, PlatformIntegersAcceptNumbersAndNativeIntegers)
+{
+    luabridge::getGlobalNamespace(L)
+        .addFunction("takeSizeT", [](std::size_t value) { return value == 7; })
+        .addFunction("takeLong", [](long value) { return value == -7; })
+        .addFunction("takeULong", [](unsigned long value) { return value == 7; });
+
+    for (const char* code : { "result = takeSizeT(7) and takeSizeT(7i)",
+                              "result = takeLong(-7) and takeLong(-7i)",
+                              "result = takeULong(7) and takeULong(7i)" })
+    {
+        runLua(code);
+        EXPECT_TRUE(result<bool>()) << code;
+    }
+
+    runLua("result = 1.5");
+    EXPECT_FALSE(result().isInstance<long>());
+
+    runLua("result = -1");
+    EXPECT_FALSE(result().isInstance<unsigned long>());
+
+    runLua("result = '7'");
+    EXPECT_FALSE(result().isInstance<long>());
+}
+
+TEST_F(LuauInteger64Tests, PlatformIntegersArePushedAsNumbersWhenTheyFit)
+{
+    ASSERT_TRUE(luabridge::push(L, 42l));
+    EXPECT_EQ(LUA_TNUMBER, lua_type(L, -1));
+    lua_pop(L, 1);
+
+    ASSERT_TRUE(luabridge::push(L, std::size_t(42)));
+    EXPECT_EQ(LUA_TNUMBER, lua_type(L, -1));
+    lua_pop(L, 1);
+
+    if constexpr (sizeof(long) == sizeof(long long))
+    {
+        ASSERT_TRUE(luabridge::push(L, static_cast<long>(kAboveDoublePrecision)));
+        EXPECT_EQ(LUA_TINTEGER, lua_type(L, -1));
+        EXPECT_EQ(kAboveDoublePrecision, *luabridge::get<long>(L, -1));
+        lua_pop(L, 1);
+
+        ASSERT_TRUE(luabridge::push(L, (std::numeric_limits<unsigned long>::max)()));
+        EXPECT_EQ(LUA_TINTEGER, lua_type(L, -1));
+        EXPECT_EQ((std::numeric_limits<unsigned long>::max)(), *luabridge::get<unsigned long>(L, -1));
+        lua_pop(L, 1);
+    }
+    else
+    {
+        runLua("result = 9007199254740993i");
+        EXPECT_FALSE(result().isInstance<long>());
+        EXPECT_FALSE(result().isInstance<unsigned long>());
+    }
 }
 
 #endif // LUABRIDGE_LUAU_NATIVE_INTEGER64

@@ -537,6 +537,24 @@ namespace detail {
 }
 
 /**
+ * @brief Converts a number with an exact integral value representable by `T`.
+ */
+template <class T>
+bool integralFromNumber(double number, T& value)
+{
+    if (! std::isfinite(number) || std::trunc(number) != number)
+        return false;
+
+    const double upper = std::ldexp(1.0, std::numeric_limits<T>::digits);
+    const double lower = std::is_signed_v<T> ? -upper : 0.0;
+    if (number < lower || number >= upper)
+        return false;
+
+    value = static_cast<T>(number);
+    return true;
+}
+
+/**
  * @brief Stack implementation for 64-bit integers using Luau native integers (`LUA_TINTEGER`).
  *
  * Reading accepts native integers (unsigned values keep their bit pattern) and numbers with an exact integral value
@@ -550,11 +568,6 @@ struct LuauInteger64Stack
 
     [[nodiscard]] static Result push(lua_State* L, T value)
     {
-#if LUABRIDGE_SAFE_STACK_CHECKS
-        if (! lua_checkstack(L, 1))
-            return makeErrorCode(ErrorCode::LuaStackOverflow);
-#endif
-
         lua_pushinteger64(L, static_cast<int64_t>(value));
         return {};
     }
@@ -596,30 +609,88 @@ private:
 
     static bool fromNumber(double number, T& value)
     {
-        if (! std::isfinite(number) || std::trunc(number) != number)
-            return false;
-
-        // The upper bounds are exact powers of two, so the comparisons are exact
-        if constexpr (std::is_signed_v<T>)
-        {
-            if (number < -9223372036854775808.0 || number >= 9223372036854775808.0)
-                return false;
-        }
-        else
-        {
-            if (number < 0.0 || number >= 18446744073709551616.0)
-                return false;
-        }
-
-        value = static_cast<T>(number);
-        return true;
+        return integralFromNumber(number, value);
     }
 };
 
+/**
+ * @brief Stack implementation for platform-sized integers (`long`, `unsigned long`, `size_t`) with Luau native integers.
+ *
+ * Their width differs between platforms (and `int64_t` may alias `long`), so to behave the same everywhere they are pushed
+ * as numbers when they fit a `lua_Integer` and as native integers otherwise (when enabled, so values are never truncated).
+ * Reading accepts both numbers and native integers representable by `T`, also with `LUABRIDGE_STRICT_STACK_CONVERSIONS`.
+ */
+template <class T>
+struct LuauPlatformIntegerStack
+{
+    static_assert(std::is_integral_v<T>);
+
+    [[nodiscard]] static Result push(lua_State* L, T value)
+    {
+        if (is_integral_representable_by(value))
+        {
+            lua_pushinteger(L, static_cast<lua_Integer>(value));
+            return {};
+        }
+
+        if (! isLuauNativeInteger64Enabled())
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
+
+        lua_pushinteger64(L, static_cast<int64_t>(value));
+        return {};
+    }
+
+    [[nodiscard]] static TypeResult<T> get(lua_State* L, int index)
+    {
+        const int type = lua_type(L, index);
+        if (type != LUA_TINTEGER && type != LUA_TNUMBER)
+            return makeErrorCode(ErrorCode::InvalidTypeCast);
+
+        T value{};
+        if (! toValue(L, index, type, value))
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
+
+        return value;
+    }
+
+    [[nodiscard]] static bool isInstance(lua_State* L, int index)
+    {
+        const int type = lua_type(L, index);
+
+        T value{};
+        return (type == LUA_TINTEGER || type == LUA_TNUMBER) && toValue(L, index, type, value);
+    }
+
+private:
+    static bool toValue(lua_State* L, int index, int type, T& value)
+    {
+        if (type == LUA_TNUMBER)
+            return integralFromNumber(lua_tonumber(L, index), value);
+
+        const int64_t integer = lua_tointeger64(L, index, nullptr);
+
+        if constexpr (sizeof(T) == sizeof(int64_t))
+        {
+            value = static_cast<T>(integer);
+            return true;
+        }
+        else
+        {
+            if (integer < static_cast<int64_t>((std::numeric_limits<T>::min)())
+                || integer > static_cast<int64_t>((std::numeric_limits<T>::max)()))
+                return false;
+
+            value = static_cast<T>(integer);
+            return true;
+        }
+    }
+};
+
+/**
+ * @brief Whether `T` is pushed as a Luau native integer: only types that are 64-bit on every platform.
+ */
 template <class T>
 inline constexpr bool is_luau_integer64_v =
-    std::is_same_v<T, std::int64_t> ||
-    std::is_same_v<T, std::uint64_t> ||
     std::is_same_v<T, long long> ||
     std::is_same_v<T, unsigned long long>;
 
@@ -636,33 +707,27 @@ struct Stack<long>
 {
     [[nodiscard]] static Result push(lua_State* L, long value)
     {
-#if LUABRIDGE_LUAU_NATIVE_INTEGER64
-        if constexpr (detail::is_luau_integer64_v<long>)
-        {
-            if (detail::isLuauNativeInteger64Enabled())
-                return detail::LuauInteger64Stack<long>::push(L, value);
-        }
-#endif
-
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 1))
             return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
+#if LUABRIDGE_LUAU_NATIVE_INTEGER64
+        return detail::LuauPlatformIntegerStack<long>::push(L, value);
+#else
         if (! is_integral_representable_by(value))
             return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
         lua_pushinteger(L, static_cast<lua_Integer>(value));
         return {};
+#endif
     }
 
     [[nodiscard]] static TypeResult<long> get(lua_State* L, int index)
     {
 #if LUABRIDGE_LUAU_NATIVE_INTEGER64
-        if constexpr (detail::is_luau_integer64_v<long>)
-            return detail::LuauInteger64Stack<long>::get(L, index);
-#endif
-
+        return detail::LuauPlatformIntegerStack<long>::get(L, index);
+#else
         if (lua_type(L, index) != LUA_TNUMBER)
             return makeErrorCode(ErrorCode::InvalidTypeCast);
 
@@ -670,19 +735,19 @@ struct Stack<long>
             return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
         return static_cast<long>(lua_tointeger(L, index));
+#endif
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
     {
 #if LUABRIDGE_LUAU_NATIVE_INTEGER64
-        if constexpr (detail::is_luau_integer64_v<long>)
-            return detail::LuauInteger64Stack<long>::isInstance(L, index);
-#endif
-
+        return detail::LuauPlatformIntegerStack<long>::isInstance(L, index);
+#else
         if (lua_type(L, index) == LUA_TNUMBER)
             return is_integral_representable_by<long>(L, index);
 
         return false;
+#endif
     }
 };
 
@@ -695,33 +760,27 @@ struct Stack<unsigned long>
 {
     [[nodiscard]] static Result push(lua_State* L, unsigned long value)
     {
-#if LUABRIDGE_LUAU_NATIVE_INTEGER64
-        if constexpr (detail::is_luau_integer64_v<unsigned long>)
-        {
-            if (detail::isLuauNativeInteger64Enabled())
-                return detail::LuauInteger64Stack<unsigned long>::push(L, value);
-        }
-#endif
-
 #if LUABRIDGE_SAFE_STACK_CHECKS
         if (! lua_checkstack(L, 1))
             return makeErrorCode(ErrorCode::LuaStackOverflow);
 #endif
 
+#if LUABRIDGE_LUAU_NATIVE_INTEGER64
+        return detail::LuauPlatformIntegerStack<unsigned long>::push(L, value);
+#else
         if (! is_integral_representable_by(value))
             return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
         pushunsigned(L, value);
         return {};
+#endif
     }
 
     [[nodiscard]] static TypeResult<unsigned long> get(lua_State* L, int index)
     {
 #if LUABRIDGE_LUAU_NATIVE_INTEGER64
-        if constexpr (detail::is_luau_integer64_v<unsigned long>)
-            return detail::LuauInteger64Stack<unsigned long>::get(L, index);
-#endif
-
+        return detail::LuauPlatformIntegerStack<unsigned long>::get(L, index);
+#else
         if (lua_type(L, index) != LUA_TNUMBER)
             return makeErrorCode(ErrorCode::InvalidTypeCast);
 
@@ -729,19 +788,19 @@ struct Stack<unsigned long>
             return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
         return static_cast<unsigned long>(lua_tointeger(L, index));
+#endif
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
     {
 #if LUABRIDGE_LUAU_NATIVE_INTEGER64
-        if constexpr (detail::is_luau_integer64_v<unsigned long>)
-            return detail::LuauInteger64Stack<unsigned long>::isInstance(L, index);
-#endif
-
+        return detail::LuauPlatformIntegerStack<unsigned long>::isInstance(L, index);
+#else
         if (lua_type(L, index) == LUA_TNUMBER)
             return is_integral_representable_by<unsigned long>(L, index);
 
         return false;
+#endif
     }
 };
 #endif
@@ -755,6 +814,11 @@ struct Stack<long long>
 {
     [[nodiscard]] static Result push(lua_State* L, long long value)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 1))
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
 #if LUABRIDGE_LUAU_NATIVE_INTEGER64
         if constexpr (detail::is_luau_integer64_v<long long>)
         {
@@ -762,12 +826,6 @@ struct Stack<long long>
                 return detail::LuauInteger64Stack<long long>::push(L, value);
         }
 #endif
-
-#if LUABRIDGE_SAFE_STACK_CHECKS
-        if (! lua_checkstack(L, 1))
-            return makeErrorCode(ErrorCode::LuaStackOverflow);
-#endif
-
         if (! is_integral_representable_by(value))
             return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
@@ -780,15 +838,17 @@ struct Stack<long long>
 #if LUABRIDGE_LUAU_NATIVE_INTEGER64
         if constexpr (detail::is_luau_integer64_v<long long>)
             return detail::LuauInteger64Stack<long long>::get(L, index);
+        else
 #endif
+        {
+            if (lua_type(L, index) != LUA_TNUMBER)
+                return makeErrorCode(ErrorCode::InvalidTypeCast);
 
-        if (lua_type(L, index) != LUA_TNUMBER)
-            return makeErrorCode(ErrorCode::InvalidTypeCast);
+            if (! is_integral_representable_by<long long>(L, index))
+                return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
-        if (! is_integral_representable_by<long long>(L, index))
-            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
-
-        return static_cast<long long>(lua_tointeger(L, index));
+            return static_cast<long long>(lua_tointeger(L, index));
+        }
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -796,12 +856,14 @@ struct Stack<long long>
 #if LUABRIDGE_LUAU_NATIVE_INTEGER64
         if constexpr (detail::is_luau_integer64_v<long long>)
             return detail::LuauInteger64Stack<long long>::isInstance(L, index);
+        else
 #endif
+        {
+            if (lua_type(L, index) == LUA_TNUMBER)
+                return is_integral_representable_by<long long>(L, index);
 
-        if (lua_type(L, index) == LUA_TNUMBER)
-            return is_integral_representable_by<long long>(L, index);
-
-        return false;
+            return false;
+        }
     }
 };
 
@@ -814,6 +876,11 @@ struct Stack<unsigned long long>
 {
     [[nodiscard]] static Result push(lua_State* L, unsigned long long value)
     {
+#if LUABRIDGE_SAFE_STACK_CHECKS
+        if (! lua_checkstack(L, 1))
+            return makeErrorCode(ErrorCode::LuaStackOverflow);
+#endif
+
 #if LUABRIDGE_LUAU_NATIVE_INTEGER64
         if constexpr (detail::is_luau_integer64_v<unsigned long long>)
         {
@@ -821,12 +888,6 @@ struct Stack<unsigned long long>
                 return detail::LuauInteger64Stack<unsigned long long>::push(L, value);
         }
 #endif
-
-#if LUABRIDGE_SAFE_STACK_CHECKS
-        if (! lua_checkstack(L, 1))
-            return makeErrorCode(ErrorCode::LuaStackOverflow);
-#endif
-
         if (! is_integral_representable_by(value))
             return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
@@ -839,15 +900,17 @@ struct Stack<unsigned long long>
 #if LUABRIDGE_LUAU_NATIVE_INTEGER64
         if constexpr (detail::is_luau_integer64_v<unsigned long long>)
             return detail::LuauInteger64Stack<unsigned long long>::get(L, index);
+        else
 #endif
+        {
+            if (lua_type(L, index) != LUA_TNUMBER)
+                return makeErrorCode(ErrorCode::InvalidTypeCast);
 
-        if (lua_type(L, index) != LUA_TNUMBER)
-            return makeErrorCode(ErrorCode::InvalidTypeCast);
+            if (! is_integral_representable_by<unsigned long long>(L, index))
+                return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
-        if (! is_integral_representable_by<unsigned long long>(L, index))
-            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
-
-        return static_cast<unsigned long long>(lua_tointeger(L, index));
+            return static_cast<unsigned long long>(lua_tointeger(L, index));
+        }
     }
 
     [[nodiscard]] static bool isInstance(lua_State* L, int index)
@@ -855,12 +918,14 @@ struct Stack<unsigned long long>
 #if LUABRIDGE_LUAU_NATIVE_INTEGER64
         if constexpr (detail::is_luau_integer64_v<unsigned long long>)
             return detail::LuauInteger64Stack<unsigned long long>::isInstance(L, index);
+        else
 #endif
+        {
+            if (lua_type(L, index) == LUA_TNUMBER)
+                return is_integral_representable_by<unsigned long long>(L, index);
 
-        if (lua_type(L, index) == LUA_TNUMBER)
-            return is_integral_representable_by<unsigned long long>(L, index);
-
-        return false;
+            return false;
+        }
     }
 };
 

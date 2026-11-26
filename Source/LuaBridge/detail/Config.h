@@ -124,8 +124,9 @@ LUAU_FASTFLAG(LuauIntegerLibrary)
  * When enabled:
  * - `Stack<bool>::get` only accepts `LUA_TBOOLEAN` (nil is not convertible to bool).
  * - Integer `Stack` specializations only accept Lua integer values (not floats with integer representation, on Lua 5.3+).
- * - 64-bit integer `Stack` specializations only accept Luau native integers when they are pushed as native integers
- *   (`LUABRIDGE_LUAU_NATIVE_INTEGER64` is enabled and the `LuauIntegerLibrary` flag is set).
+ * - `long long` and `unsigned long long` `Stack` specializations only accept Luau native integers when they are pushed as
+ *   native integers (`LUABRIDGE_LUAU_NATIVE_INTEGER64` is enabled and the `LuauIntegerLibrary` flag is set). `long`,
+ *   `unsigned long` and `size_t` keep accepting both numbers and native integers, as their width is platform dependent.
  * - `Stack<std::string>::get` only accepts `LUA_TSTRING` (numbers are not coerced to strings).
  *
  * When disabled (default), a more permissive conversion is used:
