@@ -5796,15 +5796,12 @@ struct Stack<long long>
             if (detail::isLuauNativeInteger64Enabled())
                 return detail::LuauInteger64Stack<long long>::push(L, value);
         }
-        else
 #endif
-        {
-            if (! is_integral_representable_by(value))
-                return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
+        if (! is_integral_representable_by(value))
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
-            lua_pushinteger(L, static_cast<lua_Integer>(value));
-            return {};
-        }
+        lua_pushinteger(L, static_cast<lua_Integer>(value));
+        return {};
     }
 
     [[nodiscard]] static TypeResult<long long> get(lua_State* L, int index)
@@ -5857,15 +5854,12 @@ struct Stack<unsigned long long>
             if (detail::isLuauNativeInteger64Enabled())
                 return detail::LuauInteger64Stack<unsigned long long>::push(L, value);
         }
-        else
 #endif
-        {
-            if (! is_integral_representable_by(value))
-                return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
+        if (! is_integral_representable_by(value))
+            return makeErrorCode(ErrorCode::IntegerDoesntFitIntoLuaInteger);
 
-            pushunsigned(L, value);
-            return {};
-        }
+        pushunsigned(L, value);
+        return {};
     }
 
     [[nodiscard]] static TypeResult<unsigned long long> get(lua_State* L, int index)
